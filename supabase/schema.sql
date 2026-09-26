@@ -24,6 +24,8 @@ create table if not exists public.profiles (
 );
 -- v3 migration: pure challenges, no campaign or contract
 alter table public.profiles add column if not exists friend_code text unique;
+-- v4: privacy — when off, friends do not see you on their boards
+alter table public.profiles add column if not exists share_activity boolean not null default true;
 alter table public.profiles drop column if exists focus_areas;
 alter table public.profiles drop column if exists intensity;
 alter table public.profiles drop column if exists onboarding;
@@ -272,6 +274,18 @@ end $$;
 
 drop function if exists public.set_commitment(int);
 
+create or replace function public.set_privacy(p_share boolean)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+begin
+  if uid is null then raise exception 'not authenticated'; end if;
+  update public.profiles set share_activity = p_share where id = uid;
+  return (select to_jsonb(pr) from public.profiles pr where pr.id = uid);
+end $$;
+
 create or replace function public.set_archetype(p_key text)
 returns jsonb
 language plpgsql security definer set search_path = public
@@ -443,6 +457,7 @@ as $$
   from public.profiles p
   join circle on circle.pid = p.id
   left join public.quest_completions c on c.user_id = p.id
+  where p.id = auth.uid() or p.share_activity
   group by p.id
   order by weekly_xp desc, p.xp desc
   limit 100
@@ -481,6 +496,7 @@ grant execute on function public.update_custom_quest(text, text, text, int) to a
 grant execute on function public.delete_custom_quest(text) to authenticated;
 grant execute on function public.set_quest_active(text, boolean) to authenticated;
 grant execute on function public.set_archetype(text) to authenticated;
+grant execute on function public.set_privacy(boolean) to authenticated;
 grant execute on function public.add_friend(text) to authenticated;
 grant execute on function public.remove_friend(text) to authenticated;
 

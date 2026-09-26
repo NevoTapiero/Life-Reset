@@ -117,15 +117,15 @@ export default function AuthPage() {
             onChange={(e) => setPassword(e.target.value)}
             className="field px-4 py-3.5 text-[15px]"
           />
-          {error && <p className="text-danger text-sm">{error}</p>}
-          {notice && <p className="text-accent text-sm">{notice}</p>}
-          <button type="submit" className="btn-primary py-4 mt-2" disabled={busy}>
+          {error && <p className="text-danger text-sm px-1">{error}</p>}
+          {notice && <p className="text-accent text-sm px-1">{notice}</p>}
+          <button type="submit" className="btn-primary py-4 mt-3" disabled={busy}>
             {busy ? "One moment…" : mode === "signup" ? "Create account" : "Sign in"}
           </button>
         </form>
 
         <button
-          className="text-muted text-sm mt-6 underline underline-offset-4 w-full text-center"
+          className="text-muted text-sm mt-8 py-2 underline underline-offset-4 w-full text-center"
           onClick={() => {
             setMode(mode === "signup" ? "signin" : "signup");
             setError(null);

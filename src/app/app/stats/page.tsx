@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -54,7 +54,7 @@ export default function StatsPage() {
   const radarMax = Math.max(20, ...values) * 1.15;
 
   return (
-    <div className="rise">
+    <div className="slide-in">
       <span className="eyebrow hud-label !text-ink">System · Character sheet</span>
       <div className="flex items-center gap-3.5 mt-4">
         <Avatar size={56} character={profile.archetype} />

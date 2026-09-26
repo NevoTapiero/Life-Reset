@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -108,7 +108,7 @@ export default function QuestManager() {
   const catalog = quests.filter((q) => !q.user_id);
 
   return (
-    <div className="rise">
+    <div className="slide-in">
       <span className="eyebrow hud-label !text-ink">System · Quest manager</span>
       <h1 className="display text-2xl mt-3">YOUR LOADOUT</h1>
       <p className="text-muted text-sm mt-1.5">
@@ -183,7 +183,7 @@ export default function QuestManager() {
         {customs.map((q) => {
           const on = activeIds.has(q.id);
           return (
-            <div key={q.id} className={`option-row px-3.5 py-3 flex items-center gap-3 ${on ? "selected" : ""}`}>
+            <div key={q.id} className={`option-row px-4 py-3.5 flex items-center gap-3 ${on ? "selected" : ""}`}>
               <button className="icon-tile active:scale-95 transition-transform" onClick={() => toggleActive(q)} aria-label={on ? "Deactivate" : "Activate"}>
                 <Icon name={on ? "check" : q.icon} size={19} strokeWidth={on ? 2.2 : 1.6} className={on ? "text-accent" : undefined} />
               </button>
@@ -223,7 +223,7 @@ export default function QuestManager() {
           return (
             <button
               key={q.id}
-              className={`option-row px-3.5 py-3 flex items-center gap-3 ${on ? "selected" : ""}`}
+              className={`option-row px-4 py-3.5 flex items-center gap-3 ${on ? "selected" : ""}`}
               onClick={() => toggleActive(q)}
             >
               <span className="icon-tile" style={on ? { color: "var(--accent)", borderColor: "rgba(255,107,0,0.4)" } : undefined}>

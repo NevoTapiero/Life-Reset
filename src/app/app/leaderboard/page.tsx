@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -16,6 +16,7 @@ type Row = {
 export default function LeaderboardPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [myCode, setMyCode] = useState<string | null>(null);
+  const [myShare, setMyShare] = useState(true);
   const [codeDraft, setCodeDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -31,8 +32,13 @@ export default function LeaderboardPage() {
     else setRows((data as Row[]) ?? []);
     const uid = userData.user?.id;
     if (uid) {
-      const { data: prof } = await supabase.from("profiles").select("friend_code").eq("id", uid).single();
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("friend_code, share_activity")
+        .eq("id", uid)
+        .single();
       setMyCode(prof?.friend_code ?? null);
+      setMyShare(prof?.share_activity ?? true);
     }
   }, []);
 
@@ -78,7 +84,7 @@ export default function LeaderboardPage() {
   const alone = rows.length <= 1;
 
   return (
-    <div className="rise">
+    <div className="slide-in">
       <span className="eyebrow hud-label !text-ink">System · Friends board</span>
       <h1 className="display text-2xl mt-3">THIS WEEK</h1>
       <p className="text-muted text-sm mt-1.5">
@@ -119,6 +125,12 @@ export default function LeaderboardPage() {
         {notice && <p className="text-sm mt-2.5" style={{ color: "var(--accent)" }}>{notice}</p>}
       </div>
 
+      {!myShare && (
+        <p className="hud-label text-center mt-4">
+          Privacy is on: friends cannot see you. Change it in your profile.
+        </p>
+      )}
+
       {alone ? (
         <div className="card p-6 mt-5 text-center">
           <div className="flex justify-center text-muted">
@@ -133,7 +145,7 @@ export default function LeaderboardPage() {
           {rows.map((r, i) => (
             <div
               key={`${r.username}-${i}`}
-              className="px-4 py-3 flex items-center gap-3"
+              className="px-4 py-3.5 flex items-center gap-3.5"
               style={r.is_me ? { background: "rgba(255,107,0,0.07)" } : undefined}
             >
               <span className="w-8 flex justify-center flex-none">

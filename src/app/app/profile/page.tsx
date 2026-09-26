@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -53,6 +53,20 @@ export default function ProfilePage() {
     else setProfile(data as Profile);
   }
 
+  async function togglePrivacy() {
+    if (!profile) return;
+    setMsg(null);
+    const next = !profile.share_activity;
+    setProfile({ ...profile, share_activity: next });
+    const { data, error } = await supabase.rpc("set_privacy", { p_share: next });
+    if (error) {
+      setProfile({ ...profile, share_activity: !next });
+      setMsg(error.message);
+    } else {
+      setProfile(data as Profile);
+    }
+  }
+
   async function copyCode() {
     if (!profile?.friend_code) return;
     try {
@@ -77,7 +91,7 @@ export default function ProfilePage() {
   const character = characterOf(profile.archetype);
 
   return (
-    <div className="rise">
+    <div className="slide-in">
       <span className="eyebrow hud-label !text-ink">System · Challenger file</span>
 
       <div className="bezel mt-4">
@@ -137,6 +151,25 @@ export default function ProfilePage() {
             </button>
           );
         })}
+      </div>
+
+      <div className="hud-label mt-6 mb-2.5">Privacy</div>
+      <div className="card px-4 py-4 flex items-center gap-3.5">
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm">Share my activity with friends</span>
+          <span className="block text-xs text-muted mt-1">
+            {profile.share_activity
+              ? "Friends see your XP, rank and streak on their boards."
+              : "You are hidden. Friends cannot see you on their boards."}
+          </span>
+        </span>
+        <button
+          className={`switch ${profile.share_activity ? "on" : ""}`}
+          role="switch"
+          aria-checked={profile.share_activity}
+          aria-label="Share my activity with friends"
+          onClick={togglePrivacy}
+        />
       </div>
 
       <div className="hud-label mt-6 mb-2.5">Friend code</div>

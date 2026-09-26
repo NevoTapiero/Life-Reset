@@ -12,6 +12,7 @@ import {
   CharacterKey,
   Profile,
   Quest,
+  Rank,
   characterOf,
   nextStreakMilestone,
   rankForXp,
@@ -25,6 +26,7 @@ export default function Dashboard() {
   const [doneToday, setDoneToday] = useState<Set<string>>(new Set());
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [xpFloat, setXpFloat] = useState<{ id: string; amount: number } | null>(null);
+  const [rankUp, setRankUp] = useState<Rank | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -79,7 +81,16 @@ export default function Dashboard() {
       });
       setError(rpcError.message);
     } else if (data) {
-      setProfile(data as Profile);
+      const updated = data as Profile;
+      if (!isDone && profile) {
+        const before = rankForXp(profile.xp);
+        const after = rankForXp(updated.xp);
+        if (after.label !== before.label) {
+          setRankUp(after);
+          setTimeout(() => setRankUp(null), 2800);
+        }
+      }
+      setProfile(updated);
     }
     setPendingId(null);
     setTimeout(() => setXpFloat(null), 1100);
@@ -103,7 +114,24 @@ export default function Dashboard() {
   const streakPct = Math.min(profile.streak_current / milestone, 1);
 
   return (
-    <div className="rise">
+    <div className="slide-in">
+      {rankUp && (
+        <div className="rankup-backdrop" onClick={() => setRankUp(null)}>
+          <div className="relative flex items-center justify-center">
+            <div className="rankup-ring" />
+            <div className="rankup-ring late" />
+            <div className="rankup-badge">
+              <RankBadge tierIndex={rankUp.tierIndex} stageIndex={rankUp.stageIndex} size={120} />
+            </div>
+          </div>
+          <div className="rankup-title text-center mt-6">
+            <div className="hud-label" style={{ color: "var(--accent)" }}>Rank up</div>
+            <div className="display text-3xl mt-1" style={{ color: rankUp.color }}>
+              {rankUp.label.toUpperCase()}
+            </div>
+          </div>
+        </div>
+      )}
       {/* hero: challenger card */}
       <div className="bezel">
         <div className="bezel-core p-4">
@@ -139,7 +167,9 @@ export default function Dashboard() {
 
             <div className="flex justify-between items-center mb-1.5 mt-3.5">
               <span className="hud-label flex items-center gap-1.5" style={{ color: "var(--accent)" }}>
-                <Icon name="flame" size={13} strokeWidth={2} />
+                <span className="flame-flicker inline-flex">
+                  <Icon name="flame" size={13} strokeWidth={2} />
+                </span>
                 Streak · <span className="font-mono text-[12px]">{profile.streak_current}</span> {profile.streak_current === 1 ? "day" : "days"}
               </span>
               <span className="hud-label font-mono">
@@ -197,17 +227,18 @@ export default function Dashboard() {
               key={q.id}
               onClick={() => toggle(q)}
               disabled={pendingId === q.id}
-              className={`option-row px-3.5 py-3 flex items-center gap-3 relative ${done ? "selected" : ""}`}
+              className={`option-row px-4 py-3.5 flex items-center gap-3.5 relative ${done ? "selected" : ""}`}
             >
               <span className="icon-tile" style={done ? { color: "var(--accent)", borderColor: "rgba(255,107,0,0.4)" } : undefined}>
                 <Icon name={q.icon} size={21} />
               </span>
               <span className="flex-1 text-left min-w-0">
                 <span className={`block text-[15px] truncate ${done ? "line-through text-muted" : ""}`}>{q.title}</span>
-                <span className="hud-label mt-0.5">{q.pillar} · +{q.xp} XP</span>
+                <span className="hud-label mt-1">{q.pillar} · +{q.xp} XP</span>
               </span>
               <span
-                className="w-7 h-7 rounded-full border flex items-center justify-center flex-none transition-colors duration-150"
+                key={done ? "done" : "todo"}
+                className={`w-7 h-7 rounded-full border flex items-center justify-center flex-none transition-colors duration-150 ${done ? "check-pop" : ""}`}
                 style={
                   done
                     ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 14px rgba(255,107,0,0.5)" }
@@ -234,7 +265,7 @@ export default function Dashboard() {
 
       {clearedAll && (
         <div className="hud-frame p-5 mt-6 text-center rise">
-          <div className="flex justify-center" style={{ color: "var(--accent)" }}>
+          <div className="flex justify-center bounce-in" style={{ color: "var(--accent)" }}>
             <Icon name="trophy" size={26} strokeWidth={1.8} />
           </div>
           <p className="display mt-2">ALL QUESTS CLEARED.</p>

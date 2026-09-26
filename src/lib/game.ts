@@ -49,6 +49,7 @@ export type Profile = {
   username: string;
   archetype: CharacterKey | null;
   friend_code: string | null;
+  share_activity: boolean;
   xp: number;
   streak_current: number;
   streak_best: number;
