@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import Icon from "@/components/Icon";
 
 const TABS = [
-  { href: "/app", label: "Today", icon: "⚔️" },
-  { href: "/app/stats", label: "Stats", icon: "📊" },
-  { href: "/app/leaderboard", label: "Board", icon: "🏆" },
-  { href: "/app/profile", label: "Profile", icon: "🎮" },
+  { href: "/app", label: "Today", icon: "swords" },
+  { href: "/app/quests", label: "Quests", icon: "sliders" },
+  { href: "/app/stats", label: "Stats", icon: "chart" },
+  { href: "/app/leaderboard", label: "Board", icon: "trophy" },
+  { href: "/app/profile", label: "Profile", icon: "user" },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -38,18 +40,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <main className="flex-1 pb-24 pt-5">{children}</main>
+      <main className="flex-1 pb-28 pt-5">{children}</main>
       <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md px-4 pb-4 z-40">
-        <div className="card flex justify-around py-2.5 backdrop-blur bg-[color-mix(in_srgb,var(--panel)_88%,transparent)]">
+        <div
+          className="flex justify-around py-2 rounded-full border border-line"
+          style={{
+            background: "color-mix(in srgb, var(--panel) 82%, transparent)",
+            backdropFilter: "blur(18px)",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+          }}
+        >
           {TABS.map((t) => {
             const active = pathname === t.href;
             return (
               <Link
                 key={t.href}
                 href={t.href}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg ${active ? "text-accent" : "text-muted"}`}
+                className="flex flex-col items-center gap-1 px-2.5 py-1.5 rounded-2xl transition-transform duration-150 active:scale-95"
+                style={{ color: active ? "var(--accent)" : "var(--muted)" }}
               >
-                <span aria-hidden>{t.icon}</span>
+                <Icon name={t.icon} size={20} strokeWidth={active ? 1.9 : 1.6} />
                 <span className="hud-label" style={active ? { color: "var(--accent)" } : undefined}>
                   {t.label}
                 </span>

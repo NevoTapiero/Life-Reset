@@ -35,10 +35,12 @@ create table if not exists public.quests (
   pillar text not null,
   xp int not null default 10,
   stats text[] not null default '{}',
-  icon text not null default '*',
+  icon text not null default 'sparkle',
   benefits jsonb not null default '[]'::jsonb,
   sort int not null default 0
 );
+-- custom quests: user_id null = global catalog, otherwise owned by that user
+alter table public.quests add column if not exists user_id uuid references public.profiles(id) on delete cascade;
 
 create table if not exists public.user_quests (
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -70,7 +72,7 @@ drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles for select using (auth.uid() = id);
 
 drop policy if exists "quests_read_all" on public.quests;
-create policy "quests_read_all" on public.quests for select using (true);
+create policy "quests_read_all" on public.quests for select using (user_id is null or user_id = auth.uid());
 
 drop policy if exists "user_quests_select_own" on public.user_quests;
 create policy "user_quests_select_own" on public.user_quests for select using (auth.uid() = user_id);
@@ -106,8 +108,19 @@ begin
       exit;
     end if;
   end loop;
-  insert into public.profiles (id, username) values (new.id, candidate)
+  insert into public.profiles (id, username, archetype, plan_started_on, onboarding_completed_at)
+  values (new.id, candidate, 'The Challenger', public.app_today(), now())
   on conflict (id) do nothing;
+
+  -- default quest loadout for every new challenger
+  insert into public.user_quests (user_id, quest_id)
+  select new.id, q from unnest(array[
+    'drink-water','sleep-7-9','read-books','workout','morning-sunlight',
+    'cold-shower','social-media-limit','deep-work','plan-tomorrow','healthy-meal'
+  ]) as q
+  where exists (select 1 from public.quests where id = q)
+  on conflict do nothing;
+
   return new;
 end $$;
 
@@ -115,57 +128,127 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created after insert on auth.users
 for each row execute function public.handle_new_user();
 
--- ============ onboarding ============
-create or replace function public.complete_onboarding(p jsonb)
+-- ============ quest management ============
+drop function if exists public.complete_onboarding(jsonb);
+
+create or replace function public.quest_stats_for_pillar(p_pillar text)
+returns text[]
+language sql immutable
+as $$
+  select case p_pillar
+    when 'Body' then array['STR','CON']
+    when 'Mind' then array['FOC','WIS']
+    when 'Rest' then array['DIS','CON']
+    when 'Fuel' then array['CON','STR']
+    when 'Connection' then array['WIS']
+    when 'Purpose' then array['DIS','FOC']
+    else array['DIS']
+  end
+$$;
+
+create or replace function public.create_custom_quest(p_title text, p_pillar text, p_xp int)
 returns jsonb
 language plpgsql security definer set search_path = public
 as $$
 declare
   uid uuid := auth.uid();
-  s jsonb;
-  fa text[];
-  qids text[];
+  clean_title text;
+  new_id text;
 begin
   if uid is null then raise exception 'not authenticated'; end if;
+  clean_title := trim(coalesce(p_title, ''));
+  if length(clean_title) < 2 or length(clean_title) > 60 then
+    raise exception 'title must be 2 to 60 characters';
+  end if;
+  if p_pillar not in ('Body','Mind','Rest','Fuel','Connection','Purpose') then
+    raise exception 'unknown pillar';
+  end if;
+  if p_xp not in (10, 15, 20, 25) then
+    raise exception 'xp must be 10, 15, 20 or 25';
+  end if;
+  if (select count(*) from public.quests where user_id = uid) >= 30 then
+    raise exception 'custom quest limit reached';
+  end if;
 
-  s := coalesce(p->'baseline_stats', '{}'::jsonb);
-  s := jsonb_build_object(
-    'CON', least(90, greatest(30, coalesce((s->>'CON')::int, 50))),
-    'FOC', least(90, greatest(30, coalesce((s->>'FOC')::int, 50))),
-    'DIS', least(90, greatest(30, coalesce((s->>'DIS')::int, 50))),
-    'STR', least(90, greatest(30, coalesce((s->>'STR')::int, 50))),
-    'WIS', least(90, greatest(30, coalesce((s->>'WIS')::int, 50)))
-  );
+  new_id := 'c-' || substr(md5(random()::text || clock_timestamp()::text), 1, 10);
+  insert into public.quests (id, title, description, pillar, xp, stats, icon, benefits, sort, user_id)
+  values (new_id, clean_title, '', p_pillar, p_xp, public.quest_stats_for_pillar(p_pillar), 'custom', '[]'::jsonb, 1000, uid);
 
-  fa := coalesce((select array_agg(x) from jsonb_array_elements_text(p->'focus_areas') as t(x)), '{}');
-
-  update public.profiles set
-    onboarding = p,
-    archetype = coalesce(p->>'archetype', archetype),
-    focus_areas = fa,
-    intensity = coalesce(p->>'intensity', intensity),
-    streak_commitment = coalesce((p->>'streak_commitment')::int, streak_commitment),
-    stats = case when onboarding_completed_at is null then s else stats end,
-    plan_started_on = coalesce(plan_started_on, public.app_today()),
-    onboarding_completed_at = coalesce(onboarding_completed_at, now())
-  where id = uid;
-
-  qids := array['drink-water','sleep-7-9','read-books'];
-  if 'health' = any(fa) then qids := qids || array['workout','morning-sunlight','healthy-meal']; end if;
-  if 'mental' = any(fa) then qids := qids || array['meditate','journal']; end if;
-  if 'career' = any(fa) then qids := qids || array['deep-work','plan-tomorrow']; end if;
-  if 'discipline' = any(fa) then qids := qids || array['cold-shower','social-media-limit']; end if;
-  if 'relationships' = any(fa) then qids := qids || array['reach-out']; end if;
-  if 'education' = any(fa) then qids := qids || array['learn-skill']; end if;
-  if 'spiritual' = any(fa) then qids := qids || array['gratitude']; end if;
-  if 'rebuild' = any(fa) then qids := qids || array['journal','plan-tomorrow','gratitude']; end if;
-  if array_length(qids, 1) < 6 then qids := qids || array['screens-off','social-media-limit']; end if;
-
-  insert into public.user_quests (user_id, quest_id)
-  select distinct uid, q from unnest(qids) as q
-  where exists (select 1 from public.quests where id = q)
+  insert into public.user_quests (user_id, quest_id) values (uid, new_id)
   on conflict do nothing;
 
+  return (select to_jsonb(q) from public.quests q where q.id = new_id);
+end $$;
+
+create or replace function public.update_custom_quest(p_id text, p_title text, p_pillar text, p_xp int)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  clean_title text;
+begin
+  if uid is null then raise exception 'not authenticated'; end if;
+  clean_title := trim(coalesce(p_title, ''));
+  if length(clean_title) < 2 or length(clean_title) > 60 then
+    raise exception 'title must be 2 to 60 characters';
+  end if;
+  if p_pillar not in ('Body','Mind','Rest','Fuel','Connection','Purpose') then
+    raise exception 'unknown pillar';
+  end if;
+  if p_xp not in (10, 15, 20, 25) then
+    raise exception 'xp must be 10, 15, 20 or 25';
+  end if;
+
+  update public.quests set
+    title = clean_title,
+    pillar = p_pillar,
+    xp = p_xp,
+    stats = public.quest_stats_for_pillar(p_pillar)
+  where id = p_id and user_id = uid;
+  if not found then raise exception 'quest not found or not yours'; end if;
+
+  return (select to_jsonb(q) from public.quests q where q.id = p_id);
+end $$;
+
+create or replace function public.delete_custom_quest(p_id text)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+begin
+  if uid is null then raise exception 'not authenticated'; end if;
+  delete from public.quests where id = p_id and user_id = uid;
+  if not found then raise exception 'quest not found or not yours'; end if;
+end $$;
+
+create or replace function public.set_quest_active(p_quest_id text, p_active boolean)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+begin
+  if uid is null then raise exception 'not authenticated'; end if;
+  if not exists (select 1 from public.quests where id = p_quest_id and (user_id is null or user_id = uid)) then
+    raise exception 'unknown quest';
+  end if;
+  insert into public.user_quests (user_id, quest_id, active)
+  values (uid, p_quest_id, p_active)
+  on conflict (user_id, quest_id) do update set active = excluded.active;
+end $$;
+
+create or replace function public.set_commitment(p_days int)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+begin
+  if uid is null then raise exception 'not authenticated'; end if;
+  if p_days not in (7, 14, 30, 50) then raise exception 'commitment must be 7, 14, 30 or 50 days'; end if;
+  update public.profiles set streak_commitment = p_days where id = uid;
   return (select to_jsonb(pr) from public.profiles pr where pr.id = uid);
 end $$;
 
@@ -310,30 +393,34 @@ end $$;
 
 grant execute on function public.app_today() to anon, authenticated;
 grant execute on function public.get_member_count() to anon, authenticated;
-grant execute on function public.complete_onboarding(jsonb) to authenticated;
 grant execute on function public.complete_quest(text) to authenticated;
 grant execute on function public.uncomplete_quest(text) to authenticated;
 grant execute on function public.get_leaderboard() to authenticated;
 grant execute on function public.set_username(text) to authenticated;
+grant execute on function public.create_custom_quest(text, text, int) to authenticated;
+grant execute on function public.update_custom_quest(text, text, text, int) to authenticated;
+grant execute on function public.delete_custom_quest(text) to authenticated;
+grant execute on function public.set_quest_active(text, boolean) to authenticated;
+grant execute on function public.set_commitment(int) to authenticated;
 
 -- ============ quest catalog seed ============
 insert into public.quests (id, title, description, pillar, xp, stats, icon, benefits, sort) values
-('drink-water',       'Drink water',            'Hit your daily water target.',                        'Fuel',       10, '{CON,STR}', '💧', '["+14% cognitive performance","+10% energy levels","+8% mental clarity"]', 1),
-('sleep-7-9',         'Sleep 7 to 9 hours',     'Protect a full night of sleep.',                      'Rest',       15, '{FOC,DIS}', '😴', '["+20% cognitive function","+15% immune function","+18% energy levels"]', 2),
-('read-books',        'Read 10 pages',          'Read from a real book, paper or ebook.',              'Mind',       15, '{WIS,FOC}', '📖', '["Stronger memory","Lower cognitive decline risk","Calmer evenings"]', 3),
-('workout',           'Train your body',        'Strength or cardio, at least 20 minutes.',            'Body',       20, '{STR,CON}', '🏋️', '["More strength and stamina","Better mood","Higher daily energy"]', 4),
-('morning-sunlight',  'Morning sunlight',       '10 minutes of daylight before noon.',                 'Body',       10, '{CON}',     '☀️', '["Better sleep at night","Steadier mood","Natural wake signal"]', 5),
-('meditate',          'Meditate',               '10 minutes of stillness and breath.',                 'Mind',       15, '{FOC,WIS}', '🧘', '["-21% cortisol","-10% anxiety levels","+12% emotional resilience"]', 6),
-('journal',           'Journal',                'Write what happened and how it felt.',                'Mind',       10, '{WIS}',     '✍️', '["+18% emotional clarity","+12% working memory","-15% stress levels"]', 7),
-('cold-shower',       'Cold shower',            'End your shower cold for 60 seconds.',                'Body',       15, '{DIS,CON}', '🥶', '["+250% dopamine","+8% circulation","+12% mental alertness"]', 8),
-('social-media-limit','Social media limit',     'Stay under 30 minutes of scrolling today.',           'Mind',       15, '{DIS,FOC}', '📵', '["-25% depression","-16% anxiety","+10% attention span"]', 9),
-('deep-work',         'Deep work block',        '50 minutes of focused work, no distractions.',        'Purpose',    20, '{FOC,DIS}', '🎯', '["Real progress on what matters","Sharper focus","Momentum at work"]', 10),
-('plan-tomorrow',     'Plan tomorrow',          'Write tomorrow''s top 3 before bed.',                 'Purpose',    10, '{DIS,WIS}', '🗓️', '["Calmer mornings","Clear priorities","Less decision fatigue"]', 11),
-('reach-out',         'Reach out',              'Message or call someone who matters to you.',         'Connection', 10, '{WIS}',     '🤝', '["Stronger relationships","Feeling connected","Support when it counts"]', 12),
-('learn-skill',       'Learn something',        '20 minutes on a skill or course.',                    'Mind',       15, '{WIS,FOC}', '🧠', '["Compounding knowledge","Career leverage","Confidence in your craft"]', 13),
-('gratitude',         'Gratitude',              'Write 3 things you are grateful for.',                'Purpose',    10, '{WIS}',     '🙏', '["Better baseline mood","Perspective under stress","Deeper sleep"]', 14),
-('healthy-meal',      'Eat one clean meal',     'One meal with real food, protein and greens.',        'Fuel',       10, '{CON,STR}', '🥗', '["Steadier energy","Better body composition","Fewer crashes"]', 15),
-('screens-off',       'Screens off before bed', 'No screens for the last 30 minutes of your day.',     'Rest',       10, '{DIS}',     '🌙', '["Falling asleep faster","Deeper sleep","Calmer mind at night"]', 16)
+('drink-water',       'Drink water',            'Hit your daily water target.',                        'Fuel',       10, '{CON,STR}', 'droplet',   '["+14% cognitive performance","+10% energy levels","+8% mental clarity"]', 1),
+('sleep-7-9',         'Sleep 7 to 9 hours',     'Protect a full night of sleep.',                      'Rest',       15, '{FOC,DIS}', 'moon',      '["+20% cognitive function","+15% immune function","+18% energy levels"]', 2),
+('read-books',        'Read 10 pages',          'Read from a real book, paper or ebook.',              'Mind',       15, '{WIS,FOC}', 'book',      '["Stronger memory","Lower cognitive decline risk","Calmer evenings"]', 3),
+('workout',           'Train your body',        'Strength or cardio, at least 20 minutes.',            'Body',       20, '{STR,CON}', 'dumbbell',  '["More strength and stamina","Better mood","Higher daily energy"]', 4),
+('morning-sunlight',  'Morning sunlight',       '10 minutes of daylight before noon.',                 'Body',       10, '{CON}',     'sun',       '["Better sleep at night","Steadier mood","Natural wake signal"]', 5),
+('meditate',          'Meditate',               '10 minutes of stillness and breath.',                 'Mind',       15, '{FOC,WIS}', 'lotus',     '["-21% cortisol","-10% anxiety levels","+12% emotional resilience"]', 6),
+('journal',           'Journal',                'Write what happened and how it felt.',                'Mind',       10, '{WIS}',     'pen',       '["+18% emotional clarity","+12% working memory","-15% stress levels"]', 7),
+('cold-shower',       'Cold shower',            'End your shower cold for 60 seconds.',                'Body',       15, '{DIS,CON}', 'snowflake', '["+250% dopamine","+8% circulation","+12% mental alertness"]', 8),
+('social-media-limit','Social media limit',     'Stay under 30 minutes of scrolling today.',           'Mind',       15, '{DIS,FOC}', 'phone-off', '["-25% depression","-16% anxiety","+10% attention span"]', 9),
+('deep-work',         'Deep work block',        '50 minutes of focused work, no distractions.',        'Purpose',    20, '{FOC,DIS}', 'target',    '["Real progress on what matters","Sharper focus","Momentum at work"]', 10),
+('plan-tomorrow',     'Plan tomorrow',          'Write tomorrow''s top 3 before bed.',                 'Purpose',    10, '{DIS,WIS}', 'calendar',  '["Calmer mornings","Clear priorities","Less decision fatigue"]', 11),
+('reach-out',         'Reach out',              'Message or call someone who matters to you.',         'Connection', 10, '{WIS}',     'users',     '["Stronger relationships","Feeling connected","Support when it counts"]', 12),
+('learn-skill',       'Learn something',        '20 minutes on a skill or course.',                    'Mind',       15, '{WIS,FOC}', 'bulb',      '["Compounding knowledge","Career leverage","Confidence in your craft"]', 13),
+('gratitude',         'Gratitude',              'Write 3 things you are grateful for.',                'Purpose',    10, '{WIS}',     'sparkle',   '["Better baseline mood","Perspective under stress","Deeper sleep"]', 14),
+('healthy-meal',      'Eat one clean meal',     'One meal with real food, protein and greens.',        'Fuel',       10, '{CON,STR}', 'apple',     '["Steadier energy","Better body composition","Fewer crashes"]', 15),
+('screens-off',       'Screens off before bed', 'No screens for the last 30 minutes of your day.',     'Rest',       10, '{DIS}',     'screen-off','["Falling asleep faster","Deeper sleep","Calmer mind at night"]', 16)
 on conflict (id) do update set
   title = excluded.title,
   description = excluded.description,

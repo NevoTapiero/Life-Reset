@@ -1,6 +1,8 @@
-# Life Reset: product state (2026-09-26)
+# Life Reset: product state (2026-09-26, revision 2)
 
 Life Reset is Nevo Tapiero's gamified habit transformation app, inspired by a competitor teardown (the 52 onboarding screenshots in this notebook). It is a **free platform**: no subscription, no paywall. Repo: github.com/NevoTapiero/Life-Reset. Live Supabase project "Life Reset" (ref etlumfjimkjjdmhimzwr).
+
+**Revision 2 changes**: the diagnostic quiz was removed entirely (landing goes straight to auth; every new account is born with the 10 default quests, The Challenger archetype and a 66 day campaign starting that day). Google sign in is live. A quest manager lets users forge, edit, delete and toggle their own quests alongside the 16 quest armory. The whole UI was rebuilt to match the original app's visual language: near black background with an ambient amber glow, neon orange (#FF6B00 to #FF8800) pill buttons, Syne extended display font, Geist body, mono HUD labels in eyebrow pills, hand drawn white line icons in dark rounded tiles (no emoji anywhere), an inline SVG anime challenger avatar in a glowing circular frame, and double bezel cards.
 
 ## Concept
 
@@ -8,15 +10,11 @@ Real life habits become RPG quests. Completing a quest pays XP, raises five char
 
 ## User flow (implemented and verified end to end)
 
-1. **Landing**: "Reset your life. For real this time." Live member count from the database (no fabricated social proof anywhere; sample testimonials are labeled Sample).
-2. **Diagnostic quiz**: about 21 questions with dynamic branching. Choosing Health & fitness adds goal, obstacle and injury questions (plus an injury status follow up); choosing Career & productivity adds stage and challenge questions. Answers persist in localStorage so refreshes do not lose progress.
-3. **Interstitials**: personal projection curve, The System intro (six pillars, primary focus callout), quest mechanics with the rank ladder, the 66 day science screen, live quest cards fetched from the database, community wall, reminders permission, leaderboard preview, plan generation loading screen with the concrete Day 66 date, Reset Type reveal, Day 1 vs Day 66 character sheet (radar), streak contract (7/14/30/50 days, 14 recommended).
-4. **Auth**: Continue with Google (flow coded; Supabase provider still needs Google OAuth client id and secret) or email and password with signup auto confirm on, so no confirmation email is required. On first sign in the pending assessment is written through the complete_onboarding RPC, which stores the profile, baseline stats and archetype and assigns quests from the chosen focus areas.
-5. **The app**: Today (quest checklist, XP, rank progress, streak vs commitment), Stats (radar of baseline vs current attributes, pillar activity, totals), Board (weekly leaderboard, resets Monday), Profile (username change, campaign dates, sign out).
-
-## Reset Types (archetypes)
-
-Assigned from answers: The Phoenix (rebuilding or at the lowest), The Disciplined (already disciplined), The Strategist (career first), The Warrior (health first plus push or all in intensity), The Seeker (mental or spiritual first), The Challenger (default).
+1. **Landing**: avatar hero, "Reset your life. For real this time.", live member count, straight to auth. No quiz.
+2. **Auth**: Continue with Google (provider enabled and verified) or email and password with signup auto confirm, so accounts work immediately. The signup trigger creates the profile with The Challenger archetype, starts the 66 day campaign that day, and equips the 10 default quests: drink water, sleep 7 to 9 hours, read 10 pages, train your body, morning sunlight, cold shower, social media limit, deep work block, plan tomorrow, eat one clean meal.
+3. **Today**: quest checklist paying XP with rank progress, streak vs contract, avatar hero card.
+4. **Quests** (manager): forge custom quests (name, pillar, difficulty +10/15/20/25 XP, 30 max), edit and delete them, and toggle any quest from the 16 quest armory in and out of the daily loadout.
+5. **Stats**: radar of attributes, quest totals, pillar activity. **Board**: weekly leaderboard, resets Monday. **Profile**: avatar, username change, streak commitment selector (7/14/30/50), campaign dates, sign out.
 
 ## Game math
 
@@ -28,8 +26,7 @@ Assigned from answers: The Phoenix (rebuilding or at the lowest), The Discipline
 
 ## Open items
 
-- Google OAuth credentials (Google Cloud Console) to activate the Google button.
-- Push notification delivery (only the permission prompt exists).
+- Push notification delivery and streak reminders.
 - PWA manifest and install experience.
-- Production hosting and domain (Vercel planned later).
-- Real testimonial pipeline to replace the Sample cards.
+- Production hosting and domain (Vercel planned later); update Supabase site_url and Google OAuth redirect when it exists.
+- More avatar variants (per archetype or user selectable).

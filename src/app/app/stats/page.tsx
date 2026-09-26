@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Radar from "@/components/Radar";
+import Icon from "@/components/Icon";
+import Avatar from "@/components/Avatar";
 import {
   PILLARS,
   PILLAR_ICONS,
@@ -53,40 +55,50 @@ export default function StatsPage() {
 
   return (
     <div className="rise">
-      <div className="hud-label">Character sheet</div>
-      <h1 className="text-2xl font-bold mt-1">
-        {profile.username} · <span className="text-accent">{profile.archetype ?? "Challenger"}</span>
-      </h1>
-
-      <div className="flex justify-center mt-2">
-        <Radar
-          labels={[...STAT_KEYS]}
-          series={[
-            {
-              values: STAT_KEYS.map((k) => profile.stats[k] ?? 50),
-              stroke: "var(--accent)",
-              fill: "color-mix(in srgb, var(--accent) 14%, transparent)",
-            },
-            { values: STAT_KEYS.map((k) => baseline[k] ?? 50), stroke: "var(--muted)", dashed: true },
-          ]}
-        />
+      <span className="eyebrow hud-label !text-ink">System · Character sheet</span>
+      <div className="flex items-center gap-3.5 mt-4">
+        <Avatar size={56} />
+        <div>
+          <h1 className="display text-xl">{profile.username.toUpperCase()}</h1>
+          <div className="hud-label mt-0.5" style={{ color: "var(--accent)" }}>
+            {profile.archetype ?? "The Challenger"}
+          </div>
+        </div>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="bezel mt-5">
+        <div className="bezel-core flex justify-center py-2">
+          <Radar
+            labels={[...STAT_KEYS]}
+            size={264}
+            series={[
+              {
+                values: STAT_KEYS.map((k) => profile.stats[k] ?? 50),
+                stroke: "var(--accent)",
+                fill: "rgba(255, 107, 0, 0.28)",
+                dots: true,
+              },
+              { values: STAT_KEYS.map((k) => baseline[k] ?? 50), stroke: "var(--muted)", dashed: true },
+            ]}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 mt-4 stagger">
         {STAT_KEYS.map((k) => {
           const now = profile.stats[k] ?? 50;
           const base = baseline[k] ?? 50;
           const delta = now - base;
           return (
             <div key={k} className="card px-4 py-2.5 flex items-center gap-3">
-              <span className="hud-label w-9">{k}</span>
-              <span className="flex-1">
+              <span className="hud-label w-9" style={{ color: "var(--accent)" }}>{k}</span>
+              <span className="flex-1 min-w-0">
                 <span className="block text-sm">{STAT_INFO[k].name}</span>
-                <span className="block text-xs text-muted">{STAT_INFO[k].blurb}</span>
+                <span className="block text-xs text-muted truncate">{STAT_INFO[k].blurb}</span>
               </span>
               <span className="font-mono font-semibold">{now}</span>
               {delta !== 0 && (
-                <span className={`hud-label ${delta > 0 ? "!text-success" : "!text-danger"}`}>
+                <span className="hud-label" style={{ color: delta > 0 ? "var(--accent)" : "var(--danger)" }}>
                   {delta > 0 ? `+${delta}` : delta}
                 </span>
               )}
@@ -95,30 +107,34 @@ export default function StatsPage() {
         })}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mt-5">
+      <div className="grid grid-cols-2 gap-2.5 mt-5">
         <div className="card p-4 text-center">
-          <div className="text-2xl font-bold text-accent">{totalCompletions}</div>
+          <div className="display text-2xl" style={{ color: "var(--accent)" }}>{totalCompletions}</div>
           <div className="hud-label mt-1">Quests cleared</div>
         </div>
         <div className="card p-4 text-center">
-          <div className="text-2xl font-bold text-gold">{profile.streak_best}</div>
+          <div className="display text-2xl" style={{ color: "var(--bronze)" }}>{profile.streak_best}</div>
           <div className="hud-label mt-1">Best streak</div>
         </div>
       </div>
 
-      <div className="card p-4 mt-5">
-        <div className="hud-label mb-3">Pillar activity</div>
-        <div className="flex flex-col gap-2.5">
+      <div className="card p-4 mt-4">
+        <div className="hud-label mb-3.5">Pillar activity</div>
+        <div className="flex flex-col gap-3">
           {PILLARS.map((p: Pillar) => {
             const count = pillarCounts[p] ?? 0;
             return (
               <div key={p} className="flex items-center gap-3">
-                <span className="w-6 text-center" aria-hidden>{PILLAR_ICONS[p]}</span>
+                <span className="w-6 flex justify-center text-muted">
+                  <Icon name={PILLAR_ICONS[p]} size={16} />
+                </span>
                 <span className="hud-label w-24">{p}</span>
-                <div className="flex-1 h-2 rounded-full bg-panel2 overflow-hidden">
+                <div className="track flex-1">
                   <div
-                    className="h-full bg-accent2 rounded-full"
-                    style={{ width: `${(count / maxPillar) * 100}%` }}
+                    style={{
+                      width: `${(count / maxPillar) * 100}%`,
+                      background: "linear-gradient(90deg, var(--bronze), var(--accent))",
+                    }}
                   />
                 </div>
                 <span className="hud-label w-6 text-right">{count}</span>

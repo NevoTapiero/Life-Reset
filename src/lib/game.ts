@@ -13,13 +13,14 @@ export const STAT_INFO: Record<StatKey, { name: string; blurb: string }> = {
 export const PILLARS = ["Body", "Mind", "Rest", "Fuel", "Connection", "Purpose"] as const;
 export type Pillar = (typeof PILLARS)[number];
 
+// icon names for the Icon component, per the original app's pillar glyphs
 export const PILLAR_ICONS: Record<Pillar, string> = {
-  Body: "💪",
-  Mind: "🧠",
-  Rest: "🌙",
-  Fuel: "⚡",
-  Connection: "🤝",
-  Purpose: "🎯",
+  Body: "dumbbell",
+  Mind: "bulb",
+  Rest: "moon",
+  Fuel: "leaf",
+  Connection: "users",
+  Purpose: "flame",
 };
 
 export type Stats = Record<StatKey, number>;
@@ -52,6 +53,7 @@ export type Quest = {
   icon: string;
   benefits: string[];
   sort: number;
+  user_id: string | null;
 };
 
 const TIERS = ["Bronze", "Silver", "Gold", "Platinum", "Diamond"] as const;
@@ -105,16 +107,3 @@ export function formatDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
-export const INTENSITY_MULTIPLIER: Record<string, number> = {
-  gentle: 2.5,
-  steady: 3.0,
-  push: 3.5,
-  allin: 4.0,
-};
-
-export function projectedStats(baseline: Stats, intensity: string | null): Stats {
-  const m = INTENSITY_MULTIPLIER[intensity ?? "steady"] ?? 3.0;
-  const out = {} as Stats;
-  for (const k of STAT_KEYS) out[k] = Math.round((baseline[k] ?? 50) * m);
-  return out;
-}

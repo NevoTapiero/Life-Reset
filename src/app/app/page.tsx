@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import Avatar from "@/components/Avatar";
+import Icon from "@/components/Icon";
 import {
   PLAN_DAYS,
   Profile,
@@ -57,7 +60,6 @@ export default function Dashboard() {
     setPendingId(q.id);
     setError(null);
     const isDone = doneToday.has(q.id);
-    // optimistic
     setDoneToday((prev) => {
       const nextSet = new Set(prev);
       if (isDone) nextSet.delete(q.id);
@@ -69,7 +71,6 @@ export default function Dashboard() {
       p_quest_id: q.id,
     });
     if (rpcError) {
-      // revert
       setDoneToday((prev) => {
         const nextSet = new Set(prev);
         if (isDone) nextSet.add(q.id);
@@ -91,55 +92,70 @@ export default function Dashboard() {
   const rank = rankForXp(profile.xp);
   const day = dayOfPlan(profile.plan_started_on, today || new Date().toISOString().slice(0, 10));
   const clearedAll = quests.length > 0 && quests.every((q) => doneToday.has(q.id));
+  const clearedCount = quests.filter((q) => doneToday.has(q.id)).length;
   const streakPct = Math.min(profile.streak_current / Math.max(profile.streak_commitment, 1), 1);
 
   return (
     <div className="rise">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="hud-label">Campaign 1 · Day {day} of {PLAN_DAYS}</div>
-          <h1 className="text-2xl font-bold mt-1">
-            {clearedAll ? "All quests cleared." : `Today's quests, ${profile.username}`}
-          </h1>
-        </div>
-        <div className="text-right">
-          <div className="font-mono font-bold" style={{ color: rank.color }}>
-            {rank.label}
+      {/* hero: challenger card */}
+      <div className="bezel">
+        <div className="bezel-core p-4">
+          <div className="flex items-center gap-4">
+            <Avatar size={76} />
+            <div className="flex-1 min-w-0">
+              <div className="hud-label">Campaign 1 · Day {day} / {PLAN_DAYS}</div>
+              <div className="display text-xl mt-0.5 truncate">{profile.username.toUpperCase()}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="hud-label" style={{ color: rank.color }}>
+                  ◆ {rank.label}
+                </span>
+                <span className="hud-label">{profile.xp.toLocaleString()} XP</span>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-0.5 pr-1" style={{ color: "var(--accent)" }}>
+              <Icon name="flame" size={26} strokeWidth={1.8} />
+              <span className="display text-lg leading-none">{profile.streak_current}</span>
+              <span className="hud-label">streak</span>
+            </div>
           </div>
-          <div className="hud-label mt-0.5">{profile.xp.toLocaleString()} XP</div>
+
+          <div className="mt-4">
+            <div className="flex justify-between items-center mb-1.5">
+              <span className="hud-label">Rank progress</span>
+              <span className="hud-label">
+                {rank.atMax ? "Max rank" : `${rank.xpIntoDivision}/${rank.xpForDivision} XP`}
+              </span>
+            </div>
+            <div className="track">
+              <div style={{ width: `${rank.progress * 100}%`, background: rank.color, boxShadow: `0 0 12px ${rank.color}` }} />
+            </div>
+            <div className="flex justify-between items-center mb-1.5 mt-3">
+              <span className="hud-label">Contract · {profile.streak_commitment} day streak</span>
+              <span className="hud-label">Best {profile.streak_best}</span>
+            </div>
+            <div className="track track-accent">
+              <div style={{ width: `${streakPct * 100}%` }} />
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="card p-4 mt-5">
-        <div className="flex justify-between items-center">
-          <span className="hud-label">Rank progress</span>
+      {/* quests */}
+      <div className="flex items-center justify-between mt-6 mb-3">
+        <span className="eyebrow hud-label !text-ink">System · Today&apos;s quests</span>
+        <div className="flex items-center gap-3">
           <span className="hud-label">
-            {rank.atMax ? "Max rank" : `${rank.xpIntoDivision}/${rank.xpForDivision} XP`}
+            {clearedCount}/{quests.length}
           </span>
-        </div>
-        <div className="h-2 rounded-full bg-panel2 overflow-hidden mt-2">
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${rank.progress * 100}%`, background: rank.color }}
-          />
-        </div>
-        <div className="flex justify-between items-center mt-4">
-          <span className="hud-label">
-            🔥 Streak {profile.streak_current} / {profile.streak_commitment} committed
-          </span>
-          <span className="hud-label">Best {profile.streak_best}</span>
-        </div>
-        <div className="h-2 rounded-full bg-panel2 overflow-hidden mt-2">
-          <div
-            className="h-full bg-gold rounded-full transition-all duration-500"
-            style={{ width: `${streakPct * 100}%` }}
-          />
+          <Link href="/app/quests" aria-label="Manage quests" className="icon-tile !w-9 !h-9 !rounded-[10px] active:scale-95 transition-transform">
+            <Icon name="sliders" size={17} />
+          </Link>
         </div>
       </div>
 
-      {error && <p className="text-danger text-sm mt-3">{error}</p>}
+      {error && <p className="text-danger text-sm mb-3">{error}</p>}
 
-      <div className="flex flex-col gap-2.5 mt-5">
+      <div className="flex flex-col gap-2.5 stagger">
         {quests.map((q) => {
           const done = doneToday.has(q.id);
           return (
@@ -147,23 +163,28 @@ export default function Dashboard() {
               key={q.id}
               onClick={() => toggle(q)}
               disabled={pendingId === q.id}
-              className={`option-row px-4 py-3.5 flex items-center gap-3 relative ${done ? "selected" : ""}`}
+              className={`option-row px-3.5 py-3 flex items-center gap-3 relative ${done ? "selected" : ""}`}
             >
-              <span className="text-2xl" aria-hidden>{q.icon}</span>
-              <span className="flex-1 text-left">
-                <span className={`block ${done ? "line-through text-muted" : ""}`}>{q.title}</span>
+              <span className="icon-tile" style={done ? { color: "var(--accent)", borderColor: "rgba(255,107,0,0.4)" } : undefined}>
+                <Icon name={q.icon} size={21} />
+              </span>
+              <span className="flex-1 text-left min-w-0">
+                <span className={`block text-[15px] truncate ${done ? "line-through text-muted" : ""}`}>{q.title}</span>
                 <span className="hud-label mt-0.5">{q.pillar} · +{q.xp} XP</span>
               </span>
               <span
-                className={`w-7 h-7 rounded-full border flex items-center justify-center text-sm ${
-                  done ? "bg-accent border-accent text-[#04110d]" : "border-line text-transparent"
-                }`}
+                className="w-7 h-7 rounded-full border flex items-center justify-center flex-none transition-colors duration-150"
+                style={
+                  done
+                    ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 14px rgba(255,107,0,0.5)" }
+                    : { borderColor: "var(--line-strong)", color: "transparent" }
+                }
                 aria-hidden
               >
-                ✓
+                <Icon name="check" size={14} strokeWidth={2.4} />
               </span>
               {xpFloat?.id === q.id && (
-                <span className="xp-float absolute right-4 -top-1 text-accent font-mono font-bold text-sm">
+                <span className="xp-float absolute right-4 -top-1 font-mono font-bold text-sm">
                   +{xpFloat.amount} XP
                 </span>
               )}
@@ -171,16 +192,18 @@ export default function Dashboard() {
           );
         })}
         {quests.length === 0 && (
-          <div className="card p-6 text-center text-muted">
-            No active quests yet. Finish onboarding to generate your plan.
+          <div className="card p-6 text-center text-muted text-sm">
+            No active quests. Open the quest manager to build your loadout.
           </div>
         )}
       </div>
 
       {clearedAll && (
-        <div className="card p-5 mt-5 text-center border-l-2 border-l-[var(--accent)]">
-          <div className="text-3xl" aria-hidden>🏁</div>
-          <p className="mt-2 font-semibold">Day {day} cleared, challenger.</p>
+        <div className="hud-frame p-5 mt-6 text-center rise">
+          <div className="flex justify-center" style={{ color: "var(--accent)" }}>
+            <Icon name="trophy" size={26} strokeWidth={1.8} />
+          </div>
+          <p className="display mt-2">DAY {day} CLEARED, CHALLENGER.</p>
           <p className="text-sm text-muted mt-1">
             Campaign 1 ends {formatDate(finishDate(profile.plan_started_on))}. See you tomorrow.
           </p>

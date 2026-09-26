@@ -5,6 +5,7 @@ type Series = {
   stroke: string;
   fill?: string;
   dashed?: boolean;
+  dots?: boolean;
 };
 
 export default function Radar({
@@ -56,15 +57,21 @@ export default function Radar({
         return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="var(--line)" strokeWidth={1} />;
       })}
       {series.map((s, si) => (
-        <path
-          key={si}
-          d={seriesPath(s.values)}
-          fill={s.fill ?? "none"}
-          stroke={s.stroke}
-          strokeWidth={2}
-          strokeDasharray={s.dashed ? "5 4" : undefined}
-          strokeLinejoin="round"
-        />
+        <g key={si}>
+          <path
+            d={seriesPath(s.values)}
+            fill={s.fill ?? "none"}
+            stroke={s.stroke}
+            strokeWidth={2}
+            strokeDasharray={s.dashed ? "5 4" : undefined}
+            strokeLinejoin="round"
+          />
+          {s.dots &&
+            s.values.map((v, i) => {
+              const [x, y] = point(i, v);
+              return <circle key={i} cx={x} cy={y} r={3} fill={s.stroke} />;
+            })}
+        </g>
       ))}
       {labels.map((label, i) => {
         const [x, y] = point(i, peak * 1.22);

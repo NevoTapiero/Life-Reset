@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import Avatar from "@/components/Avatar";
+import Icon from "@/components/Icon";
 
 export default function Landing() {
-  const [showWhat, setShowWhat] = useState(false);
   const [members, setMembers] = useState<number | null>(null);
 
   useEffect(() => {
@@ -15,75 +16,72 @@ export default function Landing() {
   }, []);
 
   return (
-    <main className="flex-1 flex flex-col justify-between py-10">
-      <div className="rise">
-        <div className="hud-label text-center">
+    <main className="flex-1 flex flex-col py-8">
+      <div className="flex justify-center rise">
+        <span className="eyebrow hud-label !text-ink">
           {members !== null && members >= 100
             ? `${members.toLocaleString()} challengers inside`
             : "Founding cohort now open"}
-        </div>
-        <div className="mt-1 flex justify-center gap-0.5 text-gold text-sm" aria-hidden>
-          ★★★★★
-        </div>
+        </span>
       </div>
 
-      <div className="text-center rise">
-        <div className="text-6xl mb-6" aria-hidden>
-          ⚔️
+      <div className="flex-1 flex flex-col justify-center text-center rise">
+        <div className="flex justify-center mb-8">
+          <div className="relative">
+            <Avatar size={148} />
+            <span
+              className="absolute -bottom-1 left-1/2 -translate-x-1/2 hud-label !text-ink bg-panel border border-line rounded-full px-3 py-1"
+              style={{ borderColor: "rgba(255,107,0,0.5)" }}
+            >
+              Challenger
+            </span>
+          </div>
         </div>
-        <h1 className="text-4xl font-bold leading-tight">
-          Reset your life.
+
+        <h1 className="display text-[40px] leading-[1.05]">
+          RESET YOUR
           <br />
-          <span className="text-accent glow-accent">For real this time.</span>
+          LIFE.{" "}
+          <span
+            className="text-accent"
+            style={{ textShadow: "0 0 32px rgba(255,107,0,0.55)" }}
+          >
+            FOR REAL
+          </span>
+          <br />
+          THIS TIME.
         </h1>
-        <p className="mt-4 text-muted text-lg">
+        <p className="mt-5 text-muted text-[15px] leading-relaxed max-w-xs mx-auto">
           Become the main character of your life. A 66 day system that turns real habits into
           quests, XP and ranks.
         </p>
-        <button className="mt-4 text-accent underline underline-offset-4" onClick={() => setShowWhat(true)}>
-          What is Life Reset?
-        </button>
+
+        <div className="mt-8 grid grid-cols-3 gap-2.5 stagger">
+          {[
+            { icon: "swords", label: "Daily quests" },
+            { icon: "flame", label: "Streaks" },
+            { icon: "trophy", label: "Live ranks" },
+          ].map((f) => (
+            <div key={f.label} className="card py-3.5 flex flex-col items-center gap-2">
+              <Icon name={f.icon} size={19} className="text-accent" />
+              <span className="hud-label">{f.label}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="flex flex-col gap-3 rise">
-        <Link href="/onboarding" className="btn-primary text-center py-4 text-lg">
+      <div className="flex flex-col gap-3 rise pb-2">
+        <Link href="/auth" className="btn-primary py-4 text-[15px]">
           Start my reset
+          <span className="btn-icon-slot">
+            <Icon name="arrow-right" size={14} strokeWidth={2} />
+          </span>
         </Link>
-        <Link href="/auth" className="btn-ghost text-center py-3.5">
+        <Link href="/auth?mode=signin" className="btn-ghost py-3.5">
           I already have an account
         </Link>
+        <p className="text-center hud-label mt-1">Free for every challenger</p>
       </div>
-
-      {showWhat && (
-        <div
-          className="fixed inset-0 bg-black/70 flex items-end justify-center z-50"
-          onClick={() => setShowWhat(false)}
-        >
-          <div
-            className="card w-full max-w-md m-4 p-6 rise"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="hud-label mb-4">What is Life Reset?</div>
-            <ul className="space-y-4 text-ink">
-              <li className="flex gap-3">
-                <span aria-hidden>🩻</span>
-                <span>A short assessment of where you actually are right now.</span>
-              </li>
-              <li className="flex gap-3">
-                <span aria-hidden>🗺️</span>
-                <span>A 66 day program built from your answers, not a template.</span>
-              </li>
-              <li className="flex gap-3">
-                <span aria-hidden>🎮</span>
-                <span>Quests, XP and ranks, so the work of changing feels like progress.</span>
-              </li>
-            </ul>
-            <button className="btn-primary w-full py-3.5 mt-6" onClick={() => setShowWhat(false)}>
-              Got it
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
