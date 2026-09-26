@@ -158,6 +158,7 @@ const PATHS: Record<string, React.ReactNode> = {
     </>
   ),
   check: <path d="M5 12.5l4.3 4.3L19 7.3" />,
+  "chevron-down": <path d="M5.5 9l6.5 6.5L18.5 9" />,
   x: <path d="M6 6l12 12M18 6 6 18" />,
   "arrow-right": <path d="M5 12h13M13.5 6.5 19 12l-5.5 5.5" />,
   crown: (

@@ -397,7 +397,33 @@ begin
 end $$;
 
 -- ============ quest completion ============
-create or replace function public.complete_quest(p_quest_id text)
+-- streak is always recounted from history so retro fills (yesterday) bridge gaps correctly
+create or replace function public.recount_streak(p_uid uuid)
+returns void
+language plpgsql
+as $$
+declare
+  last_day date;
+  streak int := 0;
+  d date;
+begin
+  select max(completed_on) into last_day from public.quest_completions where user_id = p_uid;
+  if last_day is not null then
+    d := last_day;
+    loop
+      exit when not exists (select 1 from public.quest_completions where user_id = p_uid and completed_on = d);
+      streak := streak + 1; d := d - 1;
+      exit when streak > 1000;
+    end loop;
+  end if;
+  update public.profiles set
+    streak_current = streak,
+    last_completed_on = last_day,
+    streak_best = greatest(streak_best, streak)
+  where id = p_uid;
+end $$;
+
+create or replace function public.complete_quest_for(p_quest_id text, p_on date)
 returns jsonb
 language plpgsql security definer set search_path = public
 as $$
@@ -409,9 +435,11 @@ declare
   inserted boolean := false;
   st text;
   new_stats jsonb;
-  new_streak int;
 begin
   if uid is null then raise exception 'not authenticated'; end if;
+  if p_on not in (today, today - 1) then
+    raise exception 'you can only log today or yesterday';
+  end if;
   select * into q from public.quests where id = p_quest_id;
   if not found then raise exception 'unknown quest'; end if;
   if not exists (select 1 from public.user_quests where user_id = uid and quest_id = p_quest_id and active) then
@@ -420,7 +448,7 @@ begin
 
   begin
     insert into public.quest_completions (user_id, quest_id, completed_on, xp_awarded)
-    values (uid, p_quest_id, today, q.xp);
+    values (uid, p_quest_id, p_on, q.xp);
     inserted := true;
   exception when unique_violation then
     inserted := false;
@@ -430,25 +458,16 @@ begin
     select * into pr from public.profiles where id = uid for update;
     new_stats := pr.stats;
     foreach st in array q.stats loop
-      new_stats := jsonb_set(new_stats, array[st], to_jsonb(coalesce((new_stats->>st)::int, 50) + 2));
+      new_stats := jsonb_set(new_stats, array[st], to_jsonb(coalesce((new_stats->>st)::int, 0) + 2));
     end loop;
-    new_streak := case
-      when pr.last_completed_on = today then pr.streak_current
-      when pr.last_completed_on = today - 1 then pr.streak_current + 1
-      else 1 end;
-    update public.profiles set
-      xp = pr.xp + q.xp,
-      stats = new_stats,
-      streak_current = new_streak,
-      streak_best = greatest(pr.streak_best, new_streak),
-      last_completed_on = today
-    where id = uid;
+    update public.profiles set xp = pr.xp + q.xp, stats = new_stats where id = uid;
+    perform public.recount_streak(uid);
   end if;
 
   return (select to_jsonb(pr2) from public.profiles pr2 where pr2.id = uid);
 end $$;
 
-create or replace function public.uncomplete_quest(p_quest_id text)
+create or replace function public.uncomplete_quest_for(p_quest_id text, p_on date)
 returns jsonb
 language plpgsql security definer set search_path = public
 as $$
@@ -460,43 +479,41 @@ declare
   removed record;
   new_stats jsonb;
   st text;
-  last_day date;
-  streak int := 0;
-  d date;
 begin
   if uid is null then raise exception 'not authenticated'; end if;
+  if p_on not in (today, today - 1) then
+    raise exception 'you can only change today or yesterday';
+  end if;
   select * into q from public.quests where id = p_quest_id;
   if not found then raise exception 'unknown quest'; end if;
 
   delete from public.quest_completions
-  where user_id = uid and quest_id = p_quest_id and completed_on = today
+  where user_id = uid and quest_id = p_quest_id and completed_on = p_on
   returning * into removed;
 
   if removed.id is not null then
     select * into pr from public.profiles where id = uid for update;
     new_stats := pr.stats;
     foreach st in array q.stats loop
-      new_stats := jsonb_set(new_stats, array[st], to_jsonb(greatest(0, coalesce((new_stats->>st)::int, 50) - 2)));
+      new_stats := jsonb_set(new_stats, array[st], to_jsonb(greatest(0, coalesce((new_stats->>st)::int, 0) - 2)));
     end loop;
-    select max(completed_on) into last_day from public.quest_completions where user_id = uid;
-    if last_day is not null then
-      streak := 0; d := last_day;
-      loop
-        exit when not exists (select 1 from public.quest_completions where user_id = uid and completed_on = d);
-        streak := streak + 1; d := d - 1;
-        exit when streak > 400;
-      end loop;
-    end if;
-    update public.profiles set
-      xp = greatest(0, pr.xp - removed.xp_awarded),
-      stats = new_stats,
-      last_completed_on = last_day,
-      streak_current = streak
-    where id = uid;
+    update public.profiles set xp = greatest(0, pr.xp - removed.xp_awarded), stats = new_stats where id = uid;
+    perform public.recount_streak(uid);
   end if;
 
   return (select to_jsonb(pr2) from public.profiles pr2 where pr2.id = uid);
 end $$;
+
+-- back-compat wrappers
+create or replace function public.complete_quest(p_quest_id text)
+returns jsonb
+language sql security definer set search_path = public
+as $$ select public.complete_quest_for(p_quest_id, public.app_today()) $$;
+
+create or replace function public.uncomplete_quest(p_quest_id text)
+returns jsonb
+language sql security definer set search_path = public
+as $$ select public.uncomplete_quest_for(p_quest_id, public.app_today()) $$;
 
 -- ============ social ============
 -- friends-only board: you and the challengers you added, nobody else
@@ -549,6 +566,8 @@ grant execute on function public.app_today() to anon, authenticated;
 grant execute on function public.get_member_count() to anon, authenticated;
 grant execute on function public.complete_quest(text) to authenticated;
 grant execute on function public.uncomplete_quest(text) to authenticated;
+grant execute on function public.complete_quest_for(text, date) to authenticated;
+grant execute on function public.uncomplete_quest_for(text, date) to authenticated;
 grant execute on function public.get_leaderboard() to authenticated;
 grant execute on function public.set_username(text) to authenticated;
 grant execute on function public.create_custom_quest(text, text, int) to authenticated;

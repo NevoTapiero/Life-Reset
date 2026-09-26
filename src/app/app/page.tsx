@@ -24,6 +24,9 @@ export default function Dashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [quests, setQuests] = useState<Quest[]>([]);
   const [doneToday, setDoneToday] = useState<Set<string>>(new Set());
+  const [doneYesterday, setDoneYesterday] = useState<Set<string>>(new Set());
+  const [days, setDays] = useState<{ today: string; yesterday: string } | null>(null);
+  const [showYesterday, setShowYesterday] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [xpFloat, setXpFloat] = useState<{ id: string; amount: number } | null>(null);
   const [rankUp, setRankUp] = useState<Rank | null>(null);
@@ -39,47 +42,61 @@ export default function Dashboard() {
       supabase.rpc("app_today"),
     ]);
     const todayStr = String(todayData);
+    const yesterdayStr = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 86400000)
+      .toISOString()
+      .slice(0, 10);
     const { data: comps } = await supabase
       .from("quest_completions")
-      .select("quest_id")
+      .select("quest_id, completed_on")
       .eq("user_id", uid)
-      .eq("completed_on", todayStr);
+      .in("completed_on", [todayStr, yesterdayStr]);
     setProfile(prof as Profile);
     const list = ((uq as unknown as UserQuestRow[]) ?? [])
       .map((r) => r.quests)
       .filter(Boolean)
       .sort((a, b) => a.sort - b.sort);
     setQuests(list);
-    setDoneToday(new Set((comps ?? []).map((c: { quest_id: string }) => c.quest_id)));
+    const rows = (comps ?? []) as { quest_id: string; completed_on: string }[];
+    setDoneToday(new Set(rows.filter((c) => c.completed_on === todayStr).map((c) => c.quest_id)));
+    setDoneYesterday(new Set(rows.filter((c) => c.completed_on === yesterdayStr).map((c) => c.quest_id)));
+    setDays({ today: todayStr, yesterday: yesterdayStr });
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  async function toggle(q: Quest) {
-    if (pendingId) return;
+  async function toggle(q: Quest, day: "today" | "yesterday" = "today") {
+    if (pendingId || !days) return;
     setPendingId(q.id);
     setError(null);
-    const isDone = doneToday.has(q.id);
-    setDoneToday((prev) => {
+    const doneSet = day === "today" ? doneToday : doneYesterday;
+    const setDoneSet = day === "today" ? setDoneToday : setDoneYesterday;
+    const isDone = doneSet.has(q.id);
+    setDoneSet((prev) => {
       const nextSet = new Set(prev);
       if (isDone) nextSet.delete(q.id);
       else nextSet.add(q.id);
       return nextSet;
     });
     if (!isDone) setXpFloat({ id: q.id, amount: q.xp });
-    const { data, error: rpcError } = await supabase.rpc(isDone ? "uncomplete_quest" : "complete_quest", {
-      p_quest_id: q.id,
-    });
+    const { data, error: rpcError } = await supabase.rpc(
+      isDone ? "uncomplete_quest_for" : "complete_quest_for",
+      { p_quest_id: q.id, p_on: day === "today" ? days.today : days.yesterday },
+    );
     if (rpcError) {
-      setDoneToday((prev) => {
+      setDoneSet((prev) => {
         const nextSet = new Set(prev);
         if (isDone) nextSet.add(q.id);
         else nextSet.delete(q.id);
         return nextSet;
       });
-      setError(rpcError.message);
+      if (rpcError.message.includes("only log today") || rpcError.message.includes("only change today")) {
+        // the day rolled over while the page was open: refresh dates silently
+        load();
+      } else {
+        setError(rpcError.message);
+      }
     } else if (data) {
       const updated = data as Profile;
       if (!isDone && profile) {
@@ -262,6 +279,79 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* yesterday: one day of grace to log what you forgot */}
+      {quests.length > 0 && (
+        <div className="mt-5">
+          <button
+            className="card w-full px-4 py-3.5 flex items-center gap-3 active:scale-[0.99] transition-transform"
+            onClick={() => setShowYesterday(!showYesterday)}
+          >
+            <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
+              <Icon name="calendar" size={16} />
+            </span>
+            <span className="flex-1 text-left">
+              <span className="block text-sm">Yesterday</span>
+              <span className="hud-label mt-0.5">
+                {quests.length - quests.filter((q) => doneYesterday.has(q.id)).length === 0
+                  ? "All cleared"
+                  : `Forgot to check something? ${quests.filter((q) => !doneYesterday.has(q.id)).length} open`}
+              </span>
+            </span>
+            <span
+              className="text-muted transition-transform duration-300"
+              style={{ transform: showYesterday ? "rotate(180deg)" : "none" }}
+            >
+              <Icon name="chevron-down" size={17} />
+            </span>
+          </button>
+
+          {showYesterday && (
+            <div className="flex flex-col gap-2.5 mt-2.5 stagger">
+              {quests.map((q) => {
+                const done = doneYesterday.has(q.id);
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => toggle(q, "yesterday")}
+                    disabled={pendingId === q.id}
+                    className={`option-row px-4 py-3 flex items-center gap-3.5 relative ${done ? "selected" : ""}`}
+                    style={{ opacity: done ? 1 : 0.75 }}
+                  >
+                    <span className="icon-tile !w-10 !h-10" style={done ? { color: "var(--accent)", borderColor: "rgba(255,107,0,0.4)" } : undefined}>
+                      <Icon name={q.icon} size={19} />
+                    </span>
+                    <span className="flex-1 text-left min-w-0">
+                      <span className={`block text-sm truncate ${done ? "line-through text-muted" : ""}`}>{q.title}</span>
+                      <span className="hud-label mt-0.5">Yesterday · +{q.xp} XP</span>
+                    </span>
+                    <span
+                      key={done ? "done" : "todo"}
+                      className={`w-6 h-6 rounded-full border flex items-center justify-center flex-none ${done ? "check-pop" : ""}`}
+                      style={
+                        done
+                          ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff" }
+                          : { borderColor: "var(--line-strong)", color: "transparent" }
+                      }
+                      aria-hidden
+                    >
+                      <Icon name="check" size={12} strokeWidth={2.4} />
+                    </span>
+                    {xpFloat?.id === q.id && (
+                      <span className="xp-float absolute right-4 -top-1 font-mono font-bold text-sm">
+                        +{xpFloat.amount} XP
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              <p className="hud-label text-center mt-1">
+                Yesterday stays open for one day, then it locks.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {clearedAll && (
         <div className="hud-frame p-5 mt-6 text-center rise">
