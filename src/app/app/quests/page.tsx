@@ -5,15 +5,8 @@ import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
 import { PILLARS, PILLAR_ICONS, Pillar, Quest } from "@/lib/game";
 
-const XP_CHOICES = [
-  { xp: 10, label: "Light" },
-  { xp: 15, label: "Solid" },
-  { xp: 20, label: "Hard" },
-  { xp: 25, label: "Epic" },
-];
-
-type FormState = { id: string | null; title: string; pillar: Pillar; xp: number };
-const EMPTY_FORM: FormState = { id: null, title: "", pillar: "Body", xp: 15 };
+type FormState = { id: string | null; title: string; pillar: Pillar };
+const EMPTY_FORM: FormState = { id: null, title: "", pillar: "Body" };
 
 // screen time: tighter limit, bigger reward
 const SCREEN_LIMITS = [
@@ -29,6 +22,7 @@ export default function QuestManager() {
   const [uid, setUid] = useState<string | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [stForm, setStForm] = useState<{ app: string; minutes: number } | null>(null);
+  const [verdict, setVerdict] = useState<{ title: string; xp: number; reason: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -77,27 +71,49 @@ export default function QuestManager() {
     }
   }
 
+  async function rateQuest(title: string, pillar: Pillar): Promise<{ xp: number; reason: string }> {
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token ?? "";
+      const r = await fetch("/api/rate-quest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title, pillar }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        if ([10, 15, 20, 25].includes(data?.xp)) {
+          return { xp: data.xp, reason: String(data.reason ?? "") };
+        }
+      }
+    } catch {}
+    return { xp: 15, reason: "Standard daily effort." };
+  }
+
   async function saveForm() {
     if (!form) return;
     setBusy(true);
     setError(null);
+    setVerdict(null);
+    const rating = await rateQuest(form.title, form.pillar);
     const { error } = form.id
       ? await supabase.rpc("update_custom_quest", {
           p_id: form.id,
           p_title: form.title,
           p_pillar: form.pillar,
-          p_xp: form.xp,
+          p_xp: rating.xp,
         })
       : await supabase.rpc("create_custom_quest", {
           p_title: form.title,
           p_pillar: form.pillar,
-          p_xp: form.xp,
+          p_xp: rating.xp,
         });
     setBusy(false);
     if (error) {
       setError(error.message);
       return;
     }
+    setVerdict({ title: form.title, xp: rating.xp, reason: rating.reason });
     setForm(null);
     load();
   }
@@ -208,6 +224,20 @@ export default function QuestManager() {
         </div>
       )}
 
+      {verdict && !form && (
+        <div className="hud-frame p-4 mb-3 rise">
+          <div className="hud-label" style={{ color: "var(--accent)" }}>The System has judged</div>
+          <p className="text-sm mt-1.5">
+            <span className="font-semibold">{verdict.title}</span> is worth{" "}
+            <span className="font-mono font-bold" style={{ color: "var(--accent)" }}>+{verdict.xp} XP</span>
+          </p>
+          {verdict.reason && <p className="text-xs text-muted mt-1.5">{verdict.reason}</p>}
+          <button className="hud-label mt-2.5 underline underline-offset-4" onClick={() => setVerdict(null)}>
+            Accepted
+          </button>
+        </div>
+      )}
+
       {form && (
         <div className="hud-frame p-4 mb-3 rise">
           <div className="hud-label mb-3">{form.id ? "Edit quest" : "Forge a quest"}</div>
@@ -231,20 +261,10 @@ export default function QuestManager() {
               </button>
             ))}
           </div>
-          <div className="hud-label mt-4 mb-2">Difficulty</div>
-          <div className="grid grid-cols-4 gap-2">
-            {XP_CHOICES.map((c) => (
-              <button
-                key={c.xp}
-                className={`option-row py-2.5 flex flex-col items-center gap-0.5 ${form.xp === c.xp ? "selected" : ""}`}
-                onClick={() => setForm({ ...form, xp: c.xp })}
-              >
-                <span className="text-sm font-semibold">+{c.xp}</span>
-                <span className="hud-label">{c.label}</span>
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2.5 mt-5">
+          <p className="text-xs text-muted mt-4">
+            No picking your own reward: The System judges the effort and sets the XP (+10 to +25).
+          </p>
+          <div className="flex gap-2.5 mt-4">
             <button className="btn-ghost flex-1 py-3" onClick={() => setForm(null)}>
               Cancel
             </button>
@@ -253,7 +273,7 @@ export default function QuestManager() {
               disabled={busy || form.title.trim().length < 2}
               onClick={saveForm}
             >
-              {form.id ? "Save" : "Forge it"}
+              {busy ? "Judging…" : form.id ? "Save & re-judge" : "Forge it"}
             </button>
           </div>
         </div>
@@ -274,7 +294,7 @@ export default function QuestManager() {
               <button
                 className="icon-tile !w-9 !h-9 !rounded-[10px] active:scale-95 transition-transform"
                 aria-label="Edit"
-                onClick={() => setForm({ id: q.id, title: q.title, pillar: q.pillar, xp: q.xp })}
+                onClick={() => setForm({ id: q.id, title: q.title, pillar: q.pillar })}
               >
                 <Icon name="pen" size={15} />
               </button>
