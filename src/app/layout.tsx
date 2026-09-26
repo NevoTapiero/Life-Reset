@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Syne } from "next/font/google";
+import PwaSetup from "@/components/PwaSetup";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -21,6 +22,16 @@ const syne = Syne({
 export const metadata: Metadata = {
   title: "Life Reset",
   description: "Reset your life. For real this time. Pure challenges: real habits become quests that pay XP, build streaks and climb ranks.",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Life Reset",
+  },
 };
 
 export const viewport: Viewport = {
@@ -35,6 +46,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} ${syne.variable} antialiased`}>
+        <PwaSetup />
         <div className="glow-scene" aria-hidden />
         <div className="mx-auto w-full max-w-md min-h-dvh flex flex-col px-4">
           {children}
