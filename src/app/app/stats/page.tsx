@@ -20,6 +20,7 @@ export default function StatsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [pillarCounts, setPillarCounts] = useState<Record<string, number>>({});
   const [totalCompletions, setTotalCompletions] = useState(0);
+  const [openStat, setOpenStat] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -91,18 +92,37 @@ export default function StatsPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 mt-4 stagger">
+      <p className="hud-label mt-4 mb-2">Tap a stat to see what it means</p>
+      <div className="flex flex-col gap-2 stagger">
         {STAT_KEYS.map((k) => {
           const value = profile.stats[k] ?? 0;
+          const open = openStat === k;
           return (
-            <div key={k} className="card px-4 py-2.5 flex items-center gap-3">
-              <span className="hud-label w-9" style={{ color: "var(--accent)" }}>{k}</span>
-              <span className="flex-1 min-w-0">
-                <span className="block text-sm">{STAT_INFO[k].name}</span>
-                <span className="block text-xs text-muted truncate">{STAT_INFO[k].blurb}</span>
+            <button
+              key={k}
+              className={`option-row px-4 py-2.5 text-left ${open ? "selected" : ""}`}
+              onClick={() => setOpenStat(open ? null : k)}
+            >
+              <span className="flex items-center gap-3">
+                <span className="hud-label w-9" style={{ color: "var(--accent)" }}>{k}</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm">{STAT_INFO[k].name}</span>
+                  <span className="block text-xs text-muted truncate">{STAT_INFO[k].blurb}</span>
+                </span>
+                <span className="font-mono font-semibold text-[15px]">{value}</span>
+                <span
+                  className="text-muted transition-transform duration-300 flex-none"
+                  style={{ transform: open ? "rotate(180deg)" : "none" }}
+                >
+                  <Icon name="chevron-down" size={14} />
+                </span>
               </span>
-              <span className="font-mono font-semibold text-[15px]">{value}</span>
-            </div>
+              {open && (
+                <span className="block text-[13px] text-muted leading-relaxed mt-2.5 pl-12 pr-1 rise">
+                  {STAT_INFO[k].lore}
+                </span>
+              )}
+            </button>
           );
         })}
       </div>

@@ -179,7 +179,17 @@ as $$
   end
 $$;
 
-create or replace function public.create_custom_quest(p_title text, p_pillar text, p_xp int)
+create or replace function public.quest_icon_ok(p_icon text)
+returns boolean
+language sql immutable
+as $$
+  select p_icon in ('droplet','moon','book','dumbbell','sun','lotus','pen','snowflake','phone-off',
+                    'target','calendar','users','bulb','sparkle','apple','screen-off','leaf',
+                    'flame','trophy','chart','tasks','custom')
+$$;
+
+drop function if exists public.create_custom_quest(text, text, int);
+create or replace function public.create_custom_quest(p_title text, p_pillar text, p_xp int, p_icon text default 'custom')
 returns jsonb
 language plpgsql security definer set search_path = public
 as $$
@@ -205,7 +215,9 @@ begin
 
   new_id := 'c-' || substr(md5(random()::text || clock_timestamp()::text), 1, 10);
   insert into public.quests (id, title, description, pillar, xp, stats, icon, benefits, sort, user_id)
-  values (new_id, clean_title, '', p_pillar, p_xp, public.quest_stats_for_pillar(p_pillar), 'custom', '[]'::jsonb, 1000, uid);
+  values (new_id, clean_title, '', p_pillar, p_xp, public.quest_stats_for_pillar(p_pillar),
+          case when public.quest_icon_ok(p_icon) then p_icon else 'custom' end,
+          '[]'::jsonb, 1000, uid);
 
   insert into public.user_quests (user_id, quest_id) values (uid, new_id)
   on conflict do nothing;
@@ -213,7 +225,8 @@ begin
   return (select to_jsonb(q) from public.quests q where q.id = new_id);
 end $$;
 
-create or replace function public.update_custom_quest(p_id text, p_title text, p_pillar text, p_xp int)
+drop function if exists public.update_custom_quest(text, text, text, int);
+create or replace function public.update_custom_quest(p_id text, p_title text, p_pillar text, p_xp int, p_icon text default null)
 returns jsonb
 language plpgsql security definer set search_path = public
 as $$
@@ -237,7 +250,8 @@ begin
     title = clean_title,
     pillar = p_pillar,
     xp = p_xp,
-    stats = public.quest_stats_for_pillar(p_pillar)
+    stats = public.quest_stats_for_pillar(p_pillar),
+    icon = case when p_icon is not null and public.quest_icon_ok(p_icon) then p_icon else icon end
   where id = p_id and user_id = uid;
   if not found then raise exception 'quest not found or not yours'; end if;
 
@@ -570,8 +584,8 @@ grant execute on function public.complete_quest_for(text, date) to authenticated
 grant execute on function public.uncomplete_quest_for(text, date) to authenticated;
 grant execute on function public.get_leaderboard() to authenticated;
 grant execute on function public.set_username(text) to authenticated;
-grant execute on function public.create_custom_quest(text, text, int) to authenticated;
-grant execute on function public.update_custom_quest(text, text, text, int) to authenticated;
+grant execute on function public.create_custom_quest(text, text, int, text) to authenticated;
+grant execute on function public.update_custom_quest(text, text, text, int, text) to authenticated;
 grant execute on function public.delete_custom_quest(text) to authenticated;
 grant execute on function public.set_quest_active(text, boolean) to authenticated;
 grant execute on function public.set_archetype(text) to authenticated;

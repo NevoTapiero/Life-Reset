@@ -2,12 +2,32 @@ export type StatKey = "CON" | "FOC" | "DIS" | "STR" | "WIS";
 
 export const STAT_KEYS: StatKey[] = ["CON", "FOC", "DIS", "STR", "WIS"];
 
-export const STAT_INFO: Record<StatKey, { name: string; blurb: string }> = {
-  CON: { name: "Constitution", blurb: "Energy, health and recovery" },
-  FOC: { name: "Focus", blurb: "Attention and deep work" },
-  DIS: { name: "Discipline", blurb: "Consistency under low motivation" },
-  STR: { name: "Strength", blurb: "Physical capability" },
-  WIS: { name: "Wisdom", blurb: "Clarity, learning and perspective" },
+export const STAT_INFO: Record<StatKey, { name: string; blurb: string; lore: string }> = {
+  CON: {
+    name: "Constitution",
+    blurb: "Energy, health and recovery",
+    lore: "Your body's engine: how much energy you have and how fast you recover. It grows +2 every time you clear a quest that feeds it, like drinking water, sleeping well, sunlight or a clean meal.",
+  },
+  FOC: {
+    name: "Focus",
+    blurb: "Attention and deep work",
+    lore: "Your ability to point attention at one thing and keep it there. Trained by deep work blocks, good sleep, meditation and staying off the scroll.",
+  },
+  DIS: {
+    name: "Discipline",
+    blurb: "Consistency under low motivation",
+    lore: "Doing it anyway on the days you do not feel like it. Trained by cold showers, screen limits, planning tomorrow and any streak you refuse to break.",
+  },
+  STR: {
+    name: "Strength",
+    blurb: "Physical capability",
+    lore: "Raw physical capability: muscle, stamina, capacity. Trained by workouts, hydration and fueling your body properly.",
+  },
+  WIS: {
+    name: "Wisdom",
+    blurb: "Clarity, learning and perspective",
+    lore: "Perspective and learning: understanding yourself and the world a little better each day. Trained by reading, journaling, gratitude, learning and reaching out to people.",
+  },
 };
 
 export const PILLARS = ["Body", "Mind", "Rest", "Fuel", "Connection", "Purpose"] as const;
@@ -131,6 +151,13 @@ export const STREAK_MILESTONES = [7, 14, 30, 50, 100, 365];
 export function nextStreakMilestone(streak: number): number {
   for (const m of STREAK_MILESTONES) if (streak < m) return m;
   return STREAK_MILESTONES[STREAK_MILESTONES.length - 1];
+}
+
+// full-bleed card art, one scene per life pillar
+export function questArt(pillar: Pillar | string): string {
+  const p = String(pillar).toLowerCase();
+  const known = ["body", "mind", "rest", "fuel", "connection", "purpose"];
+  return `/art/pillar-${known.includes(p) ? p : "purpose"}.svg`;
 }
 
 export function formatDate(d: Date): string {

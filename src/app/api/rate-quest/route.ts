@@ -3,7 +3,13 @@ import { NextResponse } from "next/server";
 // The System rates custom quests so players do not grade their own homework.
 // Uses the Gemini API free tier; falls back to a standard rating without a key.
 
-const FALLBACK = { xp: 10, reason: "Standard daily effort.", source: "default" as const };
+const FALLBACK = { xp: 10, reason: "Standard daily effort.", icon: "custom", source: "default" as const };
+
+const ICONS = new Set([
+  "droplet", "moon", "book", "dumbbell", "sun", "lotus", "pen", "snowflake", "phone-off",
+  "target", "calendar", "users", "bulb", "sparkle", "apple", "screen-off", "leaf",
+  "flame", "trophy", "chart", "tasks",
+]);
 
 async function isAuthed(req: Request): Promise<boolean> {
   const auth = req.headers.get("authorization") ?? "";
@@ -54,7 +60,9 @@ export async function POST(req: Request) {
     "- Run 5 km = 50",
     "- Keep Instagram or TikTok under one hour for the whole day = 50",
     "Interpolate between anchors. Reserve 40 to 50 for feats that demand serious discipline.",
-    'Reply with JSON only: {"xp": <integer 1-50>, "reason": "<one short blunt sentence>"}',
+    "Also pick the single best matching icon name from this exact list:",
+    "droplet, moon, book, dumbbell, sun, lotus, pen, snowflake, phone-off, target, calendar, users, bulb, sparkle, apple, screen-off, leaf, flame, trophy, chart, tasks",
+    'Reply with JSON only: {"xp": <integer 1-50>, "reason": "<one short blunt sentence>", "icon": "<name from the list>"}',
     `Quest: "${title}" (life area: ${pillar || "unknown"})`,
   ].join("\n");
 
@@ -83,7 +91,8 @@ export async function POST(req: Request) {
       if (!Number.isFinite(raw)) continue;
       const xp = Math.min(50, Math.max(1, Math.round(raw)));
       const reason = String(parsed?.reason ?? "").slice(0, 140);
-      return NextResponse.json({ xp, reason, source: "ai" });
+      const icon = ICONS.has(parsed?.icon) ? (parsed.icon as string) : "custom";
+      return NextResponse.json({ xp, reason, icon, source: "ai" });
     } catch {
       continue;
     }

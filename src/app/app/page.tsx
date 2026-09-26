@@ -15,6 +15,7 @@ import {
   Rank,
   characterOf,
   nextStreakMilestone,
+  questArt,
   rankForXp,
 } from "@/lib/game";
 
@@ -236,7 +237,7 @@ export default function Dashboard() {
 
       {error && <p className="text-danger text-sm mb-3">{error}</p>}
 
-      <div className="flex flex-col gap-2.5 stagger">
+      <div className="flex flex-col gap-3 stagger">
         {quests.map((q) => {
           const done = doneToday.has(q.id);
           return (
@@ -244,32 +245,69 @@ export default function Dashboard() {
               key={q.id}
               onClick={() => toggle(q)}
               disabled={pendingId === q.id}
-              className={`option-row px-4 py-3.5 flex items-center gap-3.5 relative ${done ? "selected" : ""}`}
+              className="relative overflow-hidden rounded-2xl text-left transition-transform duration-150 active:scale-[0.985]"
+              style={{
+                border: done ? "1px solid rgba(255,107,0,0.75)" : "1px solid var(--line)",
+                boxShadow: done ? "0 0 22px rgba(255,107,0,0.16)" : "none",
+                minHeight: 96,
+              }}
             >
-              <span className="icon-tile" style={done ? { color: "var(--accent)", borderColor: "rgba(255,107,0,0.4)" } : undefined}>
-                <Icon name={q.icon} size={21} />
-              </span>
-              <span className="flex-1 text-left min-w-0">
-                <span className={`block text-[15px] truncate ${done ? "line-through text-muted" : ""}`}>{q.title}</span>
-                <span className="hud-label mt-1">{q.pillar} · +{q.xp} XP</span>
-              </span>
-              <span
-                key={done ? "done" : "todo"}
-                className={`w-7 h-7 rounded-full border flex items-center justify-center flex-none transition-colors duration-150 ${done ? "check-pop" : ""}`}
-                style={
-                  done
-                    ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 14px rgba(255,107,0,0.5)" }
-                    : { borderColor: "var(--line-strong)", color: "transparent" }
-                }
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={questArt(q.pillar)}
+                alt=""
                 aria-hidden
-              >
-                <Icon name="check" size={14} strokeWidth={2.4} />
-              </span>
-              {xpFloat?.id === q.id && (
-                <span className="xp-float absolute right-4 -top-1 font-mono font-bold text-sm">
-                  +{xpFloat.amount} XP
-                </span>
+                loading="lazy"
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{ filter: done ? "saturate(0.6) brightness(0.75)" : "none" }}
+              />
+              <span
+                aria-hidden
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "linear-gradient(90deg, rgba(10,9,8,0.94) 0%, rgba(10,9,8,0.78) 42%, rgba(10,9,8,0.35) 75%, rgba(10,9,8,0.2) 100%)",
+                }}
+              />
+              {done && (
+                <span aria-hidden className="absolute inset-0" style={{ background: "rgba(255,107,0,0.10)" }} />
               )}
+              <span className="relative flex items-center gap-3.5 px-4 py-4 min-h-[96px]">
+                <span
+                  className="icon-tile !bg-[rgba(0,0,0,0.35)]"
+                  style={{ backdropFilter: "blur(4px)", color: done ? "var(--accent)" : "var(--ink)", borderColor: done ? "rgba(255,107,0,0.5)" : "var(--line-strong)" }}
+                >
+                  <Icon name={q.icon} size={21} />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span
+                    className={`block text-[16px] font-semibold truncate ${done ? "line-through" : ""}`}
+                    style={{ textShadow: "0 1px 8px rgba(0,0,0,0.8)", color: done ? "var(--muted)" : "var(--ink)" }}
+                  >
+                    {q.title}
+                  </span>
+                  <span className="hud-label mt-1.5 !text-[10px]" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>
+                    {q.pillar} · +{q.xp} XP
+                  </span>
+                </span>
+                <span
+                  key={done ? "done" : "todo"}
+                  className={`w-8 h-8 rounded-[10px] border flex items-center justify-center flex-none transition-colors duration-150 ${done ? "check-pop" : ""}`}
+                  style={
+                    done
+                      ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 16px rgba(255,107,0,0.6)" }
+                      : { borderColor: "rgba(255,255,255,0.4)", background: "rgba(0,0,0,0.3)", color: "transparent", backdropFilter: "blur(4px)" }
+                  }
+                  aria-hidden
+                >
+                  <Icon name="check" size={15} strokeWidth={2.6} />
+                </span>
+                {xpFloat?.id === q.id && (
+                  <span className="xp-float absolute right-4 top-1 font-mono font-bold text-sm">
+                    +{xpFloat.amount} XP
+                  </span>
+                )}
+              </span>
             </button>
           );
         })}

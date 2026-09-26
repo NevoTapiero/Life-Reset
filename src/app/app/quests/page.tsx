@@ -71,7 +71,7 @@ export default function QuestManager() {
     }
   }
 
-  async function rateQuest(title: string, pillar: Pillar): Promise<{ xp: number; reason: string }> {
+  async function rateQuest(title: string, pillar: Pillar): Promise<{ xp: number; reason: string; icon: string }> {
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token ?? "";
@@ -84,11 +84,15 @@ export default function QuestManager() {
         const data = await r.json();
         const xp = Number(data?.xp);
         if (Number.isFinite(xp) && xp >= 1 && xp <= 50) {
-          return { xp: Math.round(xp), reason: String(data.reason ?? "") };
+          return {
+            xp: Math.round(xp),
+            reason: String(data.reason ?? ""),
+            icon: typeof data.icon === "string" ? data.icon : "custom",
+          };
         }
       }
     } catch {}
-    return { xp: 10, reason: "Standard daily effort." };
+    return { xp: 10, reason: "Standard daily effort.", icon: "custom" };
   }
 
   async function saveForm() {
@@ -103,11 +107,13 @@ export default function QuestManager() {
           p_title: form.title,
           p_pillar: form.pillar,
           p_xp: rating.xp,
+          p_icon: rating.icon,
         })
       : await supabase.rpc("create_custom_quest", {
           p_title: form.title,
           p_pillar: form.pillar,
           p_xp: rating.xp,
+          p_icon: rating.icon,
         });
     setBusy(false);
     if (error) {
@@ -128,6 +134,7 @@ export default function QuestManager() {
       p_title: `Under ${limit.label} on ${stForm.app.trim()}`,
       p_pillar: "Mind",
       p_xp: limit.xp,
+      p_icon: "phone-off",
     });
     setBusy(false);
     if (error) {
