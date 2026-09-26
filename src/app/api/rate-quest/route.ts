@@ -3,8 +3,7 @@ import { NextResponse } from "next/server";
 // The System rates custom quests so players do not grade their own homework.
 // Uses the Gemini API free tier; falls back to a standard rating without a key.
 
-const VALID_XP = [10, 15, 20, 25];
-const FALLBACK = { xp: 15, reason: "Standard daily effort.", source: "default" as const };
+const FALLBACK = { xp: 10, reason: "Standard daily effort.", source: "default" as const };
 
 async function isAuthed(req: Request): Promise<boolean> {
   const auth = req.headers.get("authorization") ?? "";
@@ -43,37 +42,51 @@ export async function POST(req: Request) {
   if (!key) return NextResponse.json(FALLBACK);
 
   const prompt = [
-    "You rate daily habit quests for a gamified self-improvement app.",
-    "Rate how much effort and willpower this DAILY habit takes and reply with JSON only:",
-    '{"xp": <10|15|20|25>, "reason": "<one short sentence>"}',
-    "Scale: 10 = trivial, under five minutes (drink water).",
-    "15 = solid daily effort (read ten pages, journal).",
-    "20 = hard, thirty plus minutes or real willpower (workout, deep work, no social media).",
-    "25 = epic, most people fail this daily (5am run, full digital detox).",
+    "You are The System, a strict and unimpressed judge of daily habit quests in a self-improvement RPG.",
+    "Score how much real effort and willpower this DAILY habit costs, as an integer from 1 to 50.",
+    "Be harsh, precise and consistent. Trivial actions get almost nothing. Do not inflate.",
+    "Calibration anchors, follow them exactly:",
+    "- Drink a glass of water = 1",
+    "- Make your bed = 2",
+    "- 10 minute walk = 8",
+    "- Read 10 pages = 12",
+    "- 30 minute workout = 25",
+    "- Run 5 km = 50",
+    "- Keep Instagram or TikTok under one hour for the whole day = 50",
+    "Interpolate between anchors. Reserve 40 to 50 for feats that demand serious discipline.",
+    'Reply with JSON only: {"xp": <integer 1-50>, "reason": "<one short blunt sentence>"}',
     `Quest: "${title}" (life area: ${pillar || "unknown"})`,
   ].join("\n");
 
-  try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
-        }),
-        signal: AbortSignal.timeout(8000),
-      },
-    );
-    if (!r.ok) return NextResponse.json(FALLBACK);
-    const data = await r.json();
-    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    const parsed = JSON.parse(text);
-    const xp = VALID_XP.includes(parsed?.xp) ? (parsed.xp as number) : 15;
-    const reason = String(parsed?.reason ?? "").slice(0, 140);
-    return NextResponse.json({ xp, reason, source: "ai" });
-  } catch {
-    return NextResponse.json(FALLBACK);
+  // the free tier gets demand spikes: walk a chain of models until one answers
+  const models = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"];
+  for (const model of models) {
+    try {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+          }),
+          signal: AbortSignal.timeout(9000),
+        },
+      );
+      if (!r.ok) continue;
+      const data = await r.json();
+      const parts: { text?: string; thought?: boolean }[] = data?.candidates?.[0]?.content?.parts ?? [];
+      const text = parts.filter((p) => !p.thought && typeof p.text === "string").map((p) => p.text).join("");
+      const parsed = JSON.parse(text);
+      const raw = Number(parsed?.xp);
+      if (!Number.isFinite(raw)) continue;
+      const xp = Math.min(50, Math.max(1, Math.round(raw)));
+      const reason = String(parsed?.reason ?? "").slice(0, 140);
+      return NextResponse.json({ xp, reason, source: "ai" });
+    } catch {
+      continue;
+    }
   }
+  return NextResponse.json(FALLBACK);
 }

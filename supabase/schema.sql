@@ -196,8 +196,8 @@ begin
   if p_pillar not in ('Body','Mind','Rest','Fuel','Connection','Purpose') then
     raise exception 'unknown pillar';
   end if;
-  if p_xp not in (10, 15, 20, 25) then
-    raise exception 'xp must be 10, 15, 20 or 25';
+  if p_xp < 1 or p_xp > 60 then
+    raise exception 'xp must be between 1 and 60';
   end if;
   if (select count(*) from public.quests where user_id = uid) >= 30 then
     raise exception 'custom quest limit reached';
@@ -229,8 +229,8 @@ begin
   if p_pillar not in ('Body','Mind','Rest','Fuel','Connection','Purpose') then
     raise exception 'unknown pillar';
   end if;
-  if p_xp not in (10, 15, 20, 25) then
-    raise exception 'xp must be 10, 15, 20 or 25';
+  if p_xp < 1 or p_xp > 60 then
+    raise exception 'xp must be between 1 and 60';
   end if;
 
   update public.quests set
@@ -605,21 +605,21 @@ update public.profiles p set stats = coalesce(
 
 -- ============ quest catalog seed ============
 insert into public.quests (id, title, description, pillar, xp, stats, icon, benefits, sort) values
-('drink-water',       'Drink water',            'Hit your daily water target.',                        'Fuel',       10, '{CON,STR}', 'droplet',   '["+14% cognitive performance","+10% energy levels","+8% mental clarity"]', 1),
-('sleep-7-9',         'Sleep 7 to 9 hours',     'Protect a full night of sleep.',                      'Rest',       15, '{FOC,DIS}', 'moon',      '["+20% cognitive function","+15% immune function","+18% energy levels"]', 2),
-('read-books',        'Read 10 pages',          'Read from a real book, paper or ebook.',              'Mind',       15, '{WIS,FOC}', 'book',      '["Stronger memory","Lower cognitive decline risk","Calmer evenings"]', 3),
-('workout',           'Train your body',        'Strength or cardio, at least 20 minutes.',            'Body',       20, '{STR,CON}', 'dumbbell',  '["More strength and stamina","Better mood","Higher daily energy"]', 4),
-('morning-sunlight',  'Morning sunlight',       '10 minutes of daylight before noon.',                 'Body',       10, '{CON}',     'sun',       '["Better sleep at night","Steadier mood","Natural wake signal"]', 5),
-('meditate',          'Meditate',               '10 minutes of stillness and breath.',                 'Mind',       15, '{FOC,WIS}', 'lotus',     '["-21% cortisol","-10% anxiety levels","+12% emotional resilience"]', 6),
-('journal',           'Journal',                'Write what happened and how it felt.',                'Mind',       10, '{WIS}',     'pen',       '["+18% emotional clarity","+12% working memory","-15% stress levels"]', 7),
-('cold-shower',       'Cold shower',            'End your shower cold for 60 seconds.',                'Body',       15, '{DIS,CON}', 'snowflake', '["+250% dopamine","+8% circulation","+12% mental alertness"]', 8),
-('social-media-limit','Social media limit',     'Stay under 30 minutes of scrolling today.',           'Mind',       15, '{DIS,FOC}', 'phone-off', '["-25% depression","-16% anxiety","+10% attention span"]', 9),
-('deep-work',         'Deep work block',        '50 minutes of focused work, no distractions.',        'Purpose',    20, '{FOC,DIS}', 'target',    '["Real progress on what matters","Sharper focus","Momentum at work"]', 10),
-('plan-tomorrow',     'Plan tomorrow',          'Write tomorrow''s top 3 before bed.',                 'Purpose',    10, '{DIS,WIS}', 'calendar',  '["Calmer mornings","Clear priorities","Less decision fatigue"]', 11),
-('reach-out',         'Reach out',              'Message or call someone who matters to you.',         'Connection', 10, '{WIS}',     'users',     '["Stronger relationships","Feeling connected","Support when it counts"]', 12),
-('learn-skill',       'Learn something',        '20 minutes on a skill or course.',                    'Mind',       15, '{WIS,FOC}', 'bulb',      '["Compounding knowledge","Career leverage","Confidence in your craft"]', 13),
-('gratitude',         'Gratitude',              'Write 3 things you are grateful for.',                'Purpose',    10, '{WIS}',     'sparkle',   '["Better baseline mood","Perspective under stress","Deeper sleep"]', 14),
-('healthy-meal',      'Eat one clean meal',     'One meal with real food, protein and greens.',        'Fuel',       10, '{CON,STR}', 'apple',     '["Steadier energy","Better body composition","Fewer crashes"]', 15),
+('drink-water',       'Drink water',            'Hit your daily water target.',                        'Fuel',        3, '{CON,STR}', 'droplet',   '["+14% cognitive performance","+10% energy levels","+8% mental clarity"]', 1),
+('sleep-7-9',         'Sleep 7 to 9 hours',     'Protect a full night of sleep.',                      'Rest',       12, '{FOC,DIS}', 'moon',      '["+20% cognitive function","+15% immune function","+18% energy levels"]', 2),
+('read-books',        'Read 10 pages',          'Read from a real book, paper or ebook.',              'Mind',       12, '{WIS,FOC}', 'book',      '["Stronger memory","Lower cognitive decline risk","Calmer evenings"]', 3),
+('workout',           'Train your body',        'Strength or cardio, at least 20 minutes.',            'Body',       25, '{STR,CON}', 'dumbbell',  '["More strength and stamina","Better mood","Higher daily energy"]', 4),
+('morning-sunlight',  'Morning sunlight',       '10 minutes of daylight before noon.',                 'Body',        6, '{CON}',     'sun',       '["Better sleep at night","Steadier mood","Natural wake signal"]', 5),
+('meditate',          'Meditate',               '10 minutes of stillness and breath.',                 'Mind',       14, '{FOC,WIS}', 'lotus',     '["-21% cortisol","-10% anxiety levels","+12% emotional resilience"]', 6),
+('journal',           'Journal',                'Write what happened and how it felt.',                'Mind',        8, '{WIS}',     'pen',       '["+18% emotional clarity","+12% working memory","-15% stress levels"]', 7),
+('cold-shower',       'Cold shower',            'End your shower cold for 60 seconds.',                'Body',       18, '{DIS,CON}', 'snowflake', '["+250% dopamine","+8% circulation","+12% mental alertness"]', 8),
+('social-media-limit','Social media limit',     'Stay under 30 minutes of scrolling today.',           'Mind',       30, '{DIS,FOC}', 'phone-off', '["-25% depression","-16% anxiety","+10% attention span"]', 9),
+('deep-work',         'Deep work block',        '50 minutes of focused work, no distractions.',        'Purpose',    25, '{FOC,DIS}', 'target',    '["Real progress on what matters","Sharper focus","Momentum at work"]', 10),
+('plan-tomorrow',     'Plan tomorrow',          'Write tomorrow''s top 3 before bed.',                 'Purpose',     5, '{DIS,WIS}', 'calendar',  '["Calmer mornings","Clear priorities","Less decision fatigue"]', 11),
+('reach-out',         'Reach out',              'Message or call someone who matters to you.',         'Connection',  6, '{WIS}',     'users',     '["Stronger relationships","Feeling connected","Support when it counts"]', 12),
+('learn-skill',       'Learn something',        '20 minutes on a skill or course.',                    'Mind',       12, '{WIS,FOC}', 'bulb',      '["Compounding knowledge","Career leverage","Confidence in your craft"]', 13),
+('gratitude',         'Gratitude',              'Write 3 things you are grateful for.',                'Purpose',     4, '{WIS}',     'sparkle',   '["Better baseline mood","Perspective under stress","Deeper sleep"]', 14),
+('healthy-meal',      'Eat one clean meal',     'One meal with real food, protein and greens.',        'Fuel',        8, '{CON,STR}', 'apple',     '["Steadier energy","Better body composition","Fewer crashes"]', 15),
 ('screens-off',       'Screens off before bed', 'No screens for the last 30 minutes of your day.',     'Rest',       10, '{DIS}',     'screen-off','["Falling asleep faster","Deeper sleep","Calmer mind at night"]', 16)
 on conflict (id) do update set
   title = excluded.title,

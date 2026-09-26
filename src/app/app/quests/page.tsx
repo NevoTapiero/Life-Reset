@@ -10,10 +10,10 @@ const EMPTY_FORM: FormState = { id: null, title: "", pillar: "Body" };
 
 // screen time: tighter limit, bigger reward
 const SCREEN_LIMITS = [
-  { minutes: 30, label: "30 min", xp: 25 },
-  { minutes: 60, label: "1 hour", xp: 20 },
-  { minutes: 90, label: "90 min", xp: 15 },
-  { minutes: 120, label: "2 hours", xp: 10 },
+  { minutes: 30, label: "30 min", xp: 60 },
+  { minutes: 60, label: "1 hour", xp: 50 },
+  { minutes: 90, label: "90 min", xp: 40 },
+  { minutes: 120, label: "2 hours", xp: 30 },
 ];
 
 export default function QuestManager() {
@@ -82,12 +82,13 @@ export default function QuestManager() {
       });
       if (r.ok) {
         const data = await r.json();
-        if ([10, 15, 20, 25].includes(data?.xp)) {
-          return { xp: data.xp, reason: String(data.reason ?? "") };
+        const xp = Number(data?.xp);
+        if (Number.isFinite(xp) && xp >= 1 && xp <= 50) {
+          return { xp: Math.round(xp), reason: String(data.reason ?? "") };
         }
       }
     } catch {}
-    return { xp: 15, reason: "Standard daily effort." };
+    return { xp: 10, reason: "Standard daily effort." };
   }
 
   async function saveForm() {
@@ -262,7 +263,8 @@ export default function QuestManager() {
             ))}
           </div>
           <p className="text-xs text-muted mt-4">
-            No picking your own reward: The System judges the effort and sets the XP (+10 to +25).
+            No picking your own reward: The System judges the real effort and sets the XP, from +1
+            for a glass of water up to +50 for a 5 km run.
           </p>
           <div className="flex gap-2.5 mt-4">
             <button className="btn-ghost flex-1 py-3" onClick={() => setForm(null)}>

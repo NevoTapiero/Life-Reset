@@ -129,6 +129,13 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M19 4.5 8.8 14.7M19 4.5h-2.8M19 4.5v2.8M10.6 16.5l-2.7 2.7M11.4 14.2l2 2-3.2 3.2-2-2" />
     </>
   ),
+  tasks: (
+    <>
+      <path d="M3.8 6l1.5 1.5L8 4.8M11 6.4h9.2" />
+      <path d="M3.8 12l1.5 1.5L8 10.8M11 12.4h9.2" />
+      <path d="M3.8 18l1.5 1.5L8 16.8M11 18.4h9.2" />
+    </>
+  ),
   user: (
     <>
       <circle cx="12" cy="8.2" r="3.4" />

@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
 
 const TABS = [
-  { href: "/app", label: "Today", icon: "swords" },
+  { href: "/app", label: "Today", icon: "tasks" },
   { href: "/app/quests", label: "Quests", icon: "sliders" },
   { href: "/app/stats", label: "Stats", icon: "chart" },
   { href: "/app/leaderboard", label: "Board", icon: "trophy" },
