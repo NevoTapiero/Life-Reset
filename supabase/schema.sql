@@ -322,6 +322,66 @@ begin
   return (select jsonb_build_object('username', username, 'archetype', archetype) from public.profiles where id = target);
 end $$;
 
+-- a friend's public file: profile, stats and their current challenges
+create or replace function public.get_friend_profile(p_username text)
+returns jsonb
+language plpgsql stable security definer set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  target record;
+  quest_list jsonb;
+  weekly bigint;
+begin
+  if uid is null then raise exception 'not authenticated'; end if;
+  select * into target from public.profiles where username = p_username;
+  if not found then raise exception 'unknown challenger'; end if;
+  if target.id <> uid then
+    if not exists (
+      select 1 from public.friendships
+      where a = least(uid, target.id) and b = greatest(uid, target.id)
+    ) then
+      raise exception 'not on your friends list';
+    end if;
+    if not target.share_activity then
+      raise exception 'this challenger keeps their activity private';
+    end if;
+  end if;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', q.id,
+    'title', q.title,
+    'pillar', q.pillar,
+    'xp', q.xp,
+    'icon', q.icon,
+    'done_today', exists (
+      select 1 from public.quest_completions c
+      where c.user_id = target.id and c.quest_id = q.id and c.completed_on = public.app_today()
+    )
+  ) order by q.sort, q.title), '[]'::jsonb)
+  into quest_list
+  from public.user_quests uq
+  join public.quests q on q.id = uq.quest_id
+  where uq.user_id = target.id and uq.active;
+
+  select coalesce(sum(c.xp_awarded), 0) into weekly
+  from public.quest_completions c
+  where c.user_id = target.id
+    and c.completed_on >= date_trunc('week', public.app_today()::timestamp)::date;
+
+  return jsonb_build_object(
+    'username', target.username,
+    'archetype', target.archetype,
+    'xp', target.xp,
+    'streak_current', target.streak_current,
+    'streak_best', target.streak_best,
+    'stats', target.stats,
+    'member_since', target.created_at,
+    'weekly_xp', weekly,
+    'quests', quest_list
+  );
+end $$;
+
 create or replace function public.remove_friend(p_username text)
 returns void
 language plpgsql security definer set search_path = public
@@ -499,6 +559,7 @@ grant execute on function public.set_archetype(text) to authenticated;
 grant execute on function public.set_privacy(boolean) to authenticated;
 grant execute on function public.add_friend(text) to authenticated;
 grant execute on function public.remove_friend(text) to authenticated;
+grant execute on function public.get_friend_profile(text) to authenticated;
 
 -- ============ v3 backfill (idempotent) ============
 update public.profiles set friend_code = public.gen_friend_code() where friend_code is null;

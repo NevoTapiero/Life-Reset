@@ -142,12 +142,17 @@ export default function ProfilePage() {
           return (
             <button
               key={key}
-              className={`option-row flex-none w-[104px] py-3 flex flex-col items-center gap-1.5 ${on ? "selected" : ""}`}
+              className={`option-row flex-none w-[118px] px-3 py-3.5 flex flex-col items-center gap-1.5 ${on ? "selected" : ""}`}
               onClick={() => chooseCharacter(key)}
             >
               <Avatar size={56} character={key} ring={on} />
               <span className="hud-label !text-ink">{CHARACTERS[key].name.replace("The ", "")}</span>
-              <span className="hud-label !text-[9px]">{CHARACTERS[key].focus}</span>
+              <span
+                className="hud-label !text-[9px] text-center leading-relaxed"
+                style={{ letterSpacing: "0.06em" }}
+              >
+                {CHARACTERS[key].focus}
+              </span>
             </button>
           );
         })}

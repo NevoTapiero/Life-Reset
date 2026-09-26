@@ -144,6 +144,13 @@ const PATHS: Record<string, React.ReactNode> = {
     </>
   ),
   plus: <path d="M12 5.5v13M5.5 12h13" />,
+  dots: (
+    <>
+      <circle cx="12" cy="5.5" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="18.5" r="1.5" fill="currentColor" stroke="none" />
+    </>
+  ),
   trash: (
     <>
       <path d="M5 7h14M10 7V4.8h4V7M6.7 7l.8 12.5h9L17.3 7" />

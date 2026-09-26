@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
 
@@ -14,6 +15,7 @@ type Row = {
 };
 
 export default function LeaderboardPage() {
+  const router = useRouter();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [myCode, setMyCode] = useState<string | null>(null);
   const [myShare, setMyShare] = useState(true);
@@ -22,6 +24,7 @@ export default function LeaderboardPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [{ data, error }, { data: userData }] = await Promise.all([
@@ -141,7 +144,7 @@ export default function LeaderboardPage() {
           </p>
         </div>
       ) : (
-        <div className="card mt-5 divide-y divide-[var(--line)] overflow-hidden stagger">
+        <div className="card mt-5 divide-y divide-[var(--line)] stagger">
           {rows.map((r, i) => (
             <div
               key={`${r.username}-${i}`}
@@ -155,7 +158,10 @@ export default function LeaderboardPage() {
                   <span className="hud-label font-mono">#{i + 1}</span>
                 )}
               </span>
-              <span className="flex-1 min-w-0">
+              <button
+                className="flex-1 min-w-0 text-left active:opacity-70 transition-opacity"
+                onClick={() => !r.is_me && router.push(`/app/friend/${encodeURIComponent(r.username)}`)}
+              >
                 <span
                   className="block font-mono text-sm truncate"
                   style={r.is_me ? { color: "var(--accent)" } : undefined}
@@ -167,7 +173,7 @@ export default function LeaderboardPage() {
                   <Icon name="flame" size={10} strokeWidth={2} />
                   {r.streak_current} day streak
                 </span>
-              </span>
+              </button>
               <span className="text-right flex-none">
                 <span className="block font-mono text-sm" style={{ color: "var(--accent)" }}>
                   {r.weekly_xp.toLocaleString()}
@@ -175,13 +181,42 @@ export default function LeaderboardPage() {
                 <span className="hud-label">weekly XP</span>
               </span>
               {!r.is_me && (
-                <button
-                  className="icon-tile !w-8 !h-8 !rounded-[9px] text-muted active:scale-95 transition-transform"
-                  aria-label={`Remove ${r.username}`}
-                  onClick={() => removeFriend(r.username)}
-                >
-                  <Icon name="x" size={13} />
-                </button>
+                <span className="relative flex-none">
+                  <button
+                    className="icon-tile !w-8 !h-8 !rounded-[9px] text-muted active:scale-95 transition-transform"
+                    aria-label={`Options for ${r.username}`}
+                    onClick={() => setMenuFor(menuFor === r.username ? null : r.username)}
+                  >
+                    <Icon name="dots" size={15} />
+                  </button>
+                  {menuFor === r.username && (
+                    <>
+                      <span className="fixed inset-0 z-40" onClick={() => setMenuFor(null)} />
+                      <span className="card absolute right-0 top-10 z-50 w-36 py-1.5 flex flex-col rise shadow-xl">
+                        <button
+                          className="px-4 py-2.5 text-left text-sm flex items-center gap-2.5 active:opacity-70"
+                          onClick={() => {
+                            setMenuFor(null);
+                            router.push(`/app/friend/${encodeURIComponent(r.username)}`);
+                          }}
+                        >
+                          <Icon name="user" size={14} />
+                          Profile
+                        </button>
+                        <button
+                          className="px-4 py-2.5 text-left text-sm flex items-center gap-2.5 text-danger active:opacity-70"
+                          onClick={() => {
+                            setMenuFor(null);
+                            removeFriend(r.username);
+                          }}
+                        >
+                          <Icon name="x" size={14} />
+                          Remove
+                        </button>
+                      </span>
+                    </>
+                  )}
+                </span>
               )}
             </div>
           ))}

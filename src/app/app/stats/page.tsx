@@ -119,7 +119,11 @@ export default function StatsPage() {
       </div>
 
       <div className="card p-4 mt-4">
-        <div className="hud-label mb-3.5">Pillar activity</div>
+        <div className="hud-label mb-1.5">Pillar activity</div>
+        <p className="text-xs text-muted mb-3.5">
+          How many quests you have cleared in each life pillar, all time. The bars compare the
+          pillars to each other.
+        </p>
         <div className="flex flex-col gap-3">
           {PILLARS.map((p: Pillar) => {
             const count = pillarCounts[p] ?? 0;

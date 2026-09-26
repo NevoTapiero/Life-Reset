@@ -1,0 +1,163 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import Avatar from "@/components/Avatar";
+import Icon from "@/components/Icon";
+import Radar from "@/components/Radar";
+import RankBadge from "@/components/RankBadge";
+import { CharacterKey, STAT_KEYS, Stats, characterOf, formatDate, rankForXp } from "@/lib/game";
+
+type FriendQuest = {
+  id: string;
+  title: string;
+  pillar: string;
+  xp: number;
+  icon: string;
+  done_today: boolean;
+};
+
+type FriendFile = {
+  username: string;
+  archetype: CharacterKey | null;
+  xp: number;
+  streak_current: number;
+  streak_best: number;
+  stats: Stats;
+  member_since: string;
+  weekly_xp: number;
+  quests: FriendQuest[];
+};
+
+export default function FriendProfilePage() {
+  const params = useParams<{ username: string }>();
+  const router = useRouter();
+  const [file, setFile] = useState<FriendFile | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const username = decodeURIComponent(params.username ?? "");
+    if (!username) return;
+    supabase.rpc("get_friend_profile", { p_username: username }).then(({ data, error }) => {
+      if (error) setError(error.message);
+      else setFile(data as FriendFile);
+    });
+  }, [params.username]);
+
+  if (error) {
+    return (
+      <div className="slide-in text-center py-16">
+        <p className="text-danger text-sm">{error}</p>
+        <button className="btn-ghost px-6 py-2.5 mt-5" onClick={() => router.back()}>
+          Back
+        </button>
+      </div>
+    );
+  }
+  if (!file) {
+    return <div className="hud-label pulse-glow text-center py-20">Opening their file…</div>;
+  }
+
+  const rank = rankForXp(file.xp);
+  const character = characterOf(file.archetype);
+  const cleared = file.quests.filter((q) => q.done_today).length;
+  const values = STAT_KEYS.map((k) => file.stats[k] ?? 0);
+  const radarMax = Math.max(20, ...values) * 1.15;
+
+  return (
+    <div className="slide-in">
+      <button
+        className="hud-label flex items-center gap-2 py-1 active:scale-95 transition-transform"
+        onClick={() => router.back()}
+      >
+        ← Back to the board
+      </button>
+
+      <div className="bezel mt-4">
+        <div className="bezel-core p-5 text-center">
+          <div className="flex justify-center items-center gap-5">
+            <Avatar size={92} character={file.archetype} />
+            <div className="flex flex-col items-center">
+              <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={52} />
+              <span className="hud-label mt-1.5" style={{ color: rank.color }}>{rank.label}</span>
+            </div>
+          </div>
+          <div className="display text-xl mt-4">{file.username.toUpperCase()}</div>
+          {character && (
+            <div className="hud-label mt-2" style={{ color: character.accent }}>
+              {character.name} · {character.focus}
+            </div>
+          )}
+          <div className="hud-label mt-2">Challenger since {formatDate(new Date(file.member_since))}</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2.5 mt-4">
+        <div className="card p-3.5 text-center">
+          <div className="font-mono font-bold text-lg" style={{ color: "var(--accent)" }}>
+            {file.weekly_xp.toLocaleString()}
+          </div>
+          <div className="hud-label mt-1">Weekly XP</div>
+        </div>
+        <div className="card p-3.5 text-center">
+          <div className="font-mono font-bold text-lg flex items-center justify-center gap-1" style={{ color: "var(--accent)" }}>
+            <Icon name="flame" size={15} strokeWidth={2} />
+            {file.streak_current}
+          </div>
+          <div className="hud-label mt-1">Streak</div>
+        </div>
+        <div className="card p-3.5 text-center">
+          <div className="font-mono font-bold text-lg" style={{ color: "var(--bronze)" }}>
+            {file.streak_best}
+          </div>
+          <div className="hud-label mt-1">Best</div>
+        </div>
+      </div>
+
+      <div className="bezel mt-4">
+        <div className="bezel-core py-2 flex justify-center">
+          <Radar
+            labels={[...STAT_KEYS]}
+            size={230}
+            max={radarMax}
+            series={[{ values, stroke: "var(--accent)", fill: "rgba(255, 107, 0, 0.28)", dots: true }]}
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mt-6 mb-3">
+        <span className="eyebrow hud-label !text-ink">Their challenges</span>
+        <span className="hud-label font-mono">
+          {cleared}/{file.quests.length} today
+        </span>
+      </div>
+      <div className="flex flex-col gap-2.5 stagger pb-4">
+        {file.quests.map((q) => (
+          <div
+            key={q.id}
+            className={`option-row px-4 py-3.5 flex items-center gap-3.5 ${q.done_today ? "selected" : ""}`}
+          >
+            <span className="icon-tile" style={q.done_today ? { color: "var(--accent)", borderColor: "rgba(255,107,0,0.4)" } : undefined}>
+              <Icon name={q.icon} size={21} />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className={`block text-[15px] truncate ${q.done_today ? "text-muted line-through" : ""}`}>
+                {q.title}
+              </span>
+              <span className="hud-label mt-1">{q.pillar} · +{q.xp} XP</span>
+            </span>
+            {q.done_today && (
+              <span className="hud-label flex-none" style={{ color: "var(--accent)" }}>
+                Cleared
+              </span>
+            )}
+          </div>
+        ))}
+        {file.quests.length === 0 && (
+          <div className="card p-5 text-center text-muted text-sm">No active challenges yet.</div>
+        )}
+      </div>
+    </div>
+  );
+}

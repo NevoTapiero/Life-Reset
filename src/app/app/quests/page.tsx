@@ -15,11 +15,20 @@ const XP_CHOICES = [
 type FormState = { id: string | null; title: string; pillar: Pillar; xp: number };
 const EMPTY_FORM: FormState = { id: null, title: "", pillar: "Body", xp: 15 };
 
+// screen time: tighter limit, bigger reward
+const SCREEN_LIMITS = [
+  { minutes: 30, label: "30 min", xp: 25 },
+  { minutes: 60, label: "1 hour", xp: 20 },
+  { minutes: 90, label: "90 min", xp: 15 },
+  { minutes: 120, label: "2 hours", xp: 10 },
+];
+
 export default function QuestManager() {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [activeIds, setActiveIds] = useState<Set<string>>(new Set());
   const [uid, setUid] = useState<string | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
+  const [stForm, setStForm] = useState<{ app: string; minutes: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -93,6 +102,25 @@ export default function QuestManager() {
     load();
   }
 
+  async function saveScreenTime() {
+    if (!stForm) return;
+    setBusy(true);
+    setError(null);
+    const limit = SCREEN_LIMITS.find((l) => l.minutes === stForm.minutes) ?? SCREEN_LIMITS[1];
+    const { error } = await supabase.rpc("create_custom_quest", {
+      p_title: `Under ${limit.label} on ${stForm.app.trim()}`,
+      p_pillar: "Mind",
+      p_xp: limit.xp,
+    });
+    setBusy(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setStForm(null);
+    load();
+  }
+
   async function remove(q: Quest) {
     setError(null);
     const { error } = await supabase.rpc("delete_custom_quest", { p_id: q.id });
@@ -118,15 +146,67 @@ export default function QuestManager() {
       {error && <p className="text-danger text-sm mt-3">{error}</p>}
 
       {/* custom quests */}
-      <div className="flex items-center justify-between mt-6 mb-3">
+      <div className="flex items-center justify-between mt-6 mb-3 gap-2">
         <span className="hud-label">Your quests · {customs.length}</span>
-        {!form && (
-          <button className="btn-primary !text-xs px-4 py-2 gap-1.5" onClick={() => setForm(EMPTY_FORM)}>
-            <Icon name="plus" size={13} strokeWidth={2.2} />
-            New quest
-          </button>
+        {!form && !stForm && (
+          <span className="flex gap-2">
+            <button
+              className="btn-ghost !text-xs px-3.5 py-2 gap-1.5"
+              onClick={() => setStForm({ app: "", minutes: 60 })}
+            >
+              <Icon name="phone-off" size={13} strokeWidth={2} />
+              Screen time
+            </button>
+            <button className="btn-primary !text-xs px-4 py-2 gap-1.5" onClick={() => setForm(EMPTY_FORM)}>
+              <Icon name="plus" size={13} strokeWidth={2.2} />
+              New quest
+            </button>
+          </span>
         )}
       </div>
+
+      {stForm && (
+        <div className="hud-frame p-4 mb-3 rise">
+          <div className="hud-label mb-1">Screen time challenge</div>
+          <p className="text-xs text-muted mb-3.5">
+            Cap your daily time in one app. Check it in each day you stayed under the limit;
+            the tighter the limit, the bigger the XP. Automatic tracking arrives with the
+            native app version.
+          </p>
+          <input
+            className="field w-full px-4 py-3 text-[15px]"
+            placeholder="App name (e.g. TikTok, Instagram)"
+            value={stForm.app}
+            maxLength={30}
+            onChange={(e) => setStForm({ ...stForm, app: e.target.value })}
+          />
+          <div className="hud-label mt-4 mb-2">Daily limit</div>
+          <div className="grid grid-cols-4 gap-2">
+            {SCREEN_LIMITS.map((l) => (
+              <button
+                key={l.minutes}
+                className={`option-row px-2 py-2.5 flex flex-col items-center gap-0.5 ${stForm.minutes === l.minutes ? "selected" : ""}`}
+                onClick={() => setStForm({ ...stForm, minutes: l.minutes })}
+              >
+                <span className="text-sm font-semibold">{l.label}</span>
+                <span className="hud-label">+{l.xp} XP</span>
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2.5 mt-5">
+            <button className="btn-ghost flex-1 py-3" onClick={() => setStForm(null)}>
+              Cancel
+            </button>
+            <button
+              className="btn-primary flex-1 py-3"
+              disabled={busy || stForm.app.trim().length < 2}
+              onClick={saveScreenTime}
+            >
+              Set the limit
+            </button>
+          </div>
+        </div>
+      )}
 
       {form && (
         <div className="hud-frame p-4 mb-3 rise">

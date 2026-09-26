@@ -67,8 +67,8 @@ export default function AuthPage() {
   }
 
   return (
-    <main className="flex-1 flex flex-col justify-center py-10">
-      <div className="rise">
+    <main className="flex-1 flex flex-col py-8">
+      <div className="rise my-auto">
         <div className="flex justify-center mb-6">
           <Avatar size={84} />
         </div>

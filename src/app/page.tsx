@@ -25,7 +25,7 @@ export default function Landing() {
         </span>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center text-center rise">
+      <div className="my-auto py-8 text-center rise">
         <div className="flex justify-center mb-8">
           <div className="relative">
             <Avatar size={148} />
@@ -70,7 +70,7 @@ export default function Landing() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rise pb-2">
+      <div className="flex flex-col gap-4 rise pb-3 pt-4">
         <Link href="/auth" className="btn-primary py-4 text-[15px]">
           Start my reset
           <span className="btn-icon-slot">
@@ -80,7 +80,7 @@ export default function Landing() {
         <Link href="/auth?mode=signin" className="btn-ghost py-3.5">
           I already have an account
         </Link>
-        <p className="text-center hud-label mt-1">Free for every challenger</p>
+        <p className="text-center hud-label mt-1.5">Free for every challenger</p>
       </div>
     </main>
   );
