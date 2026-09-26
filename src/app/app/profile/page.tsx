@@ -109,7 +109,7 @@ export default function ProfilePage() {
       <button className="btn-ghost w-full py-3.5 mt-6 text-danger" onClick={signOut}>
         Sign out
       </button>
-      <p className="text-center text-xs text-muted mt-4">Life Reset · founder preview</p>
+      <p className="text-center text-xs text-muted mt-4">Life Reset · free for every challenger</p>
     </div>
   );
 }
