@@ -52,8 +52,8 @@ export default function Landing() {
           THIS TIME.
         </h1>
         <p className="mt-5 text-muted text-[15px] leading-relaxed max-w-xs mx-auto">
-          Become the main character of your life. A 66 day system that turns real habits into
-          quests, XP and ranks.
+          Become the main character of your life. Pure challenges: real habits become quests
+          that pay XP, build streaks and climb ranks.
         </p>
 
         <div className="mt-8 grid grid-cols-3 gap-2.5 stagger">

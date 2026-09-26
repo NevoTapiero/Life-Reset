@@ -42,3 +42,8 @@ next-env.d.ts
 
 # local tooling
 .claude/
+
+# agent tooling (never commit)
+.agents/
+skills-lock.json
+.codex/

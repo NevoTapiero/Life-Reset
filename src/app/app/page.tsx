@@ -5,13 +5,15 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
+import RankBadge from "@/components/RankBadge";
 import {
-  PLAN_DAYS,
+  CHARACTERS,
+  CHARACTER_KEYS,
+  CharacterKey,
   Profile,
   Quest,
-  dayOfPlan,
-  finishDate,
-  formatDate,
+  characterOf,
+  nextStreakMilestone,
   rankForXp,
 } from "@/lib/game";
 
@@ -21,7 +23,6 @@ export default function Dashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [quests, setQuests] = useState<Quest[]>([]);
   const [doneToday, setDoneToday] = useState<Set<string>>(new Set());
-  const [today, setToday] = useState<string>("");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [xpFloat, setXpFloat] = useState<{ id: string; amount: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +49,6 @@ export default function Dashboard() {
       .sort((a, b) => a.sort - b.sort);
     setQuests(list);
     setDoneToday(new Set((comps ?? []).map((c: { quest_id: string }) => c.quest_id)));
-    setToday(todayStr);
   }, []);
 
   useEffect(() => {
@@ -85,15 +85,22 @@ export default function Dashboard() {
     setTimeout(() => setXpFloat(null), 1100);
   }
 
+  async function chooseCharacter(key: CharacterKey) {
+    const { data, error } = await supabase.rpc("set_archetype", { p_key: key });
+    if (error) setError(error.message);
+    else setProfile(data as Profile);
+  }
+
   if (!profile) {
     return <div className="hud-label pulse-glow text-center py-20">Syncing quests…</div>;
   }
 
   const rank = rankForXp(profile.xp);
-  const day = dayOfPlan(profile.plan_started_on, today || new Date().toISOString().slice(0, 10));
+  const character = characterOf(profile.archetype);
   const clearedAll = quests.length > 0 && quests.every((q) => doneToday.has(q.id));
   const clearedCount = quests.filter((q) => doneToday.has(q.id)).length;
-  const streakPct = Math.min(profile.streak_current / Math.max(profile.streak_commitment, 1), 1);
+  const milestone = nextStreakMilestone(profile.streak_current);
+  const streakPct = Math.min(profile.streak_current / milestone, 1);
 
   return (
     <div className="rise">
@@ -101,37 +108,43 @@ export default function Dashboard() {
       <div className="bezel">
         <div className="bezel-core p-4">
           <div className="flex items-center gap-4">
-            <Avatar size={76} />
+            <Avatar size={76} character={profile.archetype} />
             <div className="flex-1 min-w-0">
-              <div className="hud-label">Campaign 1 · Day {day} / {PLAN_DAYS}</div>
+              <div className="hud-label">{character ? character.name : "Pick your character"}</div>
               <div className="display text-xl mt-0.5 truncate">{profile.username.toUpperCase()}</div>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="hud-label" style={{ color: rank.color }}>
-                  ◆ {rank.label}
-                </span>
-                <span className="hud-label">{profile.xp.toLocaleString()} XP</span>
+              <div className="hud-label mt-1">
+                <span className="font-mono">{profile.xp.toLocaleString()}</span> XP total
               </div>
             </div>
-            <div className="flex flex-col items-center gap-0.5 pr-1" style={{ color: "var(--accent)" }}>
-              <Icon name="flame" size={26} strokeWidth={1.8} />
-              <span className="display text-lg leading-none">{profile.streak_current}</span>
-              <span className="hud-label">streak</span>
+            <div className="flex flex-col items-center flex-none">
+              <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={52} />
+              <span className="hud-label mt-1" style={{ color: rank.color }}>
+                {rank.label}
+              </span>
             </div>
           </div>
 
           <div className="mt-4">
             <div className="flex justify-between items-center mb-1.5">
-              <span className="hud-label">Rank progress</span>
               <span className="hud-label">
-                {rank.atMax ? "Max rank" : `${rank.xpIntoDivision}/${rank.xpForDivision} XP`}
+                {rank.atMax ? "Top of the ladder" : `Next: ${nextRankLabel(rank.tierIndex, rank.stageIndex)}`}
+              </span>
+              <span className="hud-label font-mono">
+                {rank.atMax ? "MAX" : `${rank.xpIntoStage}/${rank.xpForStage} XP`}
               </span>
             </div>
             <div className="track">
               <div style={{ width: `${rank.progress * 100}%`, background: rank.color, boxShadow: `0 0 12px ${rank.color}` }} />
             </div>
-            <div className="flex justify-between items-center mb-1.5 mt-3">
-              <span className="hud-label">Contract · {profile.streak_commitment} day streak</span>
-              <span className="hud-label">Best {profile.streak_best}</span>
+
+            <div className="flex justify-between items-center mb-1.5 mt-3.5">
+              <span className="hud-label flex items-center gap-1.5" style={{ color: "var(--accent)" }}>
+                <Icon name="flame" size={13} strokeWidth={2} />
+                Streak · <span className="font-mono text-[12px]">{profile.streak_current}</span> {profile.streak_current === 1 ? "day" : "days"}
+              </span>
+              <span className="hud-label font-mono">
+                next {milestone} · best {profile.streak_best}
+              </span>
             </div>
             <div className="track track-accent">
               <div style={{ width: `${streakPct * 100}%` }} />
@@ -140,11 +153,32 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* first run: choose your character */}
+      {!profile.archetype && (
+        <div className="hud-frame p-4 mt-5 rise">
+          <div className="hud-label mb-1" style={{ color: "var(--accent)" }}>Choose your character</div>
+          <p className="text-sm text-muted mb-3.5">Five challengers, five focuses. Pick who you fight as; you can switch later in your profile.</p>
+          <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
+            {CHARACTER_KEYS.map((key) => (
+              <button
+                key={key}
+                className="flex flex-col items-center gap-1.5 flex-none active:scale-95 transition-transform"
+                onClick={() => chooseCharacter(key)}
+              >
+                <Avatar size={64} character={key} />
+                <span className="hud-label !text-ink">{CHARACTERS[key].name.replace("The ", "")}</span>
+                <span className="hud-label !text-[9px]">{CHARACTERS[key].stat}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* quests */}
       <div className="flex items-center justify-between mt-6 mb-3">
         <span className="eyebrow hud-label !text-ink">System · Today&apos;s quests</span>
         <div className="flex items-center gap-3">
-          <span className="hud-label">
+          <span className="hud-label font-mono">
             {clearedCount}/{quests.length}
           </span>
           <Link href="/app/quests" aria-label="Manage quests" className="icon-tile !w-9 !h-9 !rounded-[10px] active:scale-95 transition-transform">
@@ -203,12 +237,20 @@ export default function Dashboard() {
           <div className="flex justify-center" style={{ color: "var(--accent)" }}>
             <Icon name="trophy" size={26} strokeWidth={1.8} />
           </div>
-          <p className="display mt-2">DAY {day} CLEARED, CHALLENGER.</p>
+          <p className="display mt-2">ALL QUESTS CLEARED.</p>
           <p className="text-sm text-muted mt-1">
-            Campaign 1 ends {formatDate(finishDate(profile.plan_started_on))}. See you tomorrow.
+            The streak holds. See you tomorrow, challenger.
           </p>
         </div>
       )}
     </div>
   );
+}
+
+function nextRankLabel(tierIndex: number, stageIndex: number): string {
+  const stages = ["I", "II", "III"];
+  const tiers = ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Champion"];
+  if (stageIndex < 2) return `${tiers[tierIndex]} ${stages[stageIndex + 1]}`;
+  if (tierIndex < tiers.length - 1) return `${tiers[tierIndex + 1]} I`;
+  return "Champion III";
 }

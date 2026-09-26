@@ -14,18 +14,30 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   username text not null unique,
   archetype text,
-  focus_areas text[] not null default '{}',
-  intensity text,
-  onboarding jsonb not null default '{}'::jsonb,
-  onboarding_completed_at timestamptz,
-  plan_started_on date,
-  streak_commitment int not null default 14,
+  friend_code text unique,
   xp int not null default 0,
   streak_current int not null default 0,
   streak_best int not null default 0,
   last_completed_on date,
-  stats jsonb not null default '{"CON":50,"FOC":50,"DIS":50,"STR":50,"WIS":50}'::jsonb,
+  stats jsonb not null default '{"CON":0,"FOC":0,"DIS":0,"STR":0,"WIS":0}'::jsonb,
   created_at timestamptz not null default now()
+);
+-- v3 migration: pure challenges, no campaign or contract
+alter table public.profiles add column if not exists friend_code text unique;
+alter table public.profiles drop column if exists focus_areas;
+alter table public.profiles drop column if exists intensity;
+alter table public.profiles drop column if exists onboarding;
+alter table public.profiles drop column if exists onboarding_completed_at;
+alter table public.profiles drop column if exists plan_started_on;
+alter table public.profiles drop column if exists streak_commitment;
+alter table public.profiles alter column stats set default '{"CON":0,"FOC":0,"DIS":0,"STR":0,"WIS":0}'::jsonb;
+
+create table if not exists public.friendships (
+  a uuid not null references public.profiles(id) on delete cascade,
+  b uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (a, b),
+  check (a < b)
 );
 
 create table if not exists public.quests (
@@ -67,6 +79,7 @@ alter table public.profiles enable row level security;
 alter table public.quests enable row level security;
 alter table public.user_quests enable row level security;
 alter table public.quest_completions enable row level security;
+alter table public.friendships enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles for select using (auth.uid() = id);
@@ -88,6 +101,24 @@ grant select on public.user_quests to authenticated;
 grant select on public.quest_completions to authenticated;
 
 -- ============ new user trigger ============
+create or replace function public.gen_friend_code()
+returns text
+language plpgsql
+as $$
+declare
+  chars text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  code text;
+begin
+  loop
+    code := '';
+    for i in 1..6 loop
+      code := code || substr(chars, 1 + floor(random() * length(chars))::int, 1);
+    end loop;
+    exit when not exists (select 1 from public.profiles where friend_code = code);
+  end loop;
+  return code;
+end $$;
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql security definer set search_path = public
@@ -108,8 +139,8 @@ begin
       exit;
     end if;
   end loop;
-  insert into public.profiles (id, username, archetype, plan_started_on, onboarding_completed_at)
-  values (new.id, candidate, 'The Challenger', public.app_today(), now())
+  insert into public.profiles (id, username, friend_code)
+  values (new.id, candidate, public.gen_friend_code())
   on conflict (id) do nothing;
 
   -- default quest loadout for every new challenger
@@ -239,7 +270,9 @@ begin
   on conflict (user_id, quest_id) do update set active = excluded.active;
 end $$;
 
-create or replace function public.set_commitment(p_days int)
+drop function if exists public.set_commitment(int);
+
+create or replace function public.set_archetype(p_key text)
 returns jsonb
 language plpgsql security definer set search_path = public
 as $$
@@ -247,9 +280,46 @@ declare
   uid uuid := auth.uid();
 begin
   if uid is null then raise exception 'not authenticated'; end if;
-  if p_days not in (7, 14, 30, 50) then raise exception 'commitment must be 7, 14, 30 or 50 days'; end if;
-  update public.profiles set streak_commitment = p_days where id = uid;
+  if p_key not in ('warrior','mentalist','wizard','guardian','shadow') then
+    raise exception 'unknown character';
+  end if;
+  update public.profiles set archetype = p_key where id = uid;
   return (select to_jsonb(pr) from public.profiles pr where pr.id = uid);
+end $$;
+
+-- ============ friends ============
+create or replace function public.add_friend(p_code text)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  target uuid;
+  clean text;
+begin
+  if uid is null then raise exception 'not authenticated'; end if;
+  clean := upper(regexp_replace(coalesce(p_code, ''), '[^a-zA-Z0-9]', '', 'g'));
+  select id into target from public.profiles where friend_code = clean;
+  if target is null then raise exception 'no challenger with that code'; end if;
+  if target = uid then raise exception 'that is your own code'; end if;
+  insert into public.friendships (a, b)
+  values (least(uid, target), greatest(uid, target))
+  on conflict do nothing;
+  return (select jsonb_build_object('username', username, 'archetype', archetype) from public.profiles where id = target);
+end $$;
+
+create or replace function public.remove_friend(p_username text)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  target uuid;
+begin
+  if uid is null then raise exception 'not authenticated'; end if;
+  select id into target from public.profiles where username = p_username;
+  if target is null then raise exception 'unknown challenger'; end if;
+  delete from public.friendships where a = least(uid, target) and b = greatest(uid, target);
 end $$;
 
 -- ============ quest completion ============
@@ -355,18 +425,27 @@ begin
 end $$;
 
 -- ============ social ============
+-- friends-only board: you and the challengers you added, nobody else
 create or replace function public.get_leaderboard()
 returns table (username text, archetype text, xp int, streak_current int, weekly_xp bigint, is_me boolean)
 language sql stable security definer set search_path = public
 as $$
+  with circle as (
+    select auth.uid() as pid
+    union
+    select case when f.a = auth.uid() then f.b else f.a end
+    from public.friendships f
+    where f.a = auth.uid() or f.b = auth.uid()
+  )
   select p.username, p.archetype, p.xp, p.streak_current,
          coalesce(sum(c.xp_awarded) filter (where c.completed_on >= date_trunc('week', public.app_today()::timestamp)::date), 0) as weekly_xp,
          p.id = auth.uid() as is_me
   from public.profiles p
+  join circle on circle.pid = p.id
   left join public.quest_completions c on c.user_id = p.id
   group by p.id
   order by weekly_xp desc, p.xp desc
-  limit 50
+  limit 100
 $$;
 
 create or replace function public.get_member_count()
@@ -401,7 +480,32 @@ grant execute on function public.create_custom_quest(text, text, int) to authent
 grant execute on function public.update_custom_quest(text, text, text, int) to authenticated;
 grant execute on function public.delete_custom_quest(text) to authenticated;
 grant execute on function public.set_quest_active(text, boolean) to authenticated;
-grant execute on function public.set_commitment(int) to authenticated;
+grant execute on function public.set_archetype(text) to authenticated;
+grant execute on function public.add_friend(text) to authenticated;
+grant execute on function public.remove_friend(text) to authenticated;
+
+-- ============ v3 backfill (idempotent) ============
+update public.profiles set friend_code = public.gen_friend_code() where friend_code is null;
+
+update public.profiles set archetype = 'warrior' where archetype in ('The Warrior');
+update public.profiles set archetype = 'mentalist' where archetype in ('The Seeker');
+update public.profiles set archetype = null
+where archetype is not null and archetype not in ('warrior','mentalist','wizard','guardian','shadow');
+
+-- stats are purely earned: recompute from completion history (+2 per linked stat per clear)
+with earned as (
+  select c.user_id, s.stat, count(*) * 2 as pts
+  from public.quest_completions c
+  join public.quests q on q.id = c.quest_id
+  cross join lateral unnest(q.stats) as s(stat)
+  group by c.user_id, s.stat
+)
+update public.profiles p set stats = coalesce(
+  (select jsonb_object_agg(t.k, coalesce(e.pts, 0))
+   from unnest(array['CON','FOC','DIS','STR','WIS']) as t(k)
+   left join earned e on e.user_id = p.id and e.stat = t.k),
+  '{"CON":0,"FOC":0,"DIS":0,"STR":0,"WIS":0}'::jsonb
+);
 
 -- ============ quest catalog seed ============
 insert into public.quests (id, title, description, pillar, xp, stats, icon, benefits, sort) values

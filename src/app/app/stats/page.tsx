@@ -13,7 +13,7 @@ import {
   Quest,
   STAT_INFO,
   STAT_KEYS,
-  Stats,
+  characterOf,
 } from "@/lib/game";
 
 export default function StatsPage() {
@@ -48,47 +48,52 @@ export default function StatsPage() {
     return <div className="hud-label pulse-glow text-center py-20">Reading your record…</div>;
   }
 
-  const baselineRaw = (profile.onboarding as { baseline_stats?: Stats })?.baseline_stats;
-  const baseline: Stats =
-    baselineRaw ?? ({ CON: 50, FOC: 50, DIS: 50, STR: 50, WIS: 50 } as Stats);
+  const character = characterOf(profile.archetype);
   const maxPillar = Math.max(1, ...Object.values(pillarCounts));
+  const values = STAT_KEYS.map((k) => profile.stats[k] ?? 0);
+  const radarMax = Math.max(20, ...values) * 1.15;
 
   return (
     <div className="rise">
       <span className="eyebrow hud-label !text-ink">System · Character sheet</span>
       <div className="flex items-center gap-3.5 mt-4">
-        <Avatar size={56} />
+        <Avatar size={56} character={profile.archetype} />
         <div>
           <h1 className="display text-xl">{profile.username.toUpperCase()}</h1>
-          <div className="hud-label mt-0.5" style={{ color: "var(--accent)" }}>
-            {profile.archetype ?? "The Challenger"}
-          </div>
+          {character && (
+            <div className="hud-label mt-0.5" style={{ color: character.accent }}>
+              {character.name}
+            </div>
+          )}
         </div>
       </div>
 
       <div className="bezel mt-5">
-        <div className="bezel-core flex justify-center py-2">
-          <Radar
-            labels={[...STAT_KEYS]}
-            size={264}
-            series={[
-              {
-                values: STAT_KEYS.map((k) => profile.stats[k] ?? 50),
-                stroke: "var(--accent)",
-                fill: "rgba(255, 107, 0, 0.28)",
-                dots: true,
-              },
-              { values: STAT_KEYS.map((k) => baseline[k] ?? 50), stroke: "var(--muted)", dashed: true },
-            ]}
-          />
+        <div className="bezel-core py-2">
+          <div className="flex justify-center">
+            <Radar
+              labels={[...STAT_KEYS]}
+              size={264}
+              max={radarMax}
+              series={[
+                {
+                  values,
+                  stroke: "var(--accent)",
+                  fill: "rgba(255, 107, 0, 0.28)",
+                  dots: true,
+                },
+              ]}
+            />
+          </div>
+          <p className="hud-label text-center pb-3">
+            Every cleared quest trains its linked stats · +2 each
+          </p>
         </div>
       </div>
 
       <div className="flex flex-col gap-2 mt-4 stagger">
         {STAT_KEYS.map((k) => {
-          const now = profile.stats[k] ?? 50;
-          const base = baseline[k] ?? 50;
-          const delta = now - base;
+          const value = profile.stats[k] ?? 0;
           return (
             <div key={k} className="card px-4 py-2.5 flex items-center gap-3">
               <span className="hud-label w-9" style={{ color: "var(--accent)" }}>{k}</span>
@@ -96,12 +101,7 @@ export default function StatsPage() {
                 <span className="block text-sm">{STAT_INFO[k].name}</span>
                 <span className="block text-xs text-muted truncate">{STAT_INFO[k].blurb}</span>
               </span>
-              <span className="font-mono font-semibold">{now}</span>
-              {delta !== 0 && (
-                <span className="hud-label" style={{ color: delta > 0 ? "var(--accent)" : "var(--danger)" }}>
-                  {delta > 0 ? `+${delta}` : delta}
-                </span>
-              )}
+              <span className="font-mono font-semibold text-[15px]">{value}</span>
             </div>
           );
         })}
@@ -109,11 +109,11 @@ export default function StatsPage() {
 
       <div className="grid grid-cols-2 gap-2.5 mt-5">
         <div className="card p-4 text-center">
-          <div className="display text-2xl" style={{ color: "var(--accent)" }}>{totalCompletions}</div>
+          <div className="font-mono font-bold text-2xl" style={{ color: "var(--accent)" }}>{totalCompletions}</div>
           <div className="hud-label mt-1">Quests cleared</div>
         </div>
         <div className="card p-4 text-center">
-          <div className="display text-2xl" style={{ color: "var(--bronze)" }}>{profile.streak_best}</div>
+          <div className="font-mono font-bold text-2xl" style={{ color: "var(--bronze)" }}>{profile.streak_best}</div>
           <div className="hud-label mt-1">Best streak</div>
         </div>
       </div>
@@ -137,7 +137,7 @@ export default function StatsPage() {
                     }}
                   />
                 </div>
-                <span className="hud-label w-6 text-right">{count}</span>
+                <span className="hud-label font-mono w-6 text-right">{count}</span>
               </div>
             );
           })}

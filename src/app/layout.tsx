@@ -20,7 +20,7 @@ const syne = Syne({
 
 export const metadata: Metadata = {
   title: "Life Reset",
-  description: "Reset your life. For real this time. A 66 day system that turns real habits into quests, XP and ranks.",
+  description: "Reset your life. For real this time. Pure challenges: real habits become quests that pay XP, build streaks and climb ranks.",
 };
 
 export const viewport: Viewport = {
