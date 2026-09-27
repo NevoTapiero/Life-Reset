@@ -12,7 +12,7 @@ export default function XpMeter({ rank }: { rank: Rank; xp?: number }) {
         {!rank.atMax && (
           <span className="whitespace-nowrap leading-none">
             <span className="display text-[16px]">{rank.xpIntoStage}</span>
-            <span className="hud-label !text-[10px]">/{rank.xpForStage}</span>
+            <span className="hud-label !text-[10px]">/{rank.xpForStage} XP</span>
           </span>
         )}
       </div>

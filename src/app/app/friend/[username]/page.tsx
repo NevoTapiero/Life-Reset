@@ -106,8 +106,7 @@ export default function FriendProfilePage() {
           <div className="hud-label mt-1">Weekly XP</div>
         </div>
         <div className="card p-3.5 text-center">
-          <div className="display text-[19px] flex items-center justify-center gap-1" style={{ color: "var(--accent)" }}>
-            <Icon name="flame" size={15} strokeWidth={2.2} />
+          <div className="display text-[19px]" style={{ color: "var(--accent)" }}>
             {file.streak_current}
           </div>
           <div className="hud-label mt-1">Streak</div>

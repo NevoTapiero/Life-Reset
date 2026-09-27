@@ -193,13 +193,12 @@ export default function LeaderboardPage() {
                     {r.username}
                     {r.is_me ? " · you" : ""}
                   </span>
-                  <span className="hud-label flex items-center gap-1 mt-0.5" style={{ color: "var(--accent)" }}>
-                    <Icon name="flame" size={11} strokeWidth={2.2} />
-                    {r.streak_current}
+                  <span className="hud-label mt-0.5 block" style={{ color: "var(--accent)" }}>
+                    Streak {r.streak_current}
                   </span>
                 </button>
-                <span className="text-right flex-none">
-                  <span className="display block text-[19px]" style={{ color: metal ? metal.ring : "var(--ink)" }}>
+                <span className="flex items-baseline gap-1 flex-none">
+                  <span className="display text-[19px]" style={{ color: metal ? metal.ring : "var(--ink)" }}>
                     {r.weekly_xp.toLocaleString()}
                   </span>
                   <span className="hud-label">XP</span>

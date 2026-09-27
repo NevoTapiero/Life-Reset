@@ -40,7 +40,7 @@ export const PILLAR_ICONS: Record<Pillar, string> = {
   Rest: "moon",
   Fuel: "leaf",
   Connection: "users",
-  Purpose: "flame",
+  Purpose: "target",
 };
 
 export type Stats = Record<StatKey, number>;

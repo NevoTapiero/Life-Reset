@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import Avatar from "@/components/Avatar";
+import Logo from "@/components/Logo";
 import { GoogleMark } from "@/components/Icon";
 
 export default function AuthPage() {
@@ -70,7 +70,7 @@ export default function AuthPage() {
     <main className="flex-1 flex flex-col py-8">
       <div className="rise my-auto">
         <div className="flex justify-center mb-6">
-          <Avatar size={84} />
+          <Logo size={88} />
         </div>
         <div className="text-center">
           <span className="eyebrow hud-label !text-ink">Solo Leveling</span>

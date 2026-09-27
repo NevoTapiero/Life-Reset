@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
+import Logo from "@/components/Logo";
 
 export default function Landing() {
   const [members, setMembers] = useState<number | null>(null);
@@ -26,16 +26,8 @@ export default function Landing() {
       </div>
 
       <div className="my-auto py-8 text-center rise">
-        <div className="flex justify-center mb-8">
-          <div className="relative">
-            <Avatar size={148} />
-            <span
-              className="absolute -bottom-1 left-1/2 -translate-x-1/2 hud-label !text-ink bg-panel border border-line rounded-full px-3 py-1"
-              style={{ borderColor: "rgba(255,107,0,0.5)" }}
-            >
-              Hunter
-            </span>
-          </div>
+        <div className="flex justify-center mb-6">
+          <Logo size={132} />
         </div>
 
         <h1 className="display-hero text-[76px] leading-[0.92]">
@@ -51,19 +43,6 @@ export default function Landing() {
         <p className="mt-5 text-muted text-[15px] max-w-xs mx-auto">
           Real habits. Real XP. Level up in real life.
         </p>
-
-        <div className="mt-8 grid grid-cols-3 gap-2.5 stagger">
-          {[
-            { icon: "swords", label: "Daily quests" },
-            { icon: "flame", label: "Streaks" },
-            { icon: "trophy", label: "Live ranks" },
-          ].map((f) => (
-            <div key={f.label} className="card py-3.5 flex flex-col items-center gap-2">
-              <Icon name={f.icon} size={19} className="text-accent" />
-              <span className="hud-label">{f.label}</span>
-            </div>
-          ))}
-        </div>
       </div>
 
       <div className="flex flex-col gap-4 rise pb-3 pt-4">
