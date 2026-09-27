@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import Backdrop from "@/components/Backdrop";
 import Icon from "@/components/Icon";
 import Logo from "@/components/Logo";
 
 export default function Landing() {
   return (
     <main className="flex-1 flex flex-col py-8">
+      <Backdrop>
       <div className="my-auto py-8 text-center rise">
         <div className="flex justify-center mb-6">
           <Logo size={132} />
@@ -38,6 +40,7 @@ export default function Landing() {
           I already have an account
         </Link>
       </div>
+      </Backdrop>
     </main>
   );
 }

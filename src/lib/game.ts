@@ -170,22 +170,22 @@ export function nextStreakMilestone(streak: number): number {
   return (Math.floor(Math.max(0, streak) / 7) + 1) * 7;
 }
 
-// full-bleed card art, one scene per category (legacy pillar names still map)
+// full-bleed card art: one painted scene per category (legacy pillar names still map)
 export function questArt(pillar: Pillar | string): string {
   const scenes: Record<string, string> = {
-    strength: "body",
-    focus: "mind",
-    constitution: "rest",
-    discipline: "purpose",
-    wisdom: "connection",
-    body: "body",
-    mind: "mind",
-    rest: "rest",
-    fuel: "fuel",
-    connection: "connection",
-    purpose: "purpose",
+    strength: "str",
+    focus: "foc",
+    constitution: "con",
+    discipline: "dis",
+    wisdom: "wis",
+    body: "str",
+    mind: "foc",
+    rest: "con",
+    fuel: "con",
+    connection: "wis",
+    purpose: "dis",
   };
-  return `/art/pillar-${scenes[String(pillar).toLowerCase()] ?? "purpose"}.svg`;
+  return `/art/cat-${scenes[String(pillar).toLowerCase()] ?? "dis"}.webp`;
 }
 
 export function formatDate(d: Date): string {

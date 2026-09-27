@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Logo from "@/components/Logo";
 import { GoogleMark } from "@/components/Icon";
+import Backdrop from "@/components/Backdrop";
 
 export default function AuthPage() {
   const router = useRouter();
@@ -68,6 +69,7 @@ export default function AuthPage() {
 
   return (
     <main className="flex-1 flex flex-col py-8">
+      <Backdrop>
       <div className="rise my-auto">
         <div className="flex justify-center mb-6">
           <Logo size={88} />
@@ -132,6 +134,7 @@ export default function AuthPage() {
           {mode === "signup" ? "I already have an account" : "I need a new account"}
         </button>
       </div>
+      </Backdrop>
     </main>
   );
 }
