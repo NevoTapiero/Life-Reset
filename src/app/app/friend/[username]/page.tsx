@@ -71,44 +71,49 @@ export default function FriendProfilePage() {
         className="hud-label flex items-center gap-2 py-1 active:scale-95 transition-transform"
         onClick={() => router.back()}
       >
-        ← Back to the board
+        ← Back
       </button>
 
-      <div className="bezel mt-4">
-        <div className="bezel-core p-5 text-center">
-          <div className="flex justify-center items-center gap-5">
-            <Avatar size={92} character={file.archetype} />
-            <div className="flex flex-col items-center">
-              <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={52} />
-              <span className="hud-label mt-1.5" style={{ color: rank.color }}>{rank.label}</span>
-            </div>
+      <div
+        className="scene p-5 pt-6 mt-4 text-center"
+        style={{ "--scene-glow": `${character?.accent ?? "#ff6b00"}44` } as React.CSSProperties}
+      >
+        <div className="relative">
+          <div className="flex justify-center">
+            <Avatar size={100} character={file.archetype} />
           </div>
-          <div className="display text-xl mt-4">{file.username.toUpperCase()}</div>
-          {character && (
-            <div className="hud-label mt-2" style={{ color: character.accent }}>
-              {character.name} · {character.focus}
-            </div>
-          )}
-          <div className="hud-label mt-2">Challenger since {formatDate(new Date(file.member_since))}</div>
+          <div className="display text-[23px] mt-3">{file.username}</div>
+          <div className="flex items-center justify-center gap-2.5 mt-2.5">
+            {character && (
+              <span className="class-pill" style={{ color: character.accent }}>
+                {character.name.replace("The ", "")}
+              </span>
+            )}
+            <span className="class-pill" style={{ color: rank.color }}>{rank.label}</span>
+          </div>
+          <div className="flex items-center justify-center gap-2 mt-3.5">
+            <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={42} />
+            <span className="hud-label">Since {formatDate(new Date(file.member_since))}</span>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2.5 mt-4">
         <div className="card p-3.5 text-center">
-          <div className="font-mono font-bold text-lg" style={{ color: "var(--accent)" }}>
+          <div className="display text-[19px]" style={{ color: "var(--accent)" }}>
             {file.weekly_xp.toLocaleString()}
           </div>
           <div className="hud-label mt-1">Weekly XP</div>
         </div>
         <div className="card p-3.5 text-center">
-          <div className="font-mono font-bold text-lg flex items-center justify-center gap-1" style={{ color: "var(--accent)" }}>
-            <Icon name="flame" size={15} strokeWidth={2} />
+          <div className="display text-[19px] flex items-center justify-center gap-1" style={{ color: "var(--accent)" }}>
+            <Icon name="flame" size={15} strokeWidth={2.2} />
             {file.streak_current}
           </div>
           <div className="hud-label mt-1">Streak</div>
         </div>
         <div className="card p-3.5 text-center">
-          <div className="font-mono font-bold text-lg" style={{ color: "var(--bronze)" }}>
+          <div className="display text-[19px]" style={{ color: "var(--bronze)" }}>
             {file.streak_best}
           </div>
           <div className="hud-label mt-1">Best</div>
@@ -126,10 +131,10 @@ export default function FriendProfilePage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mt-6 mb-3">
-        <span className="eyebrow hud-label !text-ink">Their challenges</span>
-        <span className="hud-label font-mono">
-          {cleared}/{file.quests.length} today
+      <div className="flex items-center justify-between mt-7 mb-3">
+        <h2 className="display text-[17px]">Their quests</h2>
+        <span className="display text-[14px] text-muted">
+          {cleared}/{file.quests.length}
         </span>
       </div>
       <div className="flex flex-col gap-2.5 stagger pb-4">

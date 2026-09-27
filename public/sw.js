@@ -1,6 +1,6 @@
 // Minimal service worker: makes the app installable everywhere and keeps a
 // small offline fallback. Data always goes to the network (Supabase is live).
-const SHELL = "lr-shell-v1";
+const SHELL = "sl-shell-v1";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();

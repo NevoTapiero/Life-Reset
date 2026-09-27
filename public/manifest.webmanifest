@@ -1,7 +1,7 @@
 {
-  "name": "Life Reset",
-  "short_name": "Life Reset",
-  "description": "Pure challenges: real habits become quests that pay XP, build streaks and climb ranks.",
+  "name": "Solo Leveling",
+  "short_name": "Solo Leveling",
+  "description": "Real habits become quests. Earn XP, keep the streak, climb the ranks.",
   "id": "/",
   "start_url": "/app",
   "scope": "/",
@@ -21,7 +21,7 @@
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Friends board",
+      "name": "Board",
       "url": "/app/leaderboard",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }

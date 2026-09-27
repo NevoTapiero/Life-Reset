@@ -73,17 +73,10 @@ export default function AuthPage() {
           <Avatar size={84} />
         </div>
         <div className="text-center">
-          <span className="eyebrow hud-label !text-ink">
-            {mode === "signup" ? "Save your reset" : "Welcome back, challenger"}
-          </span>
-          <h1 className="display text-3xl mt-4">
-            {mode === "signup" ? "CREATE YOUR ACCOUNT" : "SIGN IN"}
+          <span className="eyebrow hud-label !text-ink">Solo Leveling</span>
+          <h1 className="display-hero text-[44px] mt-4 leading-none">
+            {mode === "signup" ? "JOIN THE HUNT" : "WELCOME BACK"}
           </h1>
-          <p className="text-muted mt-2 text-sm">
-            {mode === "signup"
-              ? "Your quests, XP and streaks are stored to your account."
-              : "Pick up right where you left off."}
-          </p>
         </div>
 
         <button className="btn-ghost w-full py-3.5 mt-8 gap-2.5" onClick={googleSignIn}>

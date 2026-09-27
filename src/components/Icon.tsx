@@ -1,6 +1,6 @@
 "use client";
 
-// Hand-drawn 24x24 line icon set. White precise strokes, per the Life Reset
+// Hand-drawn 24x24 line icon set. White precise strokes, per the Solo Leveling
 // visual language: vector line icons inside dark rounded tiles, never emoji.
 
 const PATHS: Record<string, React.ReactNode> = {

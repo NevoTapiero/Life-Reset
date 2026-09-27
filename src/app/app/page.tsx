@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
+import XpMeter from "@/components/XpMeter";
 import {
   CHARACTERS,
   CHARACTER_KEYS,
@@ -150,52 +151,52 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-      {/* hero: challenger card */}
+      {/* hero: hunter card */}
       <div className="bezel">
         <div className="bezel-core p-4">
-          <div className="flex items-center gap-4">
-            <Avatar size={76} character={profile.archetype} />
+          <div className="flex items-center gap-3">
+            <Avatar size={64} character={profile.archetype} />
             <div className="flex-1 min-w-0">
-              <div className="hud-label">{character ? character.name : "Pick your character"}</div>
-              <div className="display text-xl mt-0.5 truncate">{profile.username.toUpperCase()}</div>
-              <div className="hud-label mt-1">
-                <span className="font-mono">{profile.xp.toLocaleString()}</span> XP total
+              <div className="display text-[17px] leading-tight truncate">{profile.username}</div>
+              <div className="mt-1.5">
+                <span className="class-pill" style={{ color: character ? character.accent : "var(--accent)" }}>
+                  {character ? character.name.replace("The ", "") : "Pick one"}
+                </span>
               </div>
             </div>
             <div className="flex flex-col items-center flex-none">
-              <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={52} />
-              <span className="hud-label mt-1" style={{ color: rank.color }}>
+              <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={50} />
+              <span className="hud-label mt-1 whitespace-nowrap" style={{ color: rank.color }}>
                 {rank.label}
               </span>
             </div>
           </div>
 
           <div className="mt-4">
-            <div className="flex justify-between items-center mb-1.5">
-              <span className="hud-label">
-                {rank.atMax ? "Top of the ladder" : `Next: ${nextRankLabel(rank.tierIndex, rank.stageIndex)}`}
-              </span>
-              <span className="hud-label font-mono">
-                {rank.atMax ? "MAX" : `${rank.xpIntoStage}/${rank.xpForStage} XP`}
-              </span>
-            </div>
-            <div className="track">
-              <div style={{ width: `${rank.progress * 100}%`, background: rank.color, boxShadow: `0 0 12px ${rank.color}` }} />
-            </div>
+            <XpMeter rank={rank} xp={profile.xp} />
 
-            <div className="flex justify-between items-center mb-1.5 mt-3.5">
-              <span className="hud-label flex items-center gap-1.5" style={{ color: "var(--accent)" }}>
-                <span className="flame-flicker inline-flex">
-                  <Icon name="flame" size={13} strokeWidth={2} />
+            <div className="flex items-center gap-3 mt-4">
+              <div
+                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 flex-none"
+                style={{ background: "rgba(255,107,0,0.12)", border: "1px solid rgba(255,107,0,0.4)" }}
+              >
+                <span className="flame-flicker inline-flex" style={{ color: "var(--accent)" }}>
+                  <Icon name="flame" size={14} strokeWidth={2.2} />
                 </span>
-                Streak · <span className="font-mono text-[12px]">{profile.streak_current}</span> {profile.streak_current === 1 ? "day" : "days"}
-              </span>
-              <span className="hud-label font-mono">
-                next {milestone} · best {profile.streak_best}
-              </span>
-            </div>
-            <div className="track track-accent">
-              <div style={{ width: `${streakPct * 100}%` }} />
+                <span className="display text-[15px]" style={{ color: "var(--accent)" }}>
+                  {profile.streak_current}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between mb-1">
+                  <span className="hud-label">Streak</span>
+                  <span className="hud-label">next {milestone}</span>
+                </div>
+                <div className="bar-seg !h-[11px]">
+                  <i style={{ width: `${streakPct * 100}%`, background: "linear-gradient(90deg, var(--bronze), var(--accent))" }} />
+                  <b />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -204,8 +205,7 @@ export default function Dashboard() {
       {/* first run: choose your character */}
       {!profile.archetype && (
         <div className="hud-frame p-4 mt-5 rise">
-          <div className="hud-label mb-1" style={{ color: "var(--accent)" }}>Choose your character</div>
-          <p className="text-sm text-muted mb-3.5">Five challengers, five focuses. Pick who you fight as; you can switch later in your profile.</p>
+          <div className="display text-[15px] mb-3.5" style={{ color: "var(--accent)" }}>Choose your character</div>
           <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
             {CHARACTER_KEYS.map((key) => (
               <button
@@ -223,10 +223,10 @@ export default function Dashboard() {
       )}
 
       {/* quests */}
-      <div className="flex items-center justify-between mt-6 mb-3">
-        <span className="eyebrow hud-label !text-ink">System · Today&apos;s quests</span>
+      <div className="flex items-center justify-between mt-7 mb-3.5">
+        <h2 className="display text-[19px]">Today&apos;s quests</h2>
         <div className="flex items-center gap-3">
-          <span className="hud-label font-mono">
+          <span className="display text-[15px] text-muted">
             {clearedCount}/{quests.length}
           </span>
           <Link href="/app/quests" aria-label="Manage quests" className="icon-tile !w-9 !h-9 !rounded-[10px] active:scale-95 transition-transform">
@@ -329,11 +329,11 @@ export default function Dashboard() {
               <Icon name="calendar" size={16} />
             </span>
             <span className="flex-1 text-left">
-              <span className="block text-sm">Yesterday</span>
+              <span className="display block text-[14px]">Yesterday</span>
               <span className="hud-label mt-0.5">
-                {quests.length - quests.filter((q) => doneYesterday.has(q.id)).length === 0
+                {quests.filter((q) => !doneYesterday.has(q.id)).length === 0
                   ? "All cleared"
-                  : `Forgot to check something? ${quests.filter((q) => !doneYesterday.has(q.id)).length} open`}
+                  : `${quests.filter((q) => !doneYesterday.has(q.id)).length} open`}
               </span>
             </span>
             <span
@@ -353,39 +353,73 @@ export default function Dashboard() {
                     key={q.id}
                     onClick={() => toggle(q, "yesterday")}
                     disabled={pendingId === q.id}
-                    className={`option-row px-4 py-3 flex items-center gap-3.5 relative ${done ? "selected" : ""}`}
-                    style={{ opacity: done ? 1 : 0.75 }}
+                    className="relative overflow-hidden rounded-2xl text-left transition-transform duration-150 active:scale-[0.985]"
+                    style={{
+                      border: done ? "1px solid rgba(255,107,0,0.75)" : "1px solid var(--line)",
+                      boxShadow: done ? "0 0 18px rgba(255,107,0,0.14)" : "none",
+                      minHeight: 76,
+                      opacity: done ? 1 : 0.85,
+                    }}
                   >
-                    <span className="icon-tile !w-10 !h-10" style={done ? { color: "var(--accent)", borderColor: "rgba(255,107,0,0.4)" } : undefined}>
-                      <Icon name={q.icon} size={19} />
-                    </span>
-                    <span className="flex-1 text-left min-w-0">
-                      <span className={`block text-sm truncate ${done ? "line-through text-muted" : ""}`}>{q.title}</span>
-                      <span className="hud-label mt-0.5">Yesterday · +{q.xp} XP</span>
-                    </span>
-                    <span
-                      key={done ? "done" : "todo"}
-                      className={`w-6 h-6 rounded-full border flex items-center justify-center flex-none ${done ? "check-pop" : ""}`}
-                      style={
-                        done
-                          ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff" }
-                          : { borderColor: "var(--line-strong)", color: "transparent" }
-                      }
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={questArt(q.pillar)}
+                      alt=""
                       aria-hidden
-                    >
-                      <Icon name="check" size={12} strokeWidth={2.4} />
-                    </span>
-                    {xpFloat?.id === q.id && (
-                      <span className="xp-float absolute right-4 -top-1 font-mono font-bold text-sm">
-                        +{xpFloat.amount} XP
-                      </span>
+                      loading="lazy"
+                      className="absolute inset-0 w-full h-full object-cover"
+                      style={{ filter: done ? "saturate(0.6) brightness(0.7)" : "saturate(0.85) brightness(0.85)" }}
+                    />
+                    <span
+                      aria-hidden
+                      className="absolute inset-0"
+                      style={{
+                        background:
+                          "linear-gradient(90deg, rgba(10,9,8,0.94) 0%, rgba(10,9,8,0.8) 42%, rgba(10,9,8,0.4) 75%, rgba(10,9,8,0.25) 100%)",
+                      }}
+                    />
+                    {done && (
+                      <span aria-hidden className="absolute inset-0" style={{ background: "rgba(255,107,0,0.10)" }} />
                     )}
+                    <span className="relative flex items-center gap-3.5 px-4 py-3 min-h-[76px]">
+                      <span
+                        className="icon-tile !w-10 !h-10 !bg-[rgba(0,0,0,0.35)]"
+                        style={{ backdropFilter: "blur(4px)", color: done ? "var(--accent)" : "var(--ink)", borderColor: done ? "rgba(255,107,0,0.5)" : "var(--line-strong)" }}
+                      >
+                        <Icon name={q.icon} size={18} />
+                      </span>
+                      <span className="flex-1 text-left min-w-0">
+                        <span
+                          className={`block text-[15px] font-semibold truncate ${done ? "line-through" : ""}`}
+                          style={{ textShadow: "0 1px 8px rgba(0,0,0,0.8)", color: done ? "var(--muted)" : "var(--ink)" }}
+                        >
+                          {q.title}
+                        </span>
+                        <span className="hud-label mt-1 !text-[10px]" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>
+                          Yesterday · +{q.xp} XP
+                        </span>
+                      </span>
+                      <span
+                        key={done ? "done" : "todo"}
+                        className={`w-7 h-7 rounded-[9px] border flex items-center justify-center flex-none ${done ? "check-pop" : ""}`}
+                        style={
+                          done
+                            ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 14px rgba(255,107,0,0.55)" }
+                            : { borderColor: "rgba(255,255,255,0.4)", background: "rgba(0,0,0,0.3)", color: "transparent", backdropFilter: "blur(4px)" }
+                        }
+                        aria-hidden
+                      >
+                        <Icon name="check" size={13} strokeWidth={2.5} />
+                      </span>
+                      {xpFloat?.id === q.id && (
+                        <span className="xp-float absolute right-4 -top-1 font-mono font-bold text-sm">
+                          +{xpFloat.amount} XP
+                        </span>
+                      )}
+                    </span>
                   </button>
                 );
               })}
-              <p className="hud-label text-center mt-1">
-                Yesterday stays open for one day, then it locks.
-              </p>
             </div>
           )}
         </div>
@@ -396,20 +430,10 @@ export default function Dashboard() {
           <div className="flex justify-center bounce-in" style={{ color: "var(--accent)" }}>
             <Icon name="trophy" size={26} strokeWidth={1.8} />
           </div>
-          <p className="display mt-2">ALL QUESTS CLEARED.</p>
-          <p className="text-sm text-muted mt-1">
-            The streak holds. See you tomorrow, challenger.
-          </p>
+          <p className="display mt-2 text-[17px]">All quests cleared</p>
+          <p className="hud-label mt-1.5">The streak holds · see you tomorrow</p>
         </div>
       )}
     </div>
   );
-}
-
-function nextRankLabel(tierIndex: number, stageIndex: number): string {
-  const stages = ["I", "II", "III"];
-  const tiers = ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Champion"];
-  if (stageIndex < 2) return `${tiers[tierIndex]} ${stages[stageIndex + 1]}`;
-  if (tierIndex < tiers.length - 1) return `${tiers[tierIndex + 1]} I`;
-  return "Champion III";
 }

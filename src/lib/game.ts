@@ -51,12 +51,15 @@ export type CharacterKey = "warrior" | "mentalist" | "wizard" | "guardian" | "sh
 
 export const CHARACTER_KEYS: CharacterKey[] = ["warrior", "mentalist", "wizard", "guardian", "shadow"];
 
-export const CHARACTERS: Record<CharacterKey, { name: string; focus: string; stat: StatKey; accent: string }> = {
-  warrior: { name: "The Warrior", focus: "Physical strength", stat: "STR", accent: "#ff6b00" },
-  mentalist: { name: "The Mentalist", focus: "Mindfulness and calm focus", stat: "FOC", accent: "#a78bfa" },
-  wizard: { name: "The Wizard", focus: "Wisdom and learning", stat: "WIS", accent: "#5aa7ff" },
-  guardian: { name: "The Guardian", focus: "Vitality and endurance", stat: "CON", accent: "#34d399" },
-  shadow: { name: "The Shadow", focus: "Discipline and consistency", stat: "DIS", accent: "#22d3ee" },
+export const CHARACTERS: Record<
+  CharacterKey,
+  { name: string; focus: string; stat: StatKey; accent: string; accent2: string }
+> = {
+  warrior: { name: "The Warrior", focus: "Physical strength", stat: "STR", accent: "#ff6b00", accent2: "#ffb45c" },
+  mentalist: { name: "The Mentalist", focus: "Mindfulness and calm focus", stat: "FOC", accent: "#a78bfa", accent2: "#d8ccff" },
+  wizard: { name: "The Wizard", focus: "Wisdom and learning", stat: "WIS", accent: "#5aa7ff", accent2: "#9fd2ff" },
+  guardian: { name: "The Guardian", focus: "Vitality and endurance", stat: "CON", accent: "#34d399", accent2: "#8df0c6" },
+  shadow: { name: "The Shadow", focus: "Discipline and consistency", stat: "DIS", accent: "#22d3ee", accent2: "#7ceafa" },
 };
 
 export function characterOf(key: string | null): (typeof CHARACTERS)[CharacterKey] | null {
@@ -142,6 +145,11 @@ export function rankForXp(xp: number): Rank {
   }
   // unreachable, but keeps TypeScript satisfied
   return rankForXp(0);
+}
+
+// overall level: one per stage climbed, 1..18
+export function levelOf(rank: Rank): number {
+  return rank.tierIndex * 3 + rank.stageIndex + 1;
 }
 
 // ---------- streak milestones (the bar counts up toward the next one) ----------

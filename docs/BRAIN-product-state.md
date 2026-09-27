@@ -1,6 +1,6 @@
-# Life Reset: product state (2026-09-26, revision 2)
+# Solo Leveling: product state (2026-09-26, revision 2)
 
-Life Reset is Nevo Tapiero's gamified habit transformation app, inspired by a competitor teardown (the 52 onboarding screenshots in this notebook). It is a **free platform**: no subscription, no paywall. Repo: github.com/NevoTapiero/Life-Reset. Live Supabase project "Life Reset" (ref etlumfjimkjjdmhimzwr).
+Solo Leveling is Nevo Tapiero's gamified habit transformation app, inspired by a competitor teardown (the 52 onboarding screenshots in this notebook). It is a **free platform**: no subscription, no paywall. Repo: github.com/NevoTapiero/Life-Reset. Live Supabase project "Solo Leveling" (ref etlumfjimkjjdmhimzwr).
 
 **Revision 2 changes**: the diagnostic quiz was removed entirely (landing goes straight to auth; every new account is born with the 10 default quests, The Challenger archetype and a 66 day campaign starting that day). Google sign in is live. A quest manager lets users forge, edit, delete and toggle their own quests alongside the 16 quest armory. The whole UI was rebuilt to match the original app's visual language: near black background with an ambient amber glow, neon orange (#FF6B00 to #FF8800) pill buttons, Syne extended display font, Geist body, mono HUD labels in eyebrow pills, hand drawn white line icons in dark rounded tiles (no emoji anywhere), an inline SVG anime challenger avatar in a glowing circular frame, and double bezel cards.
 

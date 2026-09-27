@@ -83,7 +83,7 @@ export default function Radar({
             textAnchor="middle"
             dominantBaseline="middle"
             fill="var(--muted)"
-            style={{ fontSize: 11, fontFamily: "var(--font-geist-mono)", letterSpacing: "0.08em" }}
+            style={{ fontSize: 11, fontFamily: "var(--font-archivo)", fontWeight: 700, letterSpacing: "0.1em" }}
           >
             {label}
           </text>

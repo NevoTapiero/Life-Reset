@@ -11,6 +11,8 @@
   --accent: #ff6b00;
   --accent-2: #ff8800;
   --bronze: #d47a1e;
+  --gold: #f5c752;
+  --silver: #c3cede;
   --danger: #ff5d73;
   --ease-strong: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
@@ -27,9 +29,11 @@
   --color-accent2: var(--accent-2);
   --color-bronze: var(--bronze);
   --color-danger: var(--danger);
-  --font-sans: var(--font-geist-sans);
+  --color-gold: var(--gold);
+  --color-silver: var(--silver);
+  --font-sans: var(--font-archivo);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-syne);
+  --font-display: var(--font-archivo);
 }
 
 html {
@@ -39,7 +43,9 @@ html {
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-size: 15.5px;
+  font-weight: 460;
   min-height: 100dvh;
 }
 
@@ -58,17 +64,29 @@ body {
   background: rgba(255, 107, 0, 0.35);
 }
 
-/* type */
+/* type: wide heavy geometric for the in-app HUD voice */
 .display {
-  font-family: var(--font-syne), var(--font-geist-sans), sans-serif;
-  font-weight: 800;
-  letter-spacing: 0.005em;
+  font-family: var(--font-archivo), sans-serif;
+  font-stretch: 125%;
+  font-weight: 850;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+/* tall condensed block lettering for the marketing screens */
+.display-hero {
+  font-family: var(--font-anton), var(--font-archivo), sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
 }
 
 .hud-label {
-  font-family: var(--font-geist-mono), monospace;
+  font-family: var(--font-archivo), sans-serif;
+  font-stretch: 110%;
+  font-weight: 700;
   font-size: 10.5px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -373,8 +391,151 @@ body {
   box-shadow: 0 0 10px rgba(255, 107, 0, 0.7);
 }
 
+/* segmented arcade XP meter: discrete ticks, neon fill, dark gaps */
+.bar-seg {
+  position: relative;
+  height: 15px;
+  border-radius: 5px;
+  background: #232327;
+  overflow: hidden;
+}
+.bar-seg > i {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 18px rgba(255, 107, 0, 0.55);
+  transition: width 600ms var(--ease-strong);
+}
+.bar-seg > b {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: repeating-linear-gradient(90deg, transparent 0 11px, var(--bg) 11px 14px);
+  pointer-events: none;
+}
+
+/* level block: bright orange square with the number */
+.level-block {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  box-shadow: 0 4px 18px rgba(255, 107, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  flex: none;
+  color: #fff;
+}
+
+/* podium metal frames for the board */
+.metal-row {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+}
+.metal-gold {
+  border: 1px solid rgba(245, 199, 82, 0.85);
+  background: linear-gradient(180deg, rgba(245, 199, 82, 0.16), rgba(245, 199, 82, 0.04)), var(--panel);
+  box-shadow: 0 0 26px rgba(245, 199, 82, 0.22), inset 0 1px 0 rgba(255, 235, 170, 0.25);
+}
+.metal-silver {
+  border: 1px solid rgba(195, 206, 222, 0.6);
+  background: linear-gradient(180deg, rgba(195, 206, 222, 0.11), rgba(195, 206, 222, 0.03)), var(--panel);
+  box-shadow: 0 0 18px rgba(195, 206, 222, 0.12), inset 0 1px 0 rgba(225, 232, 244, 0.18);
+}
+.metal-bronze {
+  border: 1px solid rgba(212, 122, 30, 0.6);
+  background: linear-gradient(180deg, rgba(212, 122, 30, 0.12), rgba(212, 122, 30, 0.03)), var(--panel);
+  box-shadow: 0 0 18px rgba(212, 122, 30, 0.14), inset 0 1px 0 rgba(240, 170, 96, 0.18);
+}
+@keyframes shineSweep {
+  0% { transform: translateX(-130%) skewX(-18deg); }
+  55%, 100% { transform: translateX(240%) skewX(-18deg); }
+}
+.shine::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 42%;
+  background: linear-gradient(90deg, transparent, rgba(255, 240, 190, 0.16), transparent);
+  animation: shineSweep 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* medal chip: circular rank number in metal */
+.medal {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: #101013;
+  font-stretch: 125%;
+  font-weight: 850;
+  font-size: 14px;
+}
+.medal-gold { background: linear-gradient(160deg, #ffe9a3, #f5c752 55%, #c99a2e); box-shadow: 0 0 14px rgba(245, 199, 82, 0.5); }
+.medal-silver { background: linear-gradient(160deg, #eef3fa, #c3cede 55%, #8fa0b8); box-shadow: 0 0 12px rgba(195, 206, 222, 0.35); }
+.medal-bronze { background: linear-gradient(160deg, #f0b070, #d47a1e 55%, #9d5a14); box-shadow: 0 0 12px rgba(212, 122, 30, 0.4); }
+
+/* character scene: dark wallpaper card with amber glow + radar grid */
+.scene {
+  position: relative;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(26rem 17rem at 50% -10%, var(--scene-glow, rgba(255, 107, 0, 0.28)), transparent 62%),
+    linear-gradient(180deg, #17171a, #0f0f11);
+  overflow: hidden;
+}
+@keyframes floatP {
+  0%, 100% { transform: translateY(0); opacity: 0.55; }
+  50% { transform: translateY(-14px); opacity: 0.95; }
+}
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: floatP 4.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* class pill: uppercase tag with glowing dot */
+.class-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 5px 13px;
+  background: rgba(0, 0, 0, 0.35);
+  font-stretch: 110%;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.class-pill::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 9px currentColor;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rise, .stagger > *, .slide-in, .check-pop, .bounce-in, .rankup-badge, .rankup-title { animation-duration: 1ms; animation-delay: 0ms; }
-  .btn-primary, .flame-flicker { animation: none; }
+  .btn-primary, .flame-flicker, .shine::before, .particle { animation: none; }
   .rankup-ring { animation: none; opacity: 0; }
 }

@@ -161,27 +161,24 @@ export default function QuestManager() {
 
   return (
     <div className="slide-in">
-      <span className="eyebrow hud-label !text-ink">System · Quest manager</span>
-      <h1 className="display text-2xl mt-3">YOUR LOADOUT</h1>
-      <p className="text-muted text-sm mt-1.5">
-        Active quests appear on Today. Forge your own or draw from the armory.
-      </p>
+      <h1 className="display text-[28px]">Loadout</h1>
+      <p className="hud-label mt-1.5">Active quests appear on Today</p>
 
       {error && <p className="text-danger text-sm mt-3">{error}</p>}
 
       {/* custom quests */}
       <div className="flex items-center justify-between mt-6 mb-3 gap-2">
-        <span className="hud-label">Your quests · {customs.length}</span>
+        <h2 className="display text-[15px] flex-none whitespace-nowrap">Yours · {customs.length}</h2>
         {!form && !stForm && (
           <span className="flex gap-2">
             <button
-              className="btn-ghost !text-xs px-3.5 py-2 gap-1.5"
+              className="btn-ghost !text-xs px-3.5 py-2 gap-1.5 whitespace-nowrap"
               onClick={() => setStForm({ app: "", minutes: 60 })}
             >
               <Icon name="phone-off" size={13} strokeWidth={2} />
               Screen time
             </button>
-            <button className="btn-primary !text-xs px-4 py-2 gap-1.5" onClick={() => setForm(EMPTY_FORM)}>
+            <button className="btn-primary !text-xs px-4 py-2 gap-1.5 whitespace-nowrap" onClick={() => setForm(EMPTY_FORM)}>
               <Icon name="plus" size={13} strokeWidth={2.2} />
               New quest
             </button>
@@ -191,12 +188,8 @@ export default function QuestManager() {
 
       {stForm && (
         <div className="hud-frame p-4 mb-3 rise">
-          <div className="hud-label mb-1">Screen time challenge</div>
-          <p className="text-xs text-muted mb-3.5">
-            Cap your daily time in one app. Check it in each day you stayed under the limit;
-            the tighter the limit, the bigger the XP. Automatic tracking arrives with the
-            native app version.
-          </p>
+          <div className="display text-[15px] mb-1">Screen time</div>
+          <p className="hud-label mb-3.5">Tighter limit · bigger XP</p>
           <input
             className="field w-full px-4 py-3 text-[15px]"
             placeholder="App name (e.g. TikTok, Instagram)"
@@ -234,10 +227,10 @@ export default function QuestManager() {
 
       {verdict && !form && (
         <div className="hud-frame p-4 mb-3 rise">
-          <div className="hud-label" style={{ color: "var(--accent)" }}>The System has judged</div>
+          <div className="display text-[15px]" style={{ color: "var(--accent)" }}>Verdict</div>
           <p className="text-sm mt-1.5">
             <span className="font-semibold">{verdict.title}</span> is worth{" "}
-            <span className="font-mono font-bold" style={{ color: "var(--accent)" }}>+{verdict.xp} XP</span>
+            <span className="display text-[16px]" style={{ color: "var(--accent)" }}>+{verdict.xp} XP</span>
           </p>
           {verdict.reason && <p className="text-xs text-muted mt-1.5">{verdict.reason}</p>}
           <button className="hud-label mt-2.5 underline underline-offset-4" onClick={() => setVerdict(null)}>
@@ -248,7 +241,7 @@ export default function QuestManager() {
 
       {form && (
         <div className="hud-frame p-4 mb-3 rise">
-          <div className="hud-label mb-3">{form.id ? "Edit quest" : "Forge a quest"}</div>
+          <div className="display text-[15px] mb-3">{form.id ? "Edit quest" : "Forge a quest"}</div>
           <input
             className="field w-full px-4 py-3 text-[15px]"
             placeholder="Quest name (e.g. Stretch 10 minutes)"
@@ -269,10 +262,7 @@ export default function QuestManager() {
               </button>
             ))}
           </div>
-          <p className="text-xs text-muted mt-4">
-            No picking your own reward: The System judges the real effort and sets the XP, from +1
-            for a glass of water up to +50 for a 5 km run.
-          </p>
+          <p className="hud-label mt-4">The judge sets the XP · 1 to 50</p>
           <div className="flex gap-2.5 mt-4">
             <button className="btn-ghost flex-1 py-3" onClick={() => setForm(null)}>
               Cancel
@@ -325,7 +315,7 @@ export default function QuestManager() {
       </div>
 
       {/* catalog */}
-      <div className="hud-label mt-7 mb-3">Armory · {catalog.length}</div>
+      <h2 className="display text-[15px] mt-7 mb-3">Armory · {catalog.length}</h2>
       <div className="flex flex-col gap-2.5 pb-4">
         {catalog.map((q) => {
           const on = activeIds.has(q.id);

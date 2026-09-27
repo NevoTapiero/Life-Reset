@@ -1,9 +1,9 @@
-# Life Reset: technical architecture (2026-09-26)
+# Solo Leveling: technical architecture (2026-09-26)
 
 ## Stack
 
 - **Frontend**: Next.js 16 (App Router, TypeScript), Tailwind v4, mobile first single column (max-w-md). Dark RPG theme via CSS custom properties in globals.css: background #07090f, panel #0e1320, accent #3ce8c8 (teal), accent2 #7d6bff (violet), gold #f5c752. Geist Sans and Geist Mono fonts. All dynamic pages are client components using the browser Supabase client; no SSR of user data, no middleware.
-- **Backend**: Supabase project "Life Reset", ref etlumfjimkjjdmhimzwr, region ap-southeast-1, Postgres 17. Dev server runs on port 3010.
+- **Backend**: Supabase project "Solo Leveling", ref etlumfjimkjjdmhimzwr, region ap-southeast-1, Postgres 17. Dev server runs on port 3010.
 
 ## Repository layout (github.com/NevoTapiero/Life-Reset)
 
@@ -41,6 +41,6 @@ RLS is enabled on every table. Clients can only **read** (profiles: own row only
 ## Operational notes
 
 - Applying SQL through the Management API from PowerShell 5.1 corrupts UTF-8 and long JSON strings; use a small Node script (fs.readFileSync + fetch) instead
-- The project folder `Desktop\Life Reset` contains a space; the dev launch config uses the DOS short path (LIFERE~1) because npm --prefix breaks on spaces
+- The project folder `Desktop\Solo Leveling` contains a space; the dev launch config uses the DOS short path (LIFERE~1) because npm --prefix breaks on spaces
 - package.json must stay BOM free (PowerShell Set-Content once broke the build with a UTF-8 BOM)
 - Test account: tester@lifereset.dev (admin created; credentials in the gitignored .env.local)

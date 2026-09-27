@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -6,11 +6,13 @@ import { supabase } from "@/lib/supabase";
 import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
+import XpMeter from "@/components/XpMeter";
 import {
   CHARACTERS,
   CHARACTER_KEYS,
   CharacterKey,
   Profile,
+  STAT_KEYS,
   characterOf,
   formatDate,
   rankForXp,
@@ -42,7 +44,6 @@ export default function ProfilePage() {
     else {
       setProfile(data as Profile);
       setEditing(false);
-      setMsg("Username updated.");
     }
   }
 
@@ -89,28 +90,29 @@ export default function ProfilePage() {
 
   const rank = rankForXp(profile.xp);
   const character = characterOf(profile.archetype);
+  const accent = character?.accent ?? "#ff6b00";
 
   return (
     <div className="slide-in">
-      <span className="eyebrow hud-label !text-ink">System · Challenger file</span>
+      {/* wallpaper hero */}
+      <div
+        className="scene p-5 pt-7 text-center"
+        style={{ "--scene-glow": `${accent}44` } as React.CSSProperties}
+      >
+        <SceneGrid color={accent} />
+        <span className="particle" style={{ left: "12%", top: "30%", background: accent, boxShadow: `0 0 8px ${accent}` }} />
+        <span className="particle" style={{ right: "14%", top: "22%", animationDelay: "1.2s", background: accent, boxShadow: `0 0 8px ${accent}` }} />
+        <span className="particle" style={{ left: "22%", bottom: "34%", animationDelay: "2.1s", background: accent, boxShadow: `0 0 8px ${accent}` }} />
 
-      <div className="bezel mt-4">
-        <div className="bezel-core p-5 text-center">
-          <div className="flex justify-center items-center gap-5">
-            <Avatar size={100} character={profile.archetype} />
-            <div className="flex flex-col items-center">
-              <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={56} />
-              <span className="hud-label mt-1.5" style={{ color: rank.color }}>{rank.label}</span>
-            </div>
+        <div className="relative">
+          <div className="flex justify-center">
+            <Avatar size={116} character={profile.archetype} />
           </div>
+
           {!editing ? (
             <div className="mt-4">
-              <div className="display text-xl">{profile.username.toUpperCase()}</div>
-              <button
-                className="text-xs text-muted underline underline-offset-4 mt-1"
-                onClick={() => setEditing(true)}
-              >
-                Change username
+              <button className="display text-[26px] leading-tight" onClick={() => setEditing(true)}>
+                {profile.username}
               </button>
             </div>
           ) : (
@@ -120,52 +122,73 @@ export default function ProfilePage() {
                 onChange={(e) => setNameDraft(e.target.value)}
                 className="field px-3.5 py-2.5 flex-1 font-mono text-sm"
                 maxLength={20}
+                autoFocus
               />
               <button className="btn-primary px-5 py-2.5 !text-xs" onClick={saveName}>
                 Save
               </button>
             </div>
           )}
-          {character && (
-            <div className="hud-label mt-2.5" style={{ color: character.accent }}>
-              {character.name} · {character.focus}
-            </div>
-          )}
-          {msg && <p className="text-sm text-muted mt-3">{msg}</p>}
+
+          <div className="flex items-center justify-center gap-2.5 mt-3">
+            {character && (
+              <span className="class-pill" style={{ color: character.accent }}>
+                {character.name.replace("The ", "")}
+              </span>
+            )}
+            <span className="class-pill" style={{ color: rank.color }}>{rank.label}</span>
+          </div>
+
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={46} />
+            <span className="hud-label">Since {formatDate(new Date(profile.created_at))}</span>
+          </div>
+
+          {msg && <p className="text-sm text-danger mt-3">{msg}</p>}
         </div>
       </div>
 
-      <div className="hud-label mt-6 mb-2.5">Your character</div>
+      {/* XP meter */}
+      <div className="card p-4 mt-4">
+        <XpMeter rank={rank} xp={profile.xp} />
+      </div>
+
+      {/* stat grid */}
+      <div className="card p-4 mt-3 grid grid-cols-5">
+        {STAT_KEYS.map((k) => (
+          <div key={k} className="text-center">
+            <div className="display text-[19px]" style={{ color: accent }}>{profile.stats[k] ?? 0}</div>
+            <div className="hud-label mt-1">{k}</div>
+          </div>
+        ))}
+      </div>
+
+      <h2 className="display text-[16px] mt-7 mb-3">Your character</h2>
       <div className="flex gap-2.5 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
         {CHARACTER_KEYS.map((key) => {
           const on = profile.archetype === key;
           return (
             <button
               key={key}
-              className={`option-row flex-none w-[118px] px-3 py-3.5 flex flex-col items-center gap-1.5 ${on ? "selected" : ""}`}
+              className={`option-row flex-none w-[112px] px-3 py-4 flex flex-col items-center gap-2 ${on ? "selected" : ""}`}
               onClick={() => chooseCharacter(key)}
             >
-              <Avatar size={56} character={key} ring={on} />
-              <span className="hud-label !text-ink">{CHARACTERS[key].name.replace("The ", "")}</span>
-              <span
-                className="hud-label !text-[9px] text-center leading-relaxed"
-                style={{ letterSpacing: "0.06em" }}
-              >
-                {CHARACTERS[key].focus}
+              <Avatar size={64} character={key} ring={on} />
+              <span className="display !text-[11px]">{CHARACTERS[key].name.replace("The ", "")}</span>
+              <span className="hud-label !text-[9px]" style={{ color: CHARACTERS[key].accent }}>
+                {CHARACTERS[key].stat}
               </span>
             </button>
           );
         })}
       </div>
 
-      <div className="hud-label mt-6 mb-2.5">Privacy</div>
+      <h2 className="display text-[16px] mt-7 mb-3">Privacy</h2>
       <div className="card px-4 py-4 flex items-center gap-3.5">
         <span className="flex-1 min-w-0">
-          <span className="block text-sm">Share my activity with friends</span>
-          <span className="block text-xs text-muted mt-1">
-            {profile.share_activity
-              ? "Friends see your XP, rank and streak on their boards."
-              : "You are hidden. Friends cannot see you on their boards."}
+          <span className="block text-sm font-semibold">Share activity with friends</span>
+          <span className="hud-label mt-1 block">
+            {profile.share_activity ? "Friends see your rank and streak" : "You are hidden"}
           </span>
         </span>
         <button
@@ -177,19 +200,17 @@ export default function ProfilePage() {
         />
       </div>
 
-      <div className="hud-label mt-6 mb-2.5">Friend code</div>
+      <h2 className="display text-[16px] mt-7 mb-3">Friend code</h2>
       <div className="card px-4 py-3.5 flex items-center gap-3">
-        <span className="font-mono text-lg tracking-[0.3em]" style={{ color: "var(--accent)" }}>
+        <span className="font-mono text-lg tracking-[0.3em] flex-1" style={{ color: "var(--accent)" }}>
           {profile.friend_code ?? "……"}
         </span>
-        <span className="flex-1 hud-label">Share it, get seen on boards</span>
         <button className="btn-ghost px-4 py-2 !text-xs" onClick={copyCode}>
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
 
       <div className="card mt-5 divide-y divide-[var(--line)]">
-        <Row label="Member since" value={formatDate(new Date(profile.created_at))} />
         <Row label="Current streak" value={`${profile.streak_current} ${profile.streak_current === 1 ? "day" : "days"}`} />
         <Row label="Best streak" value={`${profile.streak_best} ${profile.streak_best === 1 ? "day" : "days"}`} />
         <Row label="Total XP" value={profile.xp.toLocaleString()} />
@@ -199,7 +220,7 @@ export default function ProfilePage() {
         <Icon name="logout" size={16} />
         Sign out
       </button>
-      <p className="text-center hud-label mt-4">Life Reset · free for every challenger</p>
+      <p className="text-center hud-label mt-4">Solo Leveling</p>
     </div>
   );
 }
@@ -208,7 +229,38 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="px-4 py-3 flex items-center justify-between">
       <span className="hud-label">{label}</span>
-      <span className="text-sm font-mono">{value}</span>
+      <span className="display text-[14px]">{value}</span>
     </div>
+  );
+}
+
+// faint radar-web pattern behind the hero
+function SceneGrid({ color }: { color: string }) {
+  return (
+    <svg
+      aria-hidden
+      className="absolute inset-0 w-full h-full"
+      viewBox="0 0 400 260"
+      preserveAspectRatio="xMidYMid slice"
+      style={{ opacity: 0.14 }}
+    >
+      {[46, 86, 126, 166].map((r) => (
+        <circle key={r} cx="200" cy="96" r={r} fill="none" stroke={color} strokeWidth="1" />
+      ))}
+      {Array.from({ length: 12 }).map((_, i) => {
+        const a = (i * Math.PI) / 6;
+        return (
+          <line
+            key={i}
+            x1="200"
+            y1="96"
+            x2={200 + Math.cos(a) * 170}
+            y2={96 + Math.sin(a) * 170}
+            stroke={color}
+            strokeWidth="0.7"
+          />
+        );
+      })}
+    </svg>
   );
 }

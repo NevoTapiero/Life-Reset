@@ -6,7 +6,7 @@ import sharp from "sharp";
 
 const gkey = process.env.GKEY;
 if (!gkey) { console.error("GKEY missing"); process.exit(1); }
-const outDir = "C:/Users/user/Desktop/Life Reset/app/public/art";
+const outDir = "C:/Users/user/Desktop/Solo Leveling/app/public/art";
 mkdirSync(outDir, { recursive: true });
 
 const STYLE =

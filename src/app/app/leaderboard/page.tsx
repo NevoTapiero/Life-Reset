@@ -1,9 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
+import type { CharacterKey } from "@/lib/game";
 
 type Row = {
   username: string;
@@ -13,6 +15,12 @@ type Row = {
   weekly_xp: number;
   is_me: boolean;
 };
+
+const METALS = [
+  { row: "metal-row metal-gold shine", medal: "medal medal-gold", ring: "#f5c752" },
+  { row: "metal-row metal-silver", medal: "medal medal-silver", ring: "#c3cede" },
+  { row: "metal-row metal-bronze", medal: "medal medal-bronze", ring: "#d47a1e" },
+];
 
 export default function LeaderboardPage() {
   const router = useRouter();
@@ -83,27 +91,19 @@ export default function LeaderboardPage() {
 
   if (!rows) return <div className="hud-label pulse-glow text-center py-20">Ranking your circle…</div>;
 
-  const myIndex = rows.findIndex((r) => r.is_me);
   const alone = rows.length <= 1;
 
   return (
     <div className="slide-in">
-      <span className="eyebrow hud-label !text-ink">System · Friends board</span>
-      <h1 className="display text-2xl mt-3">THIS WEEK</h1>
-      <p className="text-muted text-sm mt-1.5">
-        Only you and your friends. Weekly XP resets every Monday.
-      </p>
+      <h1 className="display text-[28px]">Board</h1>
+      <p className="hud-label mt-1.5">Friends only · weekly XP · resets Monday</p>
 
       {/* invite */}
       <div className="hud-frame p-4 mt-5">
-        <div className="hud-label mb-2.5" style={{ color: "var(--accent)" }}>
-          Invite a friend
-        </div>
         <div className="flex items-center gap-3">
-          <span className="font-mono text-lg tracking-[0.3em]" style={{ color: "var(--accent)" }}>
+          <span className="font-mono text-lg tracking-[0.3em] flex-1" style={{ color: "var(--accent)" }}>
             {myCode ?? "……"}
           </span>
-          <span className="flex-1 hud-label">your code</span>
           <button className="btn-ghost px-4 py-2 !text-xs" onClick={copyCode}>
             {copied ? "Copied" : "Copy"}
           </button>
@@ -129,9 +129,7 @@ export default function LeaderboardPage() {
       </div>
 
       {!myShare && (
-        <p className="hud-label text-center mt-4">
-          Privacy is on: friends cannot see you. Change it in your profile.
-        </p>
+        <p className="hud-label text-center mt-4">Privacy is on · friends cannot see you</p>
       )}
 
       {alone ? (
@@ -139,94 +137,94 @@ export default function LeaderboardPage() {
           <div className="flex justify-center text-muted">
             <Icon name="users" size={26} />
           </div>
-          <p className="text-sm text-muted mt-2.5">
-            Your board is empty. Trade codes with a friend and race their streak.
-          </p>
+          <p className="text-sm text-muted mt-2.5">Trade codes with a friend and race their streak.</p>
         </div>
       ) : (
-        <div className="card mt-5 divide-y divide-[var(--line)] stagger">
-          {rows.map((r, i) => (
-            <div
-              key={`${r.username}-${i}`}
-              className="px-4 py-3.5 flex items-center gap-3.5"
-              style={r.is_me ? { background: "rgba(255,107,0,0.07)" } : undefined}
-            >
-              <span className="w-8 flex justify-center flex-none">
-                {i === 0 ? (
-                  <Icon name="crown" size={19} className="text-accent" strokeWidth={1.8} />
-                ) : (
-                  <span className="hud-label font-mono">#{i + 1}</span>
-                )}
-              </span>
-              <button
-                className="flex-1 min-w-0 text-left active:opacity-70 transition-opacity"
-                onClick={() => !r.is_me && router.push(`/app/friend/${encodeURIComponent(r.username)}`)}
+        <div className="flex flex-col gap-2.5 mt-5 stagger">
+          {rows.map((r, i) => {
+            const metal = i < 3 ? METALS[i] : null;
+            return (
+              <div
+                key={`${r.username}-${i}`}
+                className={`px-3.5 py-3 flex items-center gap-3 ${metal ? metal.row : "card"}`}
+                style={r.is_me && !metal ? { borderColor: "rgba(255,107,0,0.6)", boxShadow: "0 0 18px rgba(255,107,0,0.14)", background: "linear-gradient(180deg, rgba(255,107,0,0.10), rgba(255,107,0,0.03)), var(--panel)" } : undefined}
               >
-                <span
-                  className="block font-mono text-sm truncate"
-                  style={r.is_me ? { color: "var(--accent)" } : undefined}
+                {metal ? (
+                  <span className={metal.medal}>{i + 1}</span>
+                ) : (
+                  <span className="w-[30px] flex justify-center flex-none display text-[14px] text-muted">
+                    {i + 1}
+                  </span>
+                )}
+                <Avatar
+                  size={46}
+                  character={(r.archetype as CharacterKey) ?? null}
+                  ringColor={metal?.ring}
+                />
+                <button
+                  className="flex-1 min-w-0 text-left active:opacity-70 transition-opacity"
+                  onClick={() => !r.is_me && router.push(`/app/friend/${encodeURIComponent(r.username)}`)}
                 >
-                  {r.username}
-                  {r.is_me ? " (you)" : ""}
-                </span>
-                <span className="hud-label flex items-center gap-1">
-                  <Icon name="flame" size={10} strokeWidth={2} />
-                  {r.streak_current} day streak
-                </span>
-              </button>
-              <span className="text-right flex-none">
-                <span className="block font-mono text-sm" style={{ color: "var(--accent)" }}>
-                  {r.weekly_xp.toLocaleString()}
-                </span>
-                <span className="hud-label">weekly XP</span>
-              </span>
-              {!r.is_me && (
-                <span className="relative flex-none">
-                  <button
-                    className="icon-tile !w-8 !h-8 !rounded-[9px] text-muted active:scale-95 transition-transform"
-                    aria-label={`Options for ${r.username}`}
-                    onClick={() => setMenuFor(menuFor === r.username ? null : r.username)}
+                  <span
+                    className="display block text-[15px] truncate"
+                    style={r.is_me ? { color: "var(--accent)" } : undefined}
                   >
-                    <Icon name="dots" size={15} />
-                  </button>
-                  {menuFor === r.username && (
-                    <>
-                      <span className="fixed inset-0 z-40" onClick={() => setMenuFor(null)} />
-                      <span className="card absolute right-0 top-10 z-50 w-36 py-1.5 flex flex-col rise shadow-xl">
-                        <button
-                          className="px-4 py-2.5 text-left text-sm flex items-center gap-2.5 active:opacity-70"
-                          onClick={() => {
-                            setMenuFor(null);
-                            router.push(`/app/friend/${encodeURIComponent(r.username)}`);
-                          }}
-                        >
-                          <Icon name="user" size={14} />
-                          Profile
-                        </button>
-                        <button
-                          className="px-4 py-2.5 text-left text-sm flex items-center gap-2.5 text-danger active:opacity-70"
-                          onClick={() => {
-                            setMenuFor(null);
-                            removeFriend(r.username);
-                          }}
-                        >
-                          <Icon name="x" size={14} />
-                          Remove
-                        </button>
-                      </span>
-                    </>
-                  )}
+                    {r.username}
+                    {r.is_me ? " · you" : ""}
+                  </span>
+                  <span className="hud-label flex items-center gap-1 mt-0.5" style={{ color: "var(--accent)" }}>
+                    <Icon name="flame" size={11} strokeWidth={2.2} />
+                    {r.streak_current}
+                  </span>
+                </button>
+                <span className="text-right flex-none">
+                  <span className="display block text-[19px]" style={{ color: metal ? metal.ring : "var(--ink)" }}>
+                    {r.weekly_xp.toLocaleString()}
+                  </span>
+                  <span className="hud-label">XP</span>
                 </span>
-              )}
-            </div>
-          ))}
+                {!r.is_me && (
+                  <span className="relative flex-none">
+                    <button
+                      className="icon-tile !w-8 !h-8 !rounded-[9px] !bg-[rgba(0,0,0,0.25)] text-muted active:scale-95 transition-transform"
+                      aria-label={`Options for ${r.username}`}
+                      onClick={() => setMenuFor(menuFor === r.username ? null : r.username)}
+                    >
+                      <Icon name="dots" size={15} />
+                    </button>
+                    {menuFor === r.username && (
+                      <>
+                        <span className="fixed inset-0 z-40" onClick={() => setMenuFor(null)} />
+                        <span className="card absolute right-0 top-10 z-50 w-36 py-1.5 flex flex-col rise shadow-xl">
+                          <button
+                            className="px-4 py-2.5 text-left text-sm flex items-center gap-2.5 active:opacity-70"
+                            onClick={() => {
+                              setMenuFor(null);
+                              router.push(`/app/friend/${encodeURIComponent(r.username)}`);
+                            }}
+                          >
+                            <Icon name="user" size={14} />
+                            Profile
+                          </button>
+                          <button
+                            className="px-4 py-2.5 text-left text-sm flex items-center gap-2.5 text-danger active:opacity-70"
+                            onClick={() => {
+                              setMenuFor(null);
+                              removeFriend(r.username);
+                            }}
+                          >
+                            <Icon name="x" size={14} />
+                            Remove
+                          </button>
+                        </span>
+                      </>
+                    )}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
-      )}
-
-      {myIndex > 0 && (
-        <p className="hud-label text-center mt-4">
-          Clear quests to pass {rows[myIndex - 1].username}.
-        </p>
       )}
     </div>
   );

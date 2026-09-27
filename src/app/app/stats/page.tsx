@@ -56,14 +56,16 @@ export default function StatsPage() {
 
   return (
     <div className="slide-in">
-      <span className="eyebrow hud-label !text-ink">System · Character sheet</span>
+      <h1 className="display text-[28px]">Stats</h1>
       <div className="flex items-center gap-3.5 mt-4">
-        <Avatar size={56} character={profile.archetype} />
+        <Avatar size={58} character={profile.archetype} />
         <div>
-          <h1 className="display text-xl">{profile.username.toUpperCase()}</h1>
+          <div className="display text-[19px]">{profile.username}</div>
           {character && (
-            <div className="hud-label mt-0.5" style={{ color: character.accent }}>
-              {character.name}
+            <div className="mt-1.5">
+              <span className="class-pill" style={{ color: character.accent }}>
+                {character.name.replace("The ", "")}
+              </span>
             </div>
           )}
         </div>
@@ -86,30 +88,25 @@ export default function StatsPage() {
               ]}
             />
           </div>
-          <p className="hud-label text-center pb-3">
-            Every cleared quest trains its linked stats · +2 each
-          </p>
         </div>
       </div>
 
-      <p className="hud-label mt-4 mb-2">Tap a stat to see what it means</p>
-      <div className="flex flex-col gap-2 stagger">
+      <div className="flex flex-col gap-2 mt-5 stagger">
         {STAT_KEYS.map((k) => {
           const value = profile.stats[k] ?? 0;
           const open = openStat === k;
           return (
             <button
               key={k}
-              className={`option-row px-4 py-2.5 text-left ${open ? "selected" : ""}`}
+              className={`option-row px-4 py-3 text-left ${open ? "selected" : ""}`}
               onClick={() => setOpenStat(open ? null : k)}
             >
               <span className="flex items-center gap-3">
-                <span className="hud-label w-9" style={{ color: "var(--accent)" }}>{k}</span>
+                <span className="display w-11 text-[13px]" style={{ color: "var(--accent)" }}>{k}</span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm">{STAT_INFO[k].name}</span>
-                  <span className="block text-xs text-muted truncate">{STAT_INFO[k].blurb}</span>
+                  <span className="block text-sm font-semibold">{STAT_INFO[k].name}</span>
                 </span>
-                <span className="font-mono font-semibold text-[15px]">{value}</span>
+                <span className="display text-[17px]">{value}</span>
                 <span
                   className="text-muted transition-transform duration-300 flex-none"
                   style={{ transform: open ? "rotate(180deg)" : "none" }}
@@ -129,21 +126,17 @@ export default function StatsPage() {
 
       <div className="grid grid-cols-2 gap-2.5 mt-5">
         <div className="card p-4 text-center">
-          <div className="font-mono font-bold text-2xl" style={{ color: "var(--accent)" }}>{totalCompletions}</div>
+          <div className="display text-[24px]" style={{ color: "var(--accent)" }}>{totalCompletions}</div>
           <div className="hud-label mt-1">Quests cleared</div>
         </div>
         <div className="card p-4 text-center">
-          <div className="font-mono font-bold text-2xl" style={{ color: "var(--bronze)" }}>{profile.streak_best}</div>
+          <div className="display text-[24px]" style={{ color: "var(--bronze)" }}>{profile.streak_best}</div>
           <div className="hud-label mt-1">Best streak</div>
         </div>
       </div>
 
       <div className="card p-4 mt-4">
-        <div className="hud-label mb-1.5">Pillar activity</div>
-        <p className="text-xs text-muted mb-3.5">
-          How many quests you have cleared in each life pillar, all time. The bars compare the
-          pillars to each other.
-        </p>
+        <div className="display text-[14px] mb-3.5">Pillar activity</div>
         <div className="flex flex-col gap-3">
           {PILLARS.map((p: Pillar) => {
             const count = pillarCounts[p] ?? 0;
@@ -161,7 +154,7 @@ export default function StatsPage() {
                     }}
                   />
                 </div>
-                <span className="hud-label font-mono w-6 text-right">{count}</span>
+                <span className="display text-[13px] w-6 text-right text-muted">{count}</span>
               </div>
             );
           })}
