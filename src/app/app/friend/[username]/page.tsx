@@ -98,12 +98,16 @@ export default function FriendProfilePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2.5 mt-4">
+      <div className="grid grid-cols-2 gap-2.5 mt-4">
         <div className="card p-3.5 text-center">
           <div className="display text-[19px]" style={{ color: "var(--accent)" }}>
             {file.weekly_xp.toLocaleString()}
           </div>
           <div className="hud-label mt-1">Weekly XP</div>
+        </div>
+        <div className="card p-3.5 text-center">
+          <div className="display text-[19px]">{file.xp.toLocaleString()}</div>
+          <div className="hud-label mt-1">All time XP</div>
         </div>
         <div className="card p-3.5 text-center">
           <div className="display text-[19px]" style={{ color: "var(--accent)" }}>
@@ -117,6 +121,18 @@ export default function FriendProfilePage() {
           </div>
           <div className="hud-label mt-1">Best</div>
         </div>
+      </div>
+
+      {/* the five stats, like on your own profile */}
+      <div className="card p-4 mt-3 grid grid-cols-5">
+        {STAT_KEYS.map((k) => (
+          <div key={k} className="text-center">
+            <div className="display text-[19px]" style={{ color: character?.accent ?? "var(--accent)" }}>
+              {file.stats[k] ?? 0}
+            </div>
+            <div className="hud-label mt-1">{k}</div>
+          </div>
+        ))}
       </div>
 
       <div className="bezel mt-4">

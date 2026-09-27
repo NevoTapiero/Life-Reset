@@ -40,6 +40,12 @@ html {
   background: var(--bg);
 }
 
+/* the page-slide animation briefly overflows to the right; clip it so the
+   viewport never shifts and the fixed nav stays planted */
+html, body {
+  overflow-x: clip;
+}
+
 body {
   background: var(--bg);
   color: var(--ink);

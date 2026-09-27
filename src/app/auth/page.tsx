@@ -73,8 +73,13 @@ export default function AuthPage() {
           <Logo size={88} />
         </div>
         <div className="text-center">
-          <span className="eyebrow hud-label !text-ink">Solo Leveling</span>
-          <h1 className="display-hero text-[44px] mt-4 leading-none">
+          <div
+            className="display-hero text-[30px] leading-none text-accent"
+            style={{ textShadow: "0 0 26px rgba(255,107,0,0.5)" }}
+          >
+            SOLO LEVELING
+          </div>
+          <h1 className="display-hero text-[44px] mt-3 leading-none">
             {mode === "signup" ? "JOIN THE HUNT" : "WELCOME BACK"}
           </h1>
         </div>

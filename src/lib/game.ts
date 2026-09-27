@@ -149,11 +149,9 @@ export function rankForXp(xp: number): Rank {
 
 // ---------- streak milestones (the bar counts up toward the next one) ----------
 
-export const STREAK_MILESTONES = [7, 14, 30, 50, 100, 365];
-
+// milestones climb in jumps of 7: reach 7 and the bar becomes 7/14, then 14/21…
 export function nextStreakMilestone(streak: number): number {
-  for (const m of STREAK_MILESTONES) if (streak < m) return m;
-  return STREAK_MILESTONES[STREAK_MILESTONES.length - 1];
+  return (Math.floor(Math.max(0, streak) / 7) + 1) * 7;
 }
 
 // full-bleed card art, one scene per life pillar

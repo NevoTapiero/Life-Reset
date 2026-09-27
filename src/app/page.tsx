@@ -1,30 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
 import Logo from "@/components/Logo";
 
 export default function Landing() {
-  const [members, setMembers] = useState<number | null>(null);
-
-  useEffect(() => {
-    supabase
-      .rpc("get_member_count")
-      .then(({ data }) => setMembers(typeof data === "number" ? data : Number(data ?? 0)));
-  }, []);
-
   return (
     <main className="flex-1 flex flex-col py-8">
-      <div className="flex justify-center rise">
-        <span className="eyebrow hud-label !text-ink">
-          {members !== null && members >= 100
-            ? `${members.toLocaleString()} hunters inside`
-            : "Founding cohort now open"}
-        </span>
-      </div>
-
       <div className="my-auto py-8 text-center rise">
         <div className="flex justify-center mb-6">
           <Logo size={132} />
@@ -55,7 +37,6 @@ export default function Landing() {
         <Link href="/auth?mode=signin" className="btn-ghost py-3.5">
           I already have an account
         </Link>
-        <p className="text-center hud-label mt-1.5">Free forever</p>
       </div>
     </main>
   );

@@ -34,6 +34,7 @@ export default function LeaderboardPage() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [{ data, error }, { data: userData }] = await Promise.all([
@@ -75,6 +76,7 @@ export default function LeaderboardPage() {
   }
 
   async function removeFriend(username: string) {
+    setConfirmRemove(null);
     setError(null);
     const { error } = await supabase.rpc("remove_friend", { p_username: username });
     if (error) setError(error.message);
@@ -112,6 +114,26 @@ export default function LeaderboardPage() {
 
   return (
     <div className="slide-in">
+      {confirmRemove && (
+        <div className="rankup-backdrop !z-50" onClick={() => setConfirmRemove(null)}>
+          <div className="card p-5 w-[300px] max-w-[85vw] text-center rise" onClick={(e) => e.stopPropagation()}>
+            <div className="display text-[16px]">Remove {confirmRemove}?</div>
+            <p className="hud-label mt-2.5">They leave your board · you leave theirs</p>
+            <div className="flex gap-2.5 mt-5">
+              <button className="btn-ghost flex-1 py-2.5 !text-sm" onClick={() => setConfirmRemove(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn-ghost flex-1 py-2.5 !text-sm text-danger"
+                style={{ borderColor: "rgba(255,93,115,0.6)" }}
+                onClick={() => removeFriend(confirmRemove)}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <h1 className="display text-[28px]">Board</h1>
       <p className="hud-label mt-1.5">Friends only · weekly XP · resets Monday</p>
 
@@ -230,7 +252,7 @@ export default function LeaderboardPage() {
                             className="px-4 py-2.5 text-left text-sm flex items-center gap-2.5 text-danger active:opacity-70"
                             onClick={() => {
                               setMenuFor(null);
-                              removeFriend(r.username);
+                              setConfirmRemove(r.username);
                             }}
                           >
                             <Icon name="x" size={14} />
