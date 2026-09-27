@@ -84,7 +84,7 @@ export default function StatsPage() {
                 {
                   values,
                   stroke: "var(--accent)",
-                  fill: "rgba(255, 107, 0, 0.28)",
+                  fill: "rgb(var(--accent-rgb) / 0.28)",
                   dots: true,
                 },
               ]}

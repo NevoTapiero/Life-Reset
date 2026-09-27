@@ -333,7 +333,7 @@ export default function QuestManager() {
               className={`option-row px-4 py-3.5 flex items-center gap-3 ${on ? "selected" : ""}`}
               onClick={() => toggleActive(q)}
             >
-              <span className="icon-tile" style={on ? { color: "var(--accent)", borderColor: "rgba(255,107,0,0.4)" } : undefined}>
+              <span className="icon-tile" style={on ? { color: "var(--accent)", borderColor: "rgb(var(--accent-rgb) / 0.4)" } : undefined}>
                 <Icon name={PILLAR_ICONS[q.pillar]} size={23} />
               </span>
               <span className="flex-1 text-left min-w-0">

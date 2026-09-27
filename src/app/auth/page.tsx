@@ -73,7 +73,7 @@ function AuthForm() {
       <div className="text-center">
         <div
           className="display-hero text-[30px] leading-none text-accent"
-          style={{ textShadow: "0 0 26px rgba(255,107,0,0.5)" }}
+          style={{ textShadow: "0 0 26px rgb(var(--accent-rgb) / 0.5)" }}
         >
           SOLO LEVELING
         </div>

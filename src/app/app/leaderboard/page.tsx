@@ -189,7 +189,7 @@ export default function LeaderboardPage() {
               <div
                 key={`${r.username}-${i}`}
                 className={`px-3.5 py-3 flex items-center gap-3 ${metal ? metal.row : "card"}`}
-                style={r.is_me && !metal ? { borderColor: "rgba(255,107,0,0.6)", boxShadow: "0 0 18px rgba(255,107,0,0.14)", background: "linear-gradient(180deg, rgba(255,107,0,0.10), rgba(255,107,0,0.03)), var(--panel)" } : undefined}
+                style={r.is_me && !metal ? { borderColor: "rgb(var(--accent-rgb) / 0.6)", boxShadow: "0 0 18px rgb(var(--accent-rgb) / 0.14)", background: "linear-gradient(180deg, rgb(var(--accent-rgb) / 0.10), rgb(var(--accent-rgb) / 0.03)), var(--panel)" } : undefined}
               >
                 {metal?.shine && <span aria-hidden className="shine-overlay" />}
                 {metal ? (
