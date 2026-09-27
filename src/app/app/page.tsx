@@ -197,7 +197,7 @@ export default function Dashboard() {
                         className="flex-1 rounded-[2.5px]"
                         style={
                           on
-                            ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", boxShadow: "0 0 8px rgba(255,107,0,0.5)" }
+                            ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", boxShadow: "0 0 8px rgb(var(--accent-rgb) / 0.5)" }
                             : { background: "#232327" }
                         }
                       />
@@ -260,8 +260,8 @@ export default function Dashboard() {
               disabled={pendingId === q.id}
               className="relative overflow-hidden rounded-2xl text-left transition-transform duration-150 active:scale-[0.985]"
               style={{
-                border: done ? "1px solid rgba(255,107,0,0.75)" : "1px solid var(--line)",
-                boxShadow: done ? "0 0 22px rgba(255,107,0,0.16)" : "none",
+                border: done ? "1px solid rgb(var(--accent-rgb) / 0.75)" : "1px solid var(--line)",
+                boxShadow: done ? "0 0 22px rgb(var(--accent-rgb) / 0.16)" : "none",
                 minHeight: 96,
               }}
             >
@@ -283,12 +283,12 @@ export default function Dashboard() {
                 }}
               />
               {done && (
-                <span aria-hidden className="absolute inset-0" style={{ background: "rgba(255,107,0,0.10)" }} />
+                <span aria-hidden className="absolute inset-0" style={{ background: "rgb(var(--accent-rgb) / 0.10)" }} />
               )}
               <span className="relative flex items-center gap-3.5 px-4 py-4 min-h-[96px]">
                 <span
                   className="icon-tile !bg-[rgba(0,0,0,0.35)]"
-                  style={{ backdropFilter: "blur(4px)", color: done ? "var(--accent)" : "var(--ink)", borderColor: done ? "rgba(255,107,0,0.5)" : "var(--line-strong)" }}
+                  style={{ backdropFilter: "blur(4px)", color: done ? "var(--accent)" : "var(--ink)", borderColor: done ? "rgb(var(--accent-rgb) / 0.5)" : "var(--line-strong)" }}
                 >
                   <Icon name={PILLAR_ICONS[q.pillar]} size={23} />
                 </span>
@@ -308,7 +308,7 @@ export default function Dashboard() {
                   className={`w-8 h-8 rounded-[10px] border flex items-center justify-center flex-none transition-colors duration-150 ${done ? "check-pop" : ""}`}
                   style={
                     done
-                      ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 16px rgba(255,107,0,0.6)" }
+                      ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 16px rgb(var(--accent-rgb) / 0.6)" }
                       : { borderColor: "rgba(255,255,255,0.4)", background: "rgba(0,0,0,0.3)", color: "transparent", backdropFilter: "blur(4px)" }
                   }
                   aria-hidden
@@ -368,8 +368,8 @@ export default function Dashboard() {
                     disabled={pendingId === q.id}
                     className="relative overflow-hidden rounded-2xl text-left transition-transform duration-150 active:scale-[0.985]"
                     style={{
-                      border: done ? "1px solid rgba(255,107,0,0.75)" : "1px solid var(--line)",
-                      boxShadow: done ? "0 0 18px rgba(255,107,0,0.14)" : "none",
+                      border: done ? "1px solid rgb(var(--accent-rgb) / 0.75)" : "1px solid var(--line)",
+                      boxShadow: done ? "0 0 18px rgb(var(--accent-rgb) / 0.14)" : "none",
                       minHeight: 76,
                       opacity: done ? 1 : 0.85,
                     }}
@@ -392,12 +392,12 @@ export default function Dashboard() {
                       }}
                     />
                     {done && (
-                      <span aria-hidden className="absolute inset-0" style={{ background: "rgba(255,107,0,0.10)" }} />
+                      <span aria-hidden className="absolute inset-0" style={{ background: "rgb(var(--accent-rgb) / 0.10)" }} />
                     )}
                     <span className="relative flex items-center gap-3.5 px-4 py-3 min-h-[76px]">
                       <span
                         className="icon-tile !w-10 !h-10 !bg-[rgba(0,0,0,0.35)]"
-                        style={{ backdropFilter: "blur(4px)", color: done ? "var(--accent)" : "var(--ink)", borderColor: done ? "rgba(255,107,0,0.5)" : "var(--line-strong)" }}
+                        style={{ backdropFilter: "blur(4px)", color: done ? "var(--accent)" : "var(--ink)", borderColor: done ? "rgb(var(--accent-rgb) / 0.5)" : "var(--line-strong)" }}
                       >
                         <Icon name={PILLAR_ICONS[q.pillar]} size={20} />
                       </span>
@@ -417,7 +417,7 @@ export default function Dashboard() {
                         className={`w-7 h-7 rounded-[9px] border flex items-center justify-center flex-none ${done ? "check-pop" : ""}`}
                         style={
                           done
-                            ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 14px rgba(255,107,0,0.55)" }
+                            ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 14px rgb(var(--accent-rgb) / 0.55)" }
                             : { borderColor: "rgba(255,255,255,0.4)", background: "rgba(0,0,0,0.3)", color: "transparent", backdropFilter: "blur(4px)" }
                         }
                         aria-hidden

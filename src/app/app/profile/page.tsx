@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { applyCharacterTheme } from "@/lib/theme";
 import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
@@ -52,7 +53,10 @@ export default function ProfilePage() {
     setMsg(null);
     const { data, error } = await supabase.rpc("set_archetype", { p_key: key });
     if (error) setMsg(error.message);
-    else setProfile(data as Profile);
+    else {
+      setProfile(data as Profile);
+      applyCharacterTheme(key);
+    }
   }
 
   async function togglePrivacy() {

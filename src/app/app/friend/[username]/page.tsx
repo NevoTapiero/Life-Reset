@@ -144,7 +144,7 @@ export default function FriendProfilePage() {
             labels={[...STAT_KEYS]}
             size={230}
             max={radarMax}
-            series={[{ values, stroke: "var(--accent)", fill: "rgba(255, 107, 0, 0.28)", dots: true }]}
+            series={[{ values, stroke: "var(--accent)", fill: "rgb(var(--accent-rgb) / 0.28)", dots: true }]}
           />
         </div>
       </div>
@@ -161,7 +161,7 @@ export default function FriendProfilePage() {
             key={q.id}
             className={`option-row px-4 py-3.5 flex items-center gap-3.5 ${q.done_today ? "selected" : ""}`}
           >
-            <span className="icon-tile" style={q.done_today ? { color: "var(--accent)", borderColor: "rgba(255,107,0,0.4)" } : undefined}>
+            <span className="icon-tile" style={q.done_today ? { color: "var(--accent)", borderColor: "rgb(var(--accent-rgb) / 0.4)" } : undefined}>
               <Icon name={PILLAR_ICONS[q.pillar as keyof typeof PILLAR_ICONS]} size={23} />
             </span>
             <span className="flex-1 min-w-0">

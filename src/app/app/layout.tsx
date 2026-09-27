@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { applyCharacterTheme } from "@/lib/theme";
 import Icon from "@/components/Icon";
 
 const TABS = [
@@ -27,6 +28,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         return;
       }
       setAuthed(true);
+      // paint the app in the user's character colors
+      supabase
+        .from("profiles")
+        .select("archetype")
+        .eq("id", data.session.user.id)
+        .single()
+        .then(({ data: p }) => applyCharacterTheme(p?.archetype));
       // redeem a pending invite-link code from before sign-in
       let code: string | null = null;
       try {
@@ -85,7 +93,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 transform: "translateY(-13px)",
                 background: "linear-gradient(180deg, var(--accent-2), var(--accent))",
                 boxShadow:
-                  "0 6px 22px rgba(255,107,0,0.55), 0 0 0 5px var(--bg), inset 0 1px 0 rgba(255,255,255,0.3)",
+                  "0 6px 22px rgb(var(--accent-rgb) / 0.55), 0 0 0 5px var(--bg), inset 0 1px 0 rgba(255,255,255,0.3)",
               }}
             />
           </div>

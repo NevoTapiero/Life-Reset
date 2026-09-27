@@ -19,7 +19,7 @@ export default function Landing() {
           <br />
           <span
             className="text-accent"
-            style={{ textShadow: "0 0 38px rgba(255,107,0,0.55)" }}
+            style={{ textShadow: "0 0 38px rgb(var(--accent-rgb) / 0.55)" }}
           >
             LEVELING
           </span>
