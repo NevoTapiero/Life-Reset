@@ -27,15 +27,15 @@ export default function Logo({ size = 96 }: { size?: number }) {
       <circle cx="252" cy="278" r="160" fill="url(#logoGlow)" />
       <g filter="url(#logoSoft)">
         <path
-          d="M330 150 H222 a64 64 0 0 0 0 128 h56 a64 64 0 0 1 0 128 H170"
+          d="M330 152 H224 a62 62 0 0 0 0 124 h52 a62 62 0 0 1 0 124 H172"
           fill="none"
           stroke="url(#logoS)"
-          strokeWidth="78"
+          strokeWidth="96"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
       </g>
-      <path d="M330 150 H240" fill="none" stroke="#ffd9b0" strokeWidth="18" strokeLinecap="round" opacity="0.35" />
+      <path d="M326 152 H244" fill="none" stroke="#ffd9b0" strokeWidth="20" strokeLinecap="round" opacity="0.35" />
     </svg>
   );
 }

@@ -24,11 +24,11 @@
 
   <!-- smooth S monogram -->
   <g filter="url(#soft)">
-    <path d="M330 150 H222 a64 64 0 0 0 0 128 h56 a64 64 0 0 1 0 128 H170"
-          fill="none" stroke="url(#s)" stroke-width="78"
+    <path d="M330 152 H224 a62 62 0 0 0 0 124 h52 a62 62 0 0 1 0 124 H172"
+          fill="none" stroke="url(#s)" stroke-width="96"
           stroke-linecap="round" stroke-linejoin="round"/>
   </g>
   <!-- top-edge highlight for depth -->
-  <path d="M330 150 H240" fill="none" stroke="#ffd9b0" stroke-width="18"
+  <path d="M326 152 H244" fill="none" stroke="#ffd9b0" stroke-width="20"
         stroke-linecap="round" opacity="0.35"/>
 </svg>

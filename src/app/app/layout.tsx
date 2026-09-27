@@ -56,7 +56,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 pb-28 pt-5">{children}</main>
       <nav
         className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md px-4 pb-4 z-40"
-        style={{ transform: "translateX(-50%) translateZ(0)" }}
+        style={{ willChange: "transform" }}
       >
         <div
           className="relative flex py-2.5 rounded-full border border-line"
