@@ -12,6 +12,7 @@ import {
   CHARACTER_KEYS,
   CharacterKey,
   Profile,
+  STAT_ICONS,
   STAT_KEYS,
   characterOf,
   formatDate,
@@ -106,7 +107,7 @@ export default function ProfilePage() {
 
         <div className="relative">
           <div className="flex justify-center">
-            <Avatar size={116} character={profile.archetype} />
+            <Avatar size={116} character={profile.archetype} tierIndex={rank.tierIndex} />
           </div>
 
           {!editing ? (
@@ -157,6 +158,9 @@ export default function ProfilePage() {
       <div className="card p-4 mt-3 grid grid-cols-5">
         {STAT_KEYS.map((k) => (
           <div key={k} className="text-center">
+            <div className="flex justify-center text-muted mb-1.5">
+              <Icon name={STAT_ICONS[k]} size={15} />
+            </div>
             <div className="display text-[19px]" style={{ color: accent }}>{profile.stats[k] ?? 0}</div>
             <div className="hud-label mt-1">{k}</div>
           </div>

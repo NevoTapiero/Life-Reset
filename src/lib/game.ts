@@ -30,17 +30,33 @@ export const STAT_INFO: Record<StatKey, { name: string; blurb: string; lore: str
   },
 };
 
-export const PILLARS = ["Body", "Mind", "Rest", "Fuel", "Connection", "Purpose"] as const;
+// quest categories are the five stats: every quest feeds exactly one
+export const PILLARS = ["Strength", "Focus", "Constitution", "Discipline", "Wisdom"] as const;
 export type Pillar = (typeof PILLARS)[number];
 
-// icon names for the Icon component
+export const PILLAR_STAT: Record<Pillar, StatKey> = {
+  Strength: "STR",
+  Focus: "FOC",
+  Constitution: "CON",
+  Discipline: "DIS",
+  Wisdom: "WIS",
+};
+
+// icon names for the Icon component — one signature icon per stat, used app-wide
+export const STAT_ICONS: Record<StatKey, string> = {
+  STR: "stat-str",
+  FOC: "stat-foc",
+  CON: "stat-con",
+  DIS: "stat-dis",
+  WIS: "stat-wis",
+};
+
 export const PILLAR_ICONS: Record<Pillar, string> = {
-  Body: "dumbbell",
-  Mind: "bulb",
-  Rest: "moon",
-  Fuel: "leaf",
-  Connection: "users",
-  Purpose: "target",
+  Strength: "stat-str",
+  Focus: "stat-foc",
+  Constitution: "stat-con",
+  Discipline: "stat-dis",
+  Wisdom: "stat-wis",
 };
 
 export type Stats = Record<StatKey, number>;
@@ -154,11 +170,22 @@ export function nextStreakMilestone(streak: number): number {
   return (Math.floor(Math.max(0, streak) / 7) + 1) * 7;
 }
 
-// full-bleed card art, one scene per life pillar
+// full-bleed card art, one scene per category (legacy pillar names still map)
 export function questArt(pillar: Pillar | string): string {
-  const p = String(pillar).toLowerCase();
-  const known = ["body", "mind", "rest", "fuel", "connection", "purpose"];
-  return `/art/pillar-${known.includes(p) ? p : "purpose"}.svg`;
+  const scenes: Record<string, string> = {
+    strength: "body",
+    focus: "mind",
+    constitution: "rest",
+    discipline: "purpose",
+    wisdom: "connection",
+    body: "body",
+    mind: "mind",
+    rest: "rest",
+    fuel: "fuel",
+    connection: "connection",
+    purpose: "purpose",
+  };
+  return `/art/pillar-${scenes[String(pillar).toLowerCase()] ?? "purpose"}.svg`;
 }
 
 export function formatDate(d: Date): string {

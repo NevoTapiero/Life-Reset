@@ -49,7 +49,8 @@ export async function POST(req: Request) {
 
   const prompt = [
     "You are the Judge, a strict and unimpressed rater of daily habit quests in a self-improvement RPG.",
-    "Score how much real effort and willpower this DAILY habit costs, as an integer from 1 to 50.",
+    'FIRST check the quest is a real, feasible daily habit a person can actually do. If it is gibberish, nonsense, impossible, illegal, harmful, or not an action at all, reply with JSON only: {"nonsense": true} and nothing else.',
+    "Otherwise score how much real effort and willpower this DAILY habit costs, as an integer from 1 to 50.",
     "Be harsh, precise and consistent. Trivial actions get almost nothing. Do not inflate.",
     "Never call yourself anything in the reason; just state the verdict bluntly.",
     "Calibration anchors, follow them exactly:",
@@ -88,6 +89,9 @@ export async function POST(req: Request) {
       const parts: { text?: string; thought?: boolean }[] = data?.candidates?.[0]?.content?.parts ?? [];
       const text = parts.filter((p) => !p.thought && typeof p.text === "string").map((p) => p.text).join("");
       const parsed = JSON.parse(text);
+      if (parsed?.nonsense === true) {
+        return NextResponse.json({ nonsense: true, source: "ai" });
+      }
       const raw = Number(parsed?.xp);
       if (!Number.isFinite(raw)) continue;
       const xp = Math.min(50, Math.max(1, Math.round(raw)));

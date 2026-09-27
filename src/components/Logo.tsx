@@ -4,7 +4,7 @@
 // on a transparent background for in-page use.
 export default function Logo({ size = 96 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="94 116 324 324" role="img" aria-label="Solo Leveling">
+    <svg width={size} height={size} viewBox="74 98 352 352" role="img" aria-label="Solo Leveling">
       <defs>
         <radialGradient id="logoGlow" cx="50%" cy="45%" r="55%">
           <stop offset="0%" stopColor="#ff6b00" stopOpacity="0.35" />

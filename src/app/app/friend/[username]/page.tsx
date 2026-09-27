@@ -7,7 +7,7 @@ import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
 import Radar from "@/components/Radar";
 import RankBadge from "@/components/RankBadge";
-import { CharacterKey, STAT_KEYS, Stats, characterOf, formatDate, rankForXp } from "@/lib/game";
+import { CharacterKey, STAT_ICONS, STAT_KEYS, Stats, characterOf, formatDate, rankForXp } from "@/lib/game";
 
 type FriendQuest = {
   id: string;
@@ -80,7 +80,7 @@ export default function FriendProfilePage() {
       >
         <div className="relative">
           <div className="flex justify-center">
-            <Avatar size={100} character={file.archetype} />
+            <Avatar size={100} character={file.archetype} tierIndex={rank.tierIndex} />
           </div>
           <div className="display text-[23px] mt-3">{file.username}</div>
           <div className="flex items-center justify-center gap-2.5 mt-2.5">
@@ -127,6 +127,9 @@ export default function FriendProfilePage() {
       <div className="card p-4 mt-3 grid grid-cols-5">
         {STAT_KEYS.map((k) => (
           <div key={k} className="text-center">
+            <div className="flex justify-center text-muted mb-1.5">
+              <Icon name={STAT_ICONS[k]} size={15} />
+            </div>
             <div className="display text-[19px]" style={{ color: character?.accent ?? "var(--accent)" }}>
               {file.stats[k] ?? 0}
             </div>

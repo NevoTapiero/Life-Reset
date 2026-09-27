@@ -138,7 +138,7 @@ export default function StatsPage() {
       </div>
 
       <div className="card p-4 mt-4">
-        <div className="display text-[14px] mb-3.5">Pillar activity</div>
+        <div className="display text-[14px] mb-3.5">Category activity</div>
         <div className="flex flex-col gap-3">
           {PILLARS.map((p: Pillar) => {
             const count = pillarCounts[p] ?? 0;

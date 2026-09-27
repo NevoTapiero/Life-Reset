@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
-import { PILLARS, PILLAR_ICONS, Pillar, Quest } from "@/lib/game";
+import { PILLARS, PILLAR_ICONS, PILLAR_STAT, Pillar, Quest } from "@/lib/game";
 
 type FormState = { id: string | null; title: string; pillar: Pillar };
-const EMPTY_FORM: FormState = { id: null, title: "", pillar: "Body" };
+const EMPTY_FORM: FormState = { id: null, title: "", pillar: "Strength" };
+const NONSENSE_MSG = "This quest doesn't make sense or can't be done. Rewrite it and try again.";
 
 // screen time: tighter limit, bigger reward
 const SCREEN_LIMITS = [
@@ -71,7 +72,10 @@ export default function QuestManager() {
     }
   }
 
-  async function rateQuest(title: string, pillar: Pillar): Promise<{ xp: number; reason: string; icon: string }> {
+  async function rateQuest(
+    title: string,
+    pillar: Pillar,
+  ): Promise<{ xp: number; reason: string; icon: string } | "nonsense"> {
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token ?? "";
@@ -82,6 +86,7 @@ export default function QuestManager() {
       });
       if (r.ok) {
         const data = await r.json();
+        if (data?.nonsense === true) return "nonsense";
         const xp = Number(data?.xp);
         if (Number.isFinite(xp) && xp >= 1 && xp <= 50) {
           return {
@@ -101,6 +106,11 @@ export default function QuestManager() {
     setError(null);
     setVerdict(null);
     const rating = await rateQuest(form.title, form.pillar);
+    if (rating === "nonsense") {
+      setBusy(false);
+      setError(NONSENSE_MSG);
+      return;
+    }
     const { error } = form.id
       ? await supabase.rpc("update_custom_quest", {
           p_id: form.id,
@@ -132,7 +142,7 @@ export default function QuestManager() {
     const limit = SCREEN_LIMITS.find((l) => l.minutes === stForm.minutes) ?? SCREEN_LIMITS[1];
     const { error } = await supabase.rpc("create_custom_quest", {
       p_title: `Under ${limit.label} on ${stForm.app.trim()}`,
-      p_pillar: "Mind",
+      p_pillar: "Discipline",
       p_xp: limit.xp,
       p_icon: "phone-off",
     });
@@ -167,24 +177,22 @@ export default function QuestManager() {
       {error && <p className="text-danger text-sm mt-3">{error}</p>}
 
       {/* custom quests */}
-      <div className="flex items-center justify-between mt-6 mb-3 gap-2">
-        <h2 className="display text-[15px] flex-none whitespace-nowrap">Yours · {customs.length}</h2>
-        {!form && !stForm && (
-          <span className="flex gap-2">
-            <button
-              className="btn-ghost !text-xs px-3.5 py-2 gap-1.5 whitespace-nowrap"
-              onClick={() => setStForm({ app: "", minutes: 60 })}
-            >
-              <Icon name="phone-off" size={13} strokeWidth={2} />
-              Screen time
-            </button>
-            <button className="btn-primary !text-xs px-4 py-2 gap-1.5 whitespace-nowrap" onClick={() => setForm(EMPTY_FORM)}>
-              <Icon name="plus" size={13} strokeWidth={2.2} />
-              New quest
-            </button>
-          </span>
-        )}
-      </div>
+      <h2 className="display text-[15px] mt-6 mb-3">Yours · {customs.length}</h2>
+      {!form && !stForm && (
+        <div className="grid grid-cols-2 gap-2.5 mb-3">
+          <button
+            className="btn-ghost !text-xs py-3 gap-1.5"
+            onClick={() => setStForm({ app: "", minutes: 60 })}
+          >
+            <Icon name="phone-off" size={13} strokeWidth={2} />
+            Screen time
+          </button>
+          <button className="btn-primary !text-xs py-3 gap-1.5" onClick={() => setForm(EMPTY_FORM)}>
+            <Icon name="plus" size={13} strokeWidth={2.2} />
+            New quest
+          </button>
+        </div>
+      )}
 
       {stForm && (
         <div className="hud-frame p-4 mb-3 rise">
@@ -249,16 +257,16 @@ export default function QuestManager() {
             maxLength={60}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
           />
-          <div className="hud-label mt-4 mb-2">Pillar</div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="hud-label mt-4 mb-2">Category</div>
+          <div className="grid grid-cols-5 gap-1.5">
             {PILLARS.map((p) => (
               <button
                 key={p}
-                className={`option-row py-2.5 flex flex-col items-center gap-1.5 ${form.pillar === p ? "selected" : ""}`}
+                className={`option-row px-1 py-2.5 flex flex-col items-center gap-1.5 ${form.pillar === p ? "selected" : ""}`}
                 onClick={() => setForm({ ...form, pillar: p })}
               >
                 <Icon name={PILLAR_ICONS[p]} size={17} />
-                <span className="hud-label !text-ink">{p}</span>
+                <span className="hud-label !text-ink">{PILLAR_STAT[p]}</span>
               </button>
             ))}
           </div>
