@@ -159,7 +159,7 @@ export default function ProfilePage() {
         {STAT_KEYS.map((k) => (
           <div key={k} className="text-center">
             <div className="flex justify-center text-muted mb-1.5">
-              <Icon name={STAT_ICONS[k]} size={15} />
+              <Icon name={STAT_ICONS[k]} size={18} />
             </div>
             <div className="display text-[19px]" style={{ color: accent }}>{profile.stats[k] ?? 0}</div>
             <div className="hud-label mt-1">{k}</div>

@@ -265,7 +265,7 @@ export default function QuestManager() {
                 className={`option-row px-1 py-2.5 flex flex-col items-center gap-1.5 ${form.pillar === p ? "selected" : ""}`}
                 onClick={() => setForm({ ...form, pillar: p })}
               >
-                <Icon name={PILLAR_ICONS[p]} size={17} />
+                <Icon name={PILLAR_ICONS[p]} size={21} />
                 <span className="hud-label !text-ink">{PILLAR_STAT[p]}</span>
               </button>
             ))}
@@ -292,7 +292,7 @@ export default function QuestManager() {
           return (
             <div key={q.id} className={`option-row px-4 py-3.5 flex items-center gap-3 ${on ? "selected" : ""}`}>
               <button className="icon-tile active:scale-95 transition-transform" onClick={() => toggleActive(q)} aria-label={on ? "Deactivate" : "Activate"}>
-                <Icon name={on ? "check" : q.icon} size={19} strokeWidth={on ? 2.2 : 1.6} className={on ? "text-accent" : undefined} />
+                <Icon name={on ? "check" : PILLAR_ICONS[q.pillar]} size={21} strokeWidth={on ? 2.2 : 1.6} className={on ? "text-accent" : undefined} />
               </button>
               <button className="flex-1 text-left min-w-0" onClick={() => toggleActive(q)}>
                 <span className={`block text-[15px] truncate ${on ? "" : "text-muted"}`}>{q.title}</span>
@@ -334,7 +334,7 @@ export default function QuestManager() {
               onClick={() => toggleActive(q)}
             >
               <span className="icon-tile" style={on ? { color: "var(--accent)", borderColor: "rgba(255,107,0,0.4)" } : undefined}>
-                <Icon name={q.icon} size={21} />
+                <Icon name={PILLAR_ICONS[q.pillar]} size={23} />
               </span>
               <span className="flex-1 text-left min-w-0">
                 <span className={`block text-[15px] truncate ${on ? "" : "text-muted"}`}>{q.title}</span>

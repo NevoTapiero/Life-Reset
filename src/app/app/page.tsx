@@ -11,6 +11,7 @@ import {
   CHARACTERS,
   CHARACTER_KEYS,
   CharacterKey,
+  PILLAR_ICONS,
   Profile,
   Quest,
   Rank,
@@ -289,7 +290,7 @@ export default function Dashboard() {
                   className="icon-tile !bg-[rgba(0,0,0,0.35)]"
                   style={{ backdropFilter: "blur(4px)", color: done ? "var(--accent)" : "var(--ink)", borderColor: done ? "rgba(255,107,0,0.5)" : "var(--line-strong)" }}
                 >
-                  <Icon name={q.icon} size={21} />
+                  <Icon name={PILLAR_ICONS[q.pillar]} size={23} />
                 </span>
                 <span className="flex-1 min-w-0">
                   <span
@@ -398,7 +399,7 @@ export default function Dashboard() {
                         className="icon-tile !w-10 !h-10 !bg-[rgba(0,0,0,0.35)]"
                         style={{ backdropFilter: "blur(4px)", color: done ? "var(--accent)" : "var(--ink)", borderColor: done ? "rgba(255,107,0,0.5)" : "var(--line-strong)" }}
                       >
-                        <Icon name={q.icon} size={18} />
+                        <Icon name={PILLAR_ICONS[q.pillar]} size={20} />
                       </span>
                       <span className="flex-1 text-left min-w-0">
                         <span

@@ -143,11 +143,11 @@ export default function StatsPage() {
           {PILLARS.map((p: Pillar) => {
             const count = pillarCounts[p] ?? 0;
             return (
-              <div key={p} className="flex items-center gap-3">
-                <span className="w-6 flex justify-center text-muted">
-                  <Icon name={PILLAR_ICONS[p]} size={16} />
+              <div key={p} className="flex items-center gap-2">
+                <span className="w-7 flex-none flex justify-center text-muted">
+                  <Icon name={PILLAR_ICONS[p]} size={19} />
                 </span>
-                <span className="hud-label w-24">{p}</span>
+                <span className="hud-label flex-none w-[108px]">{p}</span>
                 <div className="track flex-1">
                   <div
                     style={{

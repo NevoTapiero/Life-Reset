@@ -7,7 +7,7 @@ import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
 import Radar from "@/components/Radar";
 import RankBadge from "@/components/RankBadge";
-import { CharacterKey, STAT_ICONS, STAT_KEYS, Stats, characterOf, formatDate, rankForXp } from "@/lib/game";
+import { CharacterKey, PILLAR_ICONS, STAT_ICONS, STAT_KEYS, Stats, characterOf, formatDate, rankForXp } from "@/lib/game";
 
 type FriendQuest = {
   id: string;
@@ -128,7 +128,7 @@ export default function FriendProfilePage() {
         {STAT_KEYS.map((k) => (
           <div key={k} className="text-center">
             <div className="flex justify-center text-muted mb-1.5">
-              <Icon name={STAT_ICONS[k]} size={15} />
+              <Icon name={STAT_ICONS[k]} size={18} />
             </div>
             <div className="display text-[19px]" style={{ color: character?.accent ?? "var(--accent)" }}>
               {file.stats[k] ?? 0}
@@ -162,7 +162,7 @@ export default function FriendProfilePage() {
             className={`option-row px-4 py-3.5 flex items-center gap-3.5 ${q.done_today ? "selected" : ""}`}
           >
             <span className="icon-tile" style={q.done_today ? { color: "var(--accent)", borderColor: "rgba(255,107,0,0.4)" } : undefined}>
-              <Icon name={q.icon} size={21} />
+              <Icon name={PILLAR_ICONS[q.pillar as keyof typeof PILLAR_ICONS]} size={23} />
             </span>
             <span className="flex-1 min-w-0">
               <span className={`block text-[15px] truncate ${q.done_today ? "text-muted line-through" : ""}`}>
