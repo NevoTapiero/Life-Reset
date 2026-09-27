@@ -17,9 +17,9 @@ type Row = {
 };
 
 const METALS = [
-  { row: "metal-row metal-gold shine", medal: "medal medal-gold", ring: "#f5c752" },
-  { row: "metal-row metal-silver", medal: "medal medal-silver", ring: "#c3cede" },
-  { row: "metal-row metal-bronze", medal: "medal medal-bronze", ring: "#d47a1e" },
+  { row: "metal-row metal-gold", medal: "medal medal-gold", ring: "#f5c752", shine: true },
+  { row: "metal-row metal-silver", medal: "medal medal-silver", ring: "#c3cede", shine: false },
+  { row: "metal-row metal-bronze", medal: "medal medal-bronze", ring: "#d47a1e", shine: false },
 ];
 
 export default function LeaderboardPage() {
@@ -169,6 +169,7 @@ export default function LeaderboardPage() {
                 className={`px-3.5 py-3 flex items-center gap-3 ${metal ? metal.row : "card"}`}
                 style={r.is_me && !metal ? { borderColor: "rgba(255,107,0,0.6)", boxShadow: "0 0 18px rgba(255,107,0,0.14)", background: "linear-gradient(180deg, rgba(255,107,0,0.10), rgba(255,107,0,0.03)), var(--panel)" } : undefined}
               >
+                {metal?.shine && <span aria-hidden className="shine-overlay" />}
                 {metal ? (
                   <span className={metal.medal}>{i + 1}</span>
                 ) : (

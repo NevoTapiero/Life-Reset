@@ -175,28 +175,40 @@ export default function Dashboard() {
           <div className="mt-4">
             <XpMeter rank={rank} xp={profile.xp} />
 
-            <div className="flex items-center gap-3 mt-4">
-              <div
-                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 flex-none"
-                style={{ background: "rgba(255,107,0,0.12)", border: "1px solid rgba(255,107,0,0.4)" }}
-              >
-                <span className="flame-flicker inline-flex" style={{ color: "var(--accent)" }}>
-                  <Icon name="flame" size={14} strokeWidth={2.2} />
-                </span>
-                <span className="display text-[15px]" style={{ color: "var(--accent)" }}>
-                  {profile.streak_current}
+            <div className="mt-4">
+              <div className="flex justify-between items-baseline mb-1.5">
+                <span className="hud-label">Streak · days</span>
+                <span className="whitespace-nowrap leading-none">
+                  <span className="display text-[16px]" style={{ color: "var(--accent)" }}>
+                    {profile.streak_current}
+                  </span>
+                  <span className="hud-label !text-[10px]">/{milestone}</span>
                 </span>
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between mb-1">
-                  <span className="hud-label">Streak</span>
-                  <span className="hud-label">next {milestone}</span>
+              {milestone <= 50 ? (
+                // one tick per day toward the next milestone
+                <div className="flex gap-[3px] h-[11px]">
+                  {Array.from({ length: milestone }).map((_, i) => {
+                    const on = i < Math.min(profile.streak_current, milestone);
+                    return (
+                      <span
+                        key={i}
+                        className="flex-1 rounded-[2.5px]"
+                        style={
+                          on
+                            ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", boxShadow: "0 0 8px rgba(255,107,0,0.5)" }
+                            : { background: "#232327" }
+                        }
+                      />
+                    );
+                  })}
                 </div>
+              ) : (
                 <div className="bar-seg !h-[11px]">
                   <i style={{ width: `${streakPct * 100}%`, background: "linear-gradient(90deg, var(--bronze), var(--accent))" }} />
                   <b />
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

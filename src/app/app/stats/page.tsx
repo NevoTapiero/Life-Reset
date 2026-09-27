@@ -52,7 +52,9 @@ export default function StatsPage() {
   const character = characterOf(profile.archetype);
   const maxPillar = Math.max(1, ...Object.values(pillarCounts));
   const values = STAT_KEYS.map((k) => profile.stats[k] ?? 0);
-  const radarMax = Math.max(20, ...values) * 1.15;
+  // normalize to the strongest stat: the shape shows where you focus,
+  // not how big the numbers are
+  const radarMax = Math.max(1, ...values) * 1.25;
 
   return (
     <div className="slide-in">

@@ -415,11 +415,10 @@ body {
   pointer-events: none;
 }
 
-/* podium metal frames for the board */
+/* podium metal frames for the board (no overflow clip: the row menu must escape) */
 .metal-row {
   position: relative;
   border-radius: 18px;
-  overflow: hidden;
 }
 .metal-gold {
   border: 1px solid rgba(245, 199, 82, 0.85);
@@ -440,7 +439,15 @@ body {
   0% { transform: translateX(-130%) skewX(-18deg); }
   55%, 100% { transform: translateX(240%) skewX(-18deg); }
 }
-.shine::before {
+/* clipped overlay that carries the gold sweep, so the row itself can overflow */
+.shine-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+.shine-overlay::before {
   content: "";
   position: absolute;
   top: 0;
@@ -448,7 +455,6 @@ body {
   width: 42%;
   background: linear-gradient(90deg, transparent, rgba(255, 240, 190, 0.16), transparent);
   animation: shineSweep 3.4s ease-in-out infinite;
-  pointer-events: none;
 }
 
 /* medal chip: circular rank number in metal */

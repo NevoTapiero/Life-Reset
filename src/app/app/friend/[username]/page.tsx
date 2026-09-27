@@ -63,7 +63,7 @@ export default function FriendProfilePage() {
   const character = characterOf(file.archetype);
   const cleared = file.quests.filter((q) => q.done_today).length;
   const values = STAT_KEYS.map((k) => file.stats[k] ?? 0);
-  const radarMax = Math.max(20, ...values) * 1.15;
+  const radarMax = Math.max(1, ...values) * 1.25;
 
   return (
     <div className="slide-in">
