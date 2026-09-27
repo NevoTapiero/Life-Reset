@@ -59,9 +59,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // the friend profile is a focused, full-screen view: no nav, no distractions
+  const hideNav = pathname.startsWith("/app/friend/");
+
   return (
     <>
-      <main className="flex-1 pb-28 pt-5">{children}</main>
+      <main className={`flex-1 pt-5 ${hideNav ? "pb-8" : "pb-28"}`}>{children}</main>
+      {!hideNav && (
       <nav
         className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md px-4 pb-4 z-40"
         style={{ willChange: "transform" }}
@@ -117,6 +121,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           })}
         </div>
       </nav>
+      )}
     </>
   );
 }

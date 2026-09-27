@@ -135,7 +135,7 @@ export default function LeaderboardPage() {
         </div>
       )}
       <h1 className="display text-[28px]">Board</h1>
-      <p className="hud-label mt-1.5">Friends only · weekly XP · resets Monday</p>
+      <p className="hud-label mt-1.5">Friends only · ranked by total XP</p>
 
       {/* invite */}
       <div className="hud-frame p-4 mt-5">
@@ -221,7 +221,7 @@ export default function LeaderboardPage() {
                 </button>
                 <span className="flex items-baseline gap-1 flex-none">
                   <span className="display text-[19px]" style={{ color: metal ? metal.ring : "var(--ink)" }}>
-                    {r.weekly_xp.toLocaleString()}
+                    {r.xp.toLocaleString()}
                   </span>
                   <span className="hud-label">XP</span>
                 </span>

@@ -556,7 +556,7 @@ as $$
   left join public.quest_completions c on c.user_id = p.id
   where p.id = auth.uid() or p.share_activity
   group by p.id
-  order by weekly_xp desc, p.xp desc
+  order by p.xp desc, weekly_xp desc
   limit 100
 $$;
 

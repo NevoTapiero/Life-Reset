@@ -48,6 +48,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {/* Paint the last-used character accent before first paint, so the app
+            never flashes the default orange before the theme loads. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var a=localStorage.getItem('sl-accent'),b=localStorage.getItem('sl-accent2');if(!a)return;function t(h){h=h.replace('#','');if(h.length===3)h=h.split('').map(function(c){return c+c}).join('');var n=parseInt(h,16);return((n>>16)&255)+' '+((n>>8)&255)+' '+(n&255)}var s=document.documentElement.style;s.setProperty('--accent',a);s.setProperty('--accent-rgb',t(a));if(b){s.setProperty('--accent-2',b);s.setProperty('--accent-2-rgb',t(b))}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className={`${archivo.variable} ${anton.variable} ${geistMono.variable} antialiased`}>
         <PwaSetup />
         <div className="glow-scene" aria-hidden />

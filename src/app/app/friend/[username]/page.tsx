@@ -8,6 +8,7 @@ import Icon from "@/components/Icon";
 import Radar from "@/components/Radar";
 import RankBadge from "@/components/RankBadge";
 import { CharacterKey, PILLAR_ICONS, STAT_ICONS, STAT_KEYS, Stats, characterOf, formatDate, rankForXp } from "@/lib/game";
+import { characterVars } from "@/lib/theme";
 
 type FriendQuest = {
   id: string;
@@ -66,12 +67,15 @@ export default function FriendProfilePage() {
   const radarMax = Math.max(1, ...values) * 1.25;
 
   return (
-    <div className="slide-in">
+    <div className="slide-in" style={characterVars(file.archetype)}>
       <button
-        className="hud-label flex items-center gap-2 py-1 active:scale-95 transition-transform"
+        className="flex items-center gap-3 py-1.5 active:scale-95 transition-transform"
         onClick={() => router.back()}
       >
-        ← Back
+        <span className="icon-tile !w-11 !h-11 !rounded-[13px]">
+          <Icon name="arrow-right" size={24} strokeWidth={2.2} className="rotate-180" />
+        </span>
+        <span className="display text-[17px]">Back</span>
       </button>
 
       <div
