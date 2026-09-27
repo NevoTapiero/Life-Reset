@@ -147,11 +147,6 @@ export function rankForXp(xp: number): Rank {
   return rankForXp(0);
 }
 
-// overall level: one per stage climbed, 1..18
-export function levelOf(rank: Rank): number {
-  return rank.tierIndex * 3 + rank.stageIndex + 1;
-}
-
 // ---------- streak milestones (the bar counts up toward the next one) ----------
 
 export const STREAK_MILESTONES = [7, 14, 30, 50, 100, 365];

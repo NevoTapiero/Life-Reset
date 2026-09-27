@@ -31,6 +31,7 @@ export default function LeaderboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [menuFor, setMenuFor] = useState<string | null>(null);
 
@@ -89,6 +90,22 @@ export default function LeaderboardPage() {
     } catch {}
   }
 
+  async function shareInvite() {
+    if (!myCode) return;
+    const url = `${window.location.origin}/join/${myCode}`;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: "Solo Leveling", text: "Join my board", url });
+        return;
+      } catch {}
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1600);
+    } catch {}
+  }
+
   if (!rows) return <div className="hud-label pulse-glow text-center py-20">Ranking your circle…</div>;
 
   const alone = rows.length <= 1;
@@ -106,6 +123,9 @@ export default function LeaderboardPage() {
           </span>
           <button className="btn-ghost px-4 py-2 !text-xs" onClick={copyCode}>
             {copied ? "Copied" : "Copy"}
+          </button>
+          <button className="btn-primary px-4 py-2 !text-xs whitespace-nowrap" onClick={shareInvite}>
+            {linkCopied ? "Link copied" : "Invite link"}
           </button>
         </div>
         <div className="flex gap-2 mt-3">

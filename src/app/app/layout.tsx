@@ -22,8 +22,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) router.replace("/auth");
-      else setAuthed(true);
+      if (!data.session) {
+        router.replace("/auth");
+        return;
+      }
+      setAuthed(true);
+      // redeem a pending invite-link code from before sign-in
+      let code: string | null = null;
+      try {
+        code = localStorage.getItem("sl-pending-code");
+        if (code) localStorage.removeItem("sl-pending-code");
+      } catch {}
+      if (code) {
+        supabase.rpc("add_friend", { p_code: code }).then(() => router.replace("/app/leaderboard"));
+      }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       if (!session) router.replace("/auth");

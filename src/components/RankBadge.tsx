@@ -3,8 +3,10 @@
 import { useId } from "react";
 import { STAGES, TIERS } from "@/lib/game";
 
-// Angular rank emblems in the spirit of tactical-shooter rank badges:
-// one geometry per tier, stage shown as filled pips. Original artwork.
+// Angular rank emblems in the spirit of tactical-shooter rank badges.
+// 18 distinct designs: one emblem per tier, and the badge itself evolves
+// with the stage — I: clean shield · II: adds war-wings · III: adds a
+// crest and an aura glow. Original artwork.
 
 function shade(hex: string, f: number): string {
   const n = parseInt(hex.slice(1), 16);
@@ -78,8 +80,8 @@ export default function RankBadge({
   return (
     <svg
       width={size}
-      height={size * (56 / 48)}
-      viewBox="0 0 48 56"
+      height={size * (66 / 60)}
+      viewBox="-6 -8 60 66"
       role="img"
       aria-label={`${tier.name} ${STAGES[stageIndex]}`}
     >
@@ -92,7 +94,33 @@ export default function RankBadge({
           <stop offset="0%" stopColor="#26262b" />
           <stop offset="100%" stopColor="#121215" />
         </linearGradient>
+        <radialGradient id={`aura${uid}`} cx="50%" cy="42%" r="55%">
+          <stop offset="0%" stopColor={color} stopOpacity="0.4" />
+          <stop offset="70%" stopColor={color} stopOpacity="0.1" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </radialGradient>
       </defs>
+
+      {/* stage III: aura glow behind everything */}
+      {stageIndex >= 2 && <ellipse cx="24" cy="24" rx="30" ry="31" fill={`url(#aura${uid})`} />}
+
+      {/* stage II+: war-wings flanking the shield */}
+      {stageIndex >= 1 && (
+        <g fill={`url(#rim${uid})`}>
+          <path d="M4.5 10 -5.5 15.5 1 20l-4.5 4L3 30l-4 4.5 7 4.5c-2.2-9.5-2.6-19.2-1.5-29Z" />
+          <path d="M43.5 10 53.5 15.5 47 20l4.5 4L45 30l4 4.5-7 4.5c2.2-9.5 2.6-19.2 1.5-29Z" />
+          <path d="M4.5 10 -5.5 15.5 1 20l-4.5 4L3 30l-4 4.5 7 4.5c-2.2-9.5-2.6-19.2-1.5-29ZM43.5 10 53.5 15.5 47 20l4.5 4L45 30l4 4.5-7 4.5c2.2-9.5 2.6-19.2 1.5-29Z" fill="#0c0c0e" opacity="0.25" />
+        </g>
+      )}
+
+      {/* stage III: crest spikes above the shield */}
+      {stageIndex >= 2 && (
+        <g fill={`url(#rim${uid})`}>
+          <path d="M24 -7.5 27.5 1h-7Z" />
+          <path d="M13.5 -3.5 18 3.5l-6.8 1.2Z" />
+          <path d="M34.5 -3.5 30 3.5l6.8 1.2Z" />
+        </g>
+      )}
 
       {/* angular shield */}
       <path
@@ -106,7 +134,7 @@ export default function RankBadge({
         d="M24 5.2 39 10.6v14.6c0 7.9-5.6 13.6-15 17.5-9.4-3.9-15-9.6-15-17.5V10.6Z"
         fill="none"
         stroke={color}
-        strokeOpacity={0.28}
+        strokeOpacity={stageIndex >= 2 ? 0.5 : 0.28}
         strokeWidth={1}
         strokeLinejoin="round"
       />

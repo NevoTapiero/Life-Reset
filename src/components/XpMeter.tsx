@@ -1,15 +1,11 @@
 "use client";
 
-import { Rank, levelOf } from "@/lib/game";
+import { Rank } from "@/lib/game";
 
-// Arcade XP meter: orange LEVEL block + segmented tick bar + next-rank label.
+// Arcade XP meter: segmented tick bar with rank labels, total XP at right.
 export default function XpMeter({ rank, xp }: { rank: Rank; xp: number }) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="level-block">
-        <span className="display text-[20px] leading-none">{levelOf(rank)}</span>
-        <span className="text-[7.5px] font-bold tracking-[0.18em] mt-0.5">LEVEL</span>
-      </div>
+    <div className="flex items-center gap-3.5">
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-baseline mb-1.5">
           <span className="hud-label whitespace-nowrap" style={{ color: rank.color }}>{rank.label}</span>
