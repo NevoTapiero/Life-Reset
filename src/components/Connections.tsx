@@ -4,44 +4,48 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
 
-// Connect Google (Tasks + Calendar): completing tasks and having a full calendar
-// earn XP, judged by the same AI reviewer that rates quests.
-export default function Connections({ onXp }: { onXp?: () => void }) {
+type SyncResult = Record<string, unknown> & { connected?: boolean; xpGained?: number };
+
+async function bearer() {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? "";
+}
+
+// One connectable service (Google, WHOOP, …). Renders nothing until its backend
+// reports it is configured, so a provider whose keys aren't set stays hidden.
+function ProviderCard({
+  provider,
+  icon,
+  title,
+  blurb,
+  summarize,
+  onXp,
+}: {
+  provider: string;
+  icon: string;
+  title: string;
+  blurb: string;
+  summarize: (d: SyncResult) => string;
+  onXp?: () => void;
+}) {
+  const [configured, setConfigured] = useState(true);
   const [connected, setConnected] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const token = useCallback(async () => {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? "";
-  }, []);
-
-  const refresh = useCallback(async () => {
-    try {
-      const r = await fetch("/api/integrations/google/status", {
-        headers: { Authorization: `Bearer ${await token()}` },
-      });
-      const d = await r.json();
-      setConnected(!!d.connected);
-    } catch {
-      setConnected(false);
-    }
-  }, [token]);
+  const base = `/api/integrations/${provider}`;
 
   const sync = useCallback(async () => {
     setBusy(true);
     setMsg(null);
     try {
-      const r = await fetch("/api/integrations/google/sync", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${await token()}` },
-      });
-      const d = await r.json();
+      const r = await fetch(`${base}/sync`, { method: "POST", headers: { Authorization: `Bearer ${await bearer()}` } });
+      const d: SyncResult = await r.json();
       if (d.connected === false) {
         setConnected(false);
-        setMsg("Please reconnect Google.");
-      } else if (d.xpGained > 0) {
-        setMsg(`+${d.xpGained} XP from ${d.newTasks} task${d.newTasks === 1 ? "" : "s"} and ${d.newEvents} event${d.newEvents === 1 ? "" : "s"}.`);
+        setMsg("Please reconnect.");
+      } else if ((d.xpGained ?? 0) > 0) {
+        setMsg(summarize(d));
         onXp?.();
       } else {
         setMsg("Up to date — nothing new to reward yet.");
@@ -50,35 +54,42 @@ export default function Connections({ onXp }: { onXp?: () => void }) {
       setMsg("Sync failed, try again.");
     }
     setBusy(false);
-  }, [token, onXp]);
+  }, [base, summarize, onXp]);
+
+  const refresh = useCallback(async () => {
+    try {
+      const r = await fetch(`${base}/status`, { headers: { Authorization: `Bearer ${await bearer()}` } });
+      const d = await r.json();
+      if (d.configured === false) {
+        setConfigured(false);
+        return;
+      }
+      setConnected(!!d.connected);
+    } catch {
+      setConnected(false);
+    }
+  }, [base]);
 
   useEffect(() => {
     refresh();
-    // returning from the Google consent screen
     const p = new URLSearchParams(window.location.search);
-    const g = p.get("google");
+    const g = p.get(provider);
     if (g) {
       window.history.replaceState({}, "", window.location.pathname);
       if (g === "connected") {
         setConnected(true);
-        setMsg("Google connected. Syncing…");
+        setMsg("Connected. Syncing…");
         sync();
-      } else if (g === "denied") {
-        setMsg("Google connection was cancelled.");
-      } else if (g === "error") {
-        setMsg("Could not connect Google, try again.");
-      }
+      } else if (g === "denied") setMsg("Connection cancelled.");
+      else if (g === "error") setMsg("Could not connect, try again.");
     }
-  }, [refresh, sync]);
+  }, [refresh, sync, provider]);
 
   async function connect() {
     setBusy(true);
     setMsg(null);
     try {
-      const r = await fetch("/api/integrations/google/start", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${await token()}` },
-      });
+      const r = await fetch(`${base}/start`, { method: "POST", headers: { Authorization: `Bearer ${await bearer()}` } });
       const d = await r.json();
       if (d.url) window.location.href = d.url;
       else {
@@ -93,36 +104,33 @@ export default function Connections({ onXp }: { onXp?: () => void }) {
 
   async function disconnect() {
     setBusy(true);
-    await fetch("/api/integrations/google/disconnect", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${await token()}` },
-    });
+    await fetch(`${base}/disconnect`, { method: "POST", headers: { Authorization: `Bearer ${await bearer()}` } });
     setConnected(false);
     setMsg(null);
     setBusy(false);
   }
 
+  if (!configured) return null;
+
   return (
     <div className="card px-4 py-4">
       <div className="flex items-center gap-3.5">
         <span className="icon-tile !w-10 !h-10 !rounded-[11px] text-muted">
-          <Icon name="calendar" size={18} />
+          <Icon name={icon} size={18} />
         </span>
         <span className="flex-1 min-w-0">
-          <span className="block text-sm font-semibold">Google Tasks & Calendar</span>
+          <span className="block text-sm font-semibold">{title}</span>
           <span className="hud-label mt-1 block">
-            {connected === null ? "Checking…" : connected ? "Connected · earn XP for what you get done" : "Earn XP from your real tasks and plans"}
+            {connected === null ? "Checking…" : connected ? "Connected · earning XP" : blurb}
           </span>
         </span>
-        {connected ? (
-          <button className="btn-primary px-4 py-2 !text-xs whitespace-nowrap" disabled={busy} onClick={sync}>
-            {busy ? "Syncing…" : "Sync"}
-          </button>
-        ) : (
-          <button className="btn-primary px-4 py-2 !text-xs whitespace-nowrap" disabled={busy || connected === null} onClick={connect}>
-            Connect
-          </button>
-        )}
+        <button
+          className="btn-primary px-4 py-2 !text-xs whitespace-nowrap"
+          disabled={busy || connected === null}
+          onClick={connected ? sync : connect}
+        >
+          {connected ? (busy ? "Syncing…" : "Sync") : "Connect"}
+        </button>
       </div>
       {msg && <p className="text-sm mt-3" style={{ color: "var(--accent)" }}>{msg}</p>}
       {connected && (
@@ -130,6 +138,31 @@ export default function Connections({ onXp }: { onXp?: () => void }) {
           Disconnect
         </button>
       )}
+    </div>
+  );
+}
+
+export default function Connections({ onXp }: { onXp?: () => void }) {
+  return (
+    <div className="flex flex-col gap-2.5">
+      <ProviderCard
+        provider="google"
+        icon="calendar"
+        title="Google Tasks & Calendar"
+        blurb="Earn XP from your real tasks and plans"
+        summarize={(d) =>
+          `+${d.xpGained} XP from ${d.newTasks as number} task${d.newTasks === 1 ? "" : "s"} and ${d.newEvents as number} event${d.newEvents === 1 ? "" : "s"}.`
+        }
+        onXp={onXp}
+      />
+      <ProviderCard
+        provider="whoop"
+        icon="stat-con"
+        title="WHOOP"
+        blurb="Earn XP from recovery, sleep and workouts"
+        summarize={(d) => `+${d.xpGained} XP from ${d.newItems as number} health record${d.newItems === 1 ? "" : "s"}.`}
+        onXp={onXp}
+      />
     </div>
   );
 }
