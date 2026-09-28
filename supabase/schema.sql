@@ -387,7 +387,7 @@ begin
   select coalesce(sum(c.xp_awarded), 0) into weekly
   from public.quest_completions c
   where c.user_id = target.id
-    and c.completed_on >= date_trunc('week', public.app_today()::timestamp)::date;
+    and c.completed_on >= public.app_today() - 6;
 
   return jsonb_build_object(
     'username', target.username,
@@ -562,7 +562,7 @@ as $$
     where f.a = auth.uid() or f.b = auth.uid()
   )
   select p.username, p.archetype, p.xp, p.streak_current,
-         coalesce(sum(c.xp_awarded) filter (where c.completed_on >= date_trunc('week', public.app_today()::timestamp)::date), 0) as weekly_xp,
+         coalesce(sum(c.xp_awarded) filter (where c.completed_on >= public.app_today() - 6), 0) as weekly_xp,
          p.id = auth.uid() as is_me
   from public.profiles p
   join circle on circle.pid = p.id

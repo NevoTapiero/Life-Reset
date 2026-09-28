@@ -107,7 +107,7 @@ export default function FriendProfilePage() {
           <div className="display text-[19px]" style={{ color: "var(--accent)" }}>
             {file.weekly_xp.toLocaleString()}
           </div>
-          <div className="hud-label mt-1">Weekly XP</div>
+          <div className="hud-label mt-1">Last 7 days</div>
         </div>
         <div className="card p-3.5 text-center">
           <div className="display text-[19px]">{file.xp.toLocaleString()}</div>

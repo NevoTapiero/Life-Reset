@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import AppActivity from "@/components/AppActivity";
 import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
@@ -346,6 +347,9 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* what the connected services counted, so tracking is visible */}
+      <AppActivity onXp={load} />
 
       {/* yesterday: one day of grace to log what you forgot */}
       {yesterdayQuests.length > 0 && (
