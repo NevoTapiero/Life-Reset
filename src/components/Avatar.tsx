@@ -1,6 +1,6 @@
 "use client";
 
-import { TIERS, type CharacterKey } from "@/lib/game";
+import { TIERS, avatarSrc, type CharacterKey } from "@/lib/game";
 
 // Real anime bust portraits generated with FLUX.1 Krea (public/chars/*.webp),
 // one per character, each on its own themed gradient backdrop.
@@ -46,7 +46,7 @@ export default function Avatar({
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={`/chars/${key}.webp`}
+        src={avatarSrc(key, tierIndex)}
         alt={`${key} avatar`}
         width={size}
         height={size}

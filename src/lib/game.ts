@@ -83,6 +83,32 @@ export function characterOf(key: string | null): (typeof CHARACTERS)[CharacterKe
   return null;
 }
 
+// ---------- character skins: a new outfit unlocks at each rank tier ----------
+// Tier art lives at /chars/{key}-t{tier}.webp (tier 0 = the base /chars/{key}.webp).
+// As the art for each character is produced, add its tier numbers here; the
+// avatar always shows the highest unlocked skin at or below the player's tier.
+export const CHARACTER_SKIN_TIERS: Record<CharacterKey, number[]> = {
+  warrior: [0, 5],
+  mentalist: [0],
+  wizard: [0],
+  guardian: [0],
+  shadow: [0],
+};
+
+// The skin tier the player currently wears, given their rank tier.
+export function skinTierFor(key: CharacterKey, tierIndex: number | undefined): number {
+  const tiers = CHARACTER_SKIN_TIERS[key] ?? [0];
+  let best = 0;
+  if (typeof tierIndex === "number") for (const t of tiers) if (t <= tierIndex) best = t;
+  return best;
+}
+
+// Portrait URL for a character at a given rank tier (falls back to the base art).
+export function avatarSrc(key: CharacterKey, tierIndex?: number): string {
+  const skin = skinTierFor(key, tierIndex);
+  return skin > 0 ? `/chars/${key}-t${skin}.webp` : `/chars/${key}.webp`;
+}
+
 export type Profile = {
   id: string;
   username: string;
