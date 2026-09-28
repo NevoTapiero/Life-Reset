@@ -33,6 +33,17 @@ export function characterVars(key: string | null | undefined): React.CSSProperti
   } as React.CSSProperties;
 }
 
+// Restore the app's original orange theme (used on the landing and auth pages,
+// which must never take on the signed-in character's color). Removing the inline
+// overrides lets the :root defaults in globals.css apply again.
+export function resetTheme() {
+  const s = document.documentElement.style;
+  s.removeProperty("--accent");
+  s.removeProperty("--accent-2");
+  s.removeProperty("--accent-rgb");
+  s.removeProperty("--accent-2-rgb");
+}
+
 export function applyCharacterTheme(key: string | null | undefined) {
   const c = charFor(key);
   const s = document.documentElement.style;

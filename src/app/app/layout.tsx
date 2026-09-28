@@ -9,8 +9,8 @@ import Icon from "@/components/Icon";
 
 const TABS = [
   { href: "/app", label: "Today", icon: "tasks" },
-  { href: "/app/quests", label: "Quests", icon: "sliders" },
-  { href: "/app/stats", label: "Stats", icon: "chart" },
+  { href: "/app/quests", label: "Armory", icon: "sliders" },
+  { href: "/app/stats", label: "Record", icon: "chart" },
   { href: "/app/leaderboard", label: "Board", icon: "trophy" },
   { href: "/app/profile", label: "Profile", icon: "user" },
 ];

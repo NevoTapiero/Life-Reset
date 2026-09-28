@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import Logo from "@/components/Logo";
 import { GoogleMark } from "@/components/Icon";
 import Backdrop from "@/components/Backdrop";
+import { resetTheme } from "@/lib/theme";
 
 function AuthForm() {
   const router = useRouter();
@@ -21,6 +22,8 @@ function AuthForm() {
   const proceeding = useRef(false);
 
   useEffect(() => {
+    // auth screens keep the original orange theme, never the character color
+    resetTheme();
     supabase.auth.getSession().then(({ data }) => {
       if (data.session && !proceeding.current) {
         proceeding.current = true;

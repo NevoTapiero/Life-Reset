@@ -1,11 +1,15 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import Backdrop from "@/components/Backdrop";
 import Icon from "@/components/Icon";
 import Logo from "@/components/Logo";
+import { resetTheme } from "@/lib/theme";
 
 export default function Landing() {
+  // the landing and auth screens always wear the original orange theme
+  useEffect(() => resetTheme(), []);
   return (
     <main className="flex-1 flex flex-col py-8">
       <Backdrop>

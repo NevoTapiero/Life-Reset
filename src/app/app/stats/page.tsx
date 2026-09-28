@@ -58,7 +58,7 @@ export default function StatsPage() {
 
   return (
     <div className="slide-in">
-      <h1 className="display text-[28px]">Stats</h1>
+      <h1 className="display text-[28px]">Record</h1>
       <div className="flex items-center gap-3.5 mt-4">
         <Avatar size={58} character={profile.archetype} />
         <div>

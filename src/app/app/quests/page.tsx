@@ -171,7 +171,7 @@ export default function QuestManager() {
 
   return (
     <div className="slide-in">
-      <h1 className="display text-[28px]">Loadout</h1>
+      <h1 className="display text-[28px]">Armory</h1>
       <p className="hud-label mt-1.5">Active quests appear on Today</p>
 
       {error && <p className="text-danger text-sm mt-3">{error}</p>}
@@ -323,7 +323,7 @@ export default function QuestManager() {
       </div>
 
       {/* catalog */}
-      <h2 className="display text-[15px] mt-7 mb-3">Armory · {catalog.length}</h2>
+      <h2 className="display text-[15px] mt-7 mb-3">Catalog · {catalog.length}</h2>
       <div className="flex flex-col gap-2.5 pb-4">
         {catalog.map((q) => {
           const on = activeIds.has(q.id);

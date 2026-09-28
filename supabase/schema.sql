@@ -433,13 +433,26 @@ begin
     loop
       exit when not exists (select 1 from public.quest_completions where user_id = p_uid and completed_on = d);
       streak := streak + 1; d := d - 1;
-      exit when streak > 1000;
+      exit when streak > 100000;
     end loop;
   end if;
   update public.profiles set
     streak_current = streak,
     last_completed_on = last_day,
-    streak_best = greatest(streak_best, streak)
+    -- best streak is the true longest run of consecutive completion days in
+    -- history, recomputed every time so checking then unchecking a task can no
+    -- longer inflate it permanently
+    streak_best = coalesce((
+      select max(run_len) from (
+        select count(*) as run_len
+        from (
+          select completed_on
+                 - (row_number() over (order by completed_on))::int as grp
+          from (select distinct completed_on from public.quest_completions where user_id = p_uid) dd
+        ) g
+        group by grp
+      ) runs
+    ), 0)
   where id = p_uid;
 end $$;
 
