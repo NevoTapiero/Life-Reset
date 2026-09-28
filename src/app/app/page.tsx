@@ -21,13 +21,14 @@ import {
   rankForXp,
 } from "@/lib/game";
 
-type UserQuestRow = { quest_id: string; quests: Quest };
+type UserQuestRow = { quest_id: string; added_at: string; quests: Quest };
 
 export default function Dashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [quests, setQuests] = useState<Quest[]>([]);
   const [doneToday, setDoneToday] = useState<Set<string>>(new Set());
   const [doneYesterday, setDoneYesterday] = useState<Set<string>>(new Set());
+  const [yesterdayQuests, setYesterdayQuests] = useState<Quest[]>([]);
   const [days, setDays] = useState<{ today: string; yesterday: string } | null>(null);
   const [showYesterday, setShowYesterday] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -41,7 +42,7 @@ export default function Dashboard() {
     if (!uid) return;
     const [{ data: prof }, { data: uq }, { data: todayData }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", uid).single(),
-      supabase.from("user_quests").select("quest_id, quests(*)").eq("user_id", uid).eq("active", true),
+      supabase.from("user_quests").select("quest_id, added_at, quests(*)").eq("user_id", uid).eq("active", true),
       supabase.rpc("app_today"),
     ]);
     const todayStr = String(todayData);
@@ -54,15 +55,30 @@ export default function Dashboard() {
       .eq("user_id", uid)
       .in("completed_on", [todayStr, yesterdayStr]);
     setProfile(prof as Profile);
-    const list = ((uq as unknown as UserQuestRow[]) ?? [])
-      .map((r) => r.quests)
-      .filter(Boolean)
-      .sort((a, b) => a.sort - b.sort);
+    const activeRows = ((uq as unknown as UserQuestRow[]) ?? []).filter((r) => r.quests);
+    const list = activeRows.map((r) => r.quests).sort((a, b) => a.sort - b.sort);
     setQuests(list);
     const rows = (comps ?? []) as { quest_id: string; completed_on: string }[];
+    const yDoneIds = rows.filter((c) => c.completed_on === yesterdayStr).map((c) => c.quest_id);
     setDoneToday(new Set(rows.filter((c) => c.completed_on === todayStr).map((c) => c.quest_id)));
-    setDoneYesterday(new Set(rows.filter((c) => c.completed_on === yesterdayStr).map((c) => c.quest_id)));
+    setDoneYesterday(new Set(yDoneIds));
     setDays({ today: todayStr, yesterday: yesterdayStr });
+
+    // Yesterday's list is fixed to what actually happened yesterday, independent
+    // of today's loadout edits: quests active before today (so a quest added
+    // today never appears) plus anything completed yesterday (so a quest you
+    // later removed still shows, checked). Editing today's loadout never
+    // rewrites yesterday.
+    const byId = new Map<string, Quest>();
+    for (const r of activeRows) {
+      if (r.added_at && r.added_at.slice(0, 10) < todayStr) byId.set(r.quests.id, r.quests);
+    }
+    const missing = yDoneIds.filter((id) => !byId.has(id));
+    if (missing.length) {
+      const { data: extra } = await supabase.from("quests").select("*").in("id", missing);
+      for (const q of (extra as Quest[]) ?? []) byId.set(q.id, q);
+    }
+    setYesterdayQuests([...byId.values()].sort((a, b) => a.sort - b.sort));
   }, []);
 
   useEffect(() => {
@@ -332,7 +348,7 @@ export default function Dashboard() {
       </div>
 
       {/* yesterday: one day of grace to log what you forgot */}
-      {quests.length > 0 && (
+      {yesterdayQuests.length > 0 && (
         <div className="mt-5">
           <button
             className="card w-full px-4 py-3.5 flex items-center gap-3 active:scale-[0.99] transition-transform"
@@ -344,9 +360,9 @@ export default function Dashboard() {
             <span className="flex-1 text-left">
               <span className="display block text-[14px]">Yesterday</span>
               <span className="hud-label mt-0.5">
-                {quests.filter((q) => !doneYesterday.has(q.id)).length === 0
+                {yesterdayQuests.filter((q) => !doneYesterday.has(q.id)).length === 0
                   ? "All cleared"
-                  : `${quests.filter((q) => !doneYesterday.has(q.id)).length} open`}
+                  : `${yesterdayQuests.filter((q) => !doneYesterday.has(q.id)).length} open`}
               </span>
             </span>
             <span
@@ -359,7 +375,7 @@ export default function Dashboard() {
 
           {showYesterday && (
             <div className="flex flex-col gap-2.5 mt-2.5 stagger">
-              {quests.map((q) => {
+              {yesterdayQuests.map((q) => {
                 const done = doneYesterday.has(q.id);
                 return (
                   <button
