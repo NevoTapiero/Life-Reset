@@ -34,7 +34,7 @@ export default function QuestManager() {
     setUid(userId);
     if (!userId) return;
     const [{ data: qs }, { data: uq }] = await Promise.all([
-      supabase.from("quests").select("*").order("sort").order("title"),
+      supabase.from("quests").select("*").eq("archived", false).order("sort").order("title"),
       supabase.from("user_quests").select("quest_id, active").eq("user_id", userId),
     ]);
     setQuests((qs as Quest[]) ?? []);

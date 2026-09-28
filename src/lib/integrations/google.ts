@@ -78,8 +78,14 @@ export async function freshAccessToken(uid: string): Promise<string | null> {
   return t.access_token;
 }
 
-export type GTask = { id: string; title: string; completed?: string };
-export type GEvent = { id: string; summary?: string; start?: { dateTime?: string; date?: string } };
+export type GTask = { id: string; title: string; completed?: string; due?: string; notes?: string };
+export type GEvent = {
+  id: string;
+  summary?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  location?: string;
+};
 
 // Tasks completed since `sinceIso` across all of the user's task lists.
 export async function completedTasksSince(token: string, sinceIso: string): Promise<GTask[]> {
@@ -164,4 +170,113 @@ export async function judge(title: string, kind: "task" | "event", base: number)
     }
   }
   return { xp: base, reason: "" };
+}
+
+// ---------------------------------------------------------------------------
+// The app's day is the player's day (Asia/Jerusalem), not the server's UTC day.
+// Getting this wrong made "today's events" a window shifted by three hours.
+
+const TZ = "Asia/Jerusalem";
+
+function zoneOffsetMs(at: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
+  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+  return Date.UTC(g("year"), g("month") - 1, g("day"), g("hour") % 24, g("minute"), g("second")) - at.getTime();
+}
+
+// Midnight-to-midnight in Jerusalem, as real instants. `days` extends the end.
+export function localDayRange(days = 1, base = new Date()): { start: Date; end: Date } {
+  const off = zoneOffsetMs(base);
+  const shifted = new Date(base.getTime() + off);
+  const midnight = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate());
+  const start = new Date(midnight - off);
+  return { start, end: new Date(start.getTime() + days * 86400_000) };
+}
+
+// Every calendar the player actually keeps switched on, not just "primary":
+// most people put their real schedule on a secondary or shared calendar.
+export async function eventsEverywhere(token: string, minIso: string, maxIso: string): Promise<GEvent[]> {
+  let ids = ["primary"];
+  try {
+    const r = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50", {
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (r.ok) {
+      const items: { id: string; selected?: boolean; primary?: boolean }[] = (await r.json())?.items ?? [];
+      const on = items.filter((c) => c.primary || c.selected !== false).map((c) => c.id);
+      if (on.length) ids = on.slice(0, 5);
+    }
+  } catch {
+    // fall back to the primary calendar alone
+  }
+  const p = new URLSearchParams({
+    timeMin: minIso,
+    timeMax: maxIso,
+    singleEvents: "true",
+    orderBy: "startTime",
+    maxResults: "40",
+  });
+  const lists = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const r = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(id)}/events?${p}`,
+          { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8000) },
+        );
+        if (!r.ok) return [] as GEvent[];
+        return ((await r.json())?.items ?? []) as GEvent[];
+      } catch {
+        return [] as GEvent[];
+      }
+    }),
+  );
+  const seen = new Set<string>();
+  const out: GEvent[] = [];
+  for (const e of lists.flat()) {
+    const key = e.id + (e.start?.dateTime ?? e.start?.date ?? "");
+    if (!e.id || seen.has(key)) continue;
+    seen.add(key);
+    out.push(e);
+  }
+  const at = (e: GEvent) => new Date(e.start?.dateTime ?? `${e.start?.date}T00:00:00`).getTime();
+  return out.sort((a, b) => at(a) - at(b));
+}
+
+// Still open: what the player has left to do, shown in the app as a live list.
+export async function openTasks(token: string): Promise<GTask[]> {
+  const listsRes = await fetch("https://tasks.googleapis.com/tasks/v1/users/@me/lists", {
+    headers: { authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!listsRes.ok) return [];
+  const lists: { id: string }[] = (await listsRes.json())?.items ?? [];
+  const out: GTask[] = [];
+  for (const l of lists.slice(0, 5)) {
+    const p = new URLSearchParams({ showCompleted: "false", maxResults: "50" });
+    try {
+      const r = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${l.id}/tasks?${p}`, {
+        headers: { authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!r.ok) continue;
+      const items: GTask[] = (await r.json())?.items ?? [];
+      for (const t of items) if (t.title?.trim()) out.push(t);
+    } catch {
+      continue;
+    }
+  }
+  // due first, undated last
+  return out
+    .sort((a, b) => (a.due ? new Date(a.due).getTime() : 8.64e15) - (b.due ? new Date(b.due).getTime() : 8.64e15))
+    .slice(0, 25);
 }

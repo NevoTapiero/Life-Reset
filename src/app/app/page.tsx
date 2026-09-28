@@ -22,7 +22,7 @@ import {
   rankForXp,
 } from "@/lib/game";
 
-type UserQuestRow = { quest_id: string; added_at: string; quests: Quest };
+type UserQuestRow = { quest_id: string; added_on: string; quests: Quest };
 
 export default function Dashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -43,7 +43,7 @@ export default function Dashboard() {
     if (!uid) return;
     const [{ data: prof }, { data: uq }, { data: todayData }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", uid).single(),
-      supabase.from("user_quests").select("quest_id, added_at, quests(*)").eq("user_id", uid).eq("active", true),
+      supabase.from("user_quests").select("quest_id, added_on, quests(*)").eq("user_id", uid).eq("active", true),
       supabase.rpc("app_today"),
     ]);
     const todayStr = String(todayData);
@@ -72,7 +72,7 @@ export default function Dashboard() {
     // rewrites yesterday.
     const byId = new Map<string, Quest>();
     for (const r of activeRows) {
-      if (r.added_at && r.added_at.slice(0, 10) < todayStr) byId.set(r.quests.id, r.quests);
+      if (r.added_on && r.added_on < todayStr) byId.set(r.quests.id, r.quests);
     }
     const missing = yDoneIds.filter((id) => !byId.has(id));
     if (missing.length) {
@@ -348,9 +348,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* what the connected services counted, so tracking is visible */}
-      <AppActivity onXp={load} />
-
       {/* yesterday: one day of grace to log what you forgot */}
       {yesterdayQuests.length > 0 && (
         <div className="mt-5">
@@ -457,6 +454,9 @@ export default function Dashboard() {
           )}
         </div>
       )}
+
+      {/* what the connected services counted, so the tracking is visible */}
+      <AppActivity onXp={load} />
 
       {clearedAll && (
         <div className="hud-frame p-5 mt-6 text-center rise">

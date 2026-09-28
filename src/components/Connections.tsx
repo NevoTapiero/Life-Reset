@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import Icon from "@/components/Icon";
+import { GoogleMark, WhoopMark } from "@/components/Icon";
 
 type SyncResult = Record<string, unknown> & { connected?: boolean; xpGained?: number };
 
@@ -15,14 +15,14 @@ async function bearer() {
 // reports it is configured, so a provider whose keys aren't set stays hidden.
 function ProviderCard({
   provider,
-  icon,
+  mark,
   title,
   blurb,
   summarize,
   onXp,
 }: {
   provider: string;
-  icon: string;
+  mark: React.ReactNode;
   title: string;
   blurb: string;
   summarize: (d: SyncResult) => string;
@@ -115,9 +115,7 @@ function ProviderCard({
   return (
     <div className="card px-4 py-4">
       <div className="flex items-center gap-3.5">
-        <span className="icon-tile !w-10 !h-10 !rounded-[11px] text-muted">
-          <Icon name={icon} size={18} />
-        </span>
+        <span className="icon-tile !w-10 !h-10 !rounded-[11px] overflow-hidden">{mark}</span>
         <span className="flex-1 min-w-0">
           <span className="block text-sm font-semibold">{title}</span>
           <span className="hud-label mt-1 block">
@@ -147,7 +145,7 @@ export default function Connections({ onXp }: { onXp?: () => void }) {
     <div className="flex flex-col gap-2.5">
       <ProviderCard
         provider="google"
-        icon="calendar"
+        mark={<GoogleMark size={21} />}
         title="Google Tasks & Calendar"
         blurb="Earn XP from your real tasks and plans"
         summarize={(d) =>
@@ -157,7 +155,7 @@ export default function Connections({ onXp }: { onXp?: () => void }) {
       />
       <ProviderCard
         provider="whoop"
-        icon="stat-con"
+        mark={<WhoopMark size={30} />}
         title="WHOOP"
         blurb="Earn XP from recovery, sleep and workouts"
         summarize={(d) => `+${d.xpGained} XP from ${d.newItems as number} health record${d.newItems === 1 ? "" : "s"}.`}

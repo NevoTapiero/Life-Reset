@@ -2,7 +2,8 @@ import { getIntegration, touchSync, awardXp } from "./server";
 import {
   freshAccessToken as googleToken,
   completedTasksSince,
-  eventsBetween,
+  eventsEverywhere,
+  localDayRange,
   judge,
 } from "./google";
 import {
@@ -38,13 +39,11 @@ export async function syncGoogle(uid: string): Promise<GoogleSync> {
   const since = row.last_sync
     ? new Date(new Date(row.last_sync).getTime() - 60_000)
     : new Date(Date.now() - 3 * 86400_000);
-  const now = new Date();
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dayEnd = new Date(dayStart.getTime() + 86400_000);
+  const { start: dayStart, end: dayEnd } = localDayRange();
 
   const [tasks, events] = await Promise.all([
     completedTasksSince(token, since.toISOString()),
-    eventsBetween(token, dayStart.toISOString(), dayEnd.toISOString()),
+    eventsEverywhere(token, dayStart.toISOString(), dayEnd.toISOString()),
   ]);
 
   const pickedTasks = tasks.slice(0, MAX_PER_KIND);

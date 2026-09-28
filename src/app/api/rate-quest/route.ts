@@ -11,6 +11,61 @@ const ICONS = new Set([
   "flame", "trophy", "chart", "tasks",
 ]);
 
+// --- consistency with the player's friends -------------------------------
+// The same habit must not be worth 12 XP for one friend and 15 for another, so
+// the Judge is shown what the people around this player already run.
+
+type PeerQuest = { title: string; xp: number; pillar: string };
+
+const STOP = new Set(['a','an','the','my','your','for','to','of','and','or','no','on','in','at','do','with','every','day','daily','minutes','minute','min','mins']);
+
+function tokens(title: string): Set<string> {
+  return new Set(
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9֐-׿ ]+/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w && !STOP.has(w)),
+  );
+}
+
+function similarity(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  for (const w of a) if (b.has(w)) shared++;
+  return shared / new Set([...a, ...b]).size;
+}
+
+async function peerQuests(auth: string): Promise<PeerQuest[]> {
+  try {
+    const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/peer_quests`, {
+      method: 'POST',
+      headers: {
+        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
+        authorization: auth,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!r.ok) return [];
+    const rows = await r.json();
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+// The closest things the player's friends already run, best match first.
+function closestPeers(title: string, peers: PeerQuest[]): { quest: PeerQuest; score: number }[] {
+  const mine = tokens(title);
+  return peers
+    .map((quest) => ({ quest, score: similarity(mine, tokens(quest.title)) }))
+    .filter((m) => m.score > 0.3)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8);
+}
+
 async function isAuthed(req: Request): Promise<boolean> {
   const auth = req.headers.get("authorization") ?? "";
   if (!auth.startsWith("Bearer ")) return false;
@@ -44,8 +99,33 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "title required" }, { status: 400 });
   }
 
+  // What the people around this player already run, so the same habit is priced
+  // the same for everyone in the group.
+  const peers = await peerQuests(req.headers.get("authorization") ?? "");
+  const matches = closestPeers(title, peers);
+  const twin = matches[0];
+  if (twin && twin.score >= 0.85) {
+    return NextResponse.json({
+      xp: twin.quest.xp,
+      reason: `Matched to the same quest your friends run. Same effort, same ${twin.quest.xp} XP.`,
+      icon: "custom",
+      source: "peer",
+      matched: twin.quest.title,
+    });
+  }
+
   const key = process.env.GEMINI_API_KEY;
   if (!key) return NextResponse.json(FALLBACK);
+
+  const peerLines = matches.length
+    ? [
+        "Quests the player's friends already run that are close to this one, with the XP they were given:",
+        ...matches.map((m) => `- "${m.quest.title}" = ${m.quest.xp} XP`),
+        "If this quest is essentially the same habit as one of those, give it exactly that XP.",
+        "If it is a harder or wider version of one of them, stay close to it and add only a few points.",
+        "Never price the same habit differently for two friends.",
+      ]
+    : [];
 
   const prompt = [
     "You are the Judge, a strict and unimpressed rater of daily habit quests in a self-improvement RPG.",
@@ -62,6 +142,7 @@ export async function POST(req: Request) {
     "- Run 5 km = 50",
     "- Keep Instagram or TikTok under one hour for the whole day = 50",
     "Interpolate between anchors. Reserve 40 to 50 for feats that demand serious discipline.",
+    ...peerLines,
     "Also pick the single best matching icon name from this exact list:",
     "droplet, moon, book, dumbbell, sun, lotus, pen, snowflake, phone-off, target, calendar, users, bulb, sparkle, apple, screen-off, leaf, flame, trophy, chart, tasks",
     'Reply with JSON only: {"xp": <integer 1-50>, "reason": "<one short blunt sentence>", "icon": "<name from the list>"}',
@@ -94,10 +175,15 @@ export async function POST(req: Request) {
       }
       const raw = Number(parsed?.xp);
       if (!Number.isFinite(raw)) continue;
-      const xp = Math.min(50, Math.max(1, Math.round(raw)));
+      let xp = Math.min(50, Math.max(1, Math.round(raw)));
+      // A clear variant of a quest a friend already runs stays in that quest's
+      // range, whatever the model felt like. Same habit, same price.
+      if (twin && twin.score >= 0.5) {
+        xp = Math.min(50, Math.max(1, Math.min(Math.max(xp, twin.quest.xp - 3), twin.quest.xp + 8)));
+      }
       const reason = String(parsed?.reason ?? "").slice(0, 140);
       const icon = ICONS.has(parsed?.icon) ? (parsed.icon as string) : "custom";
-      return NextResponse.json({ xp, reason, icon, source: "ai" });
+      return NextResponse.json({ xp, reason, icon, source: "ai", ...(twin && twin.score >= 0.5 ? { matched: twin.quest.title } : {}) });
     } catch {
       continue;
     }

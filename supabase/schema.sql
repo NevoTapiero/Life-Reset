@@ -55,14 +55,22 @@ create table if not exists public.quests (
 );
 -- custom quests: user_id null = global catalog, otherwise owned by that user
 alter table public.quests add column if not exists user_id uuid references public.profiles(id) on delete cascade;
+-- v5: a quest you already logged is archived, never deleted, so history holds
+alter table public.quests add column if not exists archived boolean not null default false;
 
 create table if not exists public.user_quests (
   user_id uuid not null references public.profiles(id) on delete cascade,
   quest_id text not null references public.quests(id) on delete cascade,
   active boolean not null default true,
   added_at timestamptz not null default now(),
+  added_on date not null default public.app_today(),
   primary key (user_id, quest_id)
 );
+-- v5: the app-day the quest joined the loadout, so yesterday never shifts
+alter table public.user_quests add column if not exists added_on date;
+update public.user_quests set added_on = (added_at at time zone 'Asia/Jerusalem')::date where added_on is null;
+alter table public.user_quests alter column added_on set default public.app_today();
+alter table public.user_quests alter column added_on set not null;
 
 create table if not exists public.quest_completions (
   id bigint generated always as identity primary key,
@@ -267,19 +275,29 @@ end $$;
 create or replace function public.delete_custom_quest(p_id text)
 returns void
 language plpgsql security definer set search_path = public
-as $$
+as $
 declare
   uid uuid := auth.uid();
+  has_history boolean;
 begin
   if uid is null then raise exception 'not authenticated'; end if;
-  delete from public.quests where id = p_id and user_id = uid;
-  if not found then raise exception 'quest not found or not yours'; end if;
-end $$;
+  if not exists (select 1 from public.quests where id = p_id and user_id = uid) then
+    raise exception 'quest not found or not yours';
+  end if;
+  select exists (select 1 from public.quest_completions where quest_id = p_id and user_id = uid)
+    into has_history;
+  if has_history then
+    update public.quests set archived = true where id = p_id and user_id = uid;
+    update public.user_quests set active = false where quest_id = p_id and user_id = uid;
+  else
+    delete from public.quests where id = p_id and user_id = uid;
+  end if;
+end $;
 
 create or replace function public.set_quest_active(p_quest_id text, p_active boolean)
 returns void
 language plpgsql security definer set search_path = public
-as $$
+as $
 declare
   uid uuid := auth.uid();
 begin
@@ -287,10 +305,13 @@ begin
   if not exists (select 1 from public.quests where id = p_quest_id and (user_id is null or user_id = uid)) then
     raise exception 'unknown quest';
   end if;
-  insert into public.user_quests (user_id, quest_id, active)
-  values (uid, p_quest_id, p_active)
-  on conflict (user_id, quest_id) do update set active = excluded.active;
-end $$;
+  insert into public.user_quests (user_id, quest_id, active, added_at, added_on)
+  values (uid, p_quest_id, p_active, now(), public.app_today())
+  on conflict (user_id, quest_id) do update set
+    active = excluded.active,
+    added_at = case when excluded.active and not user_quests.active then now() else user_quests.added_at end,
+    added_on = case when excluded.active and not user_quests.active then public.app_today() else user_quests.added_on end;
+end $;
 
 drop function if exists public.set_commitment(int);
 
@@ -711,3 +732,23 @@ begin
 end
 $fn$;
 grant execute on function public.award_external_xp(uuid,text,text,int,text) to service_role;
+
+-- ============ v5: judge context ============
+create or replace function public.peer_quests()
+returns jsonb
+language sql security definer set search_path = public
+as $$
+  select coalesce(jsonb_agg(row_to_json(t)), '[]'::jsonb)
+  from (
+    select distinct q.title, q.xp, q.pillar
+    from public.friendships f
+    join public.user_quests uq
+      on uq.user_id = case when f.a = auth.uid() then f.b else f.a end
+     and uq.active
+    join public.quests q on q.id = uq.quest_id and not q.archived
+    where (f.a = auth.uid() or f.b = auth.uid())
+    limit 80
+  ) t
+$$;
+
+grant execute on function public.peer_quests() to authenticated;

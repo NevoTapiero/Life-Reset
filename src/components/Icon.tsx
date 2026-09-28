@@ -244,6 +244,22 @@ export default function Icon({
   );
 }
 
+// WHOOP's mark: the black tile with the white band that loops back on itself.
+export function WhoopMark({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden>
+      <rect width="48" height="48" rx="11" fill="#0B0B0C" />
+      <path
+        d="M11 16.5c0 7.5 4.3 13 9.6 13 3.4 0 5.6-2.2 6.4-5.6M37 31.5c0-7.5-4.3-13-9.6-13-3.4 0-5.6 2.2-6.4 5.6"
+        fill="none"
+        stroke="#FF0026"
+        strokeWidth="3.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function GoogleMark({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden>
