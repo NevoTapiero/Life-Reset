@@ -663,3 +663,51 @@ on conflict (id) do update set
   icon = excluded.icon,
   benefits = excluded.benefits,
   sort = excluded.sort;
+
+-- ============ integrations (Google Tasks + Calendar) ============
+create table if not exists public.integrations (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  provider text not null,
+  access_token text,
+  refresh_token text,
+  expiry timestamptz,
+  scope text,
+  connected_at timestamptz not null default now(),
+  last_sync timestamptz,
+  primary key (user_id, provider)
+);
+alter table public.integrations enable row level security;
+-- no policies: only the service role (server) may read/write tokens
+
+create table if not exists public.xp_ledger (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  source text not null,
+  ref text not null,
+  xp int not null default 0,
+  reason text,
+  created_at timestamptz not null default now(),
+  unique (user_id, source, ref)
+);
+alter table public.xp_ledger enable row level security;
+drop policy if exists xp_ledger_own on public.xp_ledger;
+create policy xp_ledger_own on public.xp_ledger for select using (auth.uid() = user_id);
+
+create or replace function public.award_external_xp(p_user uuid, p_source text, p_ref text, p_xp int, p_reason text)
+returns boolean language plpgsql security definer set search_path=public as $fn$
+declare
+  inserted boolean := false;
+  amt int := greatest(0, least(coalesce(p_xp,0), 200));
+begin
+  begin
+    insert into public.xp_ledger(user_id,source,ref,xp,reason) values (p_user,p_source,p_ref,amt,p_reason);
+    inserted := true;
+  exception when unique_violation then inserted := false;
+  end;
+  if inserted and amt > 0 then
+    update public.profiles set xp = xp + amt where id = p_user;
+  end if;
+  return inserted;
+end
+$fn$;
+grant execute on function public.award_external_xp(uuid,text,text,int,text) to service_role;

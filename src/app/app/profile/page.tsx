@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { applyCharacterTheme } from "@/lib/theme";
 import Avatar from "@/components/Avatar";
+import Connections from "@/components/Connections";
 import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
 import XpMeter from "@/components/XpMeter";
@@ -28,16 +29,18 @@ export default function ProfilePage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user?.id;
-      if (!uid) return;
-      const { data: prof } = await supabase.from("profiles").select("*").eq("id", uid).single();
-      setProfile(prof as Profile);
-      setNameDraft((prof as Profile)?.username ?? "");
-    })();
+  const reloadProfile = useCallback(async () => {
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData.user?.id;
+    if (!uid) return;
+    const { data: prof } = await supabase.from("profiles").select("*").eq("id", uid).single();
+    setProfile(prof as Profile);
+    setNameDraft((prof as Profile)?.username ?? "");
   }, []);
+
+  useEffect(() => {
+    reloadProfile();
+  }, [reloadProfile]);
 
   async function saveName() {
     setMsg(null);
@@ -190,6 +193,9 @@ export default function ProfilePage() {
           );
         })}
       </div>
+
+      <h2 className="display text-[16px] mt-7 mb-3">Connections</h2>
+      <Connections onXp={reloadProfile} />
 
       <h2 className="display text-[16px] mt-7 mb-3">Privacy</h2>
       <div className="card px-4 py-4 flex items-center gap-3.5">
