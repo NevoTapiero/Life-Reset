@@ -58,5 +58,5 @@ export default function HouseCanvas({ state, onTap }: { state: HouseState; onTap
     tap.current = onTap;
   }, [onTap]);
 
-  return <div ref={host} className="house-canvas w-full min-w-0 rounded-2xl overflow-hidden" style={{ aspectRatio: "176 / 160", background: "#0c0c0e", contain: "inline-size" }} />;
+  return <div ref={host} className="house-canvas w-full h-full min-w-0 overflow-hidden" style={{ background: "#0c0c0e", contain: "inline-size" }} />;
 }

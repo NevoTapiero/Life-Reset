@@ -117,7 +117,8 @@ export default function Dashboard() {
   function tapSpot(spot: Spot) {
     if (sessionQuest && actionFor(sessionQuest).spot === spot) return endSession(true); // tapping where he is working finishes it
     const here = quests.filter((q) => !doneToday.has(q.id) && actionFor(q).spot === spot);
-    if (here.length) setChooser({ spot, quests: here });
+    if (here.length === 1) logQuest(here[0]); // one tap, done
+    else if (here.length) setChooser({ spot, quests: here });
     else setBoost({ id: ++boostSeq.current, text: "Nothing left here" });
   }
 
@@ -347,34 +348,31 @@ export default function Dashboard() {
       {chooser && (
         <div className="rankup-backdrop" onClick={() => setChooser(null)}>
           <div className="card p-4 w-[88%] max-w-sm rise" onClick={(e) => e.stopPropagation()}>
-            <div className="hud-label mb-3">{sessionQuest ? "He is busy -- finish that first" : "What are you doing here?"}</div>
+            <div className="hud-label mb-3">Which one?</div>
             <div className="flex flex-col gap-2">
               {chooser.quests.map((q) => (
-                <div
-                  key={q.id}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-line"
-                  style={{ background: "rgba(255,255,255,0.04)" }}
-                >
-                  <span className="icon-tile !w-9 !h-9 !rounded-[10px]"><Icon name={q.icon} size={18} /></span>
-                  <span className="flex-1 min-w-0">
-                    <span className="block display text-[14px] truncate">{q.title}</span>
-                    <span className="hud-label" style={{ color: "var(--accent)" }}>+{q.xp} XP · +{q.xp * 2} gold</span>
-                  </span>
+                <div key={q.id} className="flex items-center gap-2">
                   <button
-                    className="btn-ghost px-3 py-2 !text-xs"
-                    disabled={!!sessionQuest}
-                    onClick={() => beginSession(q)}
-                  >
-                    Start
-                  </button>
-                  <button
-                    className="btn-primary px-3 py-2 !text-xs"
+                    className="flex-1 flex items-center gap-3 text-left px-3 py-3 rounded-xl border border-line active:scale-[0.98] transition-transform"
+                    style={{ background: "rgba(255,255,255,0.04)" }}
                     onClick={() => {
                       setChooser(null);
                       logQuest(q);
                     }}
                   >
-                    Did it
+                    <span className="icon-tile !w-9 !h-9 !rounded-[10px]"><Icon name={q.icon} size={18} /></span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block display text-[14px] truncate">{q.title}</span>
+                      <span className="hud-label" style={{ color: "var(--accent)" }}>+{q.xp} XP</span>
+                    </span>
+                  </button>
+                  <button
+                    className="icon-tile !w-11 !h-11 !rounded-[12px]"
+                    aria-label={`Start ${q.title} now`}
+                    disabled={!!sessionQuest}
+                    onClick={() => beginSession(q)}
+                  >
+                    <Icon name="calendar" size={16} />
                   </button>
                 </div>
               ))}

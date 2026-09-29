@@ -42,7 +42,7 @@ export default function Room({
   );
 
   return (
-    <div className="relative rounded-[22px] overflow-hidden border border-line">
+    <div className="relative overflow-hidden -mx-4 -mt-5" style={{ height: "calc(100dvh - 118px)" }}>
       {view === "house" || !town ? <HouseCanvas state={house} onTap={onTapSpot} /> : <TownCanvas state={town.state} onHouse={town.onHouse} />}
       {overlay && <div className="absolute top-2 left-2 right-2 z-10 flex gap-2 overflow-x-auto no-scrollbar">{overlay}</div>}
       {view === "house" && (

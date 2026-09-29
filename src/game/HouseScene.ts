@@ -233,6 +233,6 @@ export class HouseScene extends Phaser.Scene {
 }
 
 export const ROOM_W = 22 * T; // the whole house
-export const ROOM_H = 10 * T;
+export const ROOM_H = 16 * T; // house, porch and garden
 export const VIEW_W = 11 * T; // what the canvas shows: about one room, so tiles are big on a phone
 export const VIEW_H = 10 * T;

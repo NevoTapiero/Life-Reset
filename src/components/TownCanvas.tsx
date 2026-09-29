@@ -55,5 +55,5 @@ export default function TownCanvas({ state, onHouse }: { state: TownState; onHou
     tap.current = onHouse;
   }, [onHouse]);
 
-  return <div ref={host} className="house-canvas w-full min-w-0 rounded-2xl overflow-hidden" style={{ aspectRatio: "1 / 1", background: "#0c0c0e", contain: "inline-size" }} />;
+  return <div ref={host} className="house-canvas w-full h-full min-w-0 overflow-hidden" style={{ background: "#0c0c0e", contain: "inline-size" }} />;
 }
