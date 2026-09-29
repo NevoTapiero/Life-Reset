@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import AppActivity from "@/components/AppActivity";
 import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
+import Room from "@/components/Room";
 import XpMeter from "@/components/XpMeter";
 import {
   CHARACTERS,
@@ -21,6 +22,8 @@ import {
   questArt,
   rankForXp,
 } from "@/lib/game";
+import { NEED_LABEL, actionFor, computeNeeds, idleFor, type Spot, type StatKeyNeed } from "@/lib/needs";
+import { loadPending, markCollected, sourceInfo, type Pending } from "@/lib/collect";
 
 type UserQuestRow = { quest_id: string; added_on: string; quests: Quest };
 
@@ -36,6 +39,12 @@ export default function Dashboard() {
   const [xpFloat, setXpFloat] = useState<{ id: string; amount: number } | null>(null);
   const [rankUp, setRankUp] = useState<Rank | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [acting, setActing] = useState<Quest | null>(null); // the quest he is doing in the room right now
+  const [pending, setPending] = useState<Pending[]>([]); // earned while away, not yet tapped
+  const [collected, setCollected] = useState<{ stat: StatKeyNeed; xp: number }[]>([]); // tapped this visit, feeds the needs
+  const [boost, setBoost] = useState<{ id: number; text: string } | null>(null);
+  const boostSeq = useRef(0); // each float gets a fresh id so the house replays it
+  const [chooser, setChooser] = useState<{ spot: Spot; quests: Quest[] } | null>(null); // several quests live at one spot
 
   const load = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
@@ -46,6 +55,7 @@ export default function Dashboard() {
       supabase.from("user_quests").select("quest_id, added_on, quests(*)").eq("user_id", uid).eq("active", true),
       supabase.rpc("app_today"),
     ]);
+    loadPending(uid).then(setPending);
     const todayStr = String(todayData);
     const yesterdayStr = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 86400000)
       .toISOString()
@@ -86,6 +96,46 @@ export default function Dashboard() {
     load();
   }, [load]);
 
+  const needs = useMemo(() => {
+    const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Jerusalem" }).format(new Date()));
+    return computeNeeds(quests, doneToday, doneYesterday, hour, collected);
+  }, [quests, doneToday, doneYesterday, collected]);
+
+  // Tap a bubble: it leaves the tray, the need it feeds jumps, the house floats
+  // the amount, and the XP meter finally shows what was already banked.
+  function collect(p: Pending) {
+    const info = sourceInfo(p);
+    setPending((prev) => {
+      const rest = prev.filter((x) => x.id !== p.id);
+      // ponytail: only remember "collected up to" once the tray is empty, so
+      // leaving midway shows the same bubbles again rather than losing some
+      if (rest.length === 0) markCollected(prev.reduce((m, x) => (x.created_at > m ? x.created_at : m), p.created_at));
+      return rest;
+    });
+    setCollected((prev) => [...prev, { stat: info.stat, xp: p.xp }]);
+    setBoost({ id: ++boostSeq.current, text: `${p.xp > 0 ? "+" : ""}${p.xp} ${info.label}${p.gold ? ` · +${p.gold} gold` : ""}` });
+  }
+
+  // Where in the house each undone quest lives; those spots get the marker.
+  const available = useMemo(() => {
+    const spots = new Set<Spot>();
+    for (const q of quests) if (!doneToday.has(q.id)) spots.add(actionFor(q).spot);
+    return [...spots];
+  }, [quests, doneToday]);
+
+  // Tap the bed, the desk, the mat: log the quest that happens there. One
+  // candidate logs straight away; several open a small picker.
+  function tapSpot(spot: Spot) {
+    const here = quests.filter((q) => !doneToday.has(q.id) && actionFor(q).spot === spot);
+    if (here.length === 1) toggle(here[0]);
+    else if (here.length > 1) setChooser({ spot, quests: here });
+    else setBoost({ id: ++boostSeq.current, text: "Nothing left here" });
+  }
+
+  function collectAll() {
+    pending.forEach((p, i) => setTimeout(() => collect(p), i * 140)); // a cascade, not a dump
+  }
+
   async function toggle(q: Quest, day: "today" | "yesterday" = "today") {
     if (pendingId || !days) return;
     setPendingId(q.id);
@@ -99,7 +149,14 @@ export default function Dashboard() {
       else nextSet.add(q.id);
       return nextSet;
     });
-    if (!isDone) setXpFloat({ id: q.id, amount: q.xp });
+    if (!isDone) {
+      setXpFloat({ id: q.id, amount: q.xp });
+      setActing(q); // he gets up and does it
+      setTimeout(() => setActing(null), 2600);
+    } else {
+      // unchecking takes back loot that was still floating
+      setPending((prev) => prev.filter((p) => p.id !== `quest:${q.id}`));
+    }
     const { data, error: rpcError } = await supabase.rpc(
       isDone ? "uncomplete_quest_for" : "complete_quest_for",
       { p_quest_id: q.id, p_on: day === "today" ? days.today : days.yesterday },
@@ -119,6 +176,24 @@ export default function Dashboard() {
       }
     } else if (data) {
       const updated = data as Profile;
+      if (!isDone) {
+        // the quest paid on the server; on screen it drops loot you still have to grab
+        setPending((prev) => [
+          ...prev,
+          {
+            id: `quest:${q.id}`,
+            source: "quest",
+            ref: q.id,
+            xp: q.xp,
+            gold: q.xp * 2,
+            reason: q.title,
+            created_at: new Date().toISOString(),
+            stat: q.stats[0],
+            icon: q.icon,
+            label: NEED_LABEL[q.stats[0]] ?? q.title,
+          },
+        ]);
+      }
       if (!isDone && profile) {
         const before = rankForXp(profile.xp);
         const after = rankForXp(updated.xp);
@@ -143,7 +218,10 @@ export default function Dashboard() {
     return <div className="hud-label pulse-glow text-center py-20">Syncing quests…</div>;
   }
 
-  const rank = rankForXp(profile.xp);
+  // XP that is still floating in the tray stays hidden from the meter until tapped
+  const shownXp = Math.max(0, profile.xp - pending.reduce((a, p) => a + p.xp, 0));
+  const shownGold = Math.max(0, (profile.gold ?? 0) - pending.reduce((a, p) => a + (p.gold ?? 0), 0));
+  const rank = rankForXp(shownXp);
   const character = characterOf(profile.archetype);
   const clearedAll = quests.length > 0 && quests.every((q) => doneToday.has(q.id));
   const clearedCount = quests.filter((q) => doneToday.has(q.id)).length;
@@ -169,8 +247,47 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      {/* the room: your character living your day */}
+      <Room
+        character={profile.archetype}
+        needs={needs}
+        action={acting ? actionFor(acting) : idleFor(needs)}
+        busy={!!acting}
+        boost={boost}
+        pending={pending}
+        onCollect={collect}
+        onCollectAll={collectAll}
+        available={available}
+        onTapSpot={tapSpot}
+      />
+
+      {chooser && (
+        <div className="rankup-backdrop" onClick={() => setChooser(null)}>
+          <div className="card p-4 w-[88%] max-w-sm rise" onClick={(e) => e.stopPropagation()}>
+            <div className="hud-label mb-3">What did you do here?</div>
+            <div className="flex flex-col gap-2">
+              {chooser.quests.map((q) => (
+                <button
+                  key={q.id}
+                  className="flex items-center gap-3 text-left px-3 py-3 rounded-xl border border-line active:scale-[0.98] transition-transform"
+                  style={{ background: "rgba(255,255,255,0.04)" }}
+                  onClick={() => {
+                    setChooser(null);
+                    toggle(q);
+                  }}
+                >
+                  <span className="icon-tile !w-9 !h-9 !rounded-[10px]"><Icon name={q.icon} size={18} /></span>
+                  <span className="flex-1 display text-[14px]">{q.title}</span>
+                  <span className="hud-label" style={{ color: "var(--accent)" }}>+{q.xp} XP</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* hero: hunter card */}
-      <div className="bezel">
+      <div className="bezel mt-4">
         <div className="bezel-core p-4">
           <div className="flex items-center gap-3">
             <Avatar size={64} character={profile.archetype} />
@@ -179,6 +296,9 @@ export default function Dashboard() {
               <div className="mt-1.5">
                 <span className="class-pill" style={{ color: character ? character.accent : "var(--accent)" }}>
                   {character ? character.name.replace("The ", "") : "Pick one"}
+                </span>
+                <span className="class-pill ml-2" style={{ color: "var(--gold)" }}>
+                  {shownGold.toLocaleString()} gold
                 </span>
               </div>
             </div>
@@ -191,7 +311,7 @@ export default function Dashboard() {
           </div>
 
           <div className="mt-4">
-            <XpMeter rank={rank} xp={profile.xp} />
+            <XpMeter rank={rank} xp={shownXp} />
 
             <div className="mt-4">
               <div className="flex justify-between items-baseline mb-1.5">

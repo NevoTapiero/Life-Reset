@@ -11,7 +11,7 @@ const TABS = [
   { href: "/app", label: "Today", icon: "tasks" },
   { href: "/app/quests", label: "Armory", icon: "sliders" },
   { href: "/app/stats", label: "Record", icon: "chart" },
-  { href: "/app/leaderboard", label: "Board", icon: "trophy" },
+  { href: "/app/town", label: "Town", icon: "users" },
   { href: "/app/profile", label: "Profile", icon: "user" },
 ];
 

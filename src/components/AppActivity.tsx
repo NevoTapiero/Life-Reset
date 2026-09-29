@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
+import { SOURCES } from "@/lib/collect";
 
 // What the connected services (Google Tasks/Calendar, Google Health, WHOOP) are
 // tracking and what they have paid out, so the player can see the app is
@@ -22,17 +23,6 @@ type AgendaEvent = {
   done: boolean;
 };
 type AgendaTask = { id: string; listId: string; title: string; due: string | null; done: boolean };
-
-const SOURCES: Record<string, { icon: string; label: string }> = {
-  google_tasks: { icon: "tasks", label: "Task done" },
-  google_calendar: { icon: "calendar", label: "Calendar" },
-  whoop_sleep: { icon: "moon", label: "Sleep" },
-  whoop_recovery: { icon: "stat-con", label: "Recovery" },
-  whoop_workout: { icon: "dumbbell", label: "Workout" },
-  health_workout: { icon: "dumbbell", label: "Workout" },
-  health_sleep: { icon: "moon", label: "Sleep" },
-  health_steps: { icon: "stat-str", label: "Steps" },
-};
 
 // The round check button used for both tasks and meetings.
 function DoneButton({

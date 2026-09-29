@@ -228,6 +228,7 @@ export default function ProfilePage() {
         <Row label="Current streak" value={`${profile.streak_current} ${profile.streak_current === 1 ? "day" : "days"}`} />
         <Row label="Best streak" value={`${profile.streak_best} ${profile.streak_best === 1 ? "day" : "days"}`} />
         <Row label="Total XP" value={profile.xp.toLocaleString()} />
+        <Row label="Gold" value={(profile.gold ?? 0).toLocaleString()} />
       </div>
 
       <button className="btn-ghost w-full py-3.5 mt-6 gap-2 text-danger" onClick={signOut}>

@@ -116,6 +116,7 @@ export type Profile = {
   friend_code: string | null;
   share_activity: boolean;
   xp: number;
+  gold?: number; // absent until the gold migration is applied
   streak_current: number;
   streak_best: number;
   last_completed_on: string | null;

@@ -109,7 +109,7 @@ export async function syncHealth(uid: string): Promise<HealthSync> {
   let xpGained = 0;
   let newItems = 0;
   const grant = async (source: string, ref: string, xp: number, reason: string) => {
-    if (xp <= 0) return;
+    if (xp === 0) return; // negative is a penalty, still recorded
     if (await awardXp(uid, source, ref, xp, reason)) {
       xpGained += xp;
       newItems++;
@@ -124,11 +124,13 @@ export async function syncHealth(uid: string): Promise<HealthSync> {
   }
   for (const s of sleeps) {
     const asleep = Number(s.sleep?.summary?.minutesAsleep ?? 0);
-    if (asleep < 180) continue; // naps and broken nights earn nothing
+    if (asleep < 180) continue; // a nap is not a night
     const hours = asleep / 60;
-    // 7 to 9 hours is the target band; outside it pays less
-    const xp = hours >= 7 && hours <= 9 ? 15 : hours >= 6 ? 10 : 5;
-    await grant("health_sleep", `sleep:${pointId(s.name)}`, xp, `Slept ${hours.toFixed(1)} h`);
+    // 7 to 9 hours is the target band; a short night is a penalty, not a
+    // smaller prize. ponytail: fixed steps, make it continuous if it lands
+    const xp = hours >= 7 && hours <= 9 ? 15 : hours >= 6 ? 8 : -10;
+    const note = xp < 0 ? "short night, you're running tired" : xp < 15 ? "a bit short" : "in the zone";
+    await grant("health_sleep", `sleep:${pointId(s.name)}`, xp, `Slept ${hours.toFixed(1)} h · ${note}`);
   }
   for (const d of steps) {
     if (d.date >= today || d.steps < 3000) continue;
@@ -167,7 +169,7 @@ export async function syncWhoop(uid: string): Promise<WhoopSync> {
   let xpGained = 0;
   let newItems = 0;
   const grant = async (source: string, ref: string, xp: number, reason: string) => {
-    if (xp <= 0) return;
+    if (xp === 0) return; // negative is a penalty, still recorded
     if (await awardXp(uid, source, ref, xp, reason)) {
       xpGained += xp;
       newItems++;
@@ -176,11 +178,18 @@ export async function syncWhoop(uid: string): Promise<WhoopSync> {
 
   for (const s of sleeps) {
     if (s.nap || s.score_state !== "SCORED") continue;
-    await grant("whoop_sleep", `sleep:${s.id}`, Math.round((s.score?.sleep_performance_percentage ?? 0) / 5), "Sleep");
+    const perf = s.score?.sleep_performance_percentage ?? 0;
+    // 100% -> +20, 50% -> 0, 0% -> -20: same ceiling as before, but a poor
+    // night is a loss rather than a small prize
+    const xp = Math.round((perf - 50) / 2.5);
+    await grant("whoop_sleep", `sleep:${s.id}`, xp, `Sleep ${Math.round(perf)}%${xp < 0 ? " · you're running tired" : ""}`);
   }
   for (const r of recoveries) {
     if (r.score_state !== "SCORED") continue;
-    await grant("whoop_recovery", `recovery:${r.cycle_id}`, Math.round((r.score?.recovery_score ?? 0) / 5), "Recovery");
+    const rec = r.score?.recovery_score ?? 0;
+    // zero at 33, WHOOP's own red/yellow line: green pays up to +20, red costs up to -10
+    const xp = Math.round((rec - 33) / 3.35);
+    await grant("whoop_recovery", `recovery:${r.cycle_id}`, xp, `Recovery ${Math.round(rec)}%${xp < 0 ? " · in the red" : ""}`);
   }
   for (const w of workouts) {
     if (w.score_state !== "SCORED") continue;

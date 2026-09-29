@@ -24,6 +24,8 @@ create table if not exists public.profiles (
 );
 -- v3 migration: pure challenges, no campaign or contract
 alter table public.profiles add column if not exists friend_code text unique;
+-- gold: spendable currency, never touches rank (see migrations/2026-09-29-gold.sql)
+alter table public.profiles add column if not exists gold int not null default 0;
 -- v4: privacy — when off, friends do not see you on their boards
 alter table public.profiles add column if not exists share_activity boolean not null default true;
 alter table public.profiles drop column if exists focus_areas;
@@ -514,7 +516,7 @@ begin
     foreach st in array q.stats loop
       new_stats := jsonb_set(new_stats, array[st], to_jsonb(coalesce((new_stats->>st)::int, 0) + 2));
     end loop;
-    update public.profiles set xp = pr.xp + q.xp, stats = new_stats where id = uid;
+    update public.profiles set xp = pr.xp + q.xp, gold = pr.gold + q.xp * 2, stats = new_stats where id = uid;
     perform public.recount_streak(uid);
   end if;
 
@@ -551,7 +553,7 @@ begin
     foreach st in array q.stats loop
       new_stats := jsonb_set(new_stats, array[st], to_jsonb(greatest(0, coalesce((new_stats->>st)::int, 0) - 2)));
     end loop;
-    update public.profiles set xp = greatest(0, pr.xp - removed.xp_awarded), stats = new_stats where id = uid;
+    update public.profiles set xp = greatest(0, pr.xp - removed.xp_awarded), gold = greatest(0, pr.gold - removed.xp_awarded * 2), stats = new_stats where id = uid;
     perform public.recount_streak(uid);
   end if;
 
@@ -570,6 +572,53 @@ language sql security definer set search_path = public
 as $$ select public.uncomplete_quest_for(p_quest_id, public.app_today()) $$;
 
 -- ============ social ============
+-- The town: you and your friends as houses on one map. Per person it exposes
+-- only what the street can see -- who they are, how their day is going in
+-- XP, and the last thing their character was seen doing (one quest, so the
+-- client can turn it into "Reading" or "Training"; never the full list).
+create or replace function public.get_town()
+returns table (
+  username text,
+  archetype text,
+  xp int,
+  gold int,
+  streak_current int,
+  today_xp bigint,
+  last_quest_id text,
+  last_quest_title text,
+  last_quest_pillar text,
+  last_done_at timestamptz,
+  is_me boolean
+)
+language sql stable security definer set search_path = public
+as $$
+  with circle as (
+    select auth.uid() as pid
+    union
+    select case when f.a = auth.uid() then f.b else f.a end
+    from public.friendships f
+    where f.a = auth.uid() or f.b = auth.uid()
+  ),
+  last_done as (
+    select distinct on (c.user_id) c.user_id, c.quest_id, c.created_at
+    from public.quest_completions c
+    where c.completed_on = public.app_today()
+    order by c.user_id, c.created_at desc
+  )
+  select p.username, p.archetype, p.xp, p.gold, p.streak_current,
+         coalesce((select sum(c.xp_awarded) from public.quest_completions c
+                   where c.user_id = p.id and c.completed_on = public.app_today()), 0) as today_xp,
+         q.id, q.title, q.pillar, ld.created_at,
+         p.id = auth.uid() as is_me
+  from public.profiles p
+  join circle on circle.pid = p.id
+  left join last_done ld on ld.user_id = p.id
+  left join public.quests q on q.id = ld.quest_id
+  where p.id = auth.uid() or p.share_activity
+  order by p.id = auth.uid() desc, p.xp desc
+  limit 100
+$$;
+
 -- friends-only board: you and the challengers you added, nobody else
 create or replace function public.get_leaderboard()
 returns table (username text, archetype text, xp int, streak_current int, weekly_xp bigint, is_me boolean)
@@ -718,15 +767,16 @@ create or replace function public.award_external_xp(p_user uuid, p_source text, 
 returns boolean language plpgsql security definer set search_path=public as $fn$
 declare
   inserted boolean := false;
-  amt int := greatest(0, least(coalesce(p_xp,0), 200));
+  -- negative amounts are penalties (short night, red recovery); total never goes below zero
+  amt int := greatest(-200, least(coalesce(p_xp,0), 200));
 begin
   begin
     insert into public.xp_ledger(user_id,source,ref,xp,reason) values (p_user,p_source,p_ref,amt,p_reason);
     inserted := true;
   exception when unique_violation then inserted := false;
   end;
-  if inserted and amt > 0 then
-    update public.profiles set xp = xp + amt where id = p_user;
+  if inserted and amt <> 0 then
+    update public.profiles set xp = greatest(0, xp + amt) where id = p_user;
   end if;
   return inserted;
 end
