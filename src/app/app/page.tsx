@@ -2,11 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
 import XpMeter from "@/components/XpMeter";
+
+// three.js touches window: load the 3D character on the client only
+const Character3D = dynamic(() => import("@/components/Character3D"), { ssr: false });
 import {
   CHARACTERS,
   CHARACTER_KEYS,
@@ -17,7 +21,6 @@ import {
   STAT_INFO,
   STAT_KEYS,
   TIERS,
-  avatarSrc,
   characterOf,
   rankForXp,
   skinTierFor,
@@ -63,8 +66,7 @@ export default function YouPage() {
 
   return (
     <div className="slide-in">
-      {/* the character, standing. Full-body art at /chars/{key}-full[-tN].webp when it
-          exists; until then the portrait, shown large and uncropped. */}
+      {/* the character, live in 3D: idles, sways, cheers when tapped */}
       <div className="scene p-0 text-center overflow-hidden" style={{ "--scene-glow": `${character?.accent ?? "#ff6b00"}66` } as React.CSSProperties}>
         <span className="particle" style={{ left: "10%", top: "24%", background: accent, boxShadow: `0 0 8px ${accent}` }} />
         <span className="particle" style={{ right: "12%", top: "18%", animationDelay: "1.2s", background: accent, boxShadow: `0 0 8px ${accent}` }} />
@@ -72,23 +74,9 @@ export default function YouPage() {
         <span className="particle" style={{ right: "22%", bottom: "38%", animationDelay: "0.6s", background: accent, boxShadow: `0 0 8px ${accent}` }} />
 
         <div className="relative">
-          <div className="relative flex justify-center items-end" style={{ height: "62vh", minHeight: 360 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/chars/${key}-full${skin > 0 ? `-t${skin}` : ""}.webp`}
-              onError={(e) => {
-                const img = e.currentTarget;
-                if (!img.dataset.fallback) {
-                  img.dataset.fallback = "1";
-                  img.src = avatarSrc(key, rank.tierIndex);
-                }
-              }}
-              alt={character?.name ?? "Your character"}
-              className="h-full w-auto max-w-full object-contain object-bottom select-none"
-              draggable={false}
-              style={{ filter: `drop-shadow(0 0 40px ${accent}66)` }}
-            />
-            <div className="absolute inset-x-0 bottom-0 h-24 pointer-events-none" style={{ background: "linear-gradient(180deg, transparent, var(--panel))" }} />
+          <div className="relative" style={{ height: "58vh", minHeight: 360 }}>
+            <Character3D character={profile.archetype} accent={character?.accent ?? "#ff6b00"} className="absolute inset-0" />
+            <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none" style={{ background: "linear-gradient(180deg, transparent, var(--panel))" }} />
           </div>
           <div className="display text-[28px] leading-tight -mt-6 relative px-5">{profile.username}</div>
           <div className="flex items-center justify-center gap-2.5 mt-3">
