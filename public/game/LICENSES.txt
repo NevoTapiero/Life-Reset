@@ -1,8 +1,0 @@
-Pixel art in this folder is by Kenney (kenney.nl), released under CC0 1.0 (public domain).
-  roguelike.png    - "Roguelike/RPG pack"  https://kenney.nl/assets/roguelike-rpg-pack   16x16 tiles, 1px spacing
-  tiny-dungeon.png - "Tiny Dungeon"        https://kenney.nl/assets/tiny-dungeon          16x16 tiles, packed
-  room.json        - layer data taken from the pack's sample_indoor.tmx (rows 0-9), 0-based tile indices, -1 = empty
-Placeholder art for the house prototype; to be replaced by our own characters.
-  tiny-town.png    - "Tiny Town"           https://kenney.nl/assets/tiny-town             16x16 tiles, packed (town exteriors)
-  iso/             - Kenney "Isometric Miniature" series (Farm, Library, Dungeon), CC0. tiles.png at half
-                     resolution (128x256), hero.png cropped from Characters/Male at full resolution.

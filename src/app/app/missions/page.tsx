@@ -1,48 +1,157 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 import AppActivity from "@/components/AppActivity";
 import Icon from "@/components/Icon";
-import { PILLAR_ICONS, Quest, questArt } from "@/lib/game";
+import RankBadge from "@/components/RankBadge";
+import {
+  PILLAR_ICONS,
+  Profile,
+  Quest,
+  Rank,
+  questArt,
+  rankForXp,
+} from "@/lib/game";
 
-// The quest log, shown as a side panel over the world. The world owns the
-// day's state and the toggle; this only draws it and adds the +XP float.
+type UserQuestRow = { quest_id: string; added_on: string; quests: Quest };
 
-export default function MissionList({
-  quests,
-  doneToday,
-  doneYesterday,
-  yesterdayQuests,
-  pendingId,
-  error,
-  toggle,
-  onXp,
-}: {
-  quests: Quest[];
-  doneToday: Set<string>;
-  doneYesterday: Set<string>;
-  yesterdayQuests: Quest[];
-  pendingId: string | null;
-  error: string | null;
-  toggle: (q: Quest, day: "today" | "yesterday") => void;
-  onXp: () => void;
-}) {
+export default function MissionsPage() {
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [quests, setQuests] = useState<Quest[]>([]);
+  const [doneToday, setDoneToday] = useState<Set<string>>(new Set());
+  const [doneYesterday, setDoneYesterday] = useState<Set<string>>(new Set());
+  const [yesterdayQuests, setYesterdayQuests] = useState<Quest[]>([]);
+  const [days, setDays] = useState<{ today: string; yesterday: string } | null>(null);
   const [showYesterday, setShowYesterday] = useState(false);
+  const [pendingId, setPendingId] = useState<string | null>(null);
   const [xpFloat, setXpFloat] = useState<{ id: string; amount: number } | null>(null);
-  const clearedCount = quests.filter((q) => doneToday.has(q.id)).length;
+  const [rankUp, setRankUp] = useState<Rank | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  function log(q: Quest, day: "today" | "yesterday") {
-    const done = (day === "today" ? doneToday : doneYesterday).has(q.id);
-    if (!done) {
-      setXpFloat({ id: q.id, amount: q.xp });
-      setTimeout(() => setXpFloat(null), 1100);
+  const load = useCallback(async () => {
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData.user?.id;
+    if (!uid) return;
+    const [{ data: prof }, { data: uq }, { data: todayData }] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", uid).single(),
+      supabase.from("user_quests").select("quest_id, added_on, quests(*)").eq("user_id", uid).eq("active", true),
+      supabase.rpc("app_today"),
+    ]);
+    const todayStr = String(todayData);
+    const yesterdayStr = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 86400000)
+      .toISOString()
+      .slice(0, 10);
+    const { data: comps } = await supabase
+      .from("quest_completions")
+      .select("quest_id, completed_on")
+      .eq("user_id", uid)
+      .in("completed_on", [todayStr, yesterdayStr]);
+    setProfile(prof as Profile);
+    const activeRows = ((uq as unknown as UserQuestRow[]) ?? []).filter((r) => r.quests);
+    const list = activeRows.map((r) => r.quests).sort((a, b) => a.sort - b.sort);
+    setQuests(list);
+    const rows = (comps ?? []) as { quest_id: string; completed_on: string }[];
+    const yDoneIds = rows.filter((c) => c.completed_on === yesterdayStr).map((c) => c.quest_id);
+    setDoneToday(new Set(rows.filter((c) => c.completed_on === todayStr).map((c) => c.quest_id)));
+    setDoneYesterday(new Set(yDoneIds));
+    setDays({ today: todayStr, yesterday: yesterdayStr });
+
+    // Yesterday's list is fixed to what actually happened yesterday, independent
+    // of today's loadout edits: quests active before today (so a quest added
+    // today never appears) plus anything completed yesterday (so a quest you
+    // later removed still shows, checked). Editing today's loadout never
+    // rewrites yesterday.
+    const byId = new Map<string, Quest>();
+    for (const r of activeRows) {
+      if (r.added_on && r.added_on < todayStr) byId.set(r.quests.id, r.quests);
     }
-    toggle(q, day);
+    const missing = yDoneIds.filter((id) => !byId.has(id));
+    if (missing.length) {
+      const { data: extra } = await supabase.from("quests").select("*").in("id", missing);
+      for (const q of (extra as Quest[]) ?? []) byId.set(q.id, q);
+    }
+    setYesterdayQuests([...byId.values()].sort((a, b) => a.sort - b.sort));
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function toggle(q: Quest, day: "today" | "yesterday" = "today") {
+    if (pendingId || !days) return;
+    setPendingId(q.id);
+    setError(null);
+    const doneSet = day === "today" ? doneToday : doneYesterday;
+    const setDoneSet = day === "today" ? setDoneToday : setDoneYesterday;
+    const isDone = doneSet.has(q.id);
+    setDoneSet((prev) => {
+      const nextSet = new Set(prev);
+      if (isDone) nextSet.delete(q.id);
+      else nextSet.add(q.id);
+      return nextSet;
+    });
+    if (!isDone) setXpFloat({ id: q.id, amount: q.xp });
+    const { data, error: rpcError } = await supabase.rpc(
+      isDone ? "uncomplete_quest_for" : "complete_quest_for",
+      { p_quest_id: q.id, p_on: day === "today" ? days.today : days.yesterday },
+    );
+    if (rpcError) {
+      setDoneSet((prev) => {
+        const nextSet = new Set(prev);
+        if (isDone) nextSet.add(q.id);
+        else nextSet.delete(q.id);
+        return nextSet;
+      });
+      if (rpcError.message.includes("only log today") || rpcError.message.includes("only change today")) {
+        // the day rolled over while the page was open: refresh dates silently
+        load();
+      } else {
+        setError(rpcError.message);
+      }
+    } else if (data) {
+      const updated = data as Profile;
+      if (!isDone && profile) {
+        const before = rankForXp(profile.xp);
+        const after = rankForXp(updated.xp);
+        if (after.label !== before.label) {
+          setRankUp(after);
+          setTimeout(() => setRankUp(null), 2800);
+        }
+      }
+      setProfile(updated);
+    }
+    setPendingId(null);
+    setTimeout(() => setXpFloat(null), 1100);
   }
 
+  if (!profile) {
+    return <div className="hud-label pulse-glow text-center py-20">Syncing quests…</div>;
+  }
+
+  const clearedAll = quests.length > 0 && quests.every((q) => doneToday.has(q.id));
+  const clearedCount = quests.filter((q) => doneToday.has(q.id)).length;
+
   return (
-    <div>
+    <div className="slide-in">
+      {rankUp && (
+        <div className="rankup-backdrop" onClick={() => setRankUp(null)}>
+          <div className="relative flex items-center justify-center">
+            <div className="rankup-ring" />
+            <div className="rankup-ring late" />
+            <div className="rankup-badge">
+              <RankBadge tierIndex={rankUp.tierIndex} stageIndex={rankUp.stageIndex} size={120} />
+            </div>
+          </div>
+          <div className="rankup-title text-center mt-6">
+            <div className="hud-label" style={{ color: "var(--accent)" }}>Rank up</div>
+            <div className="display text-3xl mt-1" style={{ color: rankUp.color }}>
+              {rankUp.label.toUpperCase()}
+            </div>
+          </div>
+        </div>
+      )}
       {/* quests */}
       <div className="flex items-center justify-between mb-3.5">
         <h1 className="display text-[19px]">Missions</h1>
@@ -64,7 +173,7 @@ export default function MissionList({
           return (
             <button
               key={q.id}
-              onClick={() => log(q, "today")}
+              onClick={() => toggle(q)}
               disabled={pendingId === q.id}
               className="relative overflow-hidden rounded-2xl text-left transition-transform duration-150 active:scale-[0.985]"
               style={{
@@ -172,7 +281,7 @@ export default function MissionList({
                 return (
                   <button
                     key={q.id}
-                    onClick={() => log(q, "yesterday")}
+                    onClick={() => toggle(q, "yesterday")}
                     disabled={pendingId === q.id}
                     className="relative overflow-hidden rounded-2xl text-left transition-transform duration-150 active:scale-[0.985]"
                     style={{
@@ -247,7 +356,17 @@ export default function MissionList({
       )}
 
       {/* what the connected services counted, so the tracking is visible */}
-      <AppActivity onXp={onXp} />
+      <AppActivity onXp={load} />
+
+      {clearedAll && (
+        <div className="hud-frame p-5 mt-6 text-center rise">
+          <div className="flex justify-center bounce-in" style={{ color: "var(--accent)" }}>
+            <Icon name="trophy" size={26} strokeWidth={1.8} />
+          </div>
+          <p className="display mt-2 text-[17px]">All quests cleared</p>
+          <p className="hud-label mt-1.5">The streak holds · see you tomorrow</p>
+        </div>
+      )}
     </div>
   );
 }

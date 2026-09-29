@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { SOURCES } from "@/lib/collect"; // shared with the loot tray
 import Icon, { GoogleHealthMark, GoogleMark, WhoopMark } from "@/components/Icon";
 
 // What the connected services (Google Tasks/Calendar, Google Health, WHOOP)
@@ -36,6 +35,17 @@ type AgendaEvent = {
 type AgendaTask = { id: string; listId: string; title: string; due: string | null };
 type Provider = "google" | "ghealth" | "whoop";
 type Tab = Provider | "earned";
+
+const SOURCES: Record<string, { icon: string; label: string }> = {
+  google_tasks: { icon: "tasks", label: "Task done" },
+  google_calendar: { icon: "calendar", label: "Meeting" },
+  whoop_sleep: { icon: "moon", label: "Sleep" },
+  whoop_recovery: { icon: "stat-con", label: "Recovery" },
+  whoop_workout: { icon: "dumbbell", label: "Workout" },
+  health_workout: { icon: "dumbbell", label: "Workout" },
+  health_sleep: { icon: "moon", label: "Sleep" },
+  health_steps: { icon: "stat-str", label: "Steps" },
+};
 
 const TABS: { key: Tab; label: string; mark?: React.ReactNode }[] = [
   { key: "google", label: "Google", mark: <GoogleMark size={14} /> },
