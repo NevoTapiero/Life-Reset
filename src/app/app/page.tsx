@@ -8,6 +8,9 @@ import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
 import Room from "@/components/Room";
 import MissionList from "@/components/MissionList";
+import SidePanel from "@/components/SidePanel";
+import LootTray from "@/components/LootTray";
+import Needs from "@/components/Needs";
 import XpMeter from "@/components/XpMeter";
 import { CHARACTERS, CHARACTER_KEYS, CharacterKey, Profile, Quest, characterOf, nextStreakMilestone, rankForXp } from "@/lib/game";
 import { NEED_LABEL, actionFor, appHour, computeNeeds, idleFor, type Spot, type StatKeyNeed } from "@/lib/needs";
@@ -20,7 +23,7 @@ export default function Dashboard() {
   const [pending, setPending] = useState<Pending[]>([]); // earned while away, not yet tapped
   const router = useRouter();
   const [view, setView] = useState<"house" | "town">("house"); // one world screen: inside, or out in the town
-  const [missionsOpen, setMissionsOpen] = useState(false); // the quest log slides in from the right
+  const [panel, setPanel] = useState<null | "missions" | "me" | "loot">(null); // the tabs over the world
   const [townRows, setTownRows] = useState<TownRow[]>([]);
   const [visiting, setVisiting] = useState<TownHouse | null>(null);
   const { profile, setProfile, quests, doneToday, doneYesterday, yesterdayQuests, pendingId, rankUp, setRankUp, error, setError, load, toggle } = useQuestDay((uid) => {
@@ -173,10 +176,19 @@ export default function Dashboard() {
               <Icon name={view === "house" ? "users" : "flame"} size={14} strokeWidth={2.2} />
               {view === "house" ? "Town" : "Home"}
             </button>
-            <button className="world-btn" onClick={() => setMissionsOpen(true)}>
+            <button className="world-btn" onClick={() => setPanel("missions")}>
               <Icon name="tasks" size={14} strokeWidth={2.2} />
               Missions
-              {quests.length > 0 && <span className="world-count">{quests.filter((q) => !doneToday.has(q.id)).length}</span>}
+              {quests.some((q) => !doneToday.has(q.id)) && <span className="world-count">{quests.filter((q) => !doneToday.has(q.id)).length}</span>}
+            </button>
+            <button className="world-btn" onClick={() => setPanel("me")}>
+              <Icon name="user" size={14} strokeWidth={2.2} />
+              Me
+            </button>
+            <button className={`world-btn ${pending.length ? "pulse-glow" : ""}`} onClick={() => setPanel("loot")} style={pending.length ? { color: "var(--gold)", borderColor: "var(--gold)" } : undefined}>
+              <Icon name="sparkle" size={14} strokeWidth={2.2} />
+              Loot
+              {pending.length > 0 && <span className="world-count" style={{ background: "var(--gold)" }}>{pending.length}</span>}
             </button>
           </>
         }
@@ -191,39 +203,102 @@ export default function Dashboard() {
         }
         busy={!!acting || !!sessionQuest}
         boost={boost}
-        pending={pending}
-        onCollect={collect}
-        onCollectAll={collectAll}
         available={available}
         onTapSpot={tapSpot}
       />
 
       {error && <p className="text-danger text-sm mt-3">{error}</p>}
 
-      {/* missions: a panel over the world, not another page */}
-      {missionsOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end" onClick={() => setMissionsOpen(false)}>
-          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)" }} />
-          <aside
-            className="relative h-full w-[88%] max-w-sm overflow-y-auto px-4 pt-5 pb-28 world-panel"
-            style={{ background: "var(--bg)", borderLeft: "1px solid var(--line-strong)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button className="absolute right-4 top-4 icon-tile !w-9 !h-9 !rounded-[10px]" aria-label="Close missions" onClick={() => setMissionsOpen(false)}>
-              <Icon name="x" size={16} />
-            </button>
-            <MissionList
-              quests={quests}
-              doneToday={doneToday}
-              doneYesterday={doneYesterday}
-              yesterdayQuests={yesterdayQuests}
-              pendingId={pendingId}
-              error={error}
-              toggle={(q, day) => (day === "today" ? logQuest(q) : toggle(q, "yesterday"))}
-              onXp={load}
-            />
-          </aside>
+      {panel === "missions" && (
+        <SidePanel title="Missions" onClose={() => setPanel(null)}>
+          <MissionList
+            quests={quests}
+            doneToday={doneToday}
+            doneYesterday={doneYesterday}
+            yesterdayQuests={yesterdayQuests}
+            pendingId={pendingId}
+            error={error}
+            toggle={(q, day) => (day === "today" ? logQuest(q) : toggle(q, "yesterday"))}
+            onXp={load}
+          />
+        </SidePanel>
+      )}
+      {panel === "me" && (
+        <SidePanel title="Me" onClose={() => setPanel(null)}>
+          <div className="flex flex-col gap-3">
+      <div className="bezel">
+        <div className="bezel-core p-4">
+          <div className="flex items-center gap-3">
+            <Avatar size={64} character={profile.archetype} />
+            <div className="flex-1 min-w-0">
+              <div className="display text-[17px] leading-tight truncate">{profile.username}</div>
+              <div className="mt-1.5">
+                <span className="class-pill" style={{ color: character ? character.accent : "var(--accent)" }}>
+                  {character ? character.name.replace("The ", "") : "Pick one"}
+                </span>
+                <span className="class-pill ml-2" style={{ color: "var(--gold)" }}>
+                  {shownGold.toLocaleString()} gold
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col items-center flex-none">
+              <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={50} />
+              <span className="hud-label mt-1 whitespace-nowrap" style={{ color: rank.color }}>
+                {rank.label}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <XpMeter rank={rank} xp={shownXp} />
+
+            <div className="mt-4">
+              <div className="flex justify-between items-baseline mb-1.5">
+                <span className="hud-label">Streak · days</span>
+                <span className="whitespace-nowrap leading-none">
+                  <span className="display text-[16px]" style={{ color: "var(--accent)" }}>
+                    {profile.streak_current}
+                  </span>
+                  <span className="hud-label !text-[10px]">/{milestone}</span>
+                </span>
+              </div>
+              {milestone <= 50 ? (
+                // one tick per day toward the next milestone
+                <div className="flex gap-[3px] h-[11px]">
+                  {Array.from({ length: milestone }).map((_, i) => {
+                    const on = i < Math.min(profile.streak_current, milestone);
+                    return (
+                      <span
+                        key={i}
+                        className="flex-1 rounded-[2.5px]"
+                        style={
+                          on
+                            ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", boxShadow: "0 0 8px rgb(var(--accent-rgb) / 0.5)" }
+                            : { background: "#232327" }
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="bar-seg !h-[11px]">
+                  <i style={{ width: `${streakPct * 100}%`, background: "linear-gradient(90deg, var(--bronze), var(--accent))" }} />
+                  <b />
+                </div>
+              )}
+            </div>
+          </div>
         </div>
+      </div>
+
+            <Needs needs={needs} />
+          </div>
+        </SidePanel>
+      )}
+      {panel === "loot" && (
+        <SidePanel title="Loot" onClose={() => setPanel(null)}>
+          <LootTray pending={pending} onCollect={collect} onCollectAll={collectAll} />
+        </SidePanel>
       )}
 
       {visiting && (
@@ -307,72 +382,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-
-      {/* hero: hunter card */}
-      <div className="bezel mt-4">
-        <div className="bezel-core p-4">
-          <div className="flex items-center gap-3">
-            <Avatar size={64} character={profile.archetype} />
-            <div className="flex-1 min-w-0">
-              <div className="display text-[17px] leading-tight truncate">{profile.username}</div>
-              <div className="mt-1.5">
-                <span className="class-pill" style={{ color: character ? character.accent : "var(--accent)" }}>
-                  {character ? character.name.replace("The ", "") : "Pick one"}
-                </span>
-                <span className="class-pill ml-2" style={{ color: "var(--gold)" }}>
-                  {shownGold.toLocaleString()} gold
-                </span>
-              </div>
-            </div>
-            <button type="button" onClick={() => setMissionsOpen(true)} className="flex flex-col items-center flex-none active:scale-95 transition-transform" aria-label="Missions">
-              <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={50} />
-              <span className="hud-label mt-1 whitespace-nowrap" style={{ color: rank.color }}>
-                {rank.label}
-              </span>
-            </button>
-          </div>
-
-          <div className="mt-4">
-            <XpMeter rank={rank} xp={shownXp} />
-
-            <div className="mt-4">
-              <div className="flex justify-between items-baseline mb-1.5">
-                <span className="hud-label">Streak · days</span>
-                <span className="whitespace-nowrap leading-none">
-                  <span className="display text-[16px]" style={{ color: "var(--accent)" }}>
-                    {profile.streak_current}
-                  </span>
-                  <span className="hud-label !text-[10px]">/{milestone}</span>
-                </span>
-              </div>
-              {milestone <= 50 ? (
-                // one tick per day toward the next milestone
-                <div className="flex gap-[3px] h-[11px]">
-                  {Array.from({ length: milestone }).map((_, i) => {
-                    const on = i < Math.min(profile.streak_current, milestone);
-                    return (
-                      <span
-                        key={i}
-                        className="flex-1 rounded-[2.5px]"
-                        style={
-                          on
-                            ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", boxShadow: "0 0 8px rgb(var(--accent-rgb) / 0.5)" }
-                            : { background: "#232327" }
-                        }
-                      />
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="bar-seg !h-[11px]">
-                  <i style={{ width: `${streakPct * 100}%`, background: "linear-gradient(90deg, var(--bronze), var(--accent))" }} />
-                  <b />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* first run: choose your character */}
       {!profile.archetype && (
