@@ -17,6 +17,25 @@ function Model({ url, cheer, accent }: { url: string; cheer: number; accent: str
   const group = useRef<THREE.Group>(null);
   const { scene, animations } = useGLTF(url, DRACO);
   const { actions, mixer } = useAnimations(animations, group);
+  // Generated (Meshy) models ship their colour texture as a full-strength glow
+  // (emissive 1) with 2x specular: faces blow out white and cloth looks wet.
+  // Lit by the scene instead, and matte.
+  useMemo(() => {
+    scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.MeshPhysicalMaterial | undefined;
+      if (!m || !("roughness" in m)) return;
+      m.emissiveMap = null;
+      m.emissive?.setRGB(0, 0, 0);
+      m.roughness = Math.max(m.roughness ?? 0, 0.82);
+      m.metalness = 0;
+      if ("specularIntensity" in m) {
+        m.specularIntensity = 0.3;
+        m.specularColor?.setRGB(1, 1, 1);
+      }
+      m.needsUpdate = true;
+    });
+  }, [scene]);
+
   // scale to a fixed height, centred on the origin: feet at -H/2, head at +H/2
   const fit = useMemo(() => {
     const box = new THREE.Box3().setFromObject(scene);
@@ -25,17 +44,23 @@ function Model({ url, cheer, accent }: { url: string; cheer: number; accent: str
     return { scale, y: -box.min.y * scale - HEIGHT / 2 };
   }, [scene]);
 
-  // idle forever; a tap plays Cheer once and returns to idle
+  // the idle clip: named Idle when there is one, otherwise whatever the model ships with first
+  const idleName = useMemo(
+    () => (animations.find((a) => /idle/i.test(a.name)) ?? animations[0])?.name,
+    [animations],
+  );
+
+  // idle forever; a tap plays Cheer once (if the model has one) and returns to idle
   useEffect(() => {
-    const idle = actions.Idle ?? actions.Unarmed_Idle;
+    const idle = idleName ? actions[idleName] : undefined;
     idle?.reset().fadeIn(0.2).play();
     return () => {
       idle?.fadeOut(0.2);
     };
-  }, [actions]);
+  }, [actions, idleName]);
   useEffect(() => {
     if (!cheer) return;
-    const idle = actions.Idle ?? actions.Unarmed_Idle;
+    const idle = idleName ? actions[idleName] : undefined;
     const c = actions.Cheer;
     if (!c || !idle) return;
     c.reset().setLoop(THREE.LoopOnce, 1).clampWhenFinished = true;
@@ -47,7 +72,7 @@ function Model({ url, cheer, accent }: { url: string; cheer: number; accent: str
     };
     mixer.addEventListener("finished", back);
     return () => mixer.removeEventListener("finished", back);
-  }, [cheer, actions, mixer]);
+  }, [cheer, actions, mixer, idleName]);
 
   // a slow sway so he never looks frozen
   useFrame(({ clock }) => {
@@ -70,10 +95,10 @@ export default function Character3D({ character, accent, className }: { characte
   const [cheer, setCheer] = useState(0);
   return (
     <div className={className} onPointerDown={() => setCheer((n) => n + 1)} role="img" aria-label="Your character">
-      <Canvas dpr={[1, 2]} camera={{ position: [0, 0.15, 4.3], fov: 30 }} gl={{ alpha: true, antialias: true }} style={{ background: "transparent" }}>
-        <ambientLight intensity={0.9} />
-        <directionalLight position={[2, 4, 3]} intensity={2.2} />
-        <directionalLight position={[-3, 2, -2]} intensity={0.6} />
+      <Canvas dpr={[1, 2]} camera={{ position: [0, 0.05, 4.6], fov: 30 }} gl={{ alpha: true, antialias: true }} style={{ background: "transparent" }}>
+        <hemisphereLight args={["#fff4ea", "#2a2320", 1.4]} />
+        <directionalLight position={[1.5, 3, 3]} intensity={2.2} />
+        <directionalLight position={[-3, 2, -2]} intensity={0.5} />
         <Suspense fallback={null}>
           <group>
             <Model url={url} cheer={cheer} accent={accent} />

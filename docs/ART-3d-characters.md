@@ -45,3 +45,17 @@ head to feet, nothing held that crosses the body.
 Gear is separate small objects pinned to bones in code (sword, shield,
 helmet, crown). One generation each, reused across characters. Full new
 bodies only for the top tier.
+
+## Made so far (Higgsfield job ids, reuse them as references)
+
+| what | job id |
+|---|---|
+| Warrior concept, **Champion** look (long coat, armor, aura) | `7c2cff29-5ca3-4745-b70f-22e7505fcb7b` |
+| Warrior concept, **base** look (plain hoodie), referenced from the Champion | `bb5c71c8-8a3e-405f-90ab-b4115eb7ed14` |
+| Warrior **3D base** (Meshy image-to-3D, textured, rigged, idle; 38 credits) | `30565119-73db-42f5-b6fc-f75fab32f61e` |
+
+Every new tier or gear image should pass the base concept as `image_references`
+so the face and hair stay the same person.
+
+Meshy GLBs ship the colour texture as a full-strength emissive plus 2x
+specular; `Character3D` switches both off at load, so new files need no fixing.
