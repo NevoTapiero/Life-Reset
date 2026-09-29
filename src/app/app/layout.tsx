@@ -8,10 +8,10 @@ import { applyCharacterTheme } from "@/lib/theme";
 import Icon from "@/components/Icon";
 
 const TABS = [
-  { href: "/app", label: "Today", icon: "tasks" },
-  { href: "/app/quests", label: "Armory", icon: "sliders" },
-  { href: "/app/stats", label: "Record", icon: "chart" },
+  { href: "/app", label: "Home", icon: "flame" },
+  { href: "/app/missions", label: "Missions", icon: "tasks" },
   { href: "/app/town", label: "Town", icon: "users" },
+  { href: "/app/stats", label: "Record", icon: "chart" },
   { href: "/app/profile", label: "Profile", icon: "user" },
 ];
 
