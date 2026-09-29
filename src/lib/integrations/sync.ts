@@ -1,6 +1,6 @@
-import { getIntegration, touchSync, awardXp, paidRefs } from "./server";
+import { getIntegration, touchSync, awardXp, paidRefs, paidMeta, rescoreXp } from "./server";
 import { freshAccessToken as googleToken, completedTasksSince, judge, localDayRange, GTask, GEvent } from "./google";
-import { recentExercise, recentSleep as healthSleep, dailySteps, exerciseMinutes, pointId } from "./health";
+import { recentExercise, recentSleep as healthSleep, dailySteps, exerciseMinutes, pointId, workoutXp } from "./health";
 import {
   freshAccessToken as whoopToken,
   recentSleep,
@@ -12,11 +12,12 @@ import {
 // Budgets are deliberately small: each sync must finish well inside the
 // serverless time limit, or nothing gets recorded at all.
 
-// Google items are real-life chores, not habits: they pay half of what the
-// Judge's 1-50 effort score says, on top of a small flat base.
-const TASK_BASE = 3;
-const EVENT_BASE = 2;
-const JUDGE_SHARE = 0.5;
+// Google items are real-life chores, not habits: they pay a fifth of the
+// Judge's 1-50 effort score on top of a small flat base. (30.9: every outside
+// source moved to the same 0.4 rate as quests, so consistency is what scores.)
+const TASK_BASE = 1;
+const EVENT_BASE = 1;
+const JUDGE_SHARE = 0.2;
 const MAX_PER_KIND = 6;
 
 // Nothing from before the day a service was connected ever counts: the day
@@ -97,9 +98,10 @@ export async function syncGoogle(uid: string): Promise<GoogleSync> {
 }
 
 // --- Google Health --------------------------------------------------------
-// Workouts pay by active minutes, sleep by hours actually asleep, and steps by
-// the thousand, but only for finished days so a half-walked day is not locked
-// in at breakfast.
+// Workouts pay by how hard they were (heart-rate zones, else Active Zone
+// Minutes, else calories), sleep by hours actually asleep, and steps by the
+// thousand, but only for finished days so a half-walked day is not locked in at
+// breakfast.
 
 export type HealthSync = { connected: boolean; newItems: number; xpGained: number; error?: string };
 
@@ -120,10 +122,11 @@ export async function syncHealth(uid: string): Promise<HealthSync> {
   // steps are whole days: count from the day of connection, finished days only
   const firstDay = ymd(from);
 
-  const [workouts, sleeps, steps] = await Promise.all([
+  const [workouts, sleeps, steps, paidWorkouts] = await Promise.all([
     recentExercise(token, since),
     healthSleep(token, since), // sessions that ended after connecting
     firstDay < today ? dailySteps(token, firstDay, today) : Promise.resolve([]), // end exclusive: today left out
+    paidMeta(uid, "health_workout"),
   ]);
 
   let xpGained = 0;
@@ -140,19 +143,34 @@ export async function syncHealth(uid: string): Promise<HealthSync> {
     const minutes = exerciseMinutes(w);
     if (minutes < 10) continue; // a walk to the car is not a workout
     const label = w.exercise?.displayName || prettyType(w.exercise?.exerciseType) || "Workout";
-    await grant("health_workout", `workout:${pointId(w.name)}`, Math.min(40, Math.round(minutes * 0.6)), `${label} · ${minutes} min`);
+    const ref = `workout:${pointId(w.name)}`;
+    const { xp, basis } = workoutXp(w);
+    const reason = `${label} · ${minutes} min · ${basis}`;
+    const meta = { scoring: "intensity-v2", basis };
+    const paidBefore = paidWorkouts.get(ref);
+    if (paidBefore && paidBefore.scoring !== "intensity-v2") {
+      // paid under the old minutes-only rule: re-price it by intensity once
+      const delta = await rescoreXp(uid, "health_workout", ref, xp, reason, meta);
+      xpGained += delta;
+      continue;
+    }
+    if (paidBefore) continue;
+    if (xp > 0 && (await awardXp(uid, "health_workout", ref, xp, reason, meta))) {
+      xpGained += xp;
+      newItems++;
+    }
   }
   for (const s of sleeps) {
     const asleep = Number(s.sleep?.summary?.minutesAsleep ?? 0);
     if (asleep < 180) continue; // naps and broken nights earn nothing
     const hours = asleep / 60;
     // 7 to 9 hours is the target band; outside it pays less
-    const xp = hours >= 7 && hours <= 9 ? 15 : hours >= 6 ? 10 : 5;
+    const xp = hours >= 7 && hours <= 9 ? 6 : hours >= 6 ? 4 : 2;
     await grant("health_sleep", `sleep:${pointId(s.name)}`, xp, `Slept ${hours.toFixed(1)} h`);
   }
   for (const d of steps) {
     if (d.date < firstDay || d.date >= today || d.steps < 3000) continue;
-    await grant("health_steps", `steps:${d.date}`, Math.min(25, Math.floor(d.steps / 1000)), `${d.steps.toLocaleString("en-US")} steps`);
+    await grant("health_steps", `steps:${d.date}`, Math.min(10, Math.round(d.steps / 2500)), `${d.steps.toLocaleString("en-US")} steps`);
   }
 
   await touchSync(uid, "ghealth");
@@ -194,15 +212,15 @@ export async function syncWhoop(uid: string): Promise<WhoopSync> {
 
   for (const s of sleeps) {
     if (s.nap || s.score_state !== "SCORED") continue;
-    await grant("whoop_sleep", `sleep:${s.id}`, Math.round((s.score?.sleep_performance_percentage ?? 0) / 5), "Sleep");
+    await grant("whoop_sleep", `sleep:${s.id}`, Math.round((s.score?.sleep_performance_percentage ?? 0) / 12.5), "Sleep");
   }
   for (const r of recoveries) {
     if (r.score_state !== "SCORED") continue;
-    await grant("whoop_recovery", `recovery:${r.cycle_id}`, Math.round((r.score?.recovery_score ?? 0) / 5), "Recovery");
+    await grant("whoop_recovery", `recovery:${r.cycle_id}`, Math.round((r.score?.recovery_score ?? 0) / 12.5), "Recovery");
   }
   for (const w of workouts) {
     if (w.score_state !== "SCORED") continue;
-    await grant("whoop_workout", `workout:${w.id}`, Math.round((w.score?.strain ?? 0) * 2), w.sport_name ?? "Workout");
+    await grant("whoop_workout", `workout:${w.id}`, Math.round((w.score?.strain ?? 0) * 0.8), w.sport_name ?? "Workout");
   }
 
   await touchSync(uid, "whoop");

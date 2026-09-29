@@ -15,9 +15,40 @@ export type HealthExercise = {
     exerciseType?: string;
     displayName?: string;
     activeDuration?: string; // e.g. "2710s"
-    metricsSummary?: { caloriesKcal?: number; distanceMillimeters?: number; activeZoneMinutes?: string };
+    metricsSummary?: {
+      caloriesKcal?: number;
+      distanceMillimeters?: number;
+      activeZoneMinutes?: string; // int64 as string
+      averageHeartRateBeatsPerMinute?: string; // int64 as string
+      heartRateZoneDurations?: { lightTime?: string; moderateTime?: string; vigorousTime?: string; peakTime?: string };
+    };
   };
 };
+
+// How hard a workout was, from the richest signal the watch recorded:
+// minutes in each heart-rate zone, else Active Zone Minutes, else calories,
+// else plain duration. Returns the XP (already at the 0.4 rate) and how it was
+// measured, so a hard 30-minute run outscores a relaxed hour in the gym.
+export function workoutXp(w: HealthExercise): { xp: number; basis: string } {
+  const m = w.exercise?.metricsSummary;
+  const z = m?.heartRateZoneDurations;
+  const zone = {
+    light: durationMinutes(z?.lightTime),
+    moderate: durationMinutes(z?.moderateTime),
+    vigorous: durationMinutes(z?.vigorousTime),
+    peak: durationMinutes(z?.peakTime),
+  };
+  const cap = (x: number) => Math.max(0, Math.min(30, Math.round(x)));
+  if (zone.light + zone.moderate + zone.vigorous + zone.peak > 0) {
+    const xp = zone.light * 0.1 + zone.moderate * 0.3 + zone.vigorous * 0.6 + zone.peak * 0.9;
+    return { xp: cap(xp), basis: `heart zones ${zone.moderate}/${zone.vigorous}/${zone.peak} min` };
+  }
+  const azm = Number(m?.activeZoneMinutes ?? 0);
+  if (azm > 0) return { xp: cap(azm * 0.3), basis: `${azm} active zone min` };
+  const kcal = Number(m?.caloriesKcal ?? 0);
+  if (kcal > 0) return { xp: cap(kcal / 25), basis: `${Math.round(kcal)} kcal` };
+  return { xp: cap(exerciseMinutes(w) * 0.15), basis: "duration only" };
+}
 
 export type HealthSleep = {
   name: string;

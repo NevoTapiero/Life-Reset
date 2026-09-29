@@ -12,10 +12,13 @@ import {
   CHARACTERS,
   CHARACTER_KEYS,
   CharacterKey,
+  CARD_DAYS,
   PILLAR_ICONS,
   Profile,
   Quest,
   Rank,
+  cardDayOn,
+  cardXp,
   characterOf,
   nextStreakMilestone,
   questArt,
@@ -24,11 +27,41 @@ import {
 
 type UserQuestRow = { quest_id: string; added_on: string; quests: Quest };
 
+// Seven pips: the quest's 7-day card. Filled = days already banked in this
+// card; the ringed pip is the day this check counts as; the last one pays x3.
+function CardPips({ day, done }: { day: number; done: boolean }) {
+  return (
+    <span className="flex items-center gap-[3px] mt-1.5" aria-label={`Day ${day} of ${CARD_DAYS}`}>
+      {Array.from({ length: CARD_DAYS }, (_, i) => {
+        const n = i + 1;
+        const filled = n < day || (n === day && done);
+        const current = n === day && !done;
+        const last = n === CARD_DAYS;
+        return (
+          <span
+            key={n}
+            className="rounded-full"
+            style={{
+              width: last ? 9 : 6,
+              height: last ? 9 : 6,
+              background: filled ? "var(--accent)" : "rgba(0,0,0,0.35)",
+              border: current ? "1.5px solid var(--accent)" : "1px solid rgba(255,255,255,0.35)",
+              boxShadow: filled && last ? "0 0 8px rgb(var(--accent-rgb) / 0.8)" : "none",
+            }}
+          />
+        );
+      })}
+    </span>
+  );
+}
+
 export default function Dashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [quests, setQuests] = useState<Quest[]>([]);
   const [doneToday, setDoneToday] = useState<Set<string>>(new Set());
   const [doneYesterday, setDoneYesterday] = useState<Set<string>>(new Set());
+  // quest id -> every day it was done (last 90 days), for the 7-day cards
+  const [history, setHistory] = useState<Map<string, Set<string>>>(new Map());
   const [yesterdayQuests, setYesterdayQuests] = useState<Quest[]>([]);
   const [days, setDays] = useState<{ today: string; yesterday: string } | null>(null);
   const [showYesterday, setShowYesterday] = useState(false);
@@ -50,16 +83,23 @@ export default function Dashboard() {
     const yesterdayStr = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 86400000)
       .toISOString()
       .slice(0, 10);
+    const since = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 90 * 86400000).toISOString().slice(0, 10);
     const { data: comps } = await supabase
       .from("quest_completions")
       .select("quest_id, completed_on")
       .eq("user_id", uid)
-      .in("completed_on", [todayStr, yesterdayStr]);
+      .gte("completed_on", since);
     setProfile(prof as Profile);
     const activeRows = ((uq as unknown as UserQuestRow[]) ?? []).filter((r) => r.quests);
     const list = activeRows.map((r) => r.quests).sort((a, b) => a.sort - b.sort);
     setQuests(list);
     const rows = (comps ?? []) as { quest_id: string; completed_on: string }[];
+    const hist = new Map<string, Set<string>>();
+    for (const c of rows) {
+      if (!hist.has(c.quest_id)) hist.set(c.quest_id, new Set());
+      hist.get(c.quest_id)!.add(c.completed_on);
+    }
+    setHistory(hist);
     const yDoneIds = rows.filter((c) => c.completed_on === yesterdayStr).map((c) => c.quest_id);
     setDoneToday(new Set(rows.filter((c) => c.completed_on === todayStr).map((c) => c.quest_id)));
     setDoneYesterday(new Set(yDoneIds));
@@ -99,7 +139,8 @@ export default function Dashboard() {
       else nextSet.add(q.id);
       return nextSet;
     });
-    if (!isDone) setXpFloat({ id: q.id, amount: q.xp });
+    const on = day === "today" ? days.today : days.yesterday;
+    if (!isDone) setXpFloat({ id: q.id, amount: cardXp(q.xp, cardDayOn(history.get(q.id) ?? new Set(), on)) });
     const { data, error: rpcError } = await supabase.rpc(
       isDone ? "uncomplete_quest_for" : "complete_quest_for",
       { p_quest_id: q.id, p_on: day === "today" ? days.today : days.yesterday },
@@ -118,6 +159,14 @@ export default function Dashboard() {
         setError(rpcError.message);
       }
     } else if (data) {
+      setHistory((prev) => {
+        const next = new Map(prev);
+        const dates = new Set(next.get(q.id) ?? []);
+        if (isDone) dates.delete(on);
+        else dates.add(on);
+        next.set(q.id, dates);
+        return next;
+      });
       const updated = data as Profile;
       if (!isDone && profile) {
         const before = rankForXp(profile.xp);
@@ -270,6 +319,7 @@ export default function Dashboard() {
       <div className="flex flex-col gap-3 stagger">
         {quests.map((q) => {
           const done = doneToday.has(q.id);
+          const cardDay = days ? cardDayOn(history.get(q.id) ?? new Set(), days.today) : 1;
           return (
             <button
               key={q.id}
@@ -317,8 +367,9 @@ export default function Dashboard() {
                     {q.title}
                   </span>
                   <span className="hud-label mt-1.5 !text-[10px]" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>
-                    {q.pillar} · +{q.xp} XP
+                    {q.pillar} · Day {cardDay}/{CARD_DAYS} · +{cardXp(q.xp, cardDay)} XP
                   </span>
+                  <CardPips day={cardDay} done={done} />
                 </span>
                 <span
                   key={done ? "done" : "todo"}
@@ -426,7 +477,7 @@ export default function Dashboard() {
                           {q.title}
                         </span>
                         <span className="hud-label mt-1 !text-[10px]" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>
-                          Yesterday · +{q.xp} XP
+                          Yesterday · +{cardXp(q.xp, days ? cardDayOn(history.get(q.id) ?? new Set(), days.yesterday) : 1)} XP
                         </span>
                       </span>
                       <span

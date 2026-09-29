@@ -477,6 +477,66 @@ begin
   where id = p_uid;
 end $$;
 
+-- ============ v7: 7-day cards (see migrations/2026-09-30-streak-cards.sql) ============
+-- ---------- the card payout ----------
+create or replace function public.card_xp(p_rated int, p_day int)
+returns int language sql immutable set search_path = public as $$
+  select greatest(1, round(
+           greatest(1, round(p_rated * 0.4))
+           * (array[1, 1.2, 1.4, 1.6, 1.8, 2, 3]::numeric[])[least(7, greatest(1, p_day))]
+         ))::int
+$$;
+
+-- ---------- rebuild one player's XP from history ----------
+-- Quest payouts come from each quest's card; the streak bonus rows are synced to
+-- exactly the days that earn one; the total is completions + ledger. Called on
+-- every check / uncheck, so logging yesterday late re-prices today correctly.
+create or replace function public.recalc_player(p_uid uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  with c as (
+    select qc.id, qc.quest_id, qc.completed_on, q.xp as rated,
+           qc.completed_on - (row_number() over (partition by qc.quest_id order by qc.completed_on))::int as grp
+    from public.quest_completions qc
+    join public.quests q on q.id = qc.quest_id
+    where qc.user_id = p_uid
+  ), r as (
+    select id, rated, row_number() over (partition by quest_id, grp order by completed_on) as run from c
+  )
+  update public.quest_completions qc
+     set xp_awarded = public.card_xp(r.rated, (((r.run - 1) % 7) + 1)::int)
+    from r
+   where qc.id = r.id
+     and qc.xp_awarded is distinct from public.card_xp(r.rated, (((r.run - 1) % 7) + 1)::int);
+
+  create temp table if not exists _streak_due (ref text primary key) on commit drop;
+  delete from _streak_due;
+  insert into _streak_due (ref)
+  select 'streak7:' || completed_on::text
+  from (
+    select completed_on, row_number() over (partition by grp order by completed_on) as n
+    from (
+      select completed_on, completed_on - (row_number() over (order by completed_on))::int as grp
+      from (select distinct completed_on from public.quest_completions where user_id = p_uid) d
+    ) g
+  ) runs
+  where n % 7 = 0;
+
+  delete from public.xp_ledger l
+   where l.user_id = p_uid and l.source = 'streak_bonus'
+     and not exists (select 1 from _streak_due s where s.ref = l.ref);
+  insert into public.xp_ledger (user_id, source, ref, xp, reason)
+  select p_uid, 'streak_bonus', s.ref, 20, '7-day streak bonus' from _streak_due s
+  on conflict (user_id, source, ref) do nothing;
+
+  update public.profiles
+     set xp = coalesce((select sum(xp_awarded) from public.quest_completions where user_id = p_uid), 0)
+            + coalesce((select sum(xp) from public.xp_ledger where user_id = p_uid), 0)
+   where id = p_uid;
+end $$;
+revoke all on function public.recalc_player(uuid) from public, anon, authenticated;
+grant execute on function public.recalc_player(uuid) to service_role;
+
 create or replace function public.complete_quest_for(p_quest_id text, p_on date)
 returns jsonb
 language plpgsql security definer set search_path = public
@@ -502,7 +562,7 @@ begin
 
   begin
     insert into public.quest_completions (user_id, quest_id, completed_on, xp_awarded)
-    values (uid, p_quest_id, p_on, q.xp);
+    values (uid, p_quest_id, p_on, 0);   -- priced by recalc_player below
     inserted := true;
   exception when unique_violation then
     inserted := false;
@@ -514,8 +574,9 @@ begin
     foreach st in array q.stats loop
       new_stats := jsonb_set(new_stats, array[st], to_jsonb(coalesce((new_stats->>st)::int, 0) + 2));
     end loop;
-    update public.profiles set xp = pr.xp + q.xp, stats = new_stats where id = uid;
+    update public.profiles set stats = new_stats where id = uid;
     perform public.recount_streak(uid);
+    perform public.recalc_player(uid);
   end if;
 
   return (select to_jsonb(pr2) from public.profiles pr2 where pr2.id = uid);
@@ -551,8 +612,9 @@ begin
     foreach st in array q.stats loop
       new_stats := jsonb_set(new_stats, array[st], to_jsonb(greatest(0, coalesce((new_stats->>st)::int, 0) - 2)));
     end loop;
-    update public.profiles set xp = greatest(0, pr.xp - removed.xp_awarded), stats = new_stats where id = uid;
+    update public.profiles set stats = new_stats where id = uid;
     perform public.recount_streak(uid);
+    perform public.recalc_player(uid);
   end if;
 
   return (select to_jsonb(pr2) from public.profiles pr2 where pr2.id = uid);
@@ -776,3 +838,23 @@ end
 $fn$;
 revoke all on function public.revoke_external_xp(uuid,text,text) from public, anon, authenticated;
 grant execute on function public.revoke_external_xp(uuid,text,text) to service_role;
+
+-- ---------- re-price an already paid outside item (server only) ----------
+-- Used when a workout is re-scored by intensity (heart rate zones / calories).
+create or replace function public.rescore_external_xp(p_user uuid, p_source text, p_ref text, p_xp int, p_reason text, p_meta jsonb)
+returns int language plpgsql security definer set search_path = public as $fn$
+declare
+  old_xp int;
+  amt int := greatest(0, least(coalesce(p_xp, 0), 200));
+begin
+  select xp into old_xp from public.xp_ledger where user_id = p_user and source = p_source and ref = p_ref for update;
+  if not found then return 0; end if;
+  update public.xp_ledger
+     set xp = amt, reason = coalesce(p_reason, reason), meta = meta || coalesce(p_meta, '{}'::jsonb)
+   where user_id = p_user and source = p_source and ref = p_ref;
+  update public.profiles set xp = greatest(0, xp + amt - old_xp) where id = p_user;
+  return amt - old_xp;
+end
+$fn$;
+revoke all on function public.rescore_external_xp(uuid, text, text, int, text, jsonb) from public, anon, authenticated;
+grant execute on function public.rescore_external_xp(uuid, text, text, int, text, jsonb) to service_role;
