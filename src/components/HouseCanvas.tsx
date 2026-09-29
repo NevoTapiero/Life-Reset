@@ -2,11 +2,9 @@
 
 import { useEffect, useRef } from "react";
 
-// Pixel art only looks right at a whole-number scale: the game renders at
-// 1/3 of the box and the canvas is shown at exactly 3x, so a 16px tile is a
-// crisp 48px square and a character stands ~48px tall on a phone.
-const ZOOM = 3;
-import type { HouseState, HouseScene } from "@/game/HouseScene";
+// The isometric home. Rendered art, so it scales like a photo: no zoom tricks.
+import type { HouseState } from "@/game/HouseScene";
+import type { IsoScene } from "@/game/IsoScene";
 import type { Spot } from "@/lib/needs";
 
 // Mounts the Phaser house into a div and keeps it in sync with React state.
@@ -15,7 +13,7 @@ import type { Spot } from "@/lib/needs";
 
 export default function HouseCanvas({ state, onTap }: { state: HouseState; onTap?: (spot: Spot) => void }) {
   const host = useRef<HTMLDivElement>(null);
-  const scene = useRef<HouseScene | null>(null);
+  const scene = useRef<IsoScene | null>(null);
   const latest = useRef(state); // what READY should show if it fires before the first sync effect
   const tap = useRef(onTap);
 
@@ -23,21 +21,22 @@ export default function HouseCanvas({ state, onTap }: { state: HouseState; onTap
     let game: Phaser.Game | null = null;
     let cancelled = false;
     (async () => {
-      const [Phaser, { HouseScene }] = await Promise.all([import("phaser"), import("@/game/HouseScene")]);
+      const [Phaser, { IsoScene }] = await Promise.all([import("phaser"), import("@/game/IsoScene")]);
       if (cancelled || !host.current) return;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
       game = new Phaser.Game({
         type: Phaser.AUTO,
         parent: host.current,
-        width: Math.round(host.current.clientWidth / ZOOM),
-        height: Math.round(host.current.clientHeight / ZOOM),
-        zoom: ZOOM,
-        roundPixels: true, // tiles stay blocky via their texture filter (see the scene); text renders smooth
-        backgroundColor: "#0c0c0e",
-        scale: { mode: Phaser.Scale.NONE }, // CSS scales the canvas (see .house-canvas in globals.css)
-        scene: [HouseScene],
+        // draw at device density: a backing canvas dpr times larger, shown at 1/dpr
+        width: Math.round(host.current.clientWidth * dpr),
+        height: Math.round(host.current.clientHeight * dpr),
+        zoom: 1 / dpr,
+        backgroundColor: "#b3905f", // the land's own colour, so the edge of the map is never a black cut
+        scale: { mode: Phaser.Scale.NONE },
+        scene: [IsoScene],
       });
       game.events.once(Phaser.Core.Events.READY, () => {
-        scene.current = game!.scene.getScene("house") as HouseScene;
+        scene.current = game!.scene.getScene("iso") as IsoScene;
         scene.current.setTapHandler((spot) => tap.current?.(spot));
         scene.current.sync(latest.current);
       });
