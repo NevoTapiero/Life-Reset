@@ -18,6 +18,7 @@ import {
   houseSpec,
   minifigSpot,
   modelText,
+  type HouseSpec,
   type MinifigLook,
 } from "@/lib/legoWorld";
 
@@ -62,12 +63,14 @@ function finish(group: THREE.Object3D): THREE.Object3D {
   return group;
 }
 
-function useModel(text: string, merge: boolean) {
+// src is LDraw text, or the URL of a self-contained packed set ("/lego/sets/...")
+function useModel(src: string | null, merge: boolean) {
   const [group, setGroup] = useState<THREE.Object3D | null>(null);
   useEffect(() => {
+    if (!src) return;
     let live = true;
     getLoader()
-      .then(({ loader, parts }) => parse(loader, text + parts))
+      .then(async ({ loader, parts }) => parse(loader, src.startsWith("/") ? await (await fetch(src)).text() : src + parts))
       .then((g) => {
         if (!live) return;
         setGroup(finish(merge ? LDrawUtils.mergeObject(g) : g));
@@ -76,8 +79,36 @@ function useModel(text: string, merge: boolean) {
     return () => {
       live = false;
     };
-  }, [text, merge]);
+  }, [src, merge]);
   return group;
+}
+
+// An official set's house, turned (quarter turns about the vertical) so its
+// front faces the garden, and stood on the plot with its front on the house's
+// front edge. Sets are modelled facing different ways, hence the turn.
+function SetHouse({ file, turn, spec }: { file: string; turn: number; spec: HouseSpec }) {
+  const model = useModel(`/lego/sets/${file}`, true);
+  const at = useMemo<[number, number, number] | null>(() => {
+    if (!model) return null;
+    // the turned model's box, measured in its own space (LDU)
+    const r = new THREE.Matrix4().makeRotationY((turn * Math.PI) / 2);
+    const b = new THREE.Box3();
+    model.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.geometry.computeBoundingBox();
+      b.union(mesh.geometry.boundingBox!.clone().applyMatrix4(mesh.matrix).applyMatrix4(r));
+    });
+    const cx = (spec.x0 + spec.w / 2 - PLOT / 2) * 20;
+    const front = (spec.z0 + spec.d - PLOT / 2) * 20;
+    return [cx - (b.min.x + b.max.x) / 2, -b.max.y, front - b.max.z];
+  }, [model, spec, turn]);
+  if (!model || !at) return null;
+  return (
+    <group position={at} rotation={[0, (turn * Math.PI) / 2, 0]}>
+      <primitive object={model} />
+    </group>
+  );
 }
 
 function Minifig({ look, at }: { look: MinifigLook; at: [number, number, number] }) {
@@ -144,26 +175,30 @@ export default function LegoWorld({
   houseLevel = 1,
   streak = 0,
   look = BASE_HUNTER,
+  set,
   className,
 }: {
   houseLevel?: number;
   streak?: number;
   look?: MinifigLook;
+  /** an official set from public/lego/sets to stand in for the built house, and its quarter turns */
+  set?: { file: string; turn: number };
   className?: string;
 }) {
   const spec = houseSpec(houseLevel);
   const worldText = useMemo(
-    () => modelText([baseplate(), ...buildHouse(houseLevel), ...buildGarden(streak, houseSpec(houseLevel))], "plot.ldr"),
-    [houseLevel, streak],
+    () => modelText([baseplate(), ...(set ? [] : buildHouse(houseLevel)), ...buildGarden(streak, houseSpec(houseLevel))], "plot.ldr"),
+    [houseLevel, streak, set],
   );
   const world = useModel(worldText, true);
   const at = minifigSpot(spec);
   // the house centre in three's space: x as is, LDraw z flipped by the container's half-turn
   const target = useMemo(() => {
+    if (set) return new THREE.Vector3(0, 3, 4); // official sets are bigger: frame the whole plot
     const cx = (spec.x0 + spec.w / 2 - PLOT / 2) * 20 * LDU;
     const cz = (spec.z0 + spec.d / 2 - PLOT / 2) * 20 * LDU;
     return new THREE.Vector3(cx, 3, -cz - 3);
-  }, [spec.x0, spec.w, spec.z0, spec.d]);
+  }, [set, spec.x0, spec.w, spec.z0, spec.d]);
 
   return (
     <div className={className} role="img" aria-label="Your house and garden">
@@ -191,11 +226,12 @@ export default function LegoWorld({
         {/* LDraw is -Y up: a half-turn about X stands it upright */}
         <group rotation={[Math.PI, 0, 0]} scale={LDU}>
           {world && <primitive object={world} />}
+          {set && <SetHouse key={set.file} file={set.file} turn={set.turn} spec={spec} />}
           <Minifig look={look} at={at} />
         </group>
 
         <ContactShadows position={[0, 0.02, 0]} opacity={0.2} scale={36} blur={2} far={10} />
-        <FitCamera target={target} width={30} />
+        <FitCamera target={target} width={set ? 38 : 30} />
         <OrbitControls target={target} enablePan={false} minDistance={14} maxDistance={110} minPolarAngle={0.45} maxPolarAngle={1.25} />
       </Canvas>
     </div>
