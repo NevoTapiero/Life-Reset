@@ -1,0 +1,209 @@
+{
+  "character": "warrior",
+  "stat": "STR",
+  "identity": "Scarred face, copper hair, blue/orange palette, sword fighter",
+  "levels": [
+    {
+      "level": 1,
+      "title": "Recruit",
+      "head": {
+        "part": "3626bps6",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "20597",
+        "color": "Dark_Orange"
+      },
+      "torso": {
+        "part": "973",
+        "color": "Reddish_Brown",
+        "arms": "Reddish_Brown",
+        "hands": "Yellow"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Tan"
+      },
+      "shoes": {
+        "color": "Reddish_Brown",
+        "finish": "leather"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "18787",
+          "color": "Reddish_Brown",
+          "name": "Wooden training sword"
+        }
+      },
+      "ride": {
+        "file": "skateboard.ldr",
+        "name": "Skateboard"
+      }
+    },
+    {
+      "level": 2,
+      "title": "Fighter",
+      "head": {
+        "part": "3626bps6",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "20597",
+        "color": "Dark_Orange"
+      },
+      "torso": {
+        "part": "76382p45",
+        "color": "Dark_Orange"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Dark_Brown"
+      },
+      "shoes": {
+        "color": "Black",
+        "finish": "leather"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "18034",
+          "color": "Flat_Silver",
+          "name": "Gladius"
+        },
+        "left_hand": {
+          "part": "2586",
+          "color": "Reddish_Brown",
+          "name": "Wooden round shield"
+        }
+      },
+      "ride": {
+        "file": "horse_brown.ldr",
+        "name": "Brown horse"
+      }
+    },
+    {
+      "level": 3,
+      "title": "Warrior",
+      "head": {
+        "part": "3626bps6",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "20597",
+        "color": "Dark_Orange"
+      },
+      "torso": {
+        "part": "76382p2p",
+        "color": "Dark_Blue"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Black"
+      },
+      "shoes": {
+        "color": "Dark_Bluish_Grey",
+        "finish": "iron"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "59",
+          "color": "Flat_Silver",
+          "name": "Greatsword"
+        },
+        "neck": {
+          "part": "11097",
+          "color": "Pearl_Dark_Grey",
+          "name": "Shoulder armor"
+        }
+      },
+      "ride": {
+        "file": "motorcycle.ldr",
+        "name": "Racing motorcycle"
+      }
+    },
+    {
+      "level": 4,
+      "title": "Knight",
+      "head": {
+        "part": "3626bps6",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "48493",
+        "color": "Flat_Silver",
+        "name": "Knight helmet"
+      },
+      "torso": {
+        "part": "76382p0009",
+        "color": "Black"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Dark_Blue"
+      },
+      "shoes": {
+        "color": "Flat_Silver",
+        "finish": "steel"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "18031",
+          "color": "Flat_Silver",
+          "name": "Longsword"
+        },
+        "left_hand": {
+          "part": "18836p41",
+          "color": "Dark_Blue",
+          "name": "Royal lion shield"
+        }
+      },
+      "ride": {
+        "file": "horse_royal.ldr",
+        "name": "Royal armored horse"
+      }
+    },
+    {
+      "level": 5,
+      "title": "Champion",
+      "head": {
+        "part": "3626bps6",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "6122c01",
+        "color": "Pearl_Gold",
+        "name": "Golden dragon-crown helmet"
+      },
+      "torso": {
+        "part": "973p2l",
+        "color": "Dark_Red",
+        "arms": "Dark_Red",
+        "hands": "Yellow"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Dark_Red"
+      },
+      "shoes": {
+        "color": "Pearl_Gold",
+        "finish": "gold"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "24108pe3",
+          "color": "Flat_Silver",
+          "name": "Champion sword (gold inlay)"
+        },
+        "neck": {
+          "part": "20551c01",
+          "color": "Orange",
+          "name": "Champion cape"
+        }
+      },
+      "ride": {
+        "file": "dragon.ldr",
+        "name": "Dragon",
+        "turn": -35
+      }
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+# Full-size PNG renders stay local; the repo keeps the light .webp copies.
+renders/*.png
+catalog/ldraw_catalog.tsv
