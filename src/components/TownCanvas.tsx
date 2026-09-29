@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+
+// Pixel art only looks right at a whole-number scale: the game renders at
+// 1/3 of the box and the canvas is shown at exactly 3x, so a 16px tile is a
+// crisp 48px square and a character stands ~48px tall on a phone.
+const ZOOM = 3;
 import type { TownScene, TownState } from "@/game/TownScene";
 import type { TownHouse } from "@/lib/town";
 
@@ -15,14 +20,15 @@ export default function TownCanvas({ state, onHouse }: { state: TownState; onHou
     let game: Phaser.Game | null = null;
     let cancelled = false;
     (async () => {
-      const [Phaser, { TownScene, TOWN_VIEW_W, TOWN_VIEW_H }] = await Promise.all([import("phaser"), import("@/game/TownScene")]);
+      const [Phaser, { TownScene }] = await Promise.all([import("phaser"), import("@/game/TownScene")]);
       if (cancelled || !host.current) return;
       game = new Phaser.Game({
         type: Phaser.AUTO,
         parent: host.current,
-        width: TOWN_VIEW_W,
-        height: TOWN_VIEW_H,
-        pixelArt: true,
+        width: Math.round(host.current.clientWidth / ZOOM),
+        height: Math.round(host.current.clientHeight / ZOOM),
+        zoom: ZOOM,
+        roundPixels: true, // tiles stay blocky via their texture filter (see the scene); text renders smooth
         backgroundColor: "#0c0c0e",
         scale: { mode: Phaser.Scale.NONE },
         scene: [TownScene],

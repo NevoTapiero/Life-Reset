@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+
+// Pixel art only looks right at a whole-number scale: the game renders at
+// 1/3 of the box and the canvas is shown at exactly 3x, so a 16px tile is a
+// crisp 48px square and a character stands ~48px tall on a phone.
+const ZOOM = 3;
 import type { HouseState, HouseScene } from "@/game/HouseScene";
 import type { Spot } from "@/lib/needs";
 
@@ -18,14 +23,15 @@ export default function HouseCanvas({ state, onTap }: { state: HouseState; onTap
     let game: Phaser.Game | null = null;
     let cancelled = false;
     (async () => {
-      const [Phaser, { HouseScene, VIEW_W, VIEW_H }] = await Promise.all([import("phaser"), import("@/game/HouseScene")]);
+      const [Phaser, { HouseScene }] = await Promise.all([import("phaser"), import("@/game/HouseScene")]);
       if (cancelled || !host.current) return;
       game = new Phaser.Game({
         type: Phaser.AUTO,
         parent: host.current,
-        width: VIEW_W,
-        height: VIEW_H,
-        pixelArt: true,
+        width: Math.round(host.current.clientWidth / ZOOM),
+        height: Math.round(host.current.clientHeight / ZOOM),
+        zoom: ZOOM,
+        roundPixels: true, // tiles stay blocky via their texture filter (see the scene); text renders smooth
         backgroundColor: "#0c0c0e",
         scale: { mode: Phaser.Scale.NONE }, // CSS scales the canvas (see .house-canvas in globals.css)
         scene: [HouseScene],

@@ -49,6 +49,12 @@ const FENCE = { tl: 44, top: 45, tr: 46, left: 56, right: 58, bl: 68, bottom: 69
 const GARDEN: Record<string, number> = { flower: 2, hive: 94, target: 95, sign: 83, shroom: 29, tree: 15 };
 const px = (t: number) => t * T + T / 2;
 
+// Text is the one thing that must not be pixelated: draw it at device density
+// and let the GPU smooth it, while every tile keeps nearest-neighbour edges.
+function crisp<T extends Phaser.GameObjects.Text>(t: T): T {
+  return t; // resolution 1: glyphs are drawn at their real size and smoothed by the 3x zoom
+}
+
 export class TownScene extends Phaser.Scene {
   private hero!: Phaser.GameObjects.Container;
   private body!: Phaser.GameObjects.Sprite;
@@ -73,6 +79,9 @@ export class TownScene extends Phaser.Scene {
   }
 
   create() {
+    // pixel art wants hard edges; everything else (text) may be smooth
+    this.textures.get("town").setFilter(Phaser.Textures.FilterMode.NEAREST);
+    this.textures.get("heroes").setFilter(Phaser.Textures.FilterMode.NEAREST);
     const map = this.make.tilemap({ tileWidth: T, tileHeight: T, width: TOWN_W, height: TOWN_H });
     const tiles = map.addTilesetImage("town", "town", T, T, 0, 0)!;
     const ground = map.createBlankLayer("ground", tiles)!.setDepth(0);
@@ -168,28 +177,30 @@ export class TownScene extends Phaser.Scene {
       const cx = px(h.house.x) + ((h.spec.w - 1) * T) / 2;
       const top = h.house.y * T - 2;
       const xpText = h.row.today_xp !== null ? `+${h.row.today_xp} today` : h.row.weekly_xp !== null ? `+${h.row.weekly_xp} this week` : "";
-      this.add
-        .text(cx, top, `${h.row.is_me ? "You" : h.row.username}${xpText ? `\n${xpText}` : ""}`, {
-          fontFamily: "monospace",
-          fontSize: "7px",
-          color: h.row.is_me ? "#ffd27a" : "#ffffff",
-          align: "center",
-          stroke: "#000000",
-          strokeThickness: 3,
-        })
-        .setOrigin(0.5, 1)
-        .setResolution(4)
-        .setDepth(20);
+      crisp(
+        this.add
+          .text(cx, top, `${h.row.is_me ? "You" : h.row.username}${xpText ? `\n${xpText}` : ""}`, {
+            fontFamily: "monospace",
+            fontSize: "7px",
+            color: h.row.is_me ? "#ffd27a" : "#ffffff",
+            align: "center",
+            stroke: "#000000",
+            strokeThickness: 2,
+          })
+          .setOrigin(0.5, 1)
+          .setDepth(20),
+      );
 
       if (!h.row.is_me) {
         // the friend, standing by their door, doing what their status says
         const who = this.add.sprite(px(h.doorstep.x + 1), px(h.doorstep.y), "heroes", HERO_FRAME[h.row.archetype ?? "warrior"]).setDepth(9);
         this.tweens.add({ targets: who, y: who.y - 1, duration: 900 + (h.plot.x % 5) * 90, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
-        this.add
-          .text(who.x, who.y - 11, statusFor(h.row), { fontFamily: "monospace", fontSize: "6px", color: "#cfd6ff", stroke: "#000", strokeThickness: 3 })
-          .setOrigin(0.5, 1)
-          .setResolution(4)
-          .setDepth(20);
+        crisp(
+          this.add
+            .text(who.x, who.y - 11, statusFor(h.row), { fontFamily: "monospace", fontSize: "6px", color: "#cfd6ff", stroke: "#000", strokeThickness: 2 })
+            .setOrigin(0.5, 1)
+            .setDepth(20),
+        );
       }
     }
     trees.forEach((t, i) => this.objects.putTileAt(TREES[i % TREES.length], t.x, t.y));

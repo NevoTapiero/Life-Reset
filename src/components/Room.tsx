@@ -4,6 +4,10 @@ import { useMemo, useState } from "react";
 import Icon from "@/components/Icon";
 import { sourceInfo, type Pending } from "@/lib/collect";
 import HouseCanvas from "@/components/HouseCanvas";
+import TownCanvas from "@/components/TownCanvas";
+import type { TownState } from "@/game/TownScene";
+import type { TownHouse } from "@/lib/town";
+import type { ReactNode } from "react";
 import type { HouseState } from "@/game/HouseScene";
 import type { CharacterKey } from "@/lib/game";
 import { NEED_KEYS, NEED_LABEL, moodOf, type Action, type Needs, type Spot } from "@/lib/needs";
@@ -22,6 +26,9 @@ export default function Room({
   onCollectAll,
   available = [],
   onTapSpot,
+  view = "house",
+  town,
+  overlay,
 }: {
   character: CharacterKey | null;
   needs: Needs;
@@ -33,10 +40,14 @@ export default function Room({
   onCollectAll: () => void;
   available?: Spot[]; // spots with a quest left to do today
   onTapSpot?: (spot: Spot) => void; // tapping furniture logs the quest that lives there
+  view?: "house" | "town"; // inside your house, or out in the town
+  town?: { state: TownState; onHouse: (h: TownHouse) => void };
+  overlay?: ReactNode; // HUD buttons drawn over the scene
 }) {
   const mood = moodOf(needs);
   const tired = needs.CON < 30;
   const [popping, setPopping] = useState<Set<string>>(new Set());
+
   const pop = (p: Pending) => {
     if (popping.has(p.id)) return;
     setPopping((prev) => new Set(prev).add(p.id));
@@ -66,15 +77,34 @@ export default function Room({
     <div className="scene p-4 pt-3.5">
       {/* mood header */}
       <div className="flex items-baseline justify-between">
-        <span className="hud-label">Mood</span>
-        <span className="display text-[15px]" style={{ color: mood.low ? "var(--danger)" : "var(--accent)" }}>
-          {mood.label} · {mood.score}
-        </span>
+        <span className="hud-label">{view === "house" ? "Mood" : "Town"}</span>
+        {view === "house" ? (
+          <span className="display text-[15px]" style={{ color: mood.low ? "var(--danger)" : "var(--accent)" }}>
+            {mood.label} · {mood.score}
+          </span>
+        ) : (
+          <span className="hud-label">walk · visit</span>
+        )}
       </div>
 
-      {/* the house: a real scene, he walks over and does what you just did */}
+      {/* the world: your house, or the town outside */}
       <div className="mt-3 relative">
-        <HouseCanvas state={house} onTap={onTapSpot} />
+        {view === "house" || !town ? <HouseCanvas state={house} onTap={onTapSpot} /> : <TownCanvas state={town.state} onHouse={town.onHouse} />}
+        {overlay && <div className="absolute top-2 right-2 z-10 flex gap-2">{overlay}</div>}
+        {view === "house" && (
+          <div className="absolute left-2 bottom-2 z-10 flex flex-col items-start gap-1">
+            {boost && (
+              // keyed by id: a new boost restarts the float; the animation ends invisible
+              <span key={boost.id} className="xp-float display text-[13px] px-2" style={{ color: boost.text.startsWith("-") ? "var(--danger)" : "var(--gold)" }}>
+                {boost.text}
+              </span>
+            )}
+            <span className="world-btn" style={{ color: tired && !busy ? "var(--danger)" : "var(--ink)" }}>
+              {action.label}
+              {busy ? "…" : ""}
+            </span>
+          </div>
+        )}
         {/* the tray: what the connected apps paid while you were away */}
         {pending.map((p, i) => {
           const info = sourceInfo(p);
@@ -88,7 +118,7 @@ export default function Room({
               style={{
                 // four slots per row across the top of the house, so bubbles never stack
                 left: `${6 + (i % 4) * 24}%`,
-                top: `${6 + Math.floor(i / 4) * 34}%`,
+                top: `${20 + Math.floor(i / 4) * 30}%`,
                 animationDelay: `${(i % 5) * 0.45}s`,
                 color: bad ? "var(--danger)" : "var(--accent)",
                 borderColor: bad ? "rgb(255 93 115 / 0.7)" : "rgb(var(--accent-rgb) / 0.7)",
@@ -111,6 +141,7 @@ export default function Room({
       </div>
 
       {/* needs */}
+      {view === "house" && (
       <div className="grid grid-cols-5 gap-2 mt-4">
         {NEED_KEYS.map((k) => {
           const v = needs[k];
@@ -133,6 +164,7 @@ export default function Room({
           );
         })}
       </div>
+      )}
     </div>
   );
 }

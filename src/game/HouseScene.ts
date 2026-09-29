@@ -32,6 +32,12 @@ const SPOTS: Record<Spot, { x: number; y: number; face: 1 | -1; lie?: boolean; h
 const CORRIDOR_Y = 5;
 const px = (t: number) => t * T + T / 2;
 
+// Text is the one thing that must not be pixelated: draw it at device density
+// and let the GPU smooth it, while every tile keeps nearest-neighbour edges.
+function crisp<T extends Phaser.GameObjects.Text>(t: T): T {
+  return t; // resolution 1: glyphs are drawn at their real size and smoothed by the 3x zoom
+}
+
 type Layers = Record<string, number[][]>;
 
 export class HouseScene extends Phaser.Scene {
@@ -60,6 +66,9 @@ export class HouseScene extends Phaser.Scene {
   }
 
   create() {
+    // pixel art wants hard edges; everything else (text) may be smooth
+    this.textures.get("roguelike").setFilter(Phaser.Textures.FilterMode.NEAREST);
+    this.textures.get("heroes").setFilter(Phaser.Textures.FilterMode.NEAREST);
     const room = this.cache.json.get("room") as { width: number; height: number; layers: Layers };
     const map = this.make.tilemap({ tileWidth: T, tileHeight: T, width: room.width, height: room.height });
     const tiles = map.addTilesetImage("roguelike", "roguelike", T, T, 0, 1)!;
@@ -74,12 +83,11 @@ export class HouseScene extends Phaser.Scene {
 
     this.body = this.add.sprite(0, 0, "heroes", HERO_FRAME.warrior);
     this.bubbleBg = this.add.graphics();
-    this.bubbleText = this.add
-      .text(0, 0, "", { fontFamily: "monospace", fontSize: "8px", color: "#ffffff", fontStyle: "bold" })
-      .setOrigin(0.5, 1)
-      .setResolution(4);
-    this.bubble = this.add.container(0, -12, [this.bubbleBg, this.bubbleText]);
-    this.zzz = this.add.text(6, -14, "z z", { fontFamily: "monospace", fontSize: "8px", color: "#bfe9ff" }).setResolution(4).setVisible(false);
+    this.bubbleText = crisp(
+      this.add.text(0, 0, "", { fontFamily: "monospace", fontSize: "8px", color: "#ffffff", fontStyle: "bold" }).setOrigin(0.5, 1),
+    );
+    this.bubble = this.add.container(0, -12, [this.bubbleBg, this.bubbleText]).setVisible(false); // words are drawn in HTML over the canvas
+    this.zzz = crisp(this.add.text(6, -14, "z z", { fontFamily: "monospace", fontSize: "8px", color: "#bfe9ff" })).setVisible(false);
     this.hero = this.add.container(px(SPOTS.couch.x), px(SPOTS.couch.y), [this.body, this.bubble, this.zzz]).setDepth(10);
 
     // the viewport shows one room at a time and glides after him as he walks;
@@ -141,7 +149,7 @@ export class HouseScene extends Phaser.Scene {
     for (const [spot, m] of this.markers) m.setVisible(s.available.includes(spot) && !(s.busy && s.spot === spot));
     if (s.boost && s.boost.id !== this.lastBoost) {
       this.lastBoost = s.boost.id;
-      this.float(s.boost.text);
+      this.hop(); // the number itself floats in HTML; he just reacts
     }
   }
 
@@ -204,17 +212,22 @@ export class HouseScene extends Phaser.Scene {
     }
   }
 
+  private hop() {
+    this.tweens.add({ targets: this.body, y: -4, duration: 110, yoyo: true, ease: "Quad.easeOut" });
+  }
+
   private float(text: string) {
-    const t = this.add
-      .text(this.hero.x, this.hero.y - 14, text, {
-        fontFamily: "monospace",
-        fontSize: "8px",
-        color: text.startsWith("-") ? "#ff7d8c" : "#ffd27a",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5, 1)
-      .setResolution(4)
-      .setDepth(20);
+    const t = crisp(
+      this.add
+        .text(this.hero.x, this.hero.y - 14, text, {
+          fontFamily: "monospace",
+          fontSize: "8px",
+          color: text.startsWith("-") ? "#ff7d8c" : "#ffd27a",
+          fontStyle: "bold",
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(20),
+    );
     this.tweens.add({ targets: t, y: t.y - 18, alpha: 0, duration: 1100, ease: "Cubic.easeOut", onComplete: () => t.destroy() });
   }
 }

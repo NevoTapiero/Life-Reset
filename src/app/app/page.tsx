@@ -1,23 +1,31 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
 import Room from "@/components/Room";
+import MissionList from "@/components/MissionList";
 import XpMeter from "@/components/XpMeter";
 import { CHARACTERS, CHARACTER_KEYS, CharacterKey, Profile, Quest, characterOf, nextStreakMilestone, rankForXp } from "@/lib/game";
 import { NEED_LABEL, actionFor, appHour, computeNeeds, idleFor, type Spot, type StatKeyNeed } from "@/lib/needs";
 import { clearSession, elapsedMin, loadSession, nowMs, startSession, type Session } from "@/lib/session";
 import { loadPending, markCollected, sourceInfo, type Pending } from "@/lib/collect";
 import { useQuestDay } from "@/lib/useQuestDay";
+import { loadTown, statusFor, type TownHouse, type TownRow } from "@/lib/town";
 
 export default function Dashboard() {
   const [pending, setPending] = useState<Pending[]>([]); // earned while away, not yet tapped
-  const { profile, setProfile, quests, doneToday, doneYesterday, rankUp, setRankUp, error, setError, toggle } = useQuestDay((uid) => {
+  const router = useRouter();
+  const [view, setView] = useState<"house" | "town">("house"); // one world screen: inside, or out in the town
+  const [missionsOpen, setMissionsOpen] = useState(false); // the quest log slides in from the right
+  const [townRows, setTownRows] = useState<TownRow[]>([]);
+  const [visiting, setVisiting] = useState<TownHouse | null>(null);
+  const { profile, setProfile, quests, doneToday, doneYesterday, yesterdayQuests, pendingId, rankUp, setRankUp, error, setError, load, toggle } = useQuestDay((uid) => {
     loadPending(uid).then(setPending);
+    loadTown().then(setTownRows).catch(() => {});
   });
   const [acting, setActing] = useState<Quest | null>(null); // the quest he is doing in the room right now
   const [collected, setCollected] = useState<{ stat: StatKeyNeed; xp: number }[]>([]); // tapped this visit, feeds the needs
@@ -40,6 +48,7 @@ export default function Dashboard() {
 
   const sessionQuest = session ? quests.find((q) => q.id === session.questId) ?? null : null;
   const sessionMin = session ? elapsedMin(session, tick || nowMs()) : 0;
+  const townState = useMemo(() => ({ hero: profile?.archetype ?? null, rows: townRows }), [profile?.archetype, townRows]);
 
   // Logging from the house: he acts it out, and the payout drops as loot to tap.
   function logQuest(q: Quest) {
@@ -153,6 +162,24 @@ export default function Dashboard() {
       )}
       {/* the room: your character living your day */}
       <Room
+        view={view}
+        town={{
+          state: townState,
+          onHouse: (h) => (h.row.is_me ? setView("house") : setVisiting(h)),
+        }}
+        overlay={
+          <>
+            <button className="world-btn" onClick={() => setView(view === "house" ? "town" : "house")}>
+              <Icon name={view === "house" ? "users" : "flame"} size={14} strokeWidth={2.2} />
+              {view === "house" ? "Town" : "Home"}
+            </button>
+            <button className="world-btn" onClick={() => setMissionsOpen(true)}>
+              <Icon name="tasks" size={14} strokeWidth={2.2} />
+              Missions
+              {quests.length > 0 && <span className="world-count">{quests.filter((q) => !doneToday.has(q.id)).length}</span>}
+            </button>
+          </>
+        }
         character={profile.archetype}
         needs={needs}
         action={
@@ -172,6 +199,57 @@ export default function Dashboard() {
       />
 
       {error && <p className="text-danger text-sm mt-3">{error}</p>}
+
+      {/* missions: a panel over the world, not another page */}
+      {missionsOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end" onClick={() => setMissionsOpen(false)}>
+          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)" }} />
+          <aside
+            className="relative h-full w-[88%] max-w-sm overflow-y-auto px-4 pt-5 pb-28 world-panel"
+            style={{ background: "var(--bg)", borderLeft: "1px solid var(--line-strong)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button className="absolute right-4 top-4 icon-tile !w-9 !h-9 !rounded-[10px]" aria-label="Close missions" onClick={() => setMissionsOpen(false)}>
+              <Icon name="x" size={16} />
+            </button>
+            <MissionList
+              quests={quests}
+              doneToday={doneToday}
+              doneYesterday={doneYesterday}
+              yesterdayQuests={yesterdayQuests}
+              pendingId={pendingId}
+              error={error}
+              toggle={(q, day) => (day === "today" ? logQuest(q) : toggle(q, "yesterday"))}
+              onXp={load}
+            />
+          </aside>
+        </div>
+      )}
+
+      {visiting && (
+        <div className="rankup-backdrop" onClick={() => setVisiting(null)}>
+          <div className="card p-5 w-[88%] max-w-sm rise text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-center">
+              <Avatar size={72} character={visiting.row.archetype} tierIndex={rankForXp(visiting.row.xp).tierIndex} />
+            </div>
+            <div className="display text-[20px] mt-3">{visiting.row.username}</div>
+            <div className="mt-1" style={{ color: "var(--accent)" }}>{statusFor(visiting.row)}</div>
+            <div className="flex justify-center gap-6 mt-4">
+              <div>
+                <div className="display text-[18px]" style={{ color: "var(--gold)" }}>+{visiting.row.today_xp ?? visiting.row.weekly_xp ?? 0}</div>
+                <div className="hud-label mt-1">{visiting.row.today_xp !== null ? "XP today" : "XP this week"}</div>
+              </div>
+              <div>
+                <div className="display text-[18px]">{visiting.row.streak_current}</div>
+                <div className="hud-label mt-1">day streak</div>
+              </div>
+            </div>
+            <button className="btn-ghost w-full py-3.5 mt-5" onClick={() => router.push(`/app/friend/${encodeURIComponent(visiting.row.username)}`)}>
+              See their record
+            </button>
+          </div>
+        </div>
+      )}
 
       {sessionQuest && (
         <div className="card p-3 mt-3 flex items-center gap-3 rise">
@@ -246,12 +324,12 @@ export default function Dashboard() {
                 </span>
               </div>
             </div>
-            <Link href="/app/missions" className="flex flex-col items-center flex-none active:scale-95 transition-transform" aria-label="Missions">
+            <button type="button" onClick={() => setMissionsOpen(true)} className="flex flex-col items-center flex-none active:scale-95 transition-transform" aria-label="Missions">
               <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={50} />
               <span className="hud-label mt-1 whitespace-nowrap" style={{ color: rank.color }}>
                 {rank.label}
               </span>
-            </Link>
+            </button>
           </div>
 
           <div className="mt-4">

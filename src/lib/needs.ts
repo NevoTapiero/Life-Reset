@@ -77,9 +77,9 @@ export function actionFor(q: Pick<Quest, "id" | "title" | "pillar">): Action {
 
 export function idleFor(n: Needs, hour?: number): Action {
   if (hour !== undefined && (hour >= 23 || hour < 6)) return { label: "Asleep", spot: "bed" };
-  if (n.CON < 30) return { label: "Slumped on the couch, tired", spot: "couch" };
+  if (n.CON < 30) return { label: "Tired", spot: "couch" };
   if (moodOf(n).score >= 85) return { label: "Feeling great", spot: "mat" };
-  return { label: "Idle at home", spot: "couch" };
+  return { label: "Idle", spot: "couch" };
 }
 
 // Real time, app timezone. The world runs on your clock.

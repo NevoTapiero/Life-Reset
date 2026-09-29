@@ -4,52 +4,45 @@ import { useState } from "react";
 import Link from "next/link";
 import AppActivity from "@/components/AppActivity";
 import Icon from "@/components/Icon";
-import RankBadge from "@/components/RankBadge";
 import { PILLAR_ICONS, Quest, questArt } from "@/lib/game";
-import { useQuestDay } from "@/lib/useQuestDay";
 
-// Missions: the quest log, like every game has. Checking one here pays on
-// the server; its loot shows up over the house on Home.
+// The quest log, shown as a side panel over the world. The world owns the
+// day's state and the toggle; this only draws it and adds the +XP float.
 
-export default function MissionsPage() {
-  const { profile, quests, doneToday, doneYesterday, yesterdayQuests, pendingId, rankUp, setRankUp, error, load, toggle: toggleDay } = useQuestDay();
+export default function MissionList({
+  quests,
+  doneToday,
+  doneYesterday,
+  yesterdayQuests,
+  pendingId,
+  error,
+  toggle,
+  onXp,
+}: {
+  quests: Quest[];
+  doneToday: Set<string>;
+  doneYesterday: Set<string>;
+  yesterdayQuests: Quest[];
+  pendingId: string | null;
+  error: string | null;
+  toggle: (q: Quest, day: "today" | "yesterday") => void;
+  onXp: () => void;
+}) {
   const [showYesterday, setShowYesterday] = useState(false);
   const [xpFloat, setXpFloat] = useState<{ id: string; amount: number } | null>(null);
-
-  function toggle(q: Quest, day: "today" | "yesterday" = "today") {
-    toggleDay(q, day, {
-      onLogged: (quest) => {
-        setXpFloat({ id: quest.id, amount: quest.xp });
-        setTimeout(() => setXpFloat(null), 1100);
-      },
-    });
-  }
-
-  if (!profile) {
-    return <div className="hud-label pulse-glow text-center py-20">Syncing quests…</div>;
-  }
-
   const clearedCount = quests.filter((q) => doneToday.has(q.id)).length;
 
+  function log(q: Quest, day: "today" | "yesterday") {
+    const done = (day === "today" ? doneToday : doneYesterday).has(q.id);
+    if (!done) {
+      setXpFloat({ id: q.id, amount: q.xp });
+      setTimeout(() => setXpFloat(null), 1100);
+    }
+    toggle(q, day);
+  }
+
   return (
-    <div className="slide-in">
-      {rankUp && (
-        <div className="rankup-backdrop" onClick={() => setRankUp(null)}>
-          <div className="relative flex items-center justify-center">
-            <div className="rankup-ring" />
-            <div className="rankup-ring late" />
-            <div className="rankup-badge">
-              <RankBadge tierIndex={rankUp.tierIndex} stageIndex={rankUp.stageIndex} size={120} />
-            </div>
-          </div>
-          <div className="rankup-title text-center mt-6">
-            <div className="hud-label" style={{ color: "var(--accent)" }}>Rank up</div>
-            <div className="display text-3xl mt-1" style={{ color: rankUp.color }}>
-              {rankUp.label.toUpperCase()}
-            </div>
-          </div>
-        </div>
-      )}
+    <div>
       {/* quests */}
       <div className="flex items-center justify-between mb-3.5">
         <h1 className="display text-[19px]">Missions</h1>
@@ -71,7 +64,7 @@ export default function MissionsPage() {
           return (
             <button
               key={q.id}
-              onClick={() => toggle(q)}
+              onClick={() => log(q, "today")}
               disabled={pendingId === q.id}
               className="relative overflow-hidden rounded-2xl text-left transition-transform duration-150 active:scale-[0.985]"
               style={{
@@ -179,7 +172,7 @@ export default function MissionsPage() {
                 return (
                   <button
                     key={q.id}
-                    onClick={() => toggle(q, "yesterday")}
+                    onClick={() => log(q, "yesterday")}
                     disabled={pendingId === q.id}
                     className="relative overflow-hidden rounded-2xl text-left transition-transform duration-150 active:scale-[0.985]"
                     style={{
@@ -254,7 +247,7 @@ export default function MissionsPage() {
       )}
 
       {/* what the connected services counted, so the tracking is visible */}
-      <AppActivity onXp={load} />
+      <AppActivity onXp={onXp} />
     </div>
   );
 }
