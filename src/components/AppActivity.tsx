@@ -51,7 +51,7 @@ function DoneButton({
   return (
     <button
       aria-label={label}
-      disabled={done || busy || disabled}
+      disabled={busy || (!done && disabled)}
       onClick={onClick}
       className={`w-8 h-8 rounded-[10px] border flex items-center justify-center flex-none transition-colors duration-150 active:scale-95 ${done ? "check-pop" : ""} ${busy ? "pulse-glow" : ""}`}
       style={
@@ -151,6 +151,12 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
         setCanWrite(d.canWrite !== false);
         setEvents((d.events as AgendaEvent[]) ?? []);
         setTasks((d.tasks as AgendaTask[]) ?? []);
+        if (d.revoked > 0) {
+          // a task was unchecked in Google itself since the last visit
+          setFlash(`-${d.revoked} XP · a task was unchecked in Google`);
+          onXp?.();
+          loadEntries();
+        }
       }
       return !!d.connected;
     } catch {
@@ -159,7 +165,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
       setProblem("Could not reach your calendar. Pull down to try again.");
       return false;
     }
-  }, []);
+  }, [loadEntries, onXp]);
 
   const runSync = useCallback(
     async (manual: boolean) => {
@@ -219,10 +225,12 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
     await Promise.all([runSync(true), loadAgenda()]);
   }
 
-  // Mark a task or meeting done: the server checks it against Google, the Judge
-  // prices it, and only then is XP granted.
-  async function markDone(item: { kind: "task"; t: AgendaTask } | { kind: "event"; e: AgendaEvent }) {
+  // Check or uncheck a task or meeting. Checking: the server confirms it with
+  // Google, the Judge prices it, then XP is granted. Unchecking: the task is
+  // reopened in Google and the XP is taken back.
+  async function toggleDone(item: { kind: "task"; t: AgendaTask } | { kind: "event"; e: AgendaEvent }) {
     const key = item.kind === "task" ? `t:${item.t.id}` : `e:${item.e.id}`;
+    const undo = item.kind === "task" ? item.t.done : item.e.done;
     if (marking) return;
     setMarking(key);
     setFlash(null);
@@ -233,18 +241,22 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` },
         body: JSON.stringify(
           item.kind === "task"
-            ? { kind: "task", listId: item.t.listId, taskId: item.t.id }
-            : { kind: "event", calendarId: item.e.calendarId, eventId: item.e.id },
+            ? { kind: "task", listId: item.t.listId, taskId: item.t.id, undo }
+            : { kind: "event", calendarId: item.e.calendarId, eventId: item.e.id, undo },
         ),
       });
       const d = await r.json();
       if (!r.ok) {
-        setFlash(d.error ?? "Could not mark it done");
+        setFlash(d.error ?? (undo ? "Could not uncheck it" : "Could not mark it done"));
         if (d.reconnect) setCanWrite(false);
       } else {
-        if (item.kind === "task") setTasks((prev) => prev.map((t) => (t.id === item.t.id ? { ...t, done: true } : t)));
-        else setEvents((prev) => prev.map((e) => (e.id === item.e.id ? { ...e, done: true } : e)));
-        if (d.paid && d.xp > 0) {
+        if (item.kind === "task") setTasks((prev) => prev.map((t) => (t.id === item.t.id ? { ...t, done: !undo } : t)));
+        else setEvents((prev) => prev.map((e) => (e.id === item.e.id ? { ...e, done: !undo } : e)));
+        if (undo) {
+          setFlash(d.revoked > 0 ? `-${d.revoked} XP` : "Unchecked");
+          if (d.revoked > 0) onXp?.();
+          await loadEntries();
+        } else if (d.paid && d.xp > 0) {
           setFlash(`+${d.xp} XP${d.reason ? ` · ${d.reason}` : ""}`);
           onXp?.();
           await loadEntries();
@@ -253,7 +265,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
         }
       }
     } catch {
-      setFlash("Could not mark it done, try again");
+      setFlash("Could not update it, try again");
     }
     setMarking(null);
   }
@@ -277,6 +289,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
   const todayEvents = events.filter((e) => e.today);
   const laterEvents = events.filter((e) => !e.today);
   const dueToday = tasks.filter((t) => dueLabel(t.due) === "Due today").length;
+  const openCount = tasks.filter((t) => !t.done).length;
 
   return (
     <div className="mt-6">
@@ -293,9 +306,9 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
       </div>
 
       <div className="hud-frame px-3 py-3.5 flex items-stretch">
-        <Stat value={todayEvents.length} label="Today" />
+        <Stat value={todayEvents.length + dueToday} label="Today" />
         <span className="w-px self-stretch" style={{ background: "var(--line)" }} />
-        <Stat value={tasks.length} label="Open tasks" />
+        <Stat value={openCount} label="Open tasks" />
         <span className="w-px self-stretch" style={{ background: "var(--line)" }} />
         <Stat value={total.toLocaleString()} label="XP earned" />
       </div>
@@ -354,18 +367,18 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
                 done={e.done}
                 busy={marking === `e:${e.id}`}
                 disabled={!e.started}
-                onClick={() => markDone({ kind: "event", e })}
+                onClick={() => toggleDone({ kind: "event", e })}
               />
             </div>
           ))}
 
-          {tasks.length > 0 && <p className="hud-label mt-2">Open tasks</p>}
+          {tasks.length > 0 && <p className="hud-label mt-2">Tasks</p>}
           {!canWrite && tasks.length > 0 && (
             <Link href="/app/profile" className="hud-label underline underline-offset-4" style={{ color: "var(--accent)" }}>
               Reconnect Google once to tick tasks from here
             </Link>
           )}
-          {tasks.slice(0, 6).map((t) => (
+          {tasks.slice(0, 10).map((t) => (
             <div
               key={t.id}
               className="card px-3.5 py-3 flex items-center gap-3"
@@ -379,15 +392,15 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
                 <span className="hud-label mt-0.5 block">{t.done ? "Done" : dueLabel(t.due)}</span>
               </span>
               <DoneButton
-                label={`Mark ${t.title} done`}
+                label={t.done ? `Uncheck ${t.title}` : `Mark ${t.title} done`}
                 done={t.done}
                 busy={marking === `t:${t.id}`}
                 disabled={!canWrite}
-                onClick={() => markDone({ kind: "task", t })}
+                onClick={() => toggleDone({ kind: "task", t })}
               />
             </div>
           ))}
-          {tasks.length > 6 && <p className="hud-label">and {tasks.length - 6} more</p>}
+          {tasks.length > 10 && <p className="hud-label">and {tasks.length - 10} more</p>}
 
           {laterEvents.length > 0 && <p className="hud-label mt-2">Rest of the week</p>}
           {laterEvents.slice(0, 5).map((e) => (
@@ -421,12 +434,6 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
             <div className="card p-5 text-center text-muted text-sm">
               Connected, but your calendar and task lists are empty for the week.
             </div>
-          )}
-          {google && (events.length > 0 || tasks.length > 0) && (
-            <p className="hud-label mt-1">
-              Tick it when it's done · the Judge prices it
-              {dueToday > 0 ? ` · ${dueToday} due today` : ""}
-            </p>
           )}
         </div>
       ) : entries === null ? (

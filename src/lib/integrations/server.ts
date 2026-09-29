@@ -56,17 +56,45 @@ export function verifyState(state: string): string | null {
   return readState(state)?.uid ?? null;
 }
 
-// Every item already paid for, keyed by ref, so screens can show them as done.
-export async function paidRefs(uid: string, sources: string[]): Promise<Set<string>> {
+// Every item already paid for, ref -> when it was paid, so screens can show
+// them as done and reconciliation can leave brand new payments alone.
+export async function paidAt(uid: string, sources: string[]): Promise<Map<string, number>> {
   try {
     const r = await fetch(
-      `${SUPA}/rest/v1/xp_ledger?user_id=eq.${uid}&source=in.(${sources.join(",")})&select=ref`,
+      `${SUPA}/rest/v1/xp_ledger?user_id=eq.${uid}&source=in.(${sources.join(",")})&select=ref,created_at`,
       { headers: { apikey: SERVICE, authorization: `Bearer ${SERVICE}` } },
     );
     const rows = await r.json();
-    return new Set(Array.isArray(rows) ? rows.map((x: { ref: string }) => x.ref) : []);
+    return new Map(
+      Array.isArray(rows)
+        ? rows.map((x: { ref: string; created_at: string }) => [x.ref, new Date(x.created_at).getTime()])
+        : [],
+    );
   } catch {
-    return new Set();
+    return new Map();
+  }
+}
+
+export async function paidRefs(uid: string, sources: string[]): Promise<Set<string>> {
+  return new Set((await paidAt(uid, sources)).keys());
+}
+
+// Take back the XP for one item (the player unchecked it). Returns the amount.
+export async function revokeXp(uid: string, source: string, ref: string): Promise<number> {
+  try {
+    const r = await fetch(`${SUPA}/rest/v1/rpc/revoke_external_xp`, {
+      method: "POST",
+      headers: {
+        apikey: SERVICE,
+        authorization: `Bearer ${SERVICE}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ p_user: uid, p_source: source, p_ref: ref }),
+    });
+    const n = Number(await r.json());
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
   }
 }
 

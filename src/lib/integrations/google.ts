@@ -376,6 +376,18 @@ export async function completeTask(token: string, listId: string, taskId: string
   return !!body && (body as { status?: string }).status === "completed";
 }
 
+// Put a task back on the list in Google, for when the player unchecks it here.
+export async function reopenTask(token: string, listId: string, taskId: string, issues: ApiIssue[] = []): Promise<boolean> {
+  const body = await call(
+    `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}`,
+    token,
+    "Google Tasks",
+    issues,
+    { method: "PATCH", body: { status: "needsAction", completed: null } },
+  );
+  return !!body && (body as { status?: string }).status === "needsAction";
+}
+
 export async function getEvent(token: string, calendarId: string, eventId: string, issues: ApiIssue[] = []): Promise<GEvent | null> {
   const body = await call(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,

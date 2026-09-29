@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { userFromBearer, getIntegration } from "@/lib/integrations/server";
+import { userFromBearer, getIntegration, revokeXp } from "@/lib/integrations/server";
 import {
   ApiIssue,
   canWriteTasks,
   completeTask,
+  reopenTask,
   eventStart,
   explainIssues,
   freshAccessToken,
@@ -22,7 +23,14 @@ export const maxDuration = 60;
 
 const GRACE_MS = 3 * 86400_000; // a meeting can be logged up to three days late
 
-type Body = { kind?: string; listId?: string; taskId?: string; calendarId?: string; eventId?: string };
+type Body = {
+  kind?: string;
+  listId?: string;
+  taskId?: string;
+  calendarId?: string;
+  eventId?: string;
+  undo?: boolean; // uncheck: reopen the task in Google and take the XP back
+};
 
 export async function POST(req: Request) {
   const uid = await userFromBearer(req);
@@ -41,6 +49,23 @@ export async function POST(req: Request) {
   if (!token) return NextResponse.json({ error: "Your Google connection expired. Reconnect it in your profile." }, { status: 400 });
 
   const issues: ApiIssue[] = [];
+
+  if (body.undo) {
+    if (body.kind === "task" && body.listId && body.taskId) {
+      if (!canWriteTasks(row.scope)) {
+        return NextResponse.json({ error: "Reconnect Google in your profile to change tasks from here.", reconnect: true }, { status: 400 });
+      }
+      const ok = await reopenTask(token, body.listId, body.taskId, issues);
+      if (!ok) return NextResponse.json({ error: explainIssues(issues) ?? "Google would not reopen the task." }, { status: 502 });
+      const taken = await revokeXp(uid, "google_tasks", `task:${body.taskId}`);
+      return NextResponse.json({ ok: true, revoked: taken });
+    }
+    if (body.kind === "event" && body.eventId) {
+      const taken = await revokeXp(uid, "google_calendar", `event:${body.eventId}`);
+      return NextResponse.json({ ok: true, revoked: taken });
+    }
+    return NextResponse.json({ error: "invalid body" }, { status: 400 });
+  }
 
   if (body.kind === "task" && body.listId && body.taskId) {
     if (!canWriteTasks(row.scope)) {
