@@ -105,8 +105,21 @@ export class HouseScene extends Phaser.Scene {
       this.markers.set(spot, m);
     }
 
+    this.night = this.add.rectangle(0, 0, ROOM_W, ROOM_H, 0x0b1030).setOrigin(0).setDepth(50).setAlpha(0);
+    this.applyNight();
+    this.time.addEvent({ delay: 60_000, loop: true, callback: () => this.applyNight() });
+
     this.ready = true;
     if (this.pending) this.sync(this.pending);
+  }
+
+
+  // the world runs on the real clock: a blue-black tint rolls in at dusk
+  private night!: Phaser.GameObjects.Rectangle;
+  private applyNight() {
+    const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Jerusalem" }).format(new Date()));
+    const amt = hour >= 7 && hour < 18 ? 0 : hour >= 18 && hour < 21 ? (hour - 18) / 3 : hour >= 5 && hour < 7 ? (7 - hour) / 2 : 1;
+    this.night.setAlpha(0.55 * amt);
   }
 
   setTapHandler(fn: ((spot: Spot) => void) | null) {

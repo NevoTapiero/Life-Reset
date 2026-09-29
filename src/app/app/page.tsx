@@ -22,7 +22,8 @@ import {
   questArt,
   rankForXp,
 } from "@/lib/game";
-import { NEED_LABEL, actionFor, computeNeeds, idleFor, type Spot, type StatKeyNeed } from "@/lib/needs";
+import { NEED_LABEL, actionFor, appHour, computeNeeds, idleFor, type Spot, type StatKeyNeed } from "@/lib/needs";
+import { clearSession, elapsedMin, loadSession, nowMs, startSession, type Session } from "@/lib/session";
 import { loadPending, markCollected, sourceInfo, type Pending } from "@/lib/collect";
 
 type UserQuestRow = { quest_id: string; added_on: string; quests: Quest };
@@ -44,7 +45,9 @@ export default function Dashboard() {
   const [collected, setCollected] = useState<{ stat: StatKeyNeed; xp: number }[]>([]); // tapped this visit, feeds the needs
   const [boost, setBoost] = useState<{ id: number; text: string } | null>(null);
   const boostSeq = useRef(0); // each float gets a fresh id so the house replays it
-  const [chooser, setChooser] = useState<{ spot: Spot; quests: Quest[] } | null>(null); // several quests live at one spot
+  const [chooser, setChooser] = useState<{ spot: Spot; quests: Quest[] } | null>(null); // the quests that live at a tapped spot
+  const [session, setSession] = useState<Session | null>(null); // "doing it now": he does it on screen while you do it
+  const [tick, setTick] = useState(0); // re-render the elapsed time every half minute
 
   const load = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
@@ -96,10 +99,28 @@ export default function Dashboard() {
     load();
   }, [load]);
 
-  const needs = useMemo(() => {
-    const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Jerusalem" }).format(new Date()));
-    return computeNeeds(quests, doneToday, doneYesterday, hour, collected);
-  }, [quests, doneToday, doneYesterday, collected]);
+  const hour = appHour();
+  const needs = useMemo(() => computeNeeds(quests, doneToday, doneYesterday, hour, collected), [quests, doneToday, doneYesterday, hour, collected]);
+
+  useEffect(() => {
+    // pick up a session left running (state lands in a callback, not in the effect body)
+    Promise.resolve().then(() => setSession(loadSession(nowMs())));
+    const t = setInterval(() => setTick(nowMs()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const sessionQuest = session ? quests.find((q) => q.id === session.questId) ?? null : null;
+  const sessionMin = session ? elapsedMin(session, tick || nowMs()) : 0;
+
+  function beginSession(q: Quest) {
+    setSession(startSession(q.id, nowMs()));
+    setChooser(null);
+  }
+  function endSession(log: boolean) {
+    clearSession();
+    setSession(null);
+    if (log && sessionQuest && !doneToday.has(sessionQuest.id)) toggle(sessionQuest);
+  }
 
   // Tap a bubble: it leaves the tray, the need it feeds jumps, the house floats
   // the amount, and the XP meter finally shows what was already banked.
@@ -126,9 +147,9 @@ export default function Dashboard() {
   // Tap the bed, the desk, the mat: log the quest that happens there. One
   // candidate logs straight away; several open a small picker.
   function tapSpot(spot: Spot) {
+    if (sessionQuest && actionFor(sessionQuest).spot === spot) return endSession(true); // tapping where he is working finishes it
     const here = quests.filter((q) => !doneToday.has(q.id) && actionFor(q).spot === spot);
-    if (here.length === 1) toggle(here[0]);
-    else if (here.length > 1) setChooser({ spot, quests: here });
+    if (here.length) setChooser({ spot, quests: here });
     else setBoost({ id: ++boostSeq.current, text: "Nothing left here" });
   }
 
@@ -251,8 +272,14 @@ export default function Dashboard() {
       <Room
         character={profile.archetype}
         needs={needs}
-        action={acting ? actionFor(acting) : idleFor(needs)}
-        busy={!!acting}
+        action={
+          acting
+            ? actionFor(acting)
+            : sessionQuest
+              ? { ...actionFor(sessionQuest), label: `${actionFor(sessionQuest).label} · ${sessionMin} min` }
+              : idleFor(needs, hour)
+        }
+        busy={!!acting || !!sessionQuest}
         boost={boost}
         pending={pending}
         onCollect={collect}
@@ -261,25 +288,57 @@ export default function Dashboard() {
         onTapSpot={tapSpot}
       />
 
+      {sessionQuest && (
+        <div className="card p-3 mt-3 flex items-center gap-3 rise">
+          <span className="icon-tile !w-9 !h-9 !rounded-[10px] pulse-glow" style={{ color: "var(--accent)" }}>
+            <Icon name={sessionQuest.icon} size={18} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="display text-[14px] truncate">{sessionQuest.title}</div>
+            <div className="hud-label mt-0.5">{sessionMin} min · he is on it while you are</div>
+          </div>
+          <button className="btn-primary px-4 py-2.5 !text-xs" onClick={() => endSession(true)}>
+            Done
+          </button>
+          <button className="hud-label px-2 py-2" onClick={() => endSession(false)} aria-label="Stop without logging">
+            <Icon name="x" size={14} />
+          </button>
+        </div>
+      )}
+
       {chooser && (
         <div className="rankup-backdrop" onClick={() => setChooser(null)}>
           <div className="card p-4 w-[88%] max-w-sm rise" onClick={(e) => e.stopPropagation()}>
-            <div className="hud-label mb-3">What did you do here?</div>
+            <div className="hud-label mb-3">{sessionQuest ? "He is busy -- finish that first" : "What are you doing here?"}</div>
             <div className="flex flex-col gap-2">
               {chooser.quests.map((q) => (
-                <button
+                <div
                   key={q.id}
-                  className="flex items-center gap-3 text-left px-3 py-3 rounded-xl border border-line active:scale-[0.98] transition-transform"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-line"
                   style={{ background: "rgba(255,255,255,0.04)" }}
-                  onClick={() => {
-                    setChooser(null);
-                    toggle(q);
-                  }}
                 >
                   <span className="icon-tile !w-9 !h-9 !rounded-[10px]"><Icon name={q.icon} size={18} /></span>
-                  <span className="flex-1 display text-[14px]">{q.title}</span>
-                  <span className="hud-label" style={{ color: "var(--accent)" }}>+{q.xp} XP</span>
-                </button>
+                  <span className="flex-1 min-w-0">
+                    <span className="block display text-[14px] truncate">{q.title}</span>
+                    <span className="hud-label" style={{ color: "var(--accent)" }}>+{q.xp} XP · +{q.xp * 2} gold</span>
+                  </span>
+                  <button
+                    className="btn-ghost px-3 py-2 !text-xs"
+                    disabled={!!sessionQuest}
+                    onClick={() => beginSession(q)}
+                  >
+                    Start
+                  </button>
+                  <button
+                    className="btn-primary px-3 py-2 !text-xs"
+                    onClick={() => {
+                      setChooser(null);
+                      toggle(q);
+                    }}
+                  >
+                    Did it
+                  </button>
+                </div>
               ))}
             </div>
           </div>

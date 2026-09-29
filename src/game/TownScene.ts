@@ -101,8 +101,21 @@ export class TownScene extends Phaser.Scene {
       else this.walkTo({ x: tx, y: ty });
     });
 
+    this.night = this.add.rectangle(0, 0, TOWN_W * T, TOWN_H * T, 0x0b1030).setOrigin(0).setDepth(50).setAlpha(0);
+    this.applyNight();
+    this.time.addEvent({ delay: 60_000, loop: true, callback: () => this.applyNight() });
+
     this.ready = true;
     if (this.pendingState) this.sync(this.pendingState);
+  }
+
+
+  // the world runs on the real clock: a blue-black tint rolls in at dusk
+  private night!: Phaser.GameObjects.Rectangle;
+  private applyNight() {
+    const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Jerusalem" }).format(new Date()));
+    const amt = hour >= 7 && hour < 18 ? 0 : hour >= 18 && hour < 21 ? (hour - 18) / 3 : hour >= 5 && hour < 7 ? (7 - hour) / 2 : 1;
+    this.night.setAlpha(0.55 * amt);
   }
 
   setHouseHandler(fn: ((h: TownHouse) => void) | null) {

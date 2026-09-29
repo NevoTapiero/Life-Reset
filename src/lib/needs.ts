@@ -75,8 +75,22 @@ export function actionFor(q: Pick<Quest, "id" | "title" | "pillar">): Action {
   return BY_PILLAR[q.pillar] ?? { label: "Busy", spot: "mat" };
 }
 
-export function idleFor(n: Needs): Action {
+export function idleFor(n: Needs, hour?: number): Action {
+  if (hour !== undefined && (hour >= 23 || hour < 6)) return { label: "Asleep", spot: "bed" };
   if (n.CON < 30) return { label: "Slumped on the couch, tired", spot: "couch" };
   if (moodOf(n).score >= 85) return { label: "Feeling great", spot: "mat" };
   return { label: "Idle at home", spot: "couch" };
+}
+
+// Real time, app timezone. The world runs on your clock.
+export function appHour(now = new Date()): number {
+  return Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Asia/Jerusalem" }).format(now));
+}
+
+// How dark the world is right now: 0 by day, up to 1 deep at night.
+export function nightAmount(hour: number): number {
+  if (hour >= 7 && hour < 18) return 0;
+  if (hour >= 18 && hour < 21) return (hour - 18) / 3; // dusk
+  if (hour >= 5 && hour < 7) return (7 - hour) / 2; // dawn
+  return 1;
 }
