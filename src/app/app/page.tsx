@@ -9,8 +9,8 @@ import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
 import XpMeter from "@/components/XpMeter";
 
-// three.js touches window: load the brick world on the client only
-const BrickWorld = dynamic(() => import("@/components/BrickWorld"), { ssr: false });
+// three.js touches window: load the LEGO world on the client only
+const LegoWorld = dynamic(() => import("@/components/LegoWorld"), { ssr: false });
 import {
   CHARACTERS,
   CHARACTER_KEYS,
@@ -75,7 +75,7 @@ export default function YouPage() {
 
         <div className="relative">
           <div className="relative" style={{ height: "58vh", minHeight: 360 }}>
-            <BrickWorld
+            <LegoWorld
               // ponytail: house grows with rank tier until gold buys upgrades
               houseLevel={rank.tierIndex + 1}
               streak={profile.streak_current}

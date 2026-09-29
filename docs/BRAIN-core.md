@@ -8,14 +8,20 @@ shelved (the world prototype lives on branch `ifti/world-prototype`).
 
 ## The look (decided 2026-09-29)
 
-A brick-toy world, built entirely in code (three.js): your character as a
-brick figure, standing on a studded baseplate in front of his brick house,
-with a garden. Everything is bricks on a stud grid (`src/lib/brickWorld.ts`),
-so every upgrade is literally more bricks: the house grows with level, the
-garden with the streak, and the figure swaps parts for gear. Friends' plots
-form a small town. The goal is an official brick-toy licence; until then the
-art stays generic (no brand name, logo, or 1:1 copy of the trademarked
-minifigure).
+A LEGO world built from real parts: the LDraw library (community models of
+every LEGO element, CC BY 2.0), rendered in the browser with three's
+LDrawLoader. `src/lib/legoWorld.ts` writes the plot as LDraw text -- a 32x32
+baseplate, a house (white brick walls, running bond, real door and windows,
+45-degree red slope roof with a ridge), a garden (tile path, flower stems,
+round-brick hedge, trees), and your minifigure -- and
+`components/LegoWorld.tsx` renders it. Upgrades are more parts: the house by
+level, the garden by streak, the minifig by swapping parts and colours.
+`scripts/lego/pack.mjs` packs exactly the parts used into `public/lego/`
+(0.43 MB).
+
+**Licensing:** the geometry is free, but LEGO and the minifigure are LEGO
+Group trademarks. This must not ship publicly (merge to `main` auto-deploys)
+until the licence is in place.
 
 ## The screen
 
