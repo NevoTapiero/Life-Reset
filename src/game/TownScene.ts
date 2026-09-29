@@ -4,6 +4,8 @@ import { HERO_FRAME, T } from "./sprites";
 import {
   TOWN_W,
   TOWN_H,
+  YARD_W,
+  YARD_H,
   STREET_X,
   STREET_Y,
   blockedGrid,
@@ -42,6 +44,9 @@ const HOUSE_TILES: Record<0 | 1 | 2, number[][]> = {
     [123, 124, 125, 126],
   ],
 };
+// fence pieces: corners, rails, and what grows in a garden
+const FENCE = { tl: 44, top: 45, tr: 46, left: 56, right: 58, bl: 68, bottom: 69, br: 70 };
+const GARDEN: Record<string, number> = { flower: 2, hive: 94, target: 95, sign: 83, shroom: 29, tree: 15 };
 const px = (t: number) => t * T + T / 2;
 
 export class TownScene extends Phaser.Scene {
@@ -49,7 +54,7 @@ export class TownScene extends Phaser.Scene {
   private body!: Phaser.GameObjects.Sprite;
   private houses: TownHouse[] = [];
   private blocked: boolean[][] = [];
-  private at: Plot = { x: STREET_X, y: STREET_Y[0] };
+  private at: Plot = { x: STREET_X[0], y: STREET_Y[0] };
   private walking = false;
   private bob?: Phaser.Tweens.Tween;
   private built = false;
@@ -75,7 +80,7 @@ export class TownScene extends Phaser.Scene {
     let seed = 3;
     const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
     for (let y = 0; y < TOWN_H; y++)
-      for (let x = 0; x < TOWN_W; x++) ground.putTileAt(x === STREET_X || STREET_Y.includes(y) ? COBBLE : GRASS[Math.floor(rnd() * GRASS.length)], x, y);
+      for (let x = 0; x < TOWN_W; x++) ground.putTileAt(STREET_X.includes(x) || STREET_Y.includes(y) ? COBBLE : GRASS[Math.floor(rnd() * GRASS.length)], x, y);
 
     this.body = this.add.sprite(0, 0, "heroes", HERO_FRAME.warrior);
     this.hero = this.add.container(px(this.at.x), px(this.at.y), [this.body]).setDepth(10);
@@ -91,7 +96,7 @@ export class TownScene extends Phaser.Scene {
       if (p.getDistance() >= 6) return;
       const tx = Math.floor(p.worldX / T);
       const ty = Math.floor(p.worldY / T);
-      const house = this.houses.find((h) => tx >= h.plot.x && tx < h.plot.x + h.spec.w && ty >= h.plot.y && ty < h.plot.y + h.spec.h);
+      const house = this.houses.find((h) => tx >= h.house.x && tx < h.house.x + h.spec.w && ty >= h.house.y && ty < h.house.y + h.spec.h);
       if (house) this.walkTo(house.doorstep, () => this.onHouse?.(house));
       else this.walkTo({ x: tx, y: ty });
     });
@@ -124,13 +129,31 @@ export class TownScene extends Phaser.Scene {
     const ground = this.objects.tilemap.getLayer("ground")!.tilemapLayer;
 
     for (const h of this.houses) {
-      HOUSE_TILES[h.spec.tier].forEach((row, dy) => row.forEach((idx, dx) => this.objects.putTileAt(idx, h.plot.x + dx, h.plot.y + dy)));
-      // cobbles from the doorstep to the nearest street
-      const sy = STREET_Y.reduce((a, b) => (Math.abs(b - h.doorstep.y) < Math.abs(a - h.doorstep.y) ? b : a));
-      for (let y = Math.min(h.doorstep.y, sy); y <= Math.max(h.doorstep.y, sy); y++) ground.putTileAt(COBBLE, h.doorstep.x, y);
+      // the yard: fence all round, a gate at the bottom
+      for (let y = 0; y < YARD_H; y++)
+        for (let x = 0; x < YARD_W; x++) {
+          const gx = h.plot.x + x;
+          const gy = h.plot.y + y;
+          const idx =
+            y === 0 && x === 0 ? FENCE.tl
+            : y === 0 && x === YARD_W - 1 ? FENCE.tr
+            : y === YARD_H - 1 && x === 0 ? FENCE.bl
+            : y === YARD_H - 1 && x === YARD_W - 1 ? FENCE.br
+            : y === 0 ? FENCE.top
+            : y === YARD_H - 1 ? FENCE.bottom
+            : x === 0 ? FENCE.left
+            : x === YARD_W - 1 ? FENCE.right
+            : -1;
+          if (idx >= 0 && !(gx === h.gate.x && gy === h.gate.y)) this.objects.putTileAt(idx, gx, gy);
+        }
+      HOUSE_TILES[h.spec.tier].forEach((row, dy) => row.forEach((idx, dx) => this.objects.putTileAt(idx, h.house.x + dx, h.house.y + dy)));
+      for (const it of h.garden) this.objects.putTileAt(GARDEN[it.kind], it.x, it.y);
+      // the lane: doorstep, through the gate, down to the street
+      const sy = STREET_Y.find((y) => y > h.gate.y) ?? h.gate.y;
+      for (let y = h.doorstep.y; y <= sy; y++) ground.putTileAt(COBBLE, h.doorstep.x, y);
 
-      const cx = px(h.plot.x) + ((h.spec.w - 1) * T) / 2;
-      const top = h.plot.y * T - 2;
+      const cx = px(h.house.x) + ((h.spec.w - 1) * T) / 2;
+      const top = h.house.y * T - 2;
       const xpText = h.row.today_xp !== null ? `+${h.row.today_xp} today` : h.row.weekly_xp !== null ? `+${h.row.weekly_xp} this week` : "";
       this.add
         .text(cx, top, `${h.row.is_me ? "You" : h.row.username}${xpText ? `\n${xpText}` : ""}`, {
