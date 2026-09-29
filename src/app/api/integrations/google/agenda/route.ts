@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { userFromBearer, getIntegration } from "@/lib/integrations/server";
-import { freshAccessToken, eventsEverywhere, localDayRange, openTasks } from "@/lib/integrations/google";
+import {
+  ApiIssue,
+  eventsEverywhere,
+  explainIssues,
+  freshAccessToken,
+  localDayRange,
+  openTasks,
+} from "@/lib/integrations/google";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -18,14 +25,16 @@ export async function GET(req: Request) {
   if (!token) return NextResponse.json({ connected: false, reconnect: true, events: [], tasks: [] });
 
   const { start, end } = localDayRange(7);
+  const issues: ApiIssue[] = [];
   const [events, tasks] = await Promise.all([
-    eventsEverywhere(token, start.toISOString(), end.toISOString()),
-    openTasks(token),
+    eventsEverywhere(token, start.toISOString(), end.toISOString(), issues),
+    openTasks(token, issues),
   ]);
 
   const todayEnd = start.getTime() + 86400_000;
   return NextResponse.json({
     connected: true,
+    problem: explainIssues(issues),
     events: events.slice(0, 25).map((e) => {
       const iso = e.start?.dateTime ?? (e.start?.date ? `${e.start.date}T00:00:00` : null);
       const at = iso ? new Date(iso).getTime() : 0;

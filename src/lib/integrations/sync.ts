@@ -36,9 +36,10 @@ export async function syncGoogle(uid: string): Promise<GoogleSync> {
   const token = await googleToken(uid);
   if (!token) return { ...empty, error: "reconnect" };
 
-  const since = row.last_sync
-    ? new Date(new Date(row.last_sync).getTime() - 60_000)
-    : new Date(Date.now() - 3 * 86400_000);
+  // Always look back three days rather than from the last sync. Awards are keyed
+  // on the task id, so re-reading the same task cannot pay twice, and anything
+  // missed while the connection was broken still gets picked up.
+  const since = new Date(Date.now() - 3 * 86400_000);
   const { start: dayStart, end: dayEnd } = localDayRange();
 
   const [tasks, events] = await Promise.all([

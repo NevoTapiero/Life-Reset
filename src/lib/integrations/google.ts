@@ -87,14 +87,62 @@ export type GEvent = {
   location?: string;
 };
 
+// Google refusing a call and Google having nothing to return look identical
+// once the error is swallowed, which makes an empty screen impossible to read.
+// Every call records why it failed into a shared list instead.
+
+export type ApiIssue = { api: string; status: number; message: string };
+
+async function call(
+  url: string,
+  token: string,
+  api: string,
+  issues: ApiIssue[],
+): Promise<Record<string, unknown> | null> {
+  try {
+    const r = await fetch(url, {
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (r.ok) return await r.json();
+    let message = `HTTP ${r.status}`;
+    try {
+      const body = await r.json();
+      message = body?.error?.message ?? body?.error_description ?? message;
+    } catch {
+      // keep the status-only message
+    }
+    issues.push({ api, status: r.status, message: String(message).slice(0, 300) });
+    return null;
+  } catch (e) {
+    issues.push({ api, status: 0, message: e instanceof Error ? e.message : "request failed" });
+    return null;
+  }
+}
+
+// A short, human explanation of the first thing that went wrong, if anything.
+export function explainIssues(issues: ApiIssue[]): string | null {
+  const first = issues[0];
+  if (!first) return null;
+  const text = first.message.toLowerCase();
+  if (first.status === 403 && (text.includes("has not been used") || text.includes("is disabled"))) {
+    return `The ${first.api} API is switched off in your Google Cloud project.`;
+  }
+  if (first.status === 403 && text.includes("insufficient")) {
+    return `Your connection is missing permission for ${first.api}. Disconnect and connect again.`;
+  }
+  if (first.status === 401) return "Your Google connection expired. Disconnect and connect again.";
+  return `${first.api} said: ${first.message}`;
+}
+
 // Tasks completed since `sinceIso` across all of the user's task lists.
-export async function completedTasksSince(token: string, sinceIso: string): Promise<GTask[]> {
-  const listsRes = await fetch("https://tasks.googleapis.com/tasks/v1/users/@me/lists", {
-    headers: { authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!listsRes.ok) return [];
-  const lists = (await listsRes.json())?.items ?? [];
+export async function completedTasksSince(
+  token: string,
+  sinceIso: string,
+  issues: ApiIssue[] = [],
+): Promise<GTask[]> {
+  const listsBody = await call("https://tasks.googleapis.com/tasks/v1/users/@me/lists", token, "Google Tasks", issues);
+  const lists = (listsBody?.items as { id: string }[]) ?? [];
   const out: GTask[] = [];
   for (const l of lists) {
     const p = new URLSearchParams({
@@ -103,12 +151,8 @@ export async function completedTasksSince(token: string, sinceIso: string): Prom
       completedMin: sinceIso,
       maxResults: "100",
     });
-    const r = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${l.id}/tasks?${p}`, {
-      headers: { authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!r.ok) continue;
-    const items = (await r.json())?.items ?? [];
+    const body = await call(`https://tasks.googleapis.com/tasks/v1/lists/${l.id}/tasks?${p}`, token, "Google Tasks", issues);
+    const items = (body?.items as (GTask & { status?: string })[]) ?? [];
     for (const t of items) if (t.status === "completed" && t.title?.trim()) out.push(t);
   }
   return out;
@@ -204,21 +248,28 @@ export function localDayRange(days = 1, base = new Date()): { start: Date; end: 
 
 // Every calendar the player actually keeps switched on, not just "primary":
 // most people put their real schedule on a secondary or shared calendar.
-export async function eventsEverywhere(token: string, minIso: string, maxIso: string): Promise<GEvent[]> {
+export async function eventsEverywhere(
+  token: string,
+  minIso: string,
+  maxIso: string,
+  issues: ApiIssue[] = [],
+): Promise<GEvent[]> {
   let ids = ["primary"];
-  try {
-    const r = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50", {
-      headers: { authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (r.ok) {
-      const items: { id: string; selected?: boolean; primary?: boolean }[] = (await r.json())?.items ?? [];
-      const on = items.filter((c) => c.primary || c.selected !== false).map((c) => c.id);
-      if (on.length) ids = on.slice(0, 5);
-    }
-  } catch {
-    // fall back to the primary calendar alone
-  }
+  const listBody = await call(
+    "https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50",
+    token,
+    "Google Calendar",
+    issues,
+  );
+  const cals = (listBody?.items as { id: string; selected?: boolean; primary?: boolean }[]) ?? [];
+  // Google's own interest calendars (holidays, birthdays, weather) are not a
+  // schedule you kept: they would bury the real week and pay XP for Sukkot.
+  const canned = /#(holiday|contacts|weather|sports)@group\.v\.calendar\.google\.com$/;
+  const on = cals
+    .filter((c) => (c.primary || c.selected !== false) && !canned.test(c.id))
+    .map((c) => c.id);
+  if (on.length) ids = on.slice(0, 5);
+
   const p = new URLSearchParams({
     timeMin: minIso,
     timeMax: maxIso,
@@ -228,16 +279,13 @@ export async function eventsEverywhere(token: string, minIso: string, maxIso: st
   });
   const lists = await Promise.all(
     ids.map(async (id) => {
-      try {
-        const r = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(id)}/events?${p}`,
-          { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8000) },
-        );
-        if (!r.ok) return [] as GEvent[];
-        return ((await r.json())?.items ?? []) as GEvent[];
-      } catch {
-        return [] as GEvent[];
-      }
+      const body = await call(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(id)}/events?${p}`,
+        token,
+        "Google Calendar",
+        issues,
+      );
+      return (body?.items as GEvent[]) ?? [];
     }),
   );
   const seen = new Set<string>();
@@ -253,27 +301,15 @@ export async function eventsEverywhere(token: string, minIso: string, maxIso: st
 }
 
 // Still open: what the player has left to do, shown in the app as a live list.
-export async function openTasks(token: string): Promise<GTask[]> {
-  const listsRes = await fetch("https://tasks.googleapis.com/tasks/v1/users/@me/lists", {
-    headers: { authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!listsRes.ok) return [];
-  const lists: { id: string }[] = (await listsRes.json())?.items ?? [];
+export async function openTasks(token: string, issues: ApiIssue[] = []): Promise<GTask[]> {
+  const listsBody = await call("https://tasks.googleapis.com/tasks/v1/users/@me/lists", token, "Google Tasks", issues);
+  const lists = (listsBody?.items as { id: string }[]) ?? [];
   const out: GTask[] = [];
   for (const l of lists.slice(0, 5)) {
     const p = new URLSearchParams({ showCompleted: "false", maxResults: "50" });
-    try {
-      const r = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${l.id}/tasks?${p}`, {
-        headers: { authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!r.ok) continue;
-      const items: GTask[] = (await r.json())?.items ?? [];
-      for (const t of items) if (t.title?.trim()) out.push(t);
-    } catch {
-      continue;
-    }
+    const body = await call(`https://tasks.googleapis.com/tasks/v1/lists/${l.id}/tasks?${p}`, token, "Google Tasks", issues);
+    const items = (body?.items as GTask[]) ?? [];
+    for (const t of items) if (t.title?.trim()) out.push(t);
   }
   // due first, undated last
   return out

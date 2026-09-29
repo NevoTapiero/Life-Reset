@@ -67,6 +67,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
   const [total, setTotal] = useState(0);
   const [connected, setConnected] = useState<boolean | null>(null);
   const [google, setGoogle] = useState<boolean | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
   const [events, setEvents] = useState<AgendaEvent[]>([]);
   const [tasks, setTasks] = useState<AgendaTask[]>([]);
   const [tab, setTab] = useState<"tracking" | "earned">("tracking");
@@ -91,18 +92,26 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
   }, []);
 
   const loadAgenda = useCallback(async () => {
-    const { data } = await supabase.auth.getSession();
-    const r = await fetch("/api/integrations/google/agenda", {
-      headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}` },
-    });
-    const d = await r.json();
-    setGoogle(!!d.connected);
-    if (d.connected) {
-      setConnected(true);
-      setEvents((d.events as AgendaEvent[]) ?? []);
-      setTasks((d.tasks as AgendaTask[]) ?? []);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const r = await fetch("/api/integrations/google/agenda", {
+        headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}` },
+      });
+      const d = await r.json();
+      setGoogle(!!d.connected);
+      setProblem(typeof d.problem === "string" ? d.problem : null);
+      if (d.connected) {
+        setConnected(true);
+        setEvents((d.events as AgendaEvent[]) ?? []);
+        setTasks((d.tasks as AgendaTask[]) ?? []);
+      }
+      return !!d.connected;
+    } catch {
+      // never leave the section stuck on its loading line
+      setGoogle(false);
+      setProblem("Could not reach your calendar. Pull down to try again.");
+      return false;
     }
-    return !!d.connected;
   }, []);
 
   const runSync = useCallback(
@@ -223,6 +232,15 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
       {tab === "tracking" ? (
         <div className="flex flex-col gap-2 mt-3 stagger">
           {google === null && <div className="hud-label pulse-glow py-4 text-center">Reading your calendar…</div>}
+
+          {problem && (
+            <div className="card px-3.5 py-3 flex items-start gap-3" style={{ borderColor: "var(--danger)" }}>
+              <span className="icon-tile !w-9 !h-9 !rounded-[10px]" style={{ color: "var(--danger)" }}>
+                <Icon name="x" size={16} />
+              </span>
+              <span className="flex-1 text-[13px] leading-snug">{problem}</span>
+            </div>
+          )}
 
           {todayEvents.length > 0 && <p className="hud-label mt-1">Today</p>}
           {todayEvents.slice(0, 6).map((e) => (
