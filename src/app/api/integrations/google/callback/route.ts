@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { verifyState, saveIntegration } from "@/lib/integrations/server";
-import { exchangeCode, GOOGLE_SCOPES } from "@/lib/integrations/google";
+import { readState, saveIntegration } from "@/lib/integrations/server";
+import { exchangeCode, GOOGLE_SCOPES, HEALTH_SCOPES } from "@/lib/integrations/google";
 
 export const runtime = "nodejs";
 
-// Google redirects here after consent. We verify the signed state, swap the code
-// for tokens, store them, and bounce the user back into the app.
+// Google redirects here after consent, for both Tasks/Calendar and Google
+// Health (the signed state says which). We verify the state, swap the code for
+// tokens, store them, and bounce the user back into the app.
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const origin = url.origin;
@@ -13,24 +14,25 @@ export async function GET(req: Request) {
   const state = url.searchParams.get("state");
   const err = url.searchParams.get("error");
 
-  if (err) return NextResponse.redirect(`${origin}/app/profile?google=denied`);
-  if (!code || !state) return NextResponse.redirect(`${origin}/app/profile?google=error`);
+  const parsed = state ? readState(state) : null;
+  const provider = parsed?.p === "ghealth" ? "ghealth" : "google";
+  const back = (status: string) => NextResponse.redirect(`${origin}/app/profile?${provider}=${status}`);
 
-  const uid = verifyState(state);
-  if (!uid) return NextResponse.redirect(`${origin}/app/profile?google=error`);
+  if (err) return back("denied");
+  if (!code || !parsed) return back("error");
 
   try {
     const t = await exchangeCode(code);
     await saveIntegration({
-      user_id: uid,
-      provider: "google",
+      user_id: parsed.uid,
+      provider,
       access_token: t.access_token,
       refresh_token: t.refresh_token ?? null,
       expiry: new Date(Date.now() + t.expires_in * 1000).toISOString(),
-      scope: t.scope ?? GOOGLE_SCOPES,
+      scope: t.scope ?? (provider === "ghealth" ? HEALTH_SCOPES : GOOGLE_SCOPES),
     });
-    return NextResponse.redirect(`${origin}/app/profile?google=connected`);
+    return back("connected");
   } catch {
-    return NextResponse.redirect(`${origin}/app/profile?google=error`);
+    return back("error");
   }
 }

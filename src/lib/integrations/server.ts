@@ -29,23 +29,44 @@ export async function userFromBearer(req: Request): Promise<string | null> {
 
 // Short-lived signed state carried through the OAuth redirect so the callback
 // can trust which user it belongs to (the redirect can't carry our session).
-export function signState(uid: string): string {
-  const body = Buffer.from(JSON.stringify({ uid, ts: Date.now() })).toString("base64url");
+// `p` names which product is being connected, so one Google redirect URI can
+// serve both Tasks/Calendar and Google Health without registering another.
+export function signState(uid: string, p?: string): string {
+  const body = Buffer.from(JSON.stringify({ uid, p, ts: Date.now() })).toString("base64url");
   const sig = crypto.createHmac("sha256", STATE_SECRET).update(body).digest("base64url");
   return `${body}.${sig}`;
 }
 
-export function verifyState(state: string): string | null {
+export function readState(state: string): { uid: string; p: string | null } | null {
   try {
     const [body, sig] = state.split(".");
     if (!body || !sig) return null;
     const expect = crypto.createHmac("sha256", STATE_SECRET).update(body).digest("base64url");
+    if (sig.length !== expect.length) return null;
     if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expect))) return null;
-    const { uid, ts } = JSON.parse(Buffer.from(body, "base64url").toString());
+    const { uid, p, ts } = JSON.parse(Buffer.from(body, "base64url").toString());
     if (!uid || Date.now() - ts > 15 * 60 * 1000) return null; // 15 min window
-    return uid;
+    return { uid, p: typeof p === "string" ? p : null };
   } catch {
     return null;
+  }
+}
+
+export function verifyState(state: string): string | null {
+  return readState(state)?.uid ?? null;
+}
+
+// Every item already paid for, keyed by ref, so screens can show them as done.
+export async function paidRefs(uid: string, sources: string[]): Promise<Set<string>> {
+  try {
+    const r = await fetch(
+      `${SUPA}/rest/v1/xp_ledger?user_id=eq.${uid}&source=in.(${sources.join(",")})&select=ref`,
+      { headers: { apikey: SERVICE, authorization: `Bearer ${SERVICE}` } },
+    );
+    const rows = await r.json();
+    return new Set(Array.isArray(rows) ? rows.map((x: { ref: string }) => x.ref) : []);
+  } catch {
+    return new Set();
   }
 }
 

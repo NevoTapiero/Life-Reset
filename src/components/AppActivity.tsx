@@ -5,13 +5,23 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
 
-// What the connected services (Google Tasks/Calendar, WHOOP) are tracking and
-// what they have paid out, so the player can see the app is actually watching
-// instead of guessing. Everything here is read-only except the Sync button.
+// What the connected services (Google Tasks/Calendar, Google Health, WHOOP) are
+// tracking and what they have paid out, so the player can see the app is
+// actually watching. Tasks and meetings can be marked done right here: nothing
+// on the calendar pays until the player says it happened.
 
 type Entry = { source: string; ref: string; xp: number; reason: string | null; created_at: string };
-type AgendaEvent = { id: string; title: string; start: string | null; allDay: boolean; today: boolean };
-type AgendaTask = { id: string; title: string; due: string | null };
+type AgendaEvent = {
+  id: string;
+  calendarId: string;
+  title: string;
+  start: string | null;
+  allDay: boolean;
+  today: boolean;
+  started: boolean;
+  done: boolean;
+};
+type AgendaTask = { id: string; listId: string; title: string; due: string | null; done: boolean };
 
 const SOURCES: Record<string, { icon: string; label: string }> = {
   google_tasks: { icon: "tasks", label: "Task done" },
@@ -19,7 +29,41 @@ const SOURCES: Record<string, { icon: string; label: string }> = {
   whoop_sleep: { icon: "moon", label: "Sleep" },
   whoop_recovery: { icon: "stat-con", label: "Recovery" },
   whoop_workout: { icon: "dumbbell", label: "Workout" },
+  health_workout: { icon: "dumbbell", label: "Workout" },
+  health_sleep: { icon: "moon", label: "Sleep" },
+  health_steps: { icon: "stat-str", label: "Steps" },
 };
+
+// The round check button used for both tasks and meetings.
+function DoneButton({
+  done,
+  busy,
+  disabled,
+  onClick,
+  label,
+}: {
+  done: boolean;
+  busy: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      aria-label={label}
+      disabled={done || busy || disabled}
+      onClick={onClick}
+      className={`w-8 h-8 rounded-[10px] border flex items-center justify-center flex-none transition-colors duration-150 active:scale-95 ${done ? "check-pop" : ""} ${busy ? "pulse-glow" : ""}`}
+      style={
+        done
+          ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 14px rgb(var(--accent-rgb) / 0.55)" }
+          : { borderColor: "var(--line-strong)", color: "transparent", opacity: disabled ? 0.35 : 1 }
+      }
+    >
+      <Icon name="check" size={14} strokeWidth={2.6} />
+    </button>
+  );
+}
 
 const SYNC_GAP_MS = 3 * 60 * 1000; // don't re-sync more often than this on open
 const TZ = "Asia/Jerusalem";
@@ -68,6 +112,8 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
   const [connected, setConnected] = useState<boolean | null>(null);
   const [google, setGoogle] = useState<boolean | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [canWrite, setCanWrite] = useState(true);
+  const [marking, setMarking] = useState<string | null>(null);
   const [events, setEvents] = useState<AgendaEvent[]>([]);
   const [tasks, setTasks] = useState<AgendaTask[]>([]);
   const [tab, setTab] = useState<"tracking" | "earned">("tracking");
@@ -102,6 +148,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
       setProblem(typeof d.problem === "string" ? d.problem : null);
       if (d.connected) {
         setConnected(true);
+        setCanWrite(d.canWrite !== false);
         setEvents((d.events as AgendaEvent[]) ?? []);
         setTasks((d.tasks as AgendaTask[]) ?? []);
       }
@@ -154,18 +201,61 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
       if (Date.now() - last > SYNC_GAP_MS) {
         runSync(false); // this also settles whether anything is connected
       } else if (!isConnected) {
-        // Google is not linked, but WHOOP might be: ask before showing an empty state
+        // Google Tasks is not linked, but WHOOP or Google Health might be: ask
+        // before showing an empty state
         const { data } = await supabase.auth.getSession();
-        const r = await fetch("/api/integrations/whoop/status", {
-          headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}` },
-        }).then((x) => x.json()).catch(() => ({}));
-        setConnected(!!r.connected);
+        const headers = { Authorization: `Bearer ${data.session?.access_token ?? ""}` };
+        const [w, h] = await Promise.all(
+          ["whoop", "ghealth"].map((p) =>
+            fetch(`/api/integrations/${p}/status`, { headers }).then((x) => x.json()).catch(() => ({})),
+          ),
+        );
+        setConnected(!!w.connected || !!h.connected);
       }
     });
   }, [loadEntries, loadAgenda, runSync]);
 
   async function refreshAll() {
     await Promise.all([runSync(true), loadAgenda()]);
+  }
+
+  // Mark a task or meeting done: the server checks it against Google, the Judge
+  // prices it, and only then is XP granted.
+  async function markDone(item: { kind: "task"; t: AgendaTask } | { kind: "event"; e: AgendaEvent }) {
+    const key = item.kind === "task" ? `t:${item.t.id}` : `e:${item.e.id}`;
+    if (marking) return;
+    setMarking(key);
+    setFlash(null);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const r = await fetch("/api/integrations/google/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` },
+        body: JSON.stringify(
+          item.kind === "task"
+            ? { kind: "task", listId: item.t.listId, taskId: item.t.id }
+            : { kind: "event", calendarId: item.e.calendarId, eventId: item.e.id },
+        ),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        setFlash(d.error ?? "Could not mark it done");
+        if (d.reconnect) setCanWrite(false);
+      } else {
+        if (item.kind === "task") setTasks((prev) => prev.map((t) => (t.id === item.t.id ? { ...t, done: true } : t)));
+        else setEvents((prev) => prev.map((e) => (e.id === item.e.id ? { ...e, done: true } : e)));
+        if (d.paid && d.xp > 0) {
+          setFlash(`+${d.xp} XP${d.reason ? ` · ${d.reason}` : ""}`);
+          onXp?.();
+          await loadEntries();
+        } else {
+          setFlash("Already counted");
+        }
+      }
+    } catch {
+      setFlash("Could not mark it done, try again");
+    }
+    setMarking(null);
   }
 
   // nothing connected yet: one line pointing at the connect screen
@@ -177,7 +267,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
         </span>
         <span className="flex-1">
           <span className="display block text-[14px]">Connect your apps</span>
-          <span className="hud-label mt-0.5 block">Google Tasks, Calendar and WHOOP earn XP too</span>
+          <span className="hud-label mt-0.5 block">Google Tasks, Calendar, Google Health and WHOOP earn XP too</span>
         </span>
         <Icon name="arrow-right" size={16} />
       </Link>
@@ -244,27 +334,57 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
 
           {todayEvents.length > 0 && <p className="hud-label mt-1">Today</p>}
           {todayEvents.slice(0, 6).map((e) => (
-            <div key={e.id} className="card px-3.5 py-3 flex items-center gap-3">
+            <div
+              key={e.id}
+              className="card px-3.5 py-3 flex items-center gap-3"
+              style={e.done ? { borderColor: "rgb(var(--accent-rgb) / 0.6)" } : undefined}
+            >
               <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
                 <Icon name="calendar" size={16} />
               </span>
               <span className="flex-1 min-w-0">
-                <span className="block text-[14px] truncate">{e.title}</span>
-                <span className="hud-label mt-0.5 block">{e.allDay ? "All day" : clock(e.start)}</span>
+                <span className={`block text-[14px] truncate ${e.done ? "line-through text-muted" : ""}`}>{e.title}</span>
+                <span className="hud-label mt-0.5 block">
+                  {e.allDay ? "All day" : clock(e.start)}
+                  {e.done ? " · Done" : e.started ? "" : " · Not yet"}
+                </span>
               </span>
+              <DoneButton
+                label={`Mark ${e.title} done`}
+                done={e.done}
+                busy={marking === `e:${e.id}`}
+                disabled={!e.started}
+                onClick={() => markDone({ kind: "event", e })}
+              />
             </div>
           ))}
 
           {tasks.length > 0 && <p className="hud-label mt-2">Open tasks</p>}
+          {!canWrite && tasks.length > 0 && (
+            <Link href="/app/profile" className="hud-label underline underline-offset-4" style={{ color: "var(--accent)" }}>
+              Reconnect Google once to tick tasks from here
+            </Link>
+          )}
           {tasks.slice(0, 6).map((t) => (
-            <div key={t.id} className="card px-3.5 py-3 flex items-center gap-3">
+            <div
+              key={t.id}
+              className="card px-3.5 py-3 flex items-center gap-3"
+              style={t.done ? { borderColor: "rgb(var(--accent-rgb) / 0.6)" } : undefined}
+            >
               <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
                 <Icon name="tasks" size={16} />
               </span>
               <span className="flex-1 min-w-0">
-                <span className="block text-[14px] truncate">{t.title}</span>
-                <span className="hud-label mt-0.5 block">{dueLabel(t.due)}</span>
+                <span className={`block text-[14px] truncate ${t.done ? "line-through text-muted" : ""}`}>{t.title}</span>
+                <span className="hud-label mt-0.5 block">{t.done ? "Done" : dueLabel(t.due)}</span>
               </span>
+              <DoneButton
+                label={`Mark ${t.title} done`}
+                done={t.done}
+                busy={marking === `t:${t.id}`}
+                disabled={!canWrite}
+                onClick={() => markDone({ kind: "task", t })}
+              />
             </div>
           ))}
           {tasks.length > 6 && <p className="hud-label">and {tasks.length - 6} more</p>}
@@ -304,7 +424,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
           )}
           {google && (events.length > 0 || tasks.length > 0) && (
             <p className="hud-label mt-1">
-              Tick a task off in Google and the Judge pays you for it on your next open
+              Tick it when it's done · the Judge prices it
               {dueToday > 0 ? ` · ${dueToday} due today` : ""}
             </p>
           )}

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { GoogleMark, WhoopMark } from "@/components/Icon";
+import { GoogleHealthMark, GoogleMark, WhoopMark } from "@/components/Icon";
 
 type SyncResult = Record<string, unknown> & { connected?: boolean; xpGained?: number };
 
@@ -32,6 +32,7 @@ function ProviderCard({
   const [connected, setConnected] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [needsUpgrade, setNeedsUpgrade] = useState(false);
 
   const base = `/api/integrations/${provider}`;
 
@@ -48,7 +49,7 @@ function ProviderCard({
         setMsg(summarize(d));
         onXp?.();
       } else {
-        setMsg("Up to date — nothing new to reward yet.");
+        setMsg("Up to date, nothing new to reward yet.");
       }
     } catch {
       setMsg("Sync failed, try again.");
@@ -65,6 +66,8 @@ function ProviderCard({
         return;
       }
       setConnected(!!d.connected);
+      // an older Google connection can read tasks but not tick them off
+      setNeedsUpgrade(!!d.connected && d.canWrite === false);
     } catch {
       setConnected(false);
     }
@@ -131,6 +134,15 @@ function ProviderCard({
         </button>
       </div>
       {msg && <p className="text-sm mt-3" style={{ color: "var(--accent)" }}>{msg}</p>}
+      {needsUpgrade && (
+        <button
+          className="btn-ghost w-full py-2.5 mt-3 !text-xs"
+          disabled={busy}
+          onClick={connect}
+        >
+          Reconnect to tick tasks from the app
+        </button>
+      )}
       {connected && (
         <button className="hud-label mt-3 underline underline-offset-4" disabled={busy} onClick={disconnect}>
           Disconnect
@@ -148,9 +160,15 @@ export default function Connections({ onXp }: { onXp?: () => void }) {
         mark={<GoogleMark size={21} />}
         title="Google Tasks & Calendar"
         blurb="Earn XP from your real tasks and plans"
-        summarize={(d) =>
-          `+${d.xpGained} XP from ${d.newTasks as number} task${d.newTasks === 1 ? "" : "s"} and ${d.newEvents as number} event${d.newEvents === 1 ? "" : "s"}.`
-        }
+        summarize={(d) => `+${d.xpGained} XP from ${d.newTasks as number} task${d.newTasks === 1 ? "" : "s"}.`}
+        onXp={onXp}
+      />
+      <ProviderCard
+        provider="ghealth"
+        mark={<GoogleHealthMark size={24} />}
+        title="Google Health"
+        blurb="Earn XP from workouts, sleep and steps"
+        summarize={(d) => `+${d.xpGained} XP from ${d.newItems as number} health record${d.newItems === 1 ? "" : "s"}.`}
         onXp={onXp}
       />
       <ProviderCard

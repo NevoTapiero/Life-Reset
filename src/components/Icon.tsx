@@ -260,6 +260,26 @@ export function WhoopMark({ size = 18 }: { size?: number }) {
   );
 }
 
+// Google Health: a heart in Google's four colours.
+export function GoogleHealthMark({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden>
+      <defs>
+        <linearGradient id="gh-heart" x1="6" y1="8" x2="42" y2="42" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#4285F4" />
+          <stop offset="0.38" stopColor="#34A853" />
+          <stop offset="0.66" stopColor="#FBBC05" />
+          <stop offset="1" stopColor="#EA4335" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M24 41.5 8.7 26.4C4.4 22.2 4.4 15.4 8.7 11.3c4.1-4 10.7-3.9 14.6.3l.7.7.7-.7c3.9-4.2 10.5-4.3 14.6-.3 4.3 4.1 4.3 10.9 0 15.1L24 41.5Z"
+        fill="url(#gh-heart)"
+      />
+    </svg>
+  );
+}
+
 export function GoogleMark({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden>
