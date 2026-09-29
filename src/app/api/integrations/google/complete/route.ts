@@ -4,6 +4,7 @@ import {
   ApiIssue,
   canWriteTasks,
   completeTask,
+  findTaskList,
   reopenTask,
   eventStart,
   explainIssues,
@@ -12,7 +13,7 @@ import {
   getTask,
   isCannedCalendar,
 } from "@/lib/integrations/google";
-import { payEvent, payTask } from "@/lib/integrations/sync";
+import { countFrom, payEvent, payTask } from "@/lib/integrations/sync";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -51,12 +52,21 @@ export async function POST(req: Request) {
   const issues: ApiIssue[] = [];
 
   if (body.undo) {
-    if (body.kind === "task" && body.listId && body.taskId) {
+    if (body.kind === "task" && body.taskId) {
       if (!canWriteTasks(row.scope)) {
         return NextResponse.json({ error: "Reconnect Google in your profile to change tasks from here.", reconnect: true }, { status: 400 });
       }
-      const ok = await reopenTask(token, body.listId, body.taskId, issues);
-      if (!ok) return NextResponse.json({ error: explainIssues(issues) ?? "Google would not reopen the task." }, { status: 502 });
+      // older payments did not store the list id: find it
+      const listId = body.listId || (await findTaskList(token, body.taskId));
+      // A task deleted in Google has nothing to reopen; unchecking it here
+      // still takes the XP back, since that is what the player asked for.
+      if (listId) {
+        const ok = await reopenTask(token, listId, body.taskId, issues);
+        const gone = issues.some((i) => i.status === 404);
+        if (!ok && !gone) {
+          return NextResponse.json({ error: explainIssues(issues) ?? "Google would not reopen the task." }, { status: 502 });
+        }
+      }
       const taken = await revokeXp(uid, "google_tasks", `task:${body.taskId}`);
       return NextResponse.json({ ok: true, revoked: taken });
     }
@@ -100,6 +110,10 @@ export async function POST(req: Request) {
     }
     if (now - start > GRACE_MS) {
       return NextResponse.json({ error: "Too long ago to log." }, { status: 400 });
+    }
+    // only what happened from the day Google was connected counts
+    if (start < countFrom(row).getTime()) {
+      return NextResponse.json({ error: "This was before you connected Google." }, { status: 400 });
     }
     const r = await payEvent(uid, event);
     return NextResponse.json({ ok: true, paid: r.paid, xp: r.paid ? r.xp : 0, reason: r.reason });

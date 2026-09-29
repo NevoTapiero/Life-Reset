@@ -61,14 +61,30 @@ async function healthCall(
   }
 }
 
-// Workouts that started since `sinceIso`.
+// Workouts that started since `sinceIso`. Exercise only accepts a civil-date
+// filter (start_time is rejected), so filter by day at Google and trim to the
+// exact instant here.
 export async function recentExercise(token: string, sinceIso: string, issues: ApiIssue[] = []): Promise<HealthExercise[]> {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(new Date(sinceIso));
   const p = new URLSearchParams({
     pageSize: "25",
-    filter: `exercise.interval.start_time >= "${sinceIso}"`,
+    filter: `exercise.interval.civil_start_time >= "${day}"`,
   });
   const body = await healthCall(`${API}/exercise/dataPoints?${p}`, token, issues);
-  return (body?.dataPoints as HealthExercise[]) ?? [];
+  const since = new Date(sinceIso).getTime();
+  return ((body?.dataPoints as HealthExercise[]) ?? []).filter((w) => {
+    const at = new Date(w.exercise?.interval?.startTime ?? 0).getTime();
+    return at >= since;
+  });
+}
+
+// Active minutes, falling back to the session length when Google omits it.
+export function exerciseMinutes(w: HealthExercise): number {
+  const active = durationMinutes(w.exercise?.activeDuration);
+  if (active > 0) return active;
+  const i = w.exercise?.interval;
+  if (!i?.startTime || !i.endTime) return 0;
+  return Math.max(0, Math.round((new Date(i.endTime).getTime() - new Date(i.startTime).getTime()) / 60000));
 }
 
 // Sleep sessions that ended since `sinceIso`.
@@ -89,9 +105,10 @@ const civil = (d: string): Civil => {
 
 // Step totals per day for [fromDate, toDate), dates as YYYY-MM-DD.
 export async function dailySteps(token: string, fromDate: string, toDate: string, issues: ApiIssue[] = []): Promise<DailySteps[]> {
+  // CivilDateTime nests the calendar date under `date`
   const body = await healthCall(`${API}/steps/dataPoints:dailyRollUp`, token, issues, {
     method: "POST",
-    body: { range: { start: civil(fromDate), end: civil(toDate) }, windowSizeDays: 1 },
+    body: { range: { start: { date: civil(fromDate) }, end: { date: civil(toDate) } }, windowSizeDays: 1 },
   });
   const points =
     (body?.rollupDataPoints as {

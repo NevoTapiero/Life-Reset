@@ -23,7 +23,7 @@ export type Pending = {
 
 export const SOURCES: Record<string, { icon: string; label: string; stat: StatKey }> = {
   google_tasks: { icon: "tasks", label: "Task done", stat: "DIS" },
-  google_calendar: { icon: "calendar", label: "Calendar", stat: "FOC" },
+  google_calendar: { icon: "calendar", label: "Meeting", stat: "FOC" },
   whoop_sleep: { icon: "moon", label: "Sleep", stat: "CON" },
   whoop_recovery: { icon: "stat-con", label: "Recovery", stat: "CON" },
   whoop_workout: { icon: "dumbbell", label: "Workout", stat: "STR" },

@@ -763,7 +763,10 @@ alter table public.xp_ledger enable row level security;
 drop policy if exists xp_ledger_own on public.xp_ledger;
 create policy xp_ledger_own on public.xp_ledger for select using (auth.uid() = user_id);
 
-create or replace function public.award_external_xp(p_user uuid, p_source text, p_ref text, p_xp int, p_reason text)
+-- v6: ledger rows carry meta (e.g. the Google task list id)
+alter table public.xp_ledger add column if not exists meta jsonb not null default '{}'::jsonb;
+drop function if exists public.award_external_xp(uuid, text, text, int, text);
+create or replace function public.award_external_xp(p_user uuid, p_source text, p_ref text, p_xp int, p_reason text, p_meta jsonb default null)
 returns boolean language plpgsql security definer set search_path=public as $fn$
 declare
   inserted boolean := false;
@@ -771,7 +774,8 @@ declare
   amt int := greatest(-200, least(coalesce(p_xp,0), 200));
 begin
   begin
-    insert into public.xp_ledger(user_id,source,ref,xp,reason) values (p_user,p_source,p_ref,amt,p_reason);
+    insert into public.xp_ledger(user_id,source,ref,xp,reason,meta)
+    values (p_user,p_source,p_ref,amt,p_reason,coalesce(p_meta,'{}'::jsonb));
     inserted := true;
   exception when unique_violation then inserted := false;
   end;
@@ -781,8 +785,8 @@ begin
   return inserted;
 end
 $fn$;
-revoke all on function public.award_external_xp(uuid,text,text,int,text) from public, anon, authenticated;
-grant execute on function public.award_external_xp(uuid,text,text,int,text) to service_role;
+revoke all on function public.award_external_xp(uuid,text,text,int,text,jsonb) from public, anon, authenticated;
+grant execute on function public.award_external_xp(uuid,text,text,int,text,jsonb) to service_role;
 
 -- ============ v5: judge context ============
 create or replace function public.peer_quests()

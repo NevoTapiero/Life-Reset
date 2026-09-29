@@ -4,7 +4,6 @@ import {
   ApiIssue,
   GTask,
   canWriteTasks,
-  completedTasksSince,
   eventStart,
   eventsEverywhere,
   explainIssues,
@@ -39,11 +38,11 @@ export async function GET(req: Request) {
 
   const { start, end } = localDayRange(7);
   const issues: ApiIssue[] = [];
-  const [events, open, doneToday, paid] = await Promise.all([
+  // Only open tasks come from Google. Finished ones are read by the app from its
+  // own ledger, so deleting a finished task in Google never removes it here.
+  const [events, open, paid] = await Promise.all([
     eventsEverywhere(token, start.toISOString(), end.toISOString(), issues),
     openTasks(token, issues),
-    // finished today stay on the list, checked, so they can still be unchecked
-    completedTasksSince(token, start.toISOString(), issues),
     paidAt(uid, ["google_calendar", "google_tasks"]),
   ]);
 
@@ -60,13 +59,8 @@ export async function GET(req: Request) {
     paid.delete(`task:${t.id}`);
   }
 
-  const seen = new Set<string>();
-  const tasks: GTask[] = [];
-  for (const t of [...open, ...doneToday]) {
-    if (seen.has(t.id)) continue;
-    seen.add(t.id);
-    tasks.push(t);
-  }
+  // a payment still settling can briefly show as open: it is done, not open
+  const tasks: GTask[] = open.filter((t) => !paid.has(`task:${t.id}`));
 
   const todayEnd = start.getTime() + 86400_000;
   return NextResponse.json({
@@ -92,7 +86,6 @@ export async function GET(req: Request) {
       listId: t.listId ?? "",
       title: t.title.slice(0, 90),
       due: t.due ?? null,
-      done: t.status === "completed",
     })),
   });
 }

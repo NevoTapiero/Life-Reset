@@ -376,6 +376,22 @@ export async function completeTask(token: string, listId: string, taskId: string
   return !!body && (body as { status?: string }).status === "completed";
 }
 
+// Which of the player's lists holds this task, for ledger rows paid before the
+// list id was stored. Null if it is gone (deleted in Google).
+export async function findTaskList(token: string, taskId: string, issues: ApiIssue[] = []): Promise<string | null> {
+  const listsBody = await call("https://tasks.googleapis.com/tasks/v1/users/@me/lists", token, "Google Tasks", issues);
+  for (const l of ((listsBody?.items as { id: string }[]) ?? []).slice(0, 10)) {
+    const found = await call(
+      `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(l.id)}/tasks/${encodeURIComponent(taskId)}`,
+      token,
+      "Google Tasks",
+      [], // a miss in one list is expected, not an issue
+    );
+    if (found && !(found as { deleted?: boolean }).deleted) return l.id;
+  }
+  return null;
+}
+
 // Put a task back on the list in Google, for when the player unchecks it here.
 export async function reopenTask(token: string, listId: string, taskId: string, issues: ApiIssue[] = []): Promise<boolean> {
   const body = await call(
