@@ -17,6 +17,7 @@ import {
   STAT_INFO,
   STAT_KEYS,
   TIERS,
+  avatarSrc,
   characterOf,
   rankForXp,
   skinTierFor,
@@ -62,18 +63,34 @@ export default function YouPage() {
 
   return (
     <div className="slide-in">
-      {/* the character */}
-      <div className="scene p-5 pt-8 text-center" style={{ "--scene-glow": `${character?.accent ?? "#ff6b00"}55` } as React.CSSProperties}>
+      {/* the character, standing. Full-body art at /chars/{key}-full[-tN].webp when it
+          exists; until then the portrait, shown large and uncropped. */}
+      <div className="scene p-0 text-center overflow-hidden" style={{ "--scene-glow": `${character?.accent ?? "#ff6b00"}66` } as React.CSSProperties}>
         <span className="particle" style={{ left: "10%", top: "24%", background: accent, boxShadow: `0 0 8px ${accent}` }} />
         <span className="particle" style={{ right: "12%", top: "18%", animationDelay: "1.2s", background: accent, boxShadow: `0 0 8px ${accent}` }} />
         <span className="particle" style={{ left: "20%", bottom: "30%", animationDelay: "2.1s", background: accent, boxShadow: `0 0 8px ${accent}` }} />
         <span className="particle" style={{ right: "22%", bottom: "38%", animationDelay: "0.6s", background: accent, boxShadow: `0 0 8px ${accent}` }} />
 
         <div className="relative">
-          <div className="flex justify-center">
-            <Avatar size={220} character={profile.archetype} tierIndex={rank.tierIndex} />
+          <div className="relative flex justify-center items-end" style={{ height: "62vh", minHeight: 360 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/chars/${key}-full${skin > 0 ? `-t${skin}` : ""}.webp`}
+              onError={(e) => {
+                const img = e.currentTarget;
+                if (!img.dataset.fallback) {
+                  img.dataset.fallback = "1";
+                  img.src = avatarSrc(key, rank.tierIndex);
+                }
+              }}
+              alt={character?.name ?? "Your character"}
+              className="h-full w-auto max-w-full object-contain object-bottom select-none"
+              draggable={false}
+              style={{ filter: `drop-shadow(0 0 40px ${accent}66)` }}
+            />
+            <div className="absolute inset-x-0 bottom-0 h-24 pointer-events-none" style={{ background: "linear-gradient(180deg, transparent, var(--panel))" }} />
           </div>
-          <div className="display text-[28px] leading-tight mt-5">{profile.username}</div>
+          <div className="display text-[28px] leading-tight -mt-6 relative px-5">{profile.username}</div>
           <div className="flex items-center justify-center gap-2.5 mt-3">
             {character && (
               <span className="class-pill" style={{ color: character.accent }}>
@@ -82,7 +99,7 @@ export default function YouPage() {
             )}
             <span className="class-pill" style={{ color: rank.color }}>{rank.label}</span>
           </div>
-          <div className="hud-label mt-4">
+          <div className="hud-label mt-4 pb-6">
             {skin > 0
               ? `${TIERS[skin].name} look`
               : nextSkin !== undefined
