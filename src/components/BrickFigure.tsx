@@ -33,7 +33,7 @@ export const BASE_HUNTER: FigureLook = {
 };
 
 // glossy toy plastic
-function plastic(color: string) {
+export function plastic(color: string) {
   return new THREE.MeshPhysicalMaterial({ color, roughness: 0.32, clearcoat: 0.7, clearcoatRoughness: 0.25 });
 }
 
@@ -71,7 +71,7 @@ function Plate({ color }: { color: string }) {
   );
 }
 
-function Figure({ look, wave }: { look: FigureLook; wave: number }) {
+export function Figure({ look, wave }: { look: FigureLook; wave: number }) {
   const root = useRef<THREE.Group>(null);
   const head = useRef<THREE.Group>(null);
   const torso = useRef<THREE.Group>(null);

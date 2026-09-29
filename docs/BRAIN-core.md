@@ -6,6 +6,17 @@
 Everything in the app serves that sentence. Anything that does not is cut or
 shelved (the world prototype lives on branch `ifti/world-prototype`).
 
+## The look (decided 2026-09-29)
+
+A brick-toy world, built entirely in code (three.js): your character as a
+brick figure, standing on a studded baseplate in front of his brick house,
+with a garden. Everything is bricks on a stud grid (`src/lib/brickWorld.ts`),
+so every upgrade is literally more bricks: the house grows with level, the
+garden with the streak, and the figure swaps parts for gear. Friends' plots
+form a small town. The goal is an official brick-toy licence; until then the
+art stays generic (no brand name, logo, or 1:1 copy of the trademarked
+minifigure).
+
 ## The screen
 
 **You** is the home screen: your character, big, with the look your rank has

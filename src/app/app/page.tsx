@@ -9,8 +9,8 @@ import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
 import XpMeter from "@/components/XpMeter";
 
-// three.js touches window: load the brick character on the client only
-const BrickFigure = dynamic(() => import("@/components/BrickFigure"), { ssr: false });
+// three.js touches window: load the brick world on the client only
+const BrickWorld = dynamic(() => import("@/components/BrickWorld"), { ssr: false });
 import {
   CHARACTERS,
   CHARACTER_KEYS,
@@ -66,7 +66,7 @@ export default function YouPage() {
 
   return (
     <div className="slide-in">
-      {/* the character, brick-built in 3D: breathes, looks around, waves when tapped */}
+      {/* your plot: the brick house grows with rank, the garden with your streak; you by the door */}
       <div className="scene p-0 text-center overflow-hidden" style={{ "--scene-glow": `${character?.accent ?? "#ff6b00"}66` } as React.CSSProperties}>
         <span className="particle" style={{ left: "10%", top: "24%", background: accent, boxShadow: `0 0 8px ${accent}` }} />
         <span className="particle" style={{ right: "12%", top: "18%", animationDelay: "1.2s", background: accent, boxShadow: `0 0 8px ${accent}` }} />
@@ -75,7 +75,12 @@ export default function YouPage() {
 
         <div className="relative">
           <div className="relative" style={{ height: "58vh", minHeight: 360 }}>
-            <BrickFigure className="absolute inset-0" />
+            <BrickWorld
+              // ponytail: house grows with rank tier until gold buys upgrades
+              houseLevel={rank.tierIndex + 1}
+              streak={profile.streak_current}
+              className="absolute inset-0"
+            />
             <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none" style={{ background: "linear-gradient(180deg, transparent, var(--panel))" }} />
           </div>
           <div className="display text-[28px] leading-tight -mt-6 relative px-5">{profile.username}</div>
