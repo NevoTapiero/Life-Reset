@@ -482,8 +482,8 @@ end $$;
 create or replace function public.card_xp(p_rated int, p_day int)
 returns int language sql immutable set search_path = public as $$
   select greatest(1, round(
-           greatest(1, round(p_rated * 0.4))
-           * (array[1, 1.2, 1.4, 1.6, 1.8, 2, 3]::numeric[])[least(7, greatest(1, p_day))]
+           greatest(1, round(p_rated * 0.6))
+           * (array[1, 1.15, 1.3, 1.5, 1.75, 2, 2.5]::numeric[])[least(7, greatest(1, p_day))]
          ))::int
 $$;
 
@@ -510,7 +510,7 @@ begin
      and qc.xp_awarded is distinct from public.card_xp(r.rated, (((r.run - 1) % 7) + 1)::int);
 
   create temp table if not exists _streak_due (ref text primary key) on commit drop;
-  delete from _streak_due;
+  delete from _streak_due where true; -- the API role rejects a DELETE with no WHERE
   insert into _streak_due (ref)
   select 'streak7:' || completed_on::text
   from (
@@ -526,7 +526,7 @@ begin
    where l.user_id = p_uid and l.source = 'streak_bonus'
      and not exists (select 1 from _streak_due s where s.ref = l.ref);
   insert into public.xp_ledger (user_id, source, ref, xp, reason)
-  select p_uid, 'streak_bonus', s.ref, 20, '7-day streak bonus' from _streak_due s
+  select p_uid, 'streak_bonus', s.ref, 50, '7-day streak bonus' from _streak_due s
   on conflict (user_id, source, ref) do nothing;
 
   update public.profiles

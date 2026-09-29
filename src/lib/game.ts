@@ -150,23 +150,25 @@ export const TIERS = [
 
 // ---------- 7-day cards: XP rewards consistency, not single actions ----------
 // Every quest runs its own 7-day card. Each consecutive day the quest pays more,
-// day 7 pays triple, then the card starts again at day 1. Missing a day also
+// day 7 pays x2.5, then the card starts again at day 1. Missing a day also
 // sends it back to day 1. Mirrored exactly by public.card_xp() in the database,
 // which is what actually pays; these helpers only preview it.
 
-export const QUEST_XP_SCALE = 0.4; // a quest's rated value (1-60) -> its day-1 payout
+// Kept in whole percents: 10 x 1.15 is 11.4999... in floating point but 11.5 in
+// Postgres numeric, which would make the preview disagree with the payout.
+export const QUEST_XP_PCT = 60; // a quest's rated value (1-60) -> its day-1 payout
 export const CARD_DAYS = 7;
-export const CARD_MULT = [1, 1.2, 1.4, 1.6, 1.8, 2, 3] as const;
-// Every 7th day in a row with at least one quest done pays this on top.
-export const STREAK_BONUS_XP = 20;
+export const CARD_MULT_PCT = [100, 115, 130, 150, 175, 200, 250] as const;
+// Every 7th day of the streak (days with at least one quest done) pays this on top.
+export const STREAK_BONUS_XP = 50;
 
 export function questBase(rated: number): number {
-  return Math.max(1, Math.round(rated * QUEST_XP_SCALE));
+  return Math.max(1, Math.round((rated * QUEST_XP_PCT) / 100));
 }
 
 export function cardXp(rated: number, day: number): number {
   const d = Math.min(CARD_DAYS, Math.max(1, day));
-  return Math.max(1, Math.round(questBase(rated) * CARD_MULT[d - 1]));
+  return Math.max(1, Math.round((questBase(rated) * CARD_MULT_PCT[d - 1]) / 100));
 }
 
 function shiftDay(ymd: string, delta: number): string {

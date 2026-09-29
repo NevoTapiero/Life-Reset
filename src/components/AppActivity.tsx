@@ -45,6 +45,8 @@ const SOURCES: Record<string, { icon: string; label: string }> = {
   health_workout: { icon: "dumbbell", label: "Workout" },
   health_sleep: { icon: "moon", label: "Sleep" },
   health_steps: { icon: "stat-str", label: "Steps" },
+  streak_bonus: { icon: "flame", label: "Streak bonus" },
+  legacy: { icon: "trophy", label: "Earlier quests" },
 };
 
 const TABS: { key: Tab; label: string; mark?: React.ReactNode }[] = [

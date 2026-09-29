@@ -1,15 +1,17 @@
 -- 7-day cards: XP rewards consistency, not single actions.
 --
 -- 1. Every quest runs its own 7-day card. Its payout is the quest's rated value
---    x 0.4 on day 1, rising each consecutive day (x1, 1.2, 1.4, 1.6, 1.8, 2, 3),
---    then the card starts again at day 1. A missed day also restarts it.
--- 2. Every 7th consecutive day with at least one quest done pays a 20 XP bonus.
--- 3. XP from Google / Google Health / WHOOP drops to the same 0.4 rate.
--- 4. Rank costs double (client side, src/lib/game.ts TIERS).
--- 5. Every player's XP is rebuilt from their real history under these rules.
+--    x 0.6 on day 1, rising each consecutive day (x1, 1.15, 1.3, 1.5, 1.75, 2,
+--    2.5), then the card starts again at day 1. A missed day also restarts it.
+-- 2. Every 7th day of the streak (days with at least one quest done) pays a
+--    50 XP bonus.
+-- 3. Rank costs double (client side, src/lib/game.ts TIERS).
+-- 4. Every player's XP is rebuilt from their real history under these rules.
+--    XP from Google / Google Health / WHOOP keeps its current rate; workouts
+--    are re-scored by heart-rate intensity on the next Health sync.
 --
--- Run once. Safe to re-run: the rescale is guarded and everything else is
--- recomputed, not incremented. Undo: see the restore block at the bottom.
+-- Run once. Safe to re-run: the carry-forward is guarded and everything else
+-- is recomputed, not incremented. Undo: see the restore block at the bottom.
 
 -- ---------- bookkeeping + backup (before anything changes) ----------
 create table if not exists public.xp_migrations (name text primary key, ran_at timestamptz not null default now());
@@ -31,8 +33,8 @@ revoke all on public.backup_0930_profiles, public.backup_0930_completions, publi
 create or replace function public.card_xp(p_rated int, p_day int)
 returns int language sql immutable set search_path = public as $$
   select greatest(1, round(
-           greatest(1, round(p_rated * 0.4))
-           * (array[1, 1.2, 1.4, 1.6, 1.8, 2, 3]::numeric[])[least(7, greatest(1, p_day))]
+           greatest(1, round(p_rated * 0.6))
+           * (array[1, 1.15, 1.3, 1.5, 1.75, 2, 2.5]::numeric[])[least(7, greatest(1, p_day))]
          ))::int
 $$;
 
@@ -59,7 +61,7 @@ begin
      and qc.xp_awarded is distinct from public.card_xp(r.rated, (((r.run - 1) % 7) + 1)::int);
 
   create temp table if not exists _streak_due (ref text primary key) on commit drop;
-  delete from _streak_due;
+  delete from _streak_due where true; -- the API role rejects a DELETE with no WHERE
   insert into _streak_due (ref)
   select 'streak7:' || completed_on::text
   from (
@@ -75,7 +77,7 @@ begin
    where l.user_id = p_uid and l.source = 'streak_bonus'
      and not exists (select 1 from _streak_due s where s.ref = l.ref);
   insert into public.xp_ledger (user_id, source, ref, xp, reason)
-  select p_uid, 'streak_bonus', s.ref, 20, '7-day streak bonus' from _streak_due s
+  select p_uid, 'streak_bonus', s.ref, 50, '7-day streak bonus' from _streak_due s
   on conflict (user_id, source, ref) do nothing;
 
   update public.profiles
@@ -190,17 +192,25 @@ $fn$;
 revoke all on function public.rescore_external_xp(uuid, text, text, int, text, jsonb) from public, anon, authenticated;
 grant execute on function public.rescore_external_xp(uuid, text, text, int, text, jsonb) to service_role;
 
--- ---------- one-time: outside XP to the new rate ----------
--- Workouts are re-scored by intensity on the next Health sync; this is their
--- interim value until then.
+-- ---------- one-time: keep XP the history can no longer explain ----------
+-- Quests deleted before archiving existed took their completion history with
+-- them but left the XP on the profile. A rebuild would silently erase it, so
+-- carry it forward at the new 0.6 quest rate as one ledger entry.
 do $$
 begin
-  if not exists (select 1 from public.xp_migrations where name = '2026-09-30-external-scale') then
-    update public.xp_ledger
-       set xp = greatest(1, round(xp * 0.4))::int,
-           meta = meta || '{"scaled": 0.4}'::jsonb
-     where source <> 'streak_bonus' and xp > 0;
-    insert into public.xp_migrations (name) values ('2026-09-30-external-scale');
+  if not exists (select 1 from public.xp_migrations where name = '2026-09-30-legacy-carry') then
+    insert into public.xp_ledger (user_id, source, ref, xp, reason, meta)
+    select p.id, 'legacy', 'legacy:2026-09-30', round(gap * 0.6)::int,
+           'XP from quests deleted before archiving', jsonb_build_object('unexplained', gap)
+    from (
+      select p.id, p.xp
+             - coalesce((select sum(xp_awarded) from public.quest_completions c where c.user_id = p.id), 0)
+             - coalesce((select sum(xp) from public.xp_ledger l where l.user_id = p.id), 0) as gap
+      from public.profiles p
+    ) p
+    where gap > 0
+    on conflict (user_id, source, ref) do nothing;
+    insert into public.xp_migrations (name) values ('2026-09-30-legacy-carry');
   end if;
 end $$;
 
@@ -218,5 +228,6 @@ order by b.xp desc;
 -- delete from public.xp_ledger where source = 'streak_bonus';
 -- update public.xp_ledger l set xp = b.xp, meta = b.meta from public.backup_0930_ledger b where b.id = l.id;
 -- update public.profiles p set xp = b.xp from public.backup_0930_profiles b where b.id = p.id;
--- delete from public.xp_migrations where name = '2026-09-30-external-scale';
+-- delete from public.xp_ledger where source = 'legacy';
+-- delete from public.xp_migrations where name = '2026-09-30-legacy-carry';
 -- (and restore the old complete_quest_for / uncomplete_quest_for from git history)

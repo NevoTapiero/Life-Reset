@@ -12,12 +12,11 @@ import {
 // Budgets are deliberately small: each sync must finish well inside the
 // serverless time limit, or nothing gets recorded at all.
 
-// Google items are real-life chores, not habits: they pay a fifth of the
-// Judge's 1-50 effort score on top of a small flat base. (30.9: every outside
-// source moved to the same 0.4 rate as quests, so consistency is what scores.)
-const TASK_BASE = 1;
-const EVENT_BASE = 1;
-const JUDGE_SHARE = 0.2;
+// Google items are real-life chores, not habits: they pay half of what the
+// Judge's 1-50 effort score says, on top of a small flat base.
+const TASK_BASE = 3;
+const EVENT_BASE = 2;
+const JUDGE_SHARE = 0.5;
 const MAX_PER_KIND = 6;
 
 // Nothing from before the day a service was connected ever counts: the day
@@ -165,12 +164,12 @@ export async function syncHealth(uid: string): Promise<HealthSync> {
     if (asleep < 180) continue; // naps and broken nights earn nothing
     const hours = asleep / 60;
     // 7 to 9 hours is the target band; outside it pays less
-    const xp = hours >= 7 && hours <= 9 ? 6 : hours >= 6 ? 4 : 2;
+    const xp = hours >= 7 && hours <= 9 ? 15 : hours >= 6 ? 10 : 5;
     await grant("health_sleep", `sleep:${pointId(s.name)}`, xp, `Slept ${hours.toFixed(1)} h`);
   }
   for (const d of steps) {
     if (d.date < firstDay || d.date >= today || d.steps < 3000) continue;
-    await grant("health_steps", `steps:${d.date}`, Math.min(10, Math.round(d.steps / 2500)), `${d.steps.toLocaleString("en-US")} steps`);
+    await grant("health_steps", `steps:${d.date}`, Math.min(25, Math.floor(d.steps / 1000)), `${d.steps.toLocaleString("en-US")} steps`);
   }
 
   await touchSync(uid, "ghealth");
@@ -212,15 +211,15 @@ export async function syncWhoop(uid: string): Promise<WhoopSync> {
 
   for (const s of sleeps) {
     if (s.nap || s.score_state !== "SCORED") continue;
-    await grant("whoop_sleep", `sleep:${s.id}`, Math.round((s.score?.sleep_performance_percentage ?? 0) / 12.5), "Sleep");
+    await grant("whoop_sleep", `sleep:${s.id}`, Math.round((s.score?.sleep_performance_percentage ?? 0) / 5), "Sleep");
   }
   for (const r of recoveries) {
     if (r.score_state !== "SCORED") continue;
-    await grant("whoop_recovery", `recovery:${r.cycle_id}`, Math.round((r.score?.recovery_score ?? 0) / 12.5), "Recovery");
+    await grant("whoop_recovery", `recovery:${r.cycle_id}`, Math.round((r.score?.recovery_score ?? 0) / 5), "Recovery");
   }
   for (const w of workouts) {
     if (w.score_state !== "SCORED") continue;
-    await grant("whoop_workout", `workout:${w.id}`, Math.round((w.score?.strain ?? 0) * 0.8), w.sport_name ?? "Workout");
+    await grant("whoop_workout", `workout:${w.id}`, Math.round((w.score?.strain ?? 0) * 2), w.sport_name ?? "Workout");
   }
 
   await touchSync(uid, "whoop");

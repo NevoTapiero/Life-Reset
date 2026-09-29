@@ -28,7 +28,7 @@ import {
 type UserQuestRow = { quest_id: string; added_on: string; quests: Quest };
 
 // Seven pips: the quest's 7-day card. Filled = days already banked in this
-// card; the ringed pip is the day this check counts as; the last one pays x3.
+// card; the ringed pip is the day this check counts as; the last one pays x2.5.
 function CardPips({ day, done }: { day: number; done: boolean }) {
   return (
     <span className="flex items-center gap-[3px] mt-1.5" aria-label={`Day ${day} of ${CARD_DAYS}`}>
