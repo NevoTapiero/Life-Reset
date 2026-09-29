@@ -155,6 +155,7 @@ export async function awardXp(
   ref: string,
   xp: number,
   reason: string,
+  meta?: Record<string, unknown>,
 ): Promise<boolean> {
   try {
     const r = await fetch(`${SUPA}/rest/v1/rpc/award_external_xp`, {
@@ -164,7 +165,14 @@ export async function awardXp(
         authorization: `Bearer ${SERVICE}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ p_user: uid, p_source: source, p_ref: ref, p_xp: xp, p_reason: reason }),
+      body: JSON.stringify({
+        p_user: uid,
+        p_source: source,
+        p_ref: ref,
+        p_xp: xp,
+        p_reason: reason,
+        p_meta: meta ?? null,
+      }),
     });
     return (await r.json()) === true;
   } catch {

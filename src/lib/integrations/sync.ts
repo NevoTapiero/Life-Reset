@@ -1,6 +1,6 @@
 import { getIntegration, touchSync, awardXp, paidRefs } from "./server";
-import { freshAccessToken as googleToken, completedTasksSince, judge, GTask, GEvent } from "./google";
-import { recentExercise, recentSleep as healthSleep, dailySteps, durationMinutes, pointId } from "./health";
+import { freshAccessToken as googleToken, completedTasksSince, judge, localDayRange, GTask, GEvent } from "./google";
+import { recentExercise, recentSleep as healthSleep, dailySteps, exerciseMinutes, pointId } from "./health";
 import {
   freshAccessToken as whoopToken,
   recentSleep,
@@ -12,9 +12,21 @@ import {
 // Budgets are deliberately small: each sync must finish well inside the
 // serverless time limit, or nothing gets recorded at all.
 
-const TASK_BASE = 5;
-const EVENT_BASE = 3;
+// Google items are real-life chores, not habits: they pay half of what the
+// Judge's 1-50 effort score says, on top of a small flat base.
+const TASK_BASE = 3;
+const EVENT_BASE = 2;
+const JUDGE_SHARE = 0.5;
 const MAX_PER_KIND = 6;
+
+// Nothing from before the day a service was connected ever counts: the day
+// starts at local midnight, so the rest of that day still does. Bounded to a
+// week so a long-idle connection can't trigger an unbounded catch-up.
+export function countFrom(row: { connected_at?: string | null }): Date {
+  const connected = row.connected_at ? new Date(row.connected_at) : new Date();
+  const dayStart = localDayRange(1, connected).start.getTime();
+  return new Date(Math.max(dayStart, Date.now() - 7 * 86400_000));
+}
 
 export type GoogleSync = {
   connected: boolean;
@@ -28,18 +40,24 @@ export type GoogleSync = {
 // ledger key is the item's own id, so ticking a task in the app and Google
 // reporting it completed later can never pay twice.
 
+// The ledger row keeps the task's list id, so the finished task stays in the
+// app (and can still be unchecked) even after it is deleted in Google.
 export async function payTask(uid: string, t: GTask): Promise<{ paid: boolean; xp: number; reason: string }> {
-  const verdict = await judge(t.title, "task", TASK_BASE);
-  const xp = TASK_BASE + verdict.xp;
-  const paid = await awardXp(uid, "google_tasks", `task:${t.id}`, xp, t.title.slice(0, 140));
+  const verdict = await judge(t.title, "task", 10);
+  const xp = TASK_BASE + Math.round(verdict.xp * JUDGE_SHARE);
+  const paid = await awardXp(uid, "google_tasks", `task:${t.id}`, xp, t.title.slice(0, 140), {
+    listId: t.listId ?? null,
+  });
   return { paid, xp, reason: verdict.reason };
 }
 
 export async function payEvent(uid: string, e: GEvent): Promise<{ paid: boolean; xp: number; reason: string }> {
   const title = e.summary?.trim() || "Calendar event";
-  const verdict = await judge(title, "event", EVENT_BASE);
-  const xp = EVENT_BASE + verdict.xp;
-  const paid = await awardXp(uid, "google_calendar", `event:${e.id}`, xp, title.slice(0, 140));
+  const verdict = await judge(title, "event", 6);
+  const xp = EVENT_BASE + Math.round(verdict.xp * JUDGE_SHARE);
+  const paid = await awardXp(uid, "google_calendar", `event:${e.id}`, xp, title.slice(0, 140), {
+    calendarId: e.calendarId ?? null,
+  });
   return { paid, xp, reason: verdict.reason };
 }
 
@@ -53,9 +71,9 @@ export async function syncGoogle(uid: string): Promise<GoogleSync> {
   const token = await googleToken(uid);
   if (!token) return { ...empty, error: "reconnect" };
 
-  // Always look back three days rather than from the last sync, so anything
-  // missed while the connection was broken still gets picked up.
-  const since = new Date(Date.now() - 3 * 86400_000);
+  // Everything completed since the connection, not just since the last sync, so
+  // anything missed while the connection was broken still gets picked up.
+  const since = countFrom(row);
   const [tasks, paid] = await Promise.all([
     completedTasksSince(token, since.toISOString()),
     paidRefs(uid, ["google_tasks"]),
@@ -96,14 +114,16 @@ export async function syncHealth(uid: string): Promise<HealthSync> {
   const token = await googleToken(uid, "ghealth");
   if (!token) return { ...empty, error: "reconnect" };
 
-  const since = new Date(Date.now() - 3 * 86400_000).toISOString();
+  const from = countFrom(row);
+  const since = from.toISOString();
   const today = ymd(new Date());
-  const threeDaysAgo = ymd(new Date(Date.now() - 3 * 86400_000));
+  // steps are whole days: count from the day of connection, finished days only
+  const firstDay = ymd(from);
 
   const [workouts, sleeps, steps] = await Promise.all([
     recentExercise(token, since),
-    healthSleep(token, since),
-    dailySteps(token, threeDaysAgo, today), // end is exclusive: today is left out
+    healthSleep(token, since), // sessions that ended after connecting
+    firstDay < today ? dailySteps(token, firstDay, today) : Promise.resolve([]), // end exclusive: today left out
   ]);
 
   let xpGained = 0;
@@ -117,7 +137,7 @@ export async function syncHealth(uid: string): Promise<HealthSync> {
   };
 
   for (const w of workouts) {
-    const minutes = durationMinutes(w.exercise?.activeDuration);
+    const minutes = exerciseMinutes(w);
     if (minutes < 10) continue; // a walk to the car is not a workout
     const label = w.exercise?.displayName || prettyType(w.exercise?.exerciseType) || "Workout";
     await grant("health_workout", `workout:${pointId(w.name)}`, Math.min(40, Math.round(minutes * 0.6)), `${label} · ${minutes} min`);
@@ -131,7 +151,7 @@ export async function syncHealth(uid: string): Promise<HealthSync> {
     await grant("health_sleep", `sleep:${pointId(s.name)}`, xp, `Slept ${hours.toFixed(1)} h`);
   }
   for (const d of steps) {
-    if (d.date >= today || d.steps < 3000) continue;
+    if (d.date < firstDay || d.date >= today || d.steps < 3000) continue;
     await grant("health_steps", `steps:${d.date}`, Math.min(25, Math.floor(d.steps / 1000)), `${d.steps.toLocaleString("en-US")} steps`);
   }
 
@@ -153,10 +173,8 @@ export async function syncWhoop(uid: string): Promise<WhoopSync> {
   const token = await whoopToken(uid);
   if (!token) return { ...empty, error: "reconnect" };
 
-  const since = (row.last_sync
-    ? new Date(new Date(row.last_sync).getTime() - 3600_000)
-    : new Date(Date.now() - 7 * 86400_000)
-  ).toISOString();
+  // WHOOP filters by record start, so this counts only what began after connecting
+  const since = countFrom(row).toISOString();
 
   const [sleeps, recoveries, workouts] = await Promise.all([
     recentSleep(token, since),
