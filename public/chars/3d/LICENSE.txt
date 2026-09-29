@@ -1,5 +1,0 @@
-3D characters in this folder are from "KayKit: Adventurers Character Pack (1.0)" by
-Kay Lousberg (www.kaylousberg.com), released under CC0 1.0.
-  warrior.glb   = Knight        guardian.glb = Barbarian
-  wizard.glb    = Mage          mentalist.glb = Rogue        shadow.glb = Rogue_Hooded
-Re-encoded with gltf-transform (Draco geometry, WebP textures). Placeholders until our own models exist.

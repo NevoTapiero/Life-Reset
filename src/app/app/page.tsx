@@ -9,8 +9,8 @@ import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
 import XpMeter from "@/components/XpMeter";
 
-// three.js touches window: load the 3D character on the client only
-const Character3D = dynamic(() => import("@/components/Character3D"), { ssr: false });
+// three.js touches window: load the brick character on the client only
+const BrickFigure = dynamic(() => import("@/components/BrickFigure"), { ssr: false });
 import {
   CHARACTERS,
   CHARACTER_KEYS,
@@ -66,7 +66,7 @@ export default function YouPage() {
 
   return (
     <div className="slide-in">
-      {/* the character, live in 3D: idles, sways, cheers when tapped */}
+      {/* the character, brick-built in 3D: breathes, looks around, waves when tapped */}
       <div className="scene p-0 text-center overflow-hidden" style={{ "--scene-glow": `${character?.accent ?? "#ff6b00"}66` } as React.CSSProperties}>
         <span className="particle" style={{ left: "10%", top: "24%", background: accent, boxShadow: `0 0 8px ${accent}` }} />
         <span className="particle" style={{ right: "12%", top: "18%", animationDelay: "1.2s", background: accent, boxShadow: `0 0 8px ${accent}` }} />
@@ -75,7 +75,7 @@ export default function YouPage() {
 
         <div className="relative">
           <div className="relative" style={{ height: "58vh", minHeight: 360 }}>
-            <Character3D character={profile.archetype} accent={character?.accent ?? "#ff6b00"} className="absolute inset-0" />
+            <BrickFigure className="absolute inset-0" />
             <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none" style={{ background: "linear-gradient(180deg, transparent, var(--panel))" }} />
           </div>
           <div className="display text-[28px] leading-tight -mt-6 relative px-5">{profile.username}</div>
