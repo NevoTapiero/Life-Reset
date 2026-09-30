@@ -97,6 +97,7 @@ import {
   waterTowerSlabs,
   meadows,
   RING,
+  RING_SEATS,
   type Slab,
   emptyLotsText,
   ICE_CREAM_CART,
@@ -739,11 +740,14 @@ function Minifig({
   wave = false,
   stride = 10,
   jumpRef,
+  sit = false,
 }: {
   /** four colours (townsfolk) or a whole figure (a character's loadout) */
   look: MinifigLook | Figure;
   at: [number, number, number];
   turn?: number;
+  /** sitting: legs out in front, a little lower (on a bench) */
+  sit?: boolean;
   /** while true, the legs and arms swing */
   walking?: React.RefObject<boolean>;
   /** standing, it raises an arm and waves (hello!) */
@@ -797,7 +801,7 @@ function Minifig({
     const s = Math.sin(g.phase);
     if (parts.every(Boolean)) {
       if (!limbs.current.length) limbs.current = parts.map((p) => p!.quaternion.clone());
-      const swing = [s * reach, -s * reach, -s * reach * 0.8, s * reach * 0.8]; // legL legR armL armR
+      const swing = sit ? [-1.5, -1.5, 0, 0] : [s * reach, -s * reach, -s * reach * 0.8, s * reach * 0.8]; // legL legR armL armR
       parts.forEach((p, k) =>
         p!.quaternion.copy(limbs.current[k]).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), swing[k])),
       );
@@ -825,7 +829,7 @@ function Minifig({
     const [hopTime, hopHeight] = hopBig.current ? [0.62, 44] : [0.45, 14];
     // a bounce on every step and a waddle from foot to foot (LDraw is -Y up)
     const bounce = Math.abs(s) * (1.5 + stride * 0.15) * g.blend;
-    root.current.position.y = at[1] - bounce - (h < hopTime ? Math.sin((h / hopTime) * Math.PI) * hopHeight : 0);
+    root.current.position.y = at[1] + (sit ? 6 : 0) - bounce - (h < hopTime ? Math.sin((h / hopTime) * Math.PI) * hopHeight : 0);
     root.current.rotation.z = s * 0.075 * g.blend;
     root.current.rotation.y = turn + Math.sin(t * 0.3) * 0.25 * (1 - g.blend);
   });
@@ -1963,6 +1967,12 @@ export function LegoTown({
         <Slabs slabs={FLATS} />
         <Slabs slabs={HEDGES} />
         <Slabs slabs={WATER_TOWER_SLABS} />
+        {/* townsfolk sitting on three of the benches round the ring, watching the plaza */}
+        {RING_SEATS.filter((b) => b.bench)
+          .slice(0, 3)
+          .map((b, i) => (
+            <Minifig key={`sit${i}`} look={SITTERS[i]} at={[b.x, 0, b.z]} turn={b.yaw} sit />
+          ))}
         <DriftingClouds />
         {parks && <primitive object={parks} />}
         <Traffic night={mood.night} />
@@ -2881,6 +2891,11 @@ function roundedRect(w: number, d: number, r: number): THREE.Shape {
   shape.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false);
   return shape;
 }
+const SITTERS: MinifigLook[] = [
+  { skin: COL.yellow, hair: COL.darkOrange, torso: COL.azure, legs: COL.darkBlue },
+  { skin: COL.yellow, hair: COL.black, torso: COL.yellow, legs: COL.darkGrey },
+  { skin: COL.yellow, hair: COL.white, torso: COL.darkGreen, legs: COL.tan },
+];
 const FLATS = townFlats();
 const HEDGES = plotHedges();
 const BALLOON = balloonSlabs();

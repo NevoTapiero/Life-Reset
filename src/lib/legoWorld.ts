@@ -915,7 +915,28 @@ const STREET_LAMPS: [number, number][] = Array.from({ length: MAX_RESIDENTS }, (
   const r = Math.hypot(end[0], end[2]) || 1;
   return [end[0] + (end[0] / r) * 4 * S + (-dz / len) * 6 * S, end[2] + (end[2] / r) * 4 * S + (dx / len) * 6 * S] as [number, number];
 });
-export const STREET_LAMP_LIGHTS: [number, number, number][] = STREET_LAMPS.map(([x, z]) => [x, -(168 + 14), z]);
+// and along the roads out, every 40 studs, sides alternating, as far as the woods
+const ROAD_LAMPS: [number, number][] = ROADS.flatMap((road) => {
+  const out: [number, number][] = [];
+  let side = 1;
+  let next = 20 * S;
+  let walked = 0;
+  for (let k = 0; k + 1 < road.length; k++) {
+    const [a, b] = [road[k], road[k + 1]];
+    const [dx, dz] = [b[0] - a[0], b[2] - a[2]];
+    const len = Math.hypot(dx, dz) || 1;
+    while (next - walked <= len) {
+      const t = (next - walked) / len;
+      const [x, z] = [a[0] + dx * t + (-dz / len) * side * (ROAD_OUT / 2 + 2) * S, a[2] + dz * t + (dx / len) * side * (ROAD_OUT / 2 + 2) * S];
+      if (Math.hypot(x, z) < (TOWN_HALF - 30) * S) out.push([x, z]);
+      side = -side;
+      next += 40 * S;
+    }
+    walked += len;
+  }
+  return out;
+});
+export const STREET_LAMP_LIGHTS: [number, number, number][] = [...STREET_LAMPS, ...ROAD_LAMPS].map(([x, z]) => [x, -(168 + 14), z]);
 const bench: Piece[] = [
   ["3005", COL.darkGrey, -30, 0, 0],
   ["3005", COL.darkGrey, 30, 0, 0],
@@ -1126,6 +1147,16 @@ export function townClouds(): Slab[] {
     [0, 0, 4, 4, 3],
   ];
   const rnd = seeded(11);
+  // a few over the village itself (seen from the ground), the rest in a ring over the hills
+  const spots: [number, number, number][] = [];
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2 + rnd() * 0.6;
+    const d = (RING + 60 + rnd() * 120) * S;
+    spots.push([Math.cos(a) * d, Math.sin(a) * d, 1500 + rnd() * 500]);
+  }
+  for (const [cx, cz, cy] of spots)
+    for (const [dx, dz, w, dd, layer] of puff)
+      out.push({ x: cx + dx * 40, z: cz + dz * 40, w: w * 40, d: dd * 40, h: 16, y: cy + layer * 16, radius: Math.min(w, dd) * 40 * 0.4, color: "#ffffff", studs: true });
   for (let a = 0; a < Math.PI * 2; a += 0.55 + rnd() * 0.35) {
     const d = (TOWN_HALF + 80 + rnd() * 70) * S;
     const cx = Math.cos(a) * d;
@@ -1141,20 +1172,11 @@ export function townClouds(): Slab[] {
 // The lampposts on the pavement corners that face the plaza (LDraw).
 export function townDecorText(): string {
   const out: string[] = [];
-  for (const [x, z] of STREET_LAMPS) out.push(...place(lamp, x, z, ROT[0], 0));
+  for (const [x, z] of [...STREET_LAMPS, ...ROAD_LAMPS]) out.push(...place(lamp, x, z, ROT[0], 0));
   out.push(...place(SIGNPOST, PLAZA_SIGN[0], PLAZA_SIGN[1], ROT[0], 0), ...place(SIGNPOST, SHOP_SIGN[0], SHOP_SIGN[1], ROT[0], 0));
   // life round the ring: a bench facing the plaza and a pot of flowers just outside the ring path,
   // between the paths in (never on one)
-  const paths = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotPath(lotFor(i), 3));
-  const busy = (x: number, z: number) => paths.some((pth) => toPath(x, z, pth) < 7 * S) || toPath(x, z, TRACK) < 7 * S;
-  for (let k = 0; k < 12; k++) {
-    const a = ((k + 0.5) / 12) * Math.PI * 2;
-    const r = (RING + PATH_W / 2 + 3) * S;
-    const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
-    if (busy(x, z)) continue;
-    const facing = yawMat(a + Math.PI); // its front to the plaza
-    out.push(...place(k % 2 ? bench : flowerPot([COL.red, COL.yellow, COL.pink][k % 3]), x, z, facing, 0));
-  }
+  for (const { x, z, yaw, bench: isBench, k } of RING_SEATS) out.push(...place(isBench ? bench : flowerPot([COL.red, COL.yellow, COL.pink][k % 3]), x, z, yawMat(yaw), 0));
   out.push(...playgroundText());
   // ducks on the lake
   for (const [dx, dz, turn] of [[-120, 60, 0], [40, -150, 90], [180, 90, 180], [-60, -40, 270]] as [number, number, 0 | 90 | 180 | 270][])
@@ -1221,6 +1243,20 @@ export function waterTowerSlabs(): Slab[] {
   out.push({ x, z, w: 0, d: 0, r: 30, h: 30, y: 450, color: "#f2f2ee" });
   return out;
 }
+
+/** the benches and flower pots round the ring: where each stands (LDU) and its turn (its front to the plaza) */
+export const RING_SEATS: { x: number; z: number; yaw: number; bench: boolean; k: number }[] = (() => {
+  const paths = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotPath(lotFor(i), 3));
+  const busy = (x: number, z: number) => paths.some((pth) => toPath(x, z, pth) < 7 * S) || toPath(x, z, TRACK) < 7 * S;
+  const out: { x: number; z: number; yaw: number; bench: boolean; k: number }[] = [];
+  for (let k = 0; k < 12; k++) {
+    const a = ((k + 0.5) / 12) * Math.PI * 2;
+    const r = (RING + PATH_W / 2 + 3) * S;
+    const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
+    if (!busy(x, z)) out.push({ x, z, yaw: a + Math.PI, bench: k % 2 === 1, k });
+  }
+  return out;
+})();
 
 // ---- signs: how the game works, told where it happens ----
 // A LEGO signpost (a round post with a tile on top) stands where a newcomer needs the
