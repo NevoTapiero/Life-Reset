@@ -110,6 +110,7 @@ export default function TellTheJudge({ missions, onMatched }: { missions: Missio
           placeholder={listening ? "Listening..." : "What did you do? e.g. ran 5k, read 10 pages"}
           className="flex-1 min-w-0 bg-transparent outline-none text-[15px] font-bold placeholder:text-[var(--muted)] placeholder:font-semibold"
           maxLength={300}
+          dir="auto"
           aria-label="What did you do?"
           disabled={busy}
         />
@@ -123,7 +124,7 @@ export default function TellTheJudge({ missions, onMatched }: { missions: Missio
         </button>
       </form>
       {reply && (
-        <p className={`mt-2 text-[13px] font-extrabold px-1 ${reply.tone === "ok" ? "" : "text-muted"}`} style={reply.tone === "ok" ? { color: "var(--lego-green-edge)" } : undefined} role="status">
+        <p className={`mt-2 text-[13px] font-extrabold px-1 ${reply.tone === "ok" ? "" : "text-muted"}`} style={reply.tone === "ok" ? { color: "var(--lego-green-edge)" } : undefined} role="status" dir="auto">
           {reply.text}
         </p>
       )}

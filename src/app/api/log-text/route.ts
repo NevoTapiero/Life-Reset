@@ -35,6 +35,7 @@ async function modelMatch(text: string, missions: Mission[]): Promise<{ ids: str
     "The player tells you what they did today. Pick which of their missions they clearly completed.",
     "Only include a mission when the text clearly says it was done (not planned, not partly, not 'will').",
     "The player may write in English or Hebrew. Numbers and durations must fit the mission (a 5 minute walk does not complete a 30 minute walk).",
+    "Write the reply in the same language the player used.",
     'Reply with JSON only: {"picks": [<mission numbers>], "reply": "<one short, warm sentence, no emojis>"}',
     `Missions:\n${list}`,
     `Player: "${text}"`,
