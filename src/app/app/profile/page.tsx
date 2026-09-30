@@ -208,6 +208,7 @@ export default function ProfilePage() {
       </h2>
       <section className="card divide-y-2 divide-[var(--line)]">
         <Row icon="mail" label="Email" value={email ?? "..."} />
+        <Row icon="chart" label="Your record" value="Stats and what you train most" onClick={() => router.push("/app/stats")} />
         <Row icon="user" label="Name" value={profile.username} onClick={() => { setEditing(true); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
         <div className="px-4 py-3.5 flex items-center gap-3">
           <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">

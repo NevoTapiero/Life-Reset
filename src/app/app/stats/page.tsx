@@ -1,10 +1,13 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Radar from "@/components/Radar";
 import Icon from "@/components/Icon";
-import Avatar from "@/components/Avatar";
+import Link from "next/link";
+import BrickLoader from "@/components/BrickLoader";
+import PlayerAvatar from "@/components/PlayerAvatar";
+import { PILLAR_BRICK, photoOf } from "@/lib/brick";
 import {
   PILLARS,
   PILLAR_ICONS,
@@ -46,7 +49,11 @@ export default function StatsPage() {
   }, []);
 
   if (!profile) {
-    return <div className="hud-label pulse-glow text-center py-20">Reading your record…</div>;
+    return (
+      <div className="py-24 flex justify-center">
+        <BrickLoader label="Reading your record" />
+      </div>
+    );
   }
 
   const character = characterOf(profile.archetype);
@@ -58,9 +65,14 @@ export default function StatsPage() {
 
   return (
     <div className="slide-in">
-      <h1 className="display text-[28px]">Record</h1>
-      <div className="flex items-center gap-3.5 mt-4">
-        <Avatar size={58} character={profile.archetype} />
+      <div className="flex items-center gap-3">
+        <Link href="/app/profile" className="icon-tile !w-10 !h-10 !bg-white" aria-label="Back to Profile">
+          <Icon name="chevron-left" size={20} strokeWidth={2.4} />
+        </Link>
+        <h1 className="display text-[26px]">Your record</h1>
+      </div>
+      <div className="flex items-center gap-3.5 mt-5">
+        <PlayerAvatar photo={photoOf(profile)} character={profile.archetype} size={58} />
         <div>
           <div className="display text-[19px]">{profile.username}</div>
           {character && (
@@ -83,8 +95,8 @@ export default function StatsPage() {
               series={[
                 {
                   values,
-                  stroke: "var(--accent)",
-                  fill: "rgb(var(--accent-rgb) / 0.28)",
+                  stroke: "var(--lego-blue)",
+                  fill: "rgb(0 85 191 / 0.22)",
                   dots: true,
                 },
               ]}
@@ -104,9 +116,9 @@ export default function StatsPage() {
               onClick={() => setOpenStat(open ? null : k)}
             >
               <span className="flex items-center gap-3">
-                <span className="display w-11 text-[13px]" style={{ color: "var(--accent)" }}>{k}</span>
+                <span className="chip chip-blue w-12 justify-center">{k}</span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-semibold">{STAT_INFO[k].name}</span>
+                  <span className="block text-[15px] font-extrabold">{STAT_INFO[k].name}</span>
                 </span>
                 <span className="display text-[17px]">{value}</span>
                 <span
@@ -128,31 +140,31 @@ export default function StatsPage() {
 
       <div className="grid grid-cols-2 gap-2.5 mt-5">
         <div className="card p-4 text-center">
-          <div className="display text-[24px]" style={{ color: "var(--accent)" }}>{totalCompletions}</div>
-          <div className="hud-label mt-1">Quests cleared</div>
+          <div className="display text-[26px]" style={{ color: "var(--lego-green)" }}>{totalCompletions}</div>
+          <div className="hud-label mt-1">Missions done</div>
         </div>
         <div className="card p-4 text-center">
-          <div className="display text-[24px]" style={{ color: "var(--bronze)" }}>{profile.streak_best}</div>
+          <div className="display text-[26px]" style={{ color: "var(--lego-orange)" }}>{profile.streak_best}</div>
           <div className="hud-label mt-1">Best streak</div>
         </div>
       </div>
 
       <div className="card p-4 mt-4">
-        <div className="display text-[14px] mb-3.5">Category activity</div>
+        <div className="display text-[17px] mb-3.5">What you train most</div>
         <div className="flex flex-col gap-3">
           {PILLARS.map((p: Pillar) => {
             const count = pillarCounts[p] ?? 0;
             return (
               <div key={p} className="flex items-center gap-2">
-                <span className="w-7 flex-none flex justify-center text-muted">
-                  <Icon name={PILLAR_ICONS[p]} size={19} />
+                <span className="w-7 flex-none flex justify-center" style={{ color: PILLAR_BRICK[p] }}>
+                  <Icon name={PILLAR_ICONS[p]} size={19} strokeWidth={2} />
                 </span>
                 <span className="hud-label flex-none w-[108px]">{p}</span>
                 <div className="track flex-1">
                   <div
                     style={{
                       width: `${(count / maxPillar) * 100}%`,
-                      background: "linear-gradient(90deg, var(--bronze), var(--accent))",
+                      background: PILLAR_BRICK[p],
                     }}
                   />
                 </div>
