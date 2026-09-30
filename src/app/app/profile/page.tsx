@@ -12,6 +12,7 @@ import Minifig from "@/components/Minifig";
 import CharacterFile from "@/components/CharacterFile";
 import MinifigCard from "@/components/MinifigCard";
 import GoldBricks from "@/components/GoldBricks";
+import RedBricks from "@/components/RedBricks";
 import LevelRoad from "@/components/LevelRoad";
 import MonthMosaic from "@/components/MonthMosaic";
 import PlayerAvatar from "@/components/PlayerAvatar";
@@ -65,6 +66,8 @@ export default function ProfilePage() {
   const [today, setToday] = useState<string | null>(null);
   // every mission ever checked is a brick in your build
   const [bricks, setBricks] = useState<number | null>(null);
+  // gold bricks earned (from the Collection tab), which unlock the extras
+  const [goldGot, setGoldGot] = useState<number | null>(null);
 
   const reload = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
@@ -191,7 +194,7 @@ export default function ProfilePage() {
   return (
     <div className="slide-in">
       {/* the collectible minifigure card: your minifig on its stand, your level as the series number */}
-      <div ref={cardRef}>
+      <div ref={cardRef} className="me-fig">
       <MinifigCard
         character={profile.archetype}
         level={level}
@@ -334,7 +337,10 @@ export default function ProfilePage() {
       {ptab === "collection" && (
         <div className="slide-in">
       <div className="mt-4">
-        <GoldBricks profile={profile} />
+        <GoldBricks profile={profile} onGot={setGoldGot} />
+        <div className="mt-4">
+          <RedBricks gold={goldGot} />
+        </div>
       </div>
       {/* character */}
       <h2 className="section-title mt-8 mb-1" style={{ "--brick": "var(--lego-orange)" } as React.CSSProperties}>

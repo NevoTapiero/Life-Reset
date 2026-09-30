@@ -28,7 +28,7 @@ export function GoldBrick({ got, size = 44 }: { got: boolean; size?: number }) {
   );
 }
 
-export default function GoldBricks({ profile }: { profile: Profile }) {
+export default function GoldBricks({ profile, onGot }: { profile: Profile; onGot?: (n: number) => void }) {
   const [counts, setCounts] = useState<{ done: number; friends: number; apps: number } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
 
@@ -49,6 +49,9 @@ export default function GoldBricks({ profile }: { profile: Profile }) {
   const bricks = goldBricks(profile, { done: counts?.done ?? 0, friends: counts?.friends, apps: counts?.apps });
   const got = bricks.filter((b) => b.got).length;
   const shown = bricks.find((b) => b.id === open);
+  useEffect(() => {
+    if (counts) onGot?.(got);
+  }, [counts, got, onGot]);
 
   return (
     <section className="card p-4">

@@ -1688,3 +1688,10 @@ body {
 .mf-cheer .mf-item { transform-box: view-box; transform-origin: 31px 96px; animation: mfCheerItem 1.4s ease-in-out infinite; }
 @keyframes mfCheerItem { 0%, 100% { transform: rotate(-150deg); } 50% { transform: rotate(-165deg); } }
 @media (prefers-reduced-motion: reduce) { .mf-cheer .mf-item { animation-duration: 1ms; animation-iteration-count: 1; animation-fill-mode: forwards; } }
+
+/* ---- Extras (red bricks), switched on per device ---- */
+.x-bigheads .mf-head { scale: 1.45; transform-box: view-box; transform-origin: 60px 54px; }
+.x-disco .glow-scene { animation: discoPlate 8s linear infinite; }
+@keyframes discoPlate { from { filter: hue-rotate(0deg) saturate(1.4); } to { filter: hue-rotate(360deg) saturate(1.4); } }
+.x-golden .me-fig .minifig-float svg, .x-golden .me-fig > svg { filter: sepia(1) saturate(3.2) hue-rotate(-8deg) brightness(1.08) contrast(1.05) drop-shadow(0 0 6px rgb(242 205 55 / 0.7)); }
+@media (prefers-reduced-motion: reduce) { .x-disco .glow-scene { animation: none; filter: hue-rotate(120deg) saturate(1.4); } }

@@ -15,6 +15,7 @@ import { GoldBrick } from "@/components/GoldBricks";
 import { goldBricks, saveSeenGold, seenGold, type GoldBrick as GoldBrickT } from "@/lib/goldBricks";
 import Minifig from "@/components/Minifig";
 import StudCount from "@/components/StudCount";
+import { extraOn } from "@/lib/extras";
 import RankUp, { BrickBurst } from "@/components/RankUp";
 import { brickSound } from "@/lib/brickSound";
 import { energyFrom, todayKey, type LedgerMeta } from "@/lib/energy";
@@ -70,17 +71,19 @@ export default function HomePage() {
     // aim at the XP bar's first empty brick
     const tx = to.left + Math.min(0.95, Math.max(0.05, (m.profile ? rankForXp(m.profile.xp).progress : 0) + 0.05)) * to.width;
     const ty = to.top + to.height / 2;
-    const base = (flyId.current += 10);
-    const studs = Array.from({ length: 7 }, (_, i) => {
-      const x = from.right - 40 - (i % 3) * 14;
+    // the Stud rain extra sends three times as many
+    const count = extraOn("studrain") ? 21 : 7;
+    const base = (flyId.current += 30);
+    const studs = Array.from({ length: count }, (_, i) => {
+      const x = from.right - 40 - (i % 3) * 14 - (i >= 7 ? ((i * 23) % 120) : 0);
       const y = from.top + from.height / 2 + ((i * 7) % 11) - 5;
-      return { id: base + i, x, y, dx: tx - x, dy: ty - y, delay: i * 55, kind };
+      return { id: base + i, x, y, dx: tx - x, dy: ty - y, delay: (i % 7) * 55 + Math.floor(i / 7) * 30, kind };
     });
     setFlying((f) => [...f, ...studs]);
     setTimeout(() => setBump(true), 620);
     setTimeout(() => {
       setBump(false);
-      setFlying((f) => f.filter((s) => s.id < base || s.id > base + 6));
+      setFlying((f) => f.filter((s) => s.id < base || s.id >= base + count));
     }, 1100);
   }
   useEffect(() => {
@@ -231,7 +234,7 @@ export default function HomePage() {
       {/* you, today: a LEGO-game player card */}
       <section className="card tile-studs">
         <div className="flex items-end gap-2 px-4 pt-3">
-          <Link href="/app/profile" aria-label="Your profile" className="player-stage flex-none -mb-1">
+          <Link href="/app/profile" aria-label="Your profile" className="player-stage me-fig flex-none -mb-1">
             <Minifig
               character={p.archetype}
               level={legoLevel(rank.tierIndex)}

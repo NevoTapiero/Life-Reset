@@ -6,6 +6,10 @@
 // Muting follows the 3D world's switch (sfx.ts: one setting per device).
 
 import { soundOn } from "@/lib/sfx";
+import { extraOn } from "@/lib/extras";
+
+// the Silly sounds extra pitches everything up (set on each sound's start)
+let P = 1;
 
 let ctx: AudioContext | null = null;
 let out: AudioNode | null = null;
@@ -13,6 +17,7 @@ let noise: AudioBuffer | null = null;
 
 function audio(): { a: AudioContext; out: AudioNode } | null {
   if (typeof window === "undefined" || !soundOn()) return null;
+  P = extraOn("silly") ? 1.75 : 1;
   // before the first tap the browser keeps audio paused, and anything played
   // now would wait and go off on that tap: stay quiet instead
   const ua = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
@@ -62,7 +67,7 @@ function burst(a: AudioContext, dest: AudioNode, at: number, type: BiquadFilterT
   src.buffer = noise;
   const f = a.createBiquadFilter();
   f.type = type;
-  f.frequency.value = freq;
+  f.frequency.value = Math.min(freq * P, 16000);
   f.Q.value = q;
   const g = a.createGain();
   g.gain.setValueAtTime(gain, at);
@@ -74,8 +79,8 @@ function burst(a: AudioContext, dest: AudioNode, at: number, type: BiquadFilterT
 function tone(a: AudioContext, dest: AudioNode, at: number, from: number, to: number, gain: number, len: number, type: OscillatorType = "sine", attack = 0.004) {
   const o = a.createOscillator();
   o.type = type;
-  o.frequency.setValueAtTime(from, at);
-  if (to !== from) o.frequency.exponentialRampToValueAtTime(to, at + len * 0.6);
+  o.frequency.setValueAtTime(from * P, at);
+  if (to !== from) o.frequency.exponentialRampToValueAtTime(to * P, at + len * 0.6);
   const g = a.createGain();
   g.gain.setValueAtTime(0.0001, at);
   g.gain.exponentialRampToValueAtTime(gain, at + attack);
