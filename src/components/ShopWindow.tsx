@@ -10,8 +10,8 @@ import LegoIcon, { type BrickColor } from "@/components/LegoIcon";
 // gold can buy now and how much more you need for the next thing. Buying
 // happens in the 3D world (the shop and your garden are there).
 
-type Item = { id: string; name: string; price: number; sort: number };
-const COLORS: BrickColor[] = ["orange", "azure", "green", "red", "purple", "blue", "yellow"];
+type Item = { id: string; name: string; price: number; sort: number; spot?: "room" | "garden" };
+const ROOM_COLORS: BrickColor[] = ["orange", "azure", "red", "purple", "blue", "yellow"];
 
 export default function ShopWindow({ gold }: { gold: number }) {
   const [items, setItems] = useState<Item[] | null>(null);
@@ -22,7 +22,7 @@ export default function ShopWindow({ gold }: { gold: number }) {
       const { data: u } = await supabase.auth.getUser();
       const uid = u.user?.id;
       const [{ data: shop, error }, { data: mine }] = await Promise.all([
-        supabase.from("shop_items").select("id, name, price, sort").order("sort"),
+        supabase.from("shop_items").select("*").order("sort"),
         uid ? supabase.from("owned_items").select("item_id").eq("user_id", uid) : Promise.resolve({ data: [] }),
       ]);
       if (error) return; // the shop isn't set up on this database
@@ -52,7 +52,7 @@ export default function ShopWindow({ gold }: { gold: number }) {
             ? `${(next.price - gold).toLocaleString()} more gold for the ${next.name.toLowerCase()}.`
             : "You own everything in the shop."}
       </p>
-      <div className="flex gap-2.5 overflow-x-auto no-scrollbar -mx-4 px-4 mt-3 pb-1">
+      <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-4 px-4 mt-1.5 pt-2.5 pb-3">
         {items.map((it, i) => {
           const have = owned.has(it.id);
           const afford = !have && it.price <= gold;
@@ -60,9 +60,14 @@ export default function ShopWindow({ gold }: { gold: number }) {
             <Link
               key={it.id}
               href="/app/town"
-              className={`flex-none w-[104px] rounded-[14px] p-2.5 flex flex-col items-center gap-1.5 text-center ${afford ? "shop-tile afford" : "shop-tile"}`}
+              className={`flex-none w-[104px] rounded-[14px] p-2.5 flex flex-col items-center gap-1.5 text-center ${afford ? "shop-tile afford" : "shop-tile"} ${it.spot === "garden" ? "garden" : "room"}`}
             >
-              <LegoIcon name="sparkle" color={have ? "grey" : COLORS[i % COLORS.length]} size={40} />
+              {/* garden things on grass, furniture for the house */}
+              <LegoIcon
+                name={it.spot === "garden" ? "tree" : "home"}
+                color={have ? "grey" : it.spot === "garden" ? "green" : ROOM_COLORS[i % ROOM_COLORS.length]}
+                size={40}
+              />
               <span className="text-[12.5px] font-extrabold leading-tight line-clamp-2 min-h-[32px]">{it.name}</span>
               {have ? (
                 <span className="chip chip-green !text-[11px] !py-0">
