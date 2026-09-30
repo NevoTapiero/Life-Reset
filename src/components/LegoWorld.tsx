@@ -256,18 +256,59 @@ function Minifig({ look, at, turn = 0 }: { look: MinifigLook; at: [number, numbe
 
 const FRONT_RIGHT = new THREE.Vector3(0.55, 0.65, -0.8).normalize();
 
-function FitCamera({ target, width, dir = FRONT_RIGHT }: { target: THREE.Vector3; width: number; dir?: THREE.Vector3 }) {
+// Frames `target` so `width` fits the view, looking from `dir`. The first
+// time it jumps there; after that the camera glides (under a second, eased),
+// and grabbing the view mid-flight hands it straight back to you.
+function FitCamera({
+  target,
+  width,
+  dir = FRONT_RIGHT,
+  controls,
+}: {
+  target: THREE.Vector3;
+  width: number;
+  dir?: THREE.Vector3;
+  controls: React.RefObject<OrbitControlsImpl | null>;
+}) {
   const { camera, size } = useThree();
+  const flight = useRef<{ from: THREE.Vector3; fromAim: THREE.Vector3; to: THREE.Vector3; toAim: THREE.Vector3; t: number } | null>(null);
+  const placed = useRef(false);
   useLayoutEffect(() => {
     const cam = camera as THREE.PerspectiveCamera;
     const vfov = (cam.fov * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * (size.width / size.height));
     const dist = width / 2 / Math.tan(Math.min(hfov, vfov) / 2);
     // by default from the front-right, looking down at the house (the front faces three's -Z)
-    cam.position.copy(target).addScaledVector(dir, dist);
-    cam.lookAt(target);
-    cam.updateProjectionMatrix();
-  }, [camera, size, target, width, dir]);
+    const to = target.clone().addScaledVector(dir, dist);
+    const c = controls.current;
+    if (!placed.current || !c) {
+      cam.position.copy(to);
+      cam.lookAt(target);
+      c?.target.copy(target);
+      c?.update();
+      placed.current = !!c;
+      return;
+    }
+    flight.current = { from: cam.position.clone(), fromAim: c.target.clone(), to, toAim: target.clone(), t: 0 };
+  }, [camera, size, target, width, dir, controls]);
+  useEffect(() => {
+    const c = controls.current;
+    if (!c) return;
+    const grab = () => (flight.current = null);
+    c.addEventListener("start", grab);
+    return () => c.removeEventListener("start", grab);
+  }, [controls]);
+  useFrame((_, dt) => {
+    const f = flight.current;
+    const c = controls.current;
+    if (!f || !c) return;
+    f.t = Math.min(1, f.t + dt / 0.9);
+    const e = f.t < 0.5 ? 4 * f.t ** 3 : 1 - (-2 * f.t + 2) ** 3 / 2; // ease in and out
+    camera.position.lerpVectors(f.from, f.to, e);
+    c.target.lerpVectors(f.fromAim, f.toAim, e);
+    c.update();
+    if (f.t === 1) flight.current = null;
+  });
   return null;
 }
 
@@ -536,11 +577,9 @@ function Stage({
           <PinTracker pins={pins} els={pinEls} />
 
           <ContactShadows position={[target.x, 0.02, target.z]} opacity={0.2} scale={36} blur={2} far={10} />
-          <FitCamera target={target} width={width} dir={dir} />
           <OrbitControls
             ref={controls}
             onChange={clamp}
-            target={target}
             enablePan={pan}
             screenSpacePanning={false}
             // in the town a one-finger drag walks along the street; two fingers turn and zoom
@@ -557,6 +596,8 @@ function Stage({
             minPolarAngle={0.45}
             maxPolarAngle={1.25}
           />
+          {/* after the controls, so it can move them */}
+          <FitCamera target={target} width={width} dir={dir} controls={controls} />
         </Canvas>
         {/* pinned buttons: plain DOM over the canvas, moved every frame by PinTracker */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
