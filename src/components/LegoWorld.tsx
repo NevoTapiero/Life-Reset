@@ -1901,6 +1901,7 @@ export function LegoTown({
           <>
             <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} shadows={following} />
             {following && <NearStuds follow={me3} grass={grass} lots={[...lots, ...emptyLots]} />}
+            <FountainSplash />
             {/* the ground: grass everywhere (the road, ring and paths are Slabs on it), the paved
                 plaza, and each plot turned its own way. Layers sit 0.1 apart (two LDU): the map
                 camera's depth buffer can't tell closer ones apart. */}
@@ -2904,6 +2905,38 @@ function roundedRect(w: number, d: number, r: number): THREE.Shape {
   shape.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false);
   return shape;
 }
+// The fountain plays: droplets (tiny trans-blue balls) leap from the top of the jet, arc
+// out and fall into the basin, round and round. Three's space, over FOUNTAIN.
+const FOUNTAIN_DROPS = 28;
+function FountainSplash() {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const o = useMemo(() => new THREE.Object3D(), []);
+  const cx = FOUNTAIN[0] * LDU;
+  const cz = -FOUNTAIN[1] * LDU;
+  useFrame(({ clock }) => {
+    const m = mesh.current;
+    if (!m) return;
+    const t = clock.elapsedTime;
+    for (let i = 0; i < FOUNTAIN_DROPS; i++) {
+      const a = (i / DROPS) * Math.PI * 2 + t * 0.3;
+      const f = (t * 0.9 + i * 0.37) % 1; // where it is on its flight, 0 leaving the jet, 1 landing
+      const out = 0.4 + f * 3.2;
+      const y = 6.3 + f * 2.4 - f * f * 7.2; // up a little, then down into the basin
+      o.position.set(cx + Math.cos(a) * out, y, cz + Math.sin(a) * out);
+      const sz = 0.16 + (1 - f) * 0.08;
+      o.scale.set(sz, sz, sz);
+      o.updateMatrix();
+      m.setMatrixAt(i, o.matrix);
+    }
+    m.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, FOUNTAIN_DROPS]} frustumCulled={false}>
+      <sphereGeometry args={[1, 8, 6]} />
+      <meshPhysicalMaterial color="#8fd0ff" transparent opacity={0.75} roughness={0.1} clearcoat={1} />
+    </instancedMesh>
+  );
+}
 const SITTERS: MinifigLook[] = [
   { skin: COL.yellow, hair: COL.darkOrange, torso: COL.azure, legs: COL.darkBlue },
   { skin: COL.yellow, hair: COL.black, torso: COL.yellow, legs: COL.darkGrey },
@@ -3398,7 +3431,7 @@ function FountainSpray() {
   const m = useMemo(() => new THREE.Matrix4(), []);
   useFrame(({ clock }) => {
     if (!mesh.current) return;
-    for (let i = 0; i < DROPS; i++) {
+    for (let i = 0; i < FOUNTAIN_DROPS; i++) {
       const t = (clock.elapsedTime * 0.9 + i / DROPS) % 1; // each drop's time along its arc, 0..1
       const a = (i * 2.39996) % (Math.PI * 2); // spread round the jet (golden angle)
       const out = 12 + t * (i % 3 ? 26 : 60); // most land in the upper bowl, some reach the basin
