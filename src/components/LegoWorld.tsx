@@ -2729,20 +2729,23 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
     const byColor = new Map<string, THREE.BufferGeometry[]>();
     for (const b of slabs) {
       let g: THREE.BufferGeometry;
-      if (b.radius) {
+      if (b.ribbon) {
+        g = ribbonGeometry(b.ribbon, b.w, b.h, -(b.y ?? 0));
+      } else if (b.radius) {
         // a rounded rectangle (a ring, when it has a border), extruded down into the ground
         const shape = roundedRect(b.w, b.d, b.radius);
         if (b.border) shape.holes.push(roundedRect(b.w - 2 * b.border, b.d - 2 * b.border, b.radius - b.border));
         g = new THREE.ExtrudeGeometry(shape, { depth: b.h, bevelEnabled: false });
         g.rotateX(Math.PI / 2); // the shape's plane (x, y) flat on the ground (x, z), extruded downwards (+y in LDraw)
+        if (b.yaw) g.rotateY(b.yaw);
         g.translate(b.x, -(b.y ?? 0) - b.h, b.z);
       } else {
         g = b.r ? new THREE.CylinderGeometry(b.r, b.r, b.h, 48) : new THREE.BoxGeometry(b.w, b.h, b.d);
         if (b.yaw) g.rotateY(b.yaw);
         g.translate(b.x, -(b.y ?? 0) - b.h / 2, b.z);
       }
-      if (b.studs) {
-        // studs a stud apart: a shape's UVs are its LDU coordinates, a box's run 0..1 over each face
+      if (b.studs && !b.ribbon) {
+        // studs a stud apart: a shape's UVs are its LDU coordinates, a box's run 0..1 over each face (a ribbon's are studs already)
         const uv = g.attributes.uv as THREE.BufferAttribute;
         const [su, sv] = b.radius ? [1 / 20, 1 / 20] : [b.w / 20, b.d / 20];
         for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
@@ -2769,6 +2772,60 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
       ))}
     </>
   );
+}
+// A band `w` wide along a polyline (LDU, LDraw frame), `h` thick, its bottom at LDraw y
+// `bottom` (0: the ground): a top and two sides, mitred at the bends, UVs in studs along and
+// across it. One piece, so nothing overlaps and nothing fights in the depth buffer.
+function ribbonGeometry(pts: P3[], w: number, h: number, bottom: number): THREE.BufferGeometry {
+  const L: [number, number][] = [];
+  const R: [number, number][] = [];
+  const along: number[] = [];
+  let d = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(pts.length - 1, i + 1)];
+    const dir = i === 0 ? [pts[1][0] - pts[0][0], pts[1][2] - pts[0][2]] : i === pts.length - 1 ? [pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]] : [b[0] - a[0], b[2] - a[2]];
+    const len = Math.hypot(dir[0], dir[1]) || 1;
+    const [nx, nz] = [-dir[1] / len, dir[0] / len];
+    // mitre: widen the offset where the band bends, so its edges stay parallel to the legs
+    let m = 1;
+    if (i > 0 && i < pts.length - 1) {
+      const [ux, uz] = [pts[i][0] - a[0], pts[i][2] - a[2]];
+      const ul = Math.hypot(ux, uz) || 1;
+      m = Math.min(2, 1 / Math.max(0.5, Math.abs(nx * (-uz / ul) + nz * (ux / ul))));
+    }
+    L.push([pts[i][0] + nx * (w / 2) * m, pts[i][2] + nz * (w / 2) * m]);
+    R.push([pts[i][0] - nx * (w / 2) * m, pts[i][2] - nz * (w / 2) * m]);
+    if (i > 0) d += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]);
+    along.push(d / 20);
+  }
+  const top = bottom - h;
+  const pos: number[] = [];
+  const uv: number[] = [];
+  // wound to face outwards (up is -y in LDraw, so the order runs the other way round)
+  const tri = (a: number[], b: number[], c: number[], ua: number[], ub: number[], uc: number[]) => {
+    pos.push(...a, ...c, ...b);
+    uv.push(...ua, ...uc, ...ub);
+  };
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const [l0, r0, l1, r1] = [L[i], R[i], L[i + 1], R[i + 1]];
+    const [u0, u1] = [along[i], along[i + 1]];
+    const v = w / 20;
+    // the top (facing up: LDraw -y, so wound to face -y)
+    tri([l0[0], top, l0[1]], [l1[0], top, l1[1]], [r0[0], top, r0[1]], [u0, 0], [u1, 0], [u0, v]);
+    tri([l1[0], top, l1[1]], [r1[0], top, r1[1]], [r0[0], top, r0[1]], [u1, 0], [u1, v], [u0, v]);
+    // the sides
+    const hv = h / 20;
+    tri([l0[0], top, l0[1]], [l0[0], bottom, l0[1]], [l1[0], top, l1[1]], [u0, 0], [u0, hv], [u1, 0]);
+    tri([l1[0], top, l1[1]], [l0[0], bottom, l0[1]], [l1[0], bottom, l1[1]], [u1, 0], [u0, hv], [u1, hv]);
+    tri([r0[0], top, r0[1]], [r1[0], top, r1[1]], [r0[0], bottom, r0[1]], [u0, 0], [u1, 0], [u0, hv]);
+    tri([r1[0], top, r1[1]], [r1[0], bottom, r1[1]], [r0[0], bottom, r0[1]], [u1, 0], [u1, hv], [u0, hv]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  return g;
 }
 // a rounded rectangle, centred, in the shape's own plane
 function roundedRect(w: number, d: number, r: number): THREE.Shape {
@@ -3517,13 +3574,27 @@ function Scenery({ color, season, sunAt, shadows = true }: { color: string; seas
   // each terrace a shade lighter than the one below: the steps read even far off
   const shades = useMemo(() => [0.86, 0.93, 1, 1.07, 1.14].map((k) => new THREE.Color(color).multiplyScalar(k)), [color]);
   const snowLine = season === "winter" ? 0.45 : 0.72; // share of a mountain's steps below the snow
+  const hillSlabs = useMemo(() => {
+    const out: Slab[] = [];
+    for (const h of hills)
+      for (let k = 0; k < h.layers; k++) {
+        const w = h.r * 2 * (1 - k / (h.layers + 0.6));
+        const t = h.r * 0.07;
+        const [ox, oz] = [(k % 2) * h.r * 0.08, -(k % 3) * h.r * 0.05]; // each step a little off the one below
+        const [c, sn] = [Math.cos(h.turn), Math.sin(h.turn)];
+        const [x, z] = [h.p[0] + ox * c + oz * sn, h.p[2] - ox * sn + oz * c];
+        out.push({ x: x / LDU, z: -z / LDU, w: w / LDU, d: (w * 0.8) / LDU, h: t / LDU, y: (k * t) / LDU, radius: (w * 0.25) / LDU, yaw: -h.turn, color: `#${shades[k].getHexString()}`, studs: true });
+      }
+    return out;
+  }, [hills, shades]);
   const treeMesh = useRef<THREE.InstancedMesh>(null);
+  const hillPine = useMemo(() => brickPine(), []);
   useLayoutEffect(() => {
     const m = treeMesh.current;
     if (!m) return;
     const o = new THREE.Object3D();
     trees.forEach(([x, y, z, sz], i) => {
-      o.position.set(x, y + sz * 0.9, z);
+      o.position.set(x, y, z);
       o.scale.set(sz, sz * 1.8, sz);
       o.updateMatrix();
       m.setMatrixAt(i, o.matrix);
@@ -3537,26 +3608,15 @@ function Scenery({ color, season, sunAt, shadows = true }: { color: string; seas
         <circleGeometry args={[900, 64]} />
         <meshStandardMaterial color={color} roughness={0.6} />
       </mesh>
-      {hills.map((h, i) => (
-        <group key={i} position={h.p} rotation={[0, h.turn, 0]}>
-          {Array.from({ length: h.layers }, (_, k) => {
-            const w = h.r * 2 * (1 - k / (h.layers + 0.6));
-            const t = h.r * 0.07;
-            return (
-              <mesh key={k} position={[(k % 2) * h.r * 0.08, t * (k + 0.5), -(k % 3) * h.r * 0.05]}>
-                <boxGeometry args={[w, t, w * 0.8]} />
-                <meshStandardMaterial color={shades[k]} roughness={0.55} />
-              </mesh>
-            );
-          })}
-        </group>
-      ))}
+      {/* the hills: stepped round-cornered plates, studs on every step, each a shade lighter (LDraw frame for the Slabs) */}
+      <group rotation={[Math.PI, 0, 0]} scale={LDU}>
+        <Slabs slabs={hillSlabs} shadows={false} />
+      </group>
       {/* the woods round the village: brick-built pines and round trees on brown trunks */}
       <ForestBelt season={season} shadows={shadows} />
       {/* LEGO pine trees on the hilltops (a plain cone reads as the 3471 from here) */}
-      <instancedMesh ref={treeMesh} args={[undefined, undefined, trees.length]}>
-        <coneGeometry args={[1, 1, 8]} />
-        <meshStandardMaterial color={season === "winter" ? "#e9eef3" : "#237841"} roughness={0.5} />
+      <instancedMesh ref={treeMesh} args={[undefined, undefined, trees.length]} geometry={hillPine}>
+        <meshStandardMaterial color={season === "winter" ? "#e9eef3" : "#237841"} roughness={0.5} flatShading />
       </instancedMesh>
       {peaks.map((pk, i) => (
         <group key={`p${i}`} position={pk.p} rotation={[0, pk.turn, 0]}>

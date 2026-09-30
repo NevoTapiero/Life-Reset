@@ -961,7 +961,23 @@ export function emptyLotsText(first: number): string {
 // on the pavement corners are real LDraw (townDecorText).
 // LDU; y = bottom height; r: a round slab; yaw: a box turned about Y; radius (+ border): a
 // rounded rectangle (a ring `border` wide when set) instead of a box
-export type Slab = { x: number; z: number; w: number; d: number; h: number; y?: number; r?: number; yaw?: number; radius?: number; border?: number; color: string; /** studs on top, a stud a stud */ studs?: boolean };
+export type Slab = {
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+  h: number;
+  y?: number;
+  r?: number;
+  yaw?: number;
+  radius?: number;
+  border?: number;
+  color: string;
+  /** studs on top, a stud a stud */
+  studs?: boolean;
+  /** one continuous band `w` wide along these points (a river, a road, a path): no seams, nothing overlapping */
+  ribbon?: P3[];
+};
 const GRAVEL = "#c9b48a";
 
 export function townFlats(): Slab[] {
@@ -970,13 +986,7 @@ export function townFlats(): Slab[] {
   const asphalt = "#43474c";
   const GRAVEL_W = PATH_W * S;
   // a road or path along a polyline: a turned box per leg (they overlap at the bends), its top at ground level
-  const along = (pts: P3[], w: number, color: string, h = 2, studs = true) => {
-    for (let k = 0; k + 1 < pts.length; k++) {
-      const [a, b] = [pts[k], pts[k + 1]];
-      const [dx, dz] = [b[0] - a[0], b[2] - a[2]];
-      out.push({ x: (a[0] + b[0]) / 2, z: (a[2] + b[2]) / 2, w: Math.hypot(dx, dz) + w, d: w, h, y: -h, color, yaw: Math.atan2(-dz, dx), studs });
-    }
-  };
+  const along = (pts: P3[], w: number, color: string, h = 2, studs = true) => out.push({ x: 0, z: 0, w, d: 0, h, y: -h, color, studs, ribbon: pts });
   // a point `d` LDU along a polyline, and the leg's yaw
   const at = (pts: P3[], d: number): { x: number; z: number; yaw: number } | null => {
     for (let k = 0; k + 1 < pts.length; k++) {
@@ -1000,7 +1010,7 @@ export function townFlats(): Slab[] {
   }
   // the roundabout: an asphalt ring round a grassy island with its tree, and a gravel spur to it from the ring
   const side = 2 * (ROUND_R + ROAD_OUT * S);
-  out.push({ x: ROUNDABOUT[0], z: ROUNDABOUT[1], w: side, d: side, h: 2, y: -2, radius: side / 2, border: ROAD_OUT * S, color: asphalt });
+  out.push({ x: ROUNDABOUT[0], z: ROUNDABOUT[1], w: side, d: side, h: 2, y: -3, radius: side / 2, border: ROAD_OUT * S, color: asphalt }); // a LDU under the roads that meet it
   const spurStart = nearestStreet([ROUNDABOUT[0], 0, ROUNDABOUT[1]]);
   along([spurStart, [ROUNDABOUT[0], 0, ROUNDABOUT[1]]], GRAVEL_W, GRAVEL);
   // the river: sandy banks under a band of water, wandering across the north woods; a bridge where the road crosses it
@@ -1019,15 +1029,8 @@ export function townFlats(): Slab[] {
   lake(LAKE.r, 2, "#3f8fd8");
   along(TRACK, GRAVEL_W, GRAVEL);
   // the gravel ring round the plaza, and a winding gravel path in from every house's gate
-  out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -2, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL, studs: true });
-  for (let i = 0; i < MAX_RESIDENTS; i++) {
-    const path = lotPath(lotFor(i), 3);
-    for (let k = 0; k + 1 < path.length; k++) {
-      const [a, b] = [path[k], path[k + 1]];
-      const [dx, dz] = [b[0] - a[0], b[2] - a[2]];
-      out.push({ x: (a[0] + b[0]) / 2, z: (a[2] + b[2]) / 2, w: Math.hypot(dx, dz) + PATH_W * S, d: PATH_W * S, h: 2, y: -2, color: GRAVEL, yaw: Math.atan2(-dz, dx) });
-    }
-  }
+  out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -3, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL, studs: true }); // a LDU under the paths that meet it
+  for (let i = 0; i < MAX_RESIDENTS; i++) along(lotPath(lotFor(i), 3), GRAVEL_W, GRAVEL);
   // a sandy disc round the fountain with a darker border (round slabs)
   out.push(
     { x: FOUNTAIN[0], z: FOUNTAIN[1], r: 150, w: 0, d: 0, h: 1, color: "#8b7a5c" },
