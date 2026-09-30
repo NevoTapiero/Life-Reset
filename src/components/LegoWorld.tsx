@@ -75,6 +75,10 @@ import {
   ROOM_START,
   stationSpots,
   stationAt,
+  gateSignAt,
+  PLAZA_SIGN,
+  SHOP_SIGN,
+  SIGN_LINES,
   PLAZA,
   TOWN_HALF,
   MAX_RESIDENTS,
@@ -929,7 +933,7 @@ function FovSync({ fov }: { fov: number }) {
 // The LEGO-game camera: once you're being followed, the view keeps you in
 // frame as you move -- eased, not rigid -- at whatever angle and distance you
 // have swung it to.
-const CHASE_LIFT = new THREE.Vector3(0, 2.2, 0); // aim at the minifig's middle, not its feet
+const CHASE_LIFT = new THREE.Vector3(0, 3.2, 0); // aim a little over the minifig's head: it sits low in the frame, the way ahead fills it
 function Chase({
   follow,
   aim,
@@ -1468,7 +1472,7 @@ const LOOK_DOWN = new THREE.Vector3(0.25, 1.35, -0.75).normalize();
 // playing: the camera behind and above you, looking down at about 40 degrees, close
 // enough that you're the star (LEGO-game style); you can swing it round with a drag
 const CHASE_DIR = new THREE.Vector3(0.1, 0.44, -0.9).normalize(); // about 25 degrees down: the horizon shows
-const CHASE_WIDTH = 18;
+const CHASE_WIDTH = 23;
 const CHASE_FOV = 50; // a game camera's wider lens (the diorama views keep a narrow one)
 const STILL = new THREE.Vector3(); // a target that never changes (the camera follows you instead)
 // where the sun hangs in the sky (three's space): where the sunlight comes from
@@ -1783,6 +1787,28 @@ export function LegoTown({
       };
     });
   };
+  // the signs: a line over each signpost once you've walked up to it
+  const signPins = () => {
+    const me = residents[meIndex];
+    const friend = residents.findIndex((r) => !r.me);
+    const spots: [string, [number, number, number], string][] = [
+      ["plaza", toThree([PLAZA_SIGN[0], 0, PLAZA_SIGN[1]]), SIGN_LINES.plaza],
+      ["shop", toThree([SHOP_SIGN[0], 0, SHOP_SIGN[1]]), SIGN_LINES.shop],
+    ];
+    if (me?.me) {
+      const [gx, gz] = gateSignAt(houseSpec(me.level));
+      spots.push(["gate", toThree(inLot(lots[meIndex], [gx, 0, gz])), SIGN_LINES.gate]);
+    }
+    if (friend >= 0) {
+      const [gx, gz] = gateSignAt(houseSpec(residents[friend].level));
+      spots.push(["friend", toThree(inLot(lots[friend], [gx, 0, gz])), SIGN_LINES.friend]);
+    }
+    return spots.map(([key, [x, y, z], text]) => ({
+      key: `sign-${key}`,
+      at: () => (Math.hypot(me3.current.x - x, me3.current.z - z) < 9 ? ([x, y + 6.2, z] as [number, number, number]) : null),
+      node: <span className="lego-bubble lego-sign">{text}</span>,
+    }));
+  };
   // a friend's speech bubble, over their head wherever they walk
   const chatPin = (name: string) => {
     let h = 0;
@@ -1873,7 +1899,7 @@ export function LegoTown({
             ))}
           </>
         }
-        pins={following ? [...(near === null ? [] : [nearPin(near)]), ...(talker ? [chatPin(talker)] : []), ...stationPins()] : [
+        pins={following ? [...(near === null ? [] : [nearPin(near)]), ...(talker ? [chatPin(talker)] : []), ...stationPins(), ...signPins()] : [
           {
             key: "shop",
             at: [0, SHOP_BUILDING.h * LDU + 3, -(SHOP_FRONT - (SHOP_BUILDING.d / 2) * 20) * LDU] as [number, number, number],
@@ -2996,6 +3022,9 @@ function Walker({
     }
   }, [key]);
   const look3 = useMemo(() => new THREE.Vector3(), []);
+  // the camera's forward when you first pushed the stick: your directions keep to it until you
+  // let go, so the camera can come round behind you without turning you round with it
+  const frame = useRef<{ fx: number; fz: number } | null>(null);
   const off = useMemo(() => ({ x: 0, z: 0 }), []); // sidestepping someone
   const stepped = useRef({ x: 0, z: 0, d: 0 }); // for your footsteps
   const [running, setRunning] = useState(false);
@@ -3042,10 +3071,14 @@ function Walker({
       if (run) energyRef.current = Math.max(0, energyRef.current - RUN_COST * dt);
       else energyRef.current = Math.min(ENERGY_MAX, energyRef.current + TRICKLE * dt);
     }
+    if (!stick || push <= 0.15) frame.current = null;
     if (stick && push > 0.15) {
-      camera.getWorldDirection(look3);
-      const f = Math.hypot(look3.x, look3.z) || 1;
-      const [fx, fz] = [look3.x / f, look3.z / f]; // forward on the ground, three's space
+      if (!frame.current) {
+        camera.getWorldDirection(look3);
+        const f = Math.hypot(look3.x, look3.z) || 1;
+        frame.current = { fx: look3.x / f, fz: look3.z / f }; // forward on the ground, three's space
+      }
+      const { fx, fz } = frame.current;
       const mx = fx * stick.y - fz * stick.x;
       const mz = fz * stick.y + fx * stick.x;
       const m = Math.hypot(mx, mz) || 1;
@@ -3065,7 +3098,7 @@ function Walker({
       s.pos = [x, 0, z];
       walking.current = true;
       face(Math.atan2(dx, dz));
-      if (stick.y > Math.abs(stick.x)) behind(dx, dz); // only when heading on away from the camera
+      behind(dx, dz); // the camera comes round behind you whichever way you go: you see where you're walking
       report(false);
       return;
     }

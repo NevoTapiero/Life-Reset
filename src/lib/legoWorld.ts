@@ -172,6 +172,10 @@ export function buildGarden(streak: number, s: HouseSpec, stations: Station[] = 
   for (let zz = front + 2; zz < PLOT - 3; zz += 2) for (const x of [pathL - 2, pathL - 3, pathL + 3, pathL + 4]) beds.push([x, zz]);
   beds.slice(0, Math.min(streak, 12)).forEach(([x, zz], i) => out.push(put("3741ac05", FLOWER_COLOURS[i % FLOWER_COLOURS.length], x, zz, 0)));
 
+  // the name sign at the gate, beside the path
+  const [gx, gz] = gateSignAt(s);
+  out.push(...place(SIGNPOST, gx, gz, ROT[0], 0));
+
   // a hedge along the front at 5 days
   if (streak >= 5) for (let x = 1; x < PLOT - 1; x++) if (x < pathL - 1 || x > pathL + 2) out.push(put("3062b", COL.green, x, PLOT - 2, 0));
 
@@ -1070,8 +1074,28 @@ export function townClouds(): Slab[] {
 export function townDecorText(): string {
   const out: string[] = [];
   for (const [x, z] of STREET_LAMPS) out.push(...place(lamp, x, z, ROT[0], 0));
+  out.push(...place(SIGNPOST, PLAZA_SIGN[0], PLAZA_SIGN[1], ROT[0], 0), ...place(SIGNPOST, SHOP_SIGN[0], SHOP_SIGN[1], ROT[0], 0));
   return modelText(out, "town-decor.ldr");
 }
+
+// ---- signs: how the game works, told where it happens ----
+// A LEGO signpost (a round post with a tile on top) stands where a newcomer needs the
+// one line that explains the place; walk up to it and the line appears over it.
+const SIGNPOST: Piece[] = [...stack("3062b", COL.reddishBrown, 0, 0, 4), ["3068b", COL.white, 0, 96, 0, ON_WALL]];
+/** by the ring where the path from your house comes in (LDU) */
+export const PLAZA_SIGN: [number, number] = [90, -(RING - 5) * S];
+/** to the right of the shop's front (LDU) */
+export const SHOP_SIGN: [number, number] = [190, 250];
+/** a plot's gate sign, beside where its path starts (plot frame, LDU) */
+export function gateSignAt(s: HouseSpec): [number, number] {
+  return [(doorCells(s)[1] + 4 - PLOT / 2) * S, (PLOT / 2 + 5) * S];
+}
+export const SIGN_LINES = {
+  plaza: "Level up in real life. Your minifig levels up here.",
+  gate: "Every real thing you do is a station. Do it, tap it: XP and gold.",
+  shop: "Gold from real life buys bricks for your garden.",
+  friend: "Gold studs over their stations: what they did today.",
+};
 
 // ---- walking round town ----
 // Everyone walks the gravel ring round the plaza (RING studs out) and the paths off it,
@@ -1181,6 +1205,12 @@ export function townBlockers(residents: Resident[]): Blocker[] {
   const shop = SHOP as House;
   out.push({ x0: (-shop.w / 2) * S + 10, x1: (shop.w / 2) * S - 10, z0: SHOP_FRONT - shop.d * S, z1: SHOP_FRONT - 10 });
   out.push({ cx: FOUNTAIN[0], cz: FOUNTAIN[1], r: 95 });
+  out.push({ cx: PLAZA_SIGN[0], cz: PLAZA_SIGN[1], r: 22 }, { cx: SHOP_SIGN[0], cz: SHOP_SIGN[1], r: 22 });
+  residents.slice(0, MAX_RESIDENTS).forEach((r, i) => {
+    const [gx, gz] = gateSignAt(houseSpec(r.level));
+    const [cx, , cz] = inLot(lotFor(i), [gx, 0, gz]);
+    out.push({ cx, cz, r: 22 });
+  });
   for (const h of plotHedges()) out.push({ cx: h.x, cz: h.z, hw: h.w / 2 + 8, hd: h.d / 2 + 8, yaw: h.yaw ?? 0 });
   return out;
 }
