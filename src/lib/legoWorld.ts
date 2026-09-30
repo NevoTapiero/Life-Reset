@@ -55,7 +55,7 @@ export const LEGO_PARTS = [
   "4186", "91405", "3062b", "3068b", "3069b", "3741ac05", "3470", "2435", "3471", "2417", "30055",
   "3031", "3754", "3003", "29592", "62698-f2", "33051", "14769p0f", "1", "60594", "60603", "3010", "3005", "87079",
   "3001", "3002", "3004", "3009", "3020", "3022", "3023b", "3032", "3036", "3795", "3666", "3710", "2431", "3941", "4589", "4079", "3068bp0t", "3068bp71", "3068bp74", "4738a", "4739a", "11602", "89801", "30224",
-  "3961", "3960", "60474", "11213", "87081", "6141", "98138", "2039", "30367c", "3942c", "3027", "3033", "3958", "41539", "3035", "3832", "3034", "4032a", "2423", "33320", "49661",
+  "3961", "3960", "60474", "11213", "87081", "6141", "98138", "2039", "30367c", "3942c", "3027", "3033", "3958", "41539", "3035", "3832", "3034", "4032a", "2423", "33320", "49661", "12891p01",
   "973", "3818", "3819", "3820", "3815", "3816", "3817", "3626cp01", "53981",
 ];
 
@@ -604,7 +604,7 @@ export function emptyLotsText(first: number): string {
 // drawn as boxes (townFlats, townClouds) rather than LDraw: the tile versions
 // cost ~550k triangles of undersides and studs nobody ever sees. The lampposts
 // on the pavement corners are real LDraw (townDecorText).
-export type Slab = { x: number; z: number; w: number; d: number; h: number; y?: number; color: string }; // LDU; y = bottom height
+export type Slab = { x: number; z: number; w: number; d: number; h: number; y?: number; r?: number; color: string }; // LDU; y = bottom height; r: round
 
 const PAVEMENT = "#a0a5a9";
 export function townFlats(): Slab[] {
@@ -619,6 +619,11 @@ export function townFlats(): Slab[] {
       if (crossings.includes(c) && Math.abs(t) < 8) continue;
       out.push({ x: c * S, z: t * S, w: 20, d: 80, h: 2, color: white }, { x: t * S, z: c * S, w: 80, d: 20, h: 2, color: white });
     }
+  // a sandy disc round the fountain with a darker border (round slabs)
+  out.push(
+    { x: FOUNTAIN[0], z: FOUNTAIN[1], r: 150, w: 0, d: 0, h: 1, color: "#8b7a5c" },
+    { x: FOUNTAIN[0], z: FOUNTAIN[1], r: 138, w: 0, d: 0, h: 2, color: "#d8c79c" },
+  );
   // zebra crossings on the four streets round the plaza
   for (const c of crossings)
     for (let k = -2.5; k <= 2.5; k++) {

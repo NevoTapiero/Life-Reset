@@ -776,6 +776,9 @@ export function LegoTown({
         <Slabs slabs={CLOUDS} shadows={false} />
         {parks && <primitive object={parks} />}
         <Traffic />
+        <Seagulls />
+        <FountainSpray />
+        <TownSign name={residents[meIndex]?.name ?? "Your"} />
         {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
         {STROLLERS.map((p, i) => (
           <Stroller key={i} {...p} />
@@ -994,7 +997,7 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
   const meshes = useMemo(() => {
     const byColor = new Map<string, THREE.BufferGeometry[]>();
     for (const b of slabs) {
-      const g = new THREE.BoxGeometry(b.w, b.h, b.d);
+      const g = b.r ? new THREE.CylinderGeometry(b.r, b.r, b.h, 48) : new THREE.BoxGeometry(b.w, b.h, b.d);
       g.translate(b.x, -(b.y ?? 0) - b.h / 2, b.z);
       if (!byColor.has(b.color)) byColor.set(b.color, []);
       byColor.get(b.color)!.push(g);
@@ -1093,6 +1096,112 @@ function Stroller({ look, r, speed, start }: (typeof STROLLERS)[number]) {
   return (
     <group ref={root}>
       <Minifig look={look} at={[0, 0, 0]} />
+    </group>
+  );
+}
+
+// ---- seagulls circling over the square ----
+const GULLS = [
+  { r: 700, y: 520, speed: 0.12, start: 0 },
+  { r: 900, y: 640, speed: 0.1, start: 2 },
+  { r: 500, y: 460, speed: -0.14, start: 4 },
+  { r: 1100, y: 700, speed: 0.08, start: 1 },
+  { r: 800, y: 580, speed: -0.1, start: 5 },
+];
+function Seagulls() {
+  const gull = useModel(useMemo(() => modelText(["1 15 0 0 0 1 0 0 0 1 0 0 0 1 12891p01.dat"], "gull.ldr"), []), true);
+  const flock = useMemo(() => (gull ? GULLS.map(() => gull.clone()) : []), [gull]);
+  const refs = useRef<(THREE.Group | null)[]>([]);
+  useFrame(({ clock }) => {
+    GULLS.forEach((g, i) => {
+      const o = refs.current[i];
+      if (!o) return;
+      const a = g.start + clock.elapsedTime * g.speed;
+      o.position.set(FOUNTAIN[0] + Math.cos(a) * g.r, -g.y - Math.sin(clock.elapsedTime * 1.3 + i) * 20, FOUNTAIN[1] + Math.sin(a) * g.r);
+      // beak along the flight: the part's beak points -Z, so face the tangent and turn round
+      o.rotation.set(0, Math.atan2(-Math.sin(a) * g.speed, Math.cos(a) * g.speed) + Math.PI, Math.sign(g.speed) * 0.35);
+    });
+  });
+  return (
+    <>
+      {flock.map((o, i) => (
+        <group key={i} ref={(el) => void (refs.current[i] = el)}>
+          <primitive object={o} />
+        </group>
+      ))}
+    </>
+  );
+}
+
+// ---- the fountain's water: droplets arcing from the jet into the bowls ----
+const DROPS = 36;
+function FountainSpray() {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const m = useMemo(() => new THREE.Matrix4(), []);
+  useFrame(({ clock }) => {
+    if (!mesh.current) return;
+    for (let i = 0; i < DROPS; i++) {
+      const t = (clock.elapsedTime * 0.9 + i / DROPS) % 1; // each drop's time along its arc, 0..1
+      const a = (i * 2.39996) % (Math.PI * 2); // spread round the jet (golden angle)
+      const out = 12 + t * (i % 3 ? 26 : 60); // most land in the upper bowl, some reach the basin
+      const up = 128 + 60 * t - 110 * t * t * (i % 3 ? 1 : 1.3); // height above the ground, LDU
+      m.makeTranslation(FOUNTAIN[0] + Math.cos(a) * out, -up, FOUNTAIN[1] + Math.sin(a) * out);
+      mesh.current.setMatrixAt(i, m);
+    }
+    mesh.current.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, DROPS]}>
+      <sphereGeometry args={[3.2, 6, 4]} />
+      <meshStandardMaterial color="#bfe6ff" transparent opacity={0.75} roughness={0.1} />
+    </instancedMesh>
+  );
+}
+
+// ---- the welcome sign at the front of the plaza: "<name>'s Town" ----
+function TownSign({ name }: { name: string }) {
+  const texture = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = 512;
+    c.height = 128;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#1f3f8f";
+    g.fillRect(0, 0, 512, 128);
+    g.strokeStyle = "#f2c230";
+    g.lineWidth = 10;
+    g.strokeRect(8, 8, 496, 112);
+    g.fillStyle = "#ffffff";
+    g.font = "bold 58px system-ui, sans-serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText(`${name}'s Town`, 256, 66, 470);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    // the LDraw frame is upside down (-Y up) and seen from the other side: flip both ways
+    t.flipY = false;
+    t.repeat.x = -1;
+    t.offset.x = 1;
+    return t;
+  }, [name]);
+  useEffect(() => () => texture.dispose(), [texture]);
+  // LDraw frame: -Y is up; the board faces +Z (the front of the plaza)
+  return (
+    <group position={[-300, 0, 468]}>
+      {[-72, 72].map((x) => (
+        <mesh key={x} position={[x, -60, 0]} castShadow>
+          <boxGeometry args={[10, 120, 10]} />
+          <meshStandardMaterial color="#5a3b22" />
+        </mesh>
+      ))}
+      <mesh position={[0, -100, 4]} castShadow>
+        <boxGeometry args={[160, 40, 6]} />
+        <meshStandardMaterial attach="material-0" color="#1f3f8f" />
+        <meshStandardMaterial attach="material-1" color="#1f3f8f" />
+        <meshStandardMaterial attach="material-2" color="#1f3f8f" />
+        <meshStandardMaterial attach="material-3" color="#1f3f8f" />
+        <meshStandardMaterial attach="material-4" map={texture} />
+        <meshStandardMaterial attach="material-5" color="#1f3f8f" />
+      </mesh>
     </group>
   );
 }
