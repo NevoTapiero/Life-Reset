@@ -65,12 +65,34 @@ export default function TownArt({ residents, className }: { residents: Resident[
             {Array.from({ length: Math.floor(h / 10) }, (_, k) => (
               <line key={k} x1={x} x2={x + w} y1={ground - (k + 1) * 10} y2={ground - (k + 1) * 10} stroke="rgb(0 0 0 / 0.14)" strokeWidth="1.2" />
             ))}
+            {/* chimney from level 3 (behind the roof) */}
+            {lvl >= 3 && <rect x={x + w - 16} y={y - 20 - lvl} width="8" height="18" rx="1" fill="var(--lego-dark-grey)" />}
             {/* roof */}
             <path d={`M${x - 6} ${y + 2} L${cx} ${y - 22 - lvl * 2} L${x + w + 6} ${y + 2} Z`} fill={roof} />
-            {/* door and window */}
+            <path d={`M${x - 6} ${y + 2} L${cx} ${y - 22 - lvl * 2} L${cx} ${y + 2} Z`} fill="#fff" opacity="0.12" />
+            {/* a flag on top at level 5 */}
+            {lvl >= 5 && (
+              <>
+                <line x1={cx} x2={cx} y1={y - 22 - lvl * 2} y2={y - 42 - lvl * 2} stroke="var(--lego-dark-grey)" strokeWidth="1.6" />
+                <path d={`M${cx} ${y - 42 - lvl * 2} l12 4 -12 4 Z`} fill="var(--lego-yellow)" />
+              </>
+            )}
+            {/* windows: a row per floor, more with each level */}
+            {Array.from({ length: lvl >= 4 ? 2 : 1 }, (_, fl) =>
+              Array.from({ length: lvl >= 2 ? 2 : 1 }, (_, k) => {
+                const wx = lvl >= 2 ? (k === 0 ? x + 6 : x + w - 18) : x + 6;
+                const wy = y + 7 + fl * 17;
+                return (
+                  <g key={`${fl}-${k}`}>
+                    <rect x={wx} y={wy} width="12" height="10" rx="1.5" fill="#fff" opacity="0.92" />
+                    <path d={`M${wx + 6} ${wy}v10M${wx} ${wy + 5}h12`} stroke={wall} strokeWidth="1.4" opacity="0.6" />
+                  </g>
+                );
+              }),
+            )}
+            {/* the door */}
             <rect x={cx - 7} y={ground - 20} width="14" height="20" rx="2" fill="var(--lego-tan)" />
-            <rect x={x + 7} y={y + 9} width="12" height="10" rx="1.5" fill="#fff" opacity="0.9" />
-            {w > 55 && <rect x={x + w - 19} y={y + 9} width="12" height="10" rx="1.5" fill="#fff" opacity="0.9" />}
+            <circle cx={cx + 3.5} cy={ground - 10} r="1.2" fill="var(--lego-dark-grey)" />
           </g>
         );
       })}
