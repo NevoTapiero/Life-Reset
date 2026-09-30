@@ -796,7 +796,7 @@ body {
   background:
     repeating-linear-gradient(180deg, transparent 0 21px, rgb(0 0 0 / 0.14) 21px 23px),
     var(--c);
-  box-shadow: inset 0 3px 0 rgb(255 255 255 / 0.35), inset -6px 0 0 rgb(0 0 0 / 0.08);
+  box-shadow: inset 0 3px 0 rgb(255 255 255 / 0.35), inset -6px 0 0 rgb(0 0 0 / 0.08), 0 0 0 2.5px var(--lego-black);
 }
 .podium-col::before {
   content: "";
