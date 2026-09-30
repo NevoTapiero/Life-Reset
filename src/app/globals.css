@@ -1828,3 +1828,5 @@ body {
 
 /* the HUD's bricks and studs get the outline too */
 .xp-bricks span, .streak-studs span, .true-meter-bar, .true-meter-medal, .true-meter-label { outline: 1.5px solid var(--lego-black); outline-offset: 0; }
+/* chips outlined like the rest of the kit */
+.chip { outline: 1.5px solid var(--lego-black); outline-offset: 0; }
