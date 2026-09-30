@@ -158,7 +158,7 @@ export default function Minifig({
 }
 
 // each character's printed face: brows, lashes, a beard, and the mouth
-function FacePrint({ character }: { character?: string | null }) {
+export function FacePrint({ character }: { character?: string | null }) {
   const ink = { fill: "none", stroke: "#1b2a34", strokeLinecap: "round" as const };
   switch (character ?? "warrior") {
     case "wizard":

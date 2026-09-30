@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { FacePrint } from "@/components/Minifig";
 
 // A player's picture in the brick theme: their own photo if they uploaded one,
 // otherwise a LEGO minifig head dressed as their character (copper hair for the
@@ -51,7 +52,10 @@ export function MinifigHead({ character, size = 48 }: { character?: string | nul
       <ellipse cx="38.5" cy="29.5" rx="2.5" ry="3" fill="#1b2a34" />
       <circle cx="26.4" cy="28.4" r="0.85" fill="#fff" />
       <circle cx="39.4" cy="28.4" r="0.85" fill="#fff" />
-      <path d="M24.5 36c4.3 4.2 10.7 4.2 15 0" fill="none" stroke="#1b2a34" strokeWidth="2.3" strokeLinecap="round" />
+      {/* the character's face print, from the full minifig (scaled to this head) */}
+      <g transform="matrix(0.93 0 0 0.93 -23.79 -0.26)">
+        <FacePrint character={character} />
+      </g>
       {look.draw === "hair" && (
         <path d="M13 28C11 13.5 20 6 32 6s21 7.5 19 22c-2-5-5-8-9-9.2-4 3.4-12 4.6-20 2.6-3.6 1-6.6 3.6-9 6.6Z" fill={look.hair} />
       )}
