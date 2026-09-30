@@ -54,15 +54,16 @@ export default function HomePage() {
   // null until the first load, then whether today's daily missions were all done
   const [wasCleared, setWasCleared] = useState<boolean | null>(null);
   const [justCleared, setJustCleared] = useState(false);
-  // studs flying from a checked mission into the stud counter
-  const counterRef = useRef<HTMLAnchorElement>(null);
+  // studs flying from a checked mission into the XP bar
+  const counterRef = useRef<HTMLDivElement>(null);
   const [flying, setFlying] = useState<{ id: number; x: number; y: number; dx: number; dy: number; delay: number }[]>([]);
   const [bump, setBump] = useState(false);
   const flyId = useRef(0);
   function flyStuds(from: DOMRect) {
     const to = counterRef.current?.getBoundingClientRect();
     if (!to) return;
-    const tx = to.left + 14;
+    // aim at the XP bar's first empty brick
+    const tx = to.left + Math.min(0.95, Math.max(0.05, (m.profile ? rankForXp(m.profile.xp).progress : 0) + 0.05)) * to.width;
     const ty = to.top + to.height / 2;
     const base = (flyId.current += 10);
     const studs = Array.from({ length: 7 }, (_, i) => {
@@ -206,7 +207,7 @@ export default function HomePage() {
           <div className="flex-1 min-w-0 pb-3">
             <div className="flex items-center justify-between gap-2">
               <div className="hud-label">{greeting()}</div>
-              <Link href="/app/town" aria-label={`${(p.gold ?? 0).toLocaleString()} gold studs: spend them in your world`} className={`stud-counter ${bump ? "bump" : ""}`} title="Gold studs: spend them in your world" ref={counterRef}>
+              <Link href="/app/town" aria-label={`${(p.gold ?? 0).toLocaleString()} gold studs: spend them in your world`} className="stud-counter" title="Gold studs: spend them in your world">
                 <span className="stud-spin" aria-hidden />
                 {(p.gold ?? 0).toLocaleString()}
               </Link>
@@ -228,7 +229,7 @@ export default function HomePage() {
             <span>{rank.label}</span>
             <span className="text-muted">{next ? `${rank.xpForStage - rank.xpIntoStage} XP to ${next}` : "Top rank"}</span>
           </div>
-          <div className="xp-bricks mt-2" role="progressbar" aria-label="XP to the next rank" aria-valuenow={rank.xpIntoStage} aria-valuemax={rank.xpForStage}>
+          <div ref={counterRef} className={`xp-bricks mt-2 ${bump ? "bump" : ""}`} role="progressbar" aria-label="XP to the next rank" aria-valuenow={rank.xpIntoStage} aria-valuemax={rank.xpForStage}>
             {Array.from({ length: 10 }, (_, i) => {
               const fill = Math.min(1, Math.max(0, rank.progress * 10 - i));
               return <span key={i} className={fill >= 1 ? "on" : fill > 0 ? "part" : ""} style={{ "--fill": `${Math.round(fill * 100)}%` } as React.CSSProperties} />;

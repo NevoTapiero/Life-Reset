@@ -902,7 +902,7 @@ body {
   background: radial-gradient(circle at 50% 100%, var(--c) 0 3.6px, transparent 4px) 0 0 / 50% 5px repeat-x;
 }
 
-/* studs flying into the stud counter (LEGO-game pickup) */
+/* studs flying into the XP bar (LEGO-game pickup) */
 @keyframes studFly {
   0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
   15% { transform: translate(-50%, calc(-50% - 22px)) scale(1.1); opacity: 1; }
@@ -924,7 +924,7 @@ body {
   40% { transform: scale(1.18); }
   100% { transform: scale(1); }
 }
-.stud-counter.bump { animation: counterBump 380ms var(--ease-bounce); }
+.xp-bricks.bump { animation: counterBump 380ms var(--ease-bounce); }
 @media (prefers-reduced-motion: reduce) { .flying-stud { display: none; } }
 
 /* a mission's brick snapping down when checked */
