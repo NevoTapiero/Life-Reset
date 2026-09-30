@@ -222,6 +222,38 @@ export const brickSound = {
     bell(a, out, t + 0.27, 1568, 0.11, 0.5);
     bell(a, out, t + 0.33, 2093, 0.07, 0.45);
   },
+  /** into the world: a wall of bricks lands row by row over a rising whoosh */
+  wipe() {
+    const s = audio();
+    if (!s || throttled("wipe", 600)) return;
+    const { a, out } = s;
+    const t = a.currentTime;
+    // the whoosh: filtered noise sweeping up
+    const src = a.createBufferSource();
+    src.buffer = noise;
+    src.loop = true;
+    const f = a.createBiquadFilter();
+    f.type = "bandpass";
+    f.Q.value = 1.2;
+    f.frequency.setValueAtTime(400, t);
+    f.frequency.exponentialRampToValueAtTime(3200, t + 0.7);
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.18, t + 0.45);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.8);
+    src.connect(f).connect(g).connect(out);
+    src.start(t);
+    src.stop(t + 0.85);
+    // twelve rows of bricks landing, quicker and higher as the wall fills
+    for (let i = 0; i < 12; i++) {
+      const at = t + i * 0.052 + Math.random() * 0.012;
+      burst(a, out, at, "bandpass", 2200 + i * 120 + Math.random() * 400, 8, 0.2, 0.012);
+      tone(a, out, at, 300 + i * 22, 260 + i * 22, 0.07, 0.05, "triangle", 0.002);
+    }
+    // the last brick seats with a bright chime
+    bell(a, out, t + 0.7, 1568, 0.09, 0.5);
+    buzz([10, 40, 10, 40, 10, 40, 24]);
+  },
   /** a friend at your door: knock, knock (a wooden thud and its knuckle) */
   knock() {
     const s = audio();

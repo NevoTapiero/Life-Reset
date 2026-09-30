@@ -11,7 +11,7 @@ const ROWS = 12;
 // screen before the 3D world opens (onCovered fires when it's full).
 export default function BrickWipe({ onCovered }: { onCovered: () => void }) {
   useEffect(() => {
-    brickSound.levelUp(false);
+    brickSound.wipe();
     const t = setTimeout(onCovered, 720);
     return () => clearTimeout(t);
   }, [onCovered]);
