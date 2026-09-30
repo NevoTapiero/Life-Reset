@@ -286,7 +286,7 @@ export type Resident = {
 // there's air: a lawn in front of every hedge, a wide pavement, then the
 // road; a ring road round it all, and forest beyond.
 export const ROAD = 16; // the road round the village, studs wide
-export const TOWN_HALF = 212; // the village's radius to the road's outer edge, studs
+export const TOWN_HALF = 232; // the village's radius to the road's outer edge, studs
 export const RING = 40; // the gravel ring round the plaza, studs from the centre: where every path meets
 export const PATH_W = 6; // the paths, studs
 export const RING_R = RING * S; // the ring, LDU
@@ -298,14 +298,14 @@ export type Lot = { x: number; z: number; yaw: number; a: number; r: number };
 // angles, none square to another. You first, right behind the shop; then your friends
 // round the circle. [angle from north (degrees), distance (studs), twist (degrees)]
 const LOTS: [number, number, number][] = [
-  [180, 118, -6],
-  [228, 138, 7],
-  [136, 130, -9],
-  [272, 122, 5],
-  [86, 142, -5],
-  [4, 126, 8],
-  [316, 144, -7],
-  [46, 134, 6],
+  [180, 100, -8],
+  [226, 150, 9],
+  [134, 132, -12],
+  [278, 108, 6],
+  [92, 168, -6],
+  [356, 122, 11],
+  [318, 166, -9],
+  [40, 140, 5],
 ];
 export const MAX_RESIDENTS = LOTS.length;
 /** a turn about Y (LDraw), as ROT is for the quarter turns */
