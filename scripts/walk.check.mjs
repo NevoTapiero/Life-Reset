@@ -1,6 +1,6 @@
 // node scripts/walk.check.mjs -- every walk between any two places (doors, insides, the shop) keeps to the streets
 import assert from "node:assert";
-import { doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, shopWalk, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
+import { jogAt, doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, shopWalk, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
 
 const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
 const places = [SHOP_WALK, shopWalk(1), shopWalk(3), ...lots.flatMap((lot, i) => [doorWalk(lot, 1 + (i % 5), 40), doorWalk(lot, 1 + (i % 5), -40), insideWalk(lot, 1 + (i % 5), 40)])];
@@ -27,4 +27,9 @@ for (const a of places)
 const inside = walkRoute(doorWalk(lots[1], 2, 40), insideWalk(lots[1], 2, 40));
 assert.equal(inside.pts.length, insideWalk(lots[1], 2, 40).length - 1); // from beside the door, not the street
 assert.deepEqual(walkRoute(insideWalk(lots[1], 2, 40), doorWalk(lots[1], 2, 40)).pts, [...inside.pts].reverse());
-console.log(`ok: ${places.length ** 2} walks`);
+// the joggers' lap is continuous: no jumps anywhere round it (or when it wraps)
+for (let d = -500; d < 10000; d += 5) {
+  const [a, b] = [jogAt(d).at, jogAt(d + 5).at];
+  assert(Math.hypot(a[0] - b[0], a[2] - b[2]) <= 5.01, `jump at ${d}`);
+}
+console.log(`ok: ${places.length ** 2} walks, and the joggers' lap`);

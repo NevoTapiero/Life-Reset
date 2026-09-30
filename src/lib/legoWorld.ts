@@ -822,6 +822,25 @@ export function insideWalk(lot: Lot, level: number, side = 0, rooms?: Rooms): P3
     inLot(lot, [r.x, floor, r.z]),
   ];
 }
+/** the joggers' loop: laps of the streets round the plaza, in the lane on the plaza's side
+ *  (clear of the walkers on the centre line); returns where you are `d` LDU round and which way you face */
+export function jogAt(d: number): { at: P3; heading: number } {
+  const h = ST - 80;
+  const side = 2 * h;
+  const lap = 4 * side;
+  const u = ((d % lap) + lap) % lap;
+  const k = Math.floor(u / side);
+  const f = u - k * side;
+  // the four sides in turn: along -z at x = h, along -x at z = -h, along +z at x = -h, along +x at z = h
+  const legs: [P3, number, number][] = [
+    [[h, 0, h - f], 0, -1],
+    [[h - f, 0, -h], -1, 0],
+    [[-h, 0, -h + f], 0, 1],
+    [[-h + f, 0, h], 1, 0],
+  ];
+  const [at, dx, dz] = legs[k];
+  return { at, heading: Math.atan2(dx, dz) };
+}
 /** where a resident's ride is parked: in the street in front of their plot, just off the
  *  pavement and ending beside the walk from their door (the ride runs off away from it) */
 export function rideSpot(lot: Lot, level: number): P3 {

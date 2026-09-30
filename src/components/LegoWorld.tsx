@@ -37,6 +37,7 @@ import {
   doorWalk,
   insideWalk,
   rideSpot,
+  jogAt,
   type Loadout,
   SHOP_WALK,
   shopWalk,
@@ -507,6 +508,7 @@ function Minifig({
   turn = 0,
   walking,
   wave = false,
+  stride = 10,
 }: {
   /** four colours (townsfolk) or a whole figure (a character's loadout) */
   look: MinifigLook | Figure;
@@ -516,6 +518,8 @@ function Minifig({
   walking?: React.RefObject<boolean>;
   /** standing, it raises an arm and waves (hello!) */
   wave?: boolean;
+  /** how fast the legs go while walking (running: faster) */
+  stride?: number;
 }) {
   const [model, setModel] = useState<THREE.Object3D | null>(null);
   const key = JSON.stringify("parts" in look ? { parts: look.parts, gear: look.gear, shoes: look.shoes } : figureOf(look));
@@ -551,7 +555,7 @@ function Minifig({
     const parts = ["legL", "legR", "swingL", "swingR"].map((n) => model.getObjectByName(n));
     if (parts.every(Boolean)) {
       if (!limbs.current.length) limbs.current = parts.map((p) => p!.quaternion.clone());
-      const swing = walking?.current ? Math.sin(t * 10) * 0.6 : 0;
+      const swing = walking?.current ? Math.sin(t * stride) * (stride > 12 ? 0.9 : 0.6) : 0;
       parts.forEach((p, k) =>
         p!.quaternion.copy(limbs.current[k]).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), k % 2 ? swing : -swing)),
       );
@@ -1225,6 +1229,10 @@ export function LegoTown({
         {STROLLERS.map((p, i) => (
           <Stroller key={i} {...p} />
         ))}
+        {!mood.night &&
+          JOGGERS.slice(0, mood.name === "golden" ? 4 : 2).map((p, i) => (
+            <Jogger key={i} {...p} />
+          ))}
         {residents.map((res, i) => (
           <Ride key={res.name} ride={loadoutFor(res.level, res.character ?? undefined).ride} at={rideSpot(lots[i], res.level)} turn={turnRad(lots[i].facing)} />
         ))}
@@ -1572,6 +1580,31 @@ const STROLLERS: { look: MinifigLook; r: number; speed: number; start: number }[
   { look: { skin: COL.yellow, hair: COL.yellow, torso: COL.green, legs: COL.tan }, r: 104, speed: -0.17, start: Math.PI / 2 },
   { look: { skin: COL.yellow, hair: COL.darkOrange, torso: COL.purple, legs: COL.black }, r: 110, speed: 0.15, start: (3 * Math.PI) / 2 },
 ];
+// Joggers doing laps of the streets round the plaza (it's a fitness town): a
+// few by day, more in the morning and evening, all home after dark.
+const JOGGERS: { look: MinifigLook; speed: number; start: number }[] = [
+  { look: { skin: COL.yellow, hair: COL.black, torso: COL.azure, legs: COL.black }, speed: 330, start: 0 },
+  { look: { skin: COL.yellow, hair: COL.reddishBrown, torso: COL.orange, legs: COL.darkBlue }, speed: 290, start: 1500 },
+  { look: { skin: COL.yellow, hair: COL.yellow, torso: COL.brightGreen, legs: COL.darkGrey }, speed: 360, start: 3100 },
+  { look: { skin: COL.yellow, hair: COL.darkOrange, torso: COL.pink, legs: COL.black }, speed: 310, start: 2300 },
+];
+const RUNNING = { current: true };
+function Jogger({ look, speed, start }: (typeof JOGGERS)[number]) {
+  const root = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    if (!root.current) return;
+    const { at, heading } = jogAt(start + clock.elapsedTime * speed);
+    // a little bounce in the step (LDraw is -Y up)
+    root.current.position.set(at[0], -Math.abs(Math.sin(clock.elapsedTime * 8)) * 4, at[2]);
+    root.current.rotation.y = heading;
+  });
+  return (
+    <group ref={root}>
+      <Minifig look={look} at={[0, 0, 0]} walking={RUNNING} stride={16} />
+    </group>
+  );
+}
+
 // You, walking round town to wherever you look: your door, a friend's door
 // (beside them), the shop. Change your mind mid-walk and you turn round there.
 const WALK_SPEED = 260; // LDU a second
