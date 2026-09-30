@@ -50,7 +50,7 @@ const BOTTOM: Record<string, number> = {
 export const LEGO_PARTS = [
   "4186", "91405", "3062b", "3068b", "3069b", "3741ac05", "3470", "2435", "3471", "2417", "30055",
   "3031", "3754", "3003", "29592", "62698-f2", "33051", "14769p0f", "1", "60594", "60603", "3010", "3005", "87079",
-  "3001", "3002", "3004", "3009", "3020", "3022", "3023b", "3032", "3036", "3795", "3666", "3710", "2431", "3941", "4589", "4079", "3068bp0t", "3068bp71", "3068bp74",
+  "3001", "3002", "3004", "3009", "3020", "3022", "3023b", "3032", "3036", "3795", "3666", "3710", "2431", "3941", "4589", "4079", "3068bp0t", "3068bp71", "3068bp74", "4738a", "4739a",
   "973", "3818", "3819", "3820", "3815", "3816", "3817", "3626cp01", "53981",
 ];
 
@@ -294,7 +294,7 @@ const HEIGHT: Record<string, number> = {
   "3001": 24, "3003": 24, "3004": 24, "3005": 24, "3010": 24, "3062b": 24, "3941": 24, "4589": 24,
   "3020": 8, "3022": 8, "3023b": 8, "3031": 8, "3032": 8, "3036": 8, "3795": 8, "3710": 8,
   "3068b": 8, "87079": 8, "2431": 8, "14769p0f": 8, "4079": 8, "3741ac05": 12,
-  "29592": 11, "62698-f2": 1, "33051": 0, "1": 96,
+  "29592": 11, "62698-f2": 1, "33051": 0, "1": 96, "4738a": 32, "4739a": 25,
 };
 type Piece = [part: string, color: number, dx: number, h: number, dz: number, m?: Mat];
 const FLOOR = -8; // top of the planks
@@ -406,6 +406,9 @@ function picture(tile: string, x: number, z: number, f: Mat): string {
   return line(COL.white, x, -170, z, turnMat(f, ON_WALL), tile);
 }
 
+// the chest's spot on the floor (LDU): front left of the rug, facing you
+export const CHEST_SPOT: [number, number] = [-130, 190];
+
 // The room is 32x32 studs with walls ten bricks high -- about two and a half
 // minifigs, a real ceiling height -- on the back and both sides; the front is
 // open to the camera. Stations stand against the walls like furniture: four
@@ -458,6 +461,9 @@ export function roomText(stations: Station[]): string {
   out.push(line(COL.darkRed, 0, FLOOR - 8, 40, ROT[0], "3036"));
   for (const side of [-1, 1]) out.push(...place([["3941", COL.darkOrange, 0, 0, 0], ["3741ac05", side < 0 ? COL.pink : COL.yellow, 0, 24, 0]], side * 265, 275, ROT[0]));
   out.push(picture("3068bp0t", 0, -ROOM + 28, ROT[0]), picture("3068bp71", -ROOM + 28, 30, ROT[90]), picture("3068bp74", ROOM - 28, 30, ROT[270]));
+
+  // the chest, where what your watch earned waits to be collected
+  out.push(...place([["4738a", COL.reddishBrown, 0, 0, 0], ["4739a", COL.reddishBrown, 0, 32, 0]], CHEST_SPOT[0], CHEST_SPOT[1], ROT[180]));
 
   // a piece of furniture per mission
   const seen: Record<string, number> = {};

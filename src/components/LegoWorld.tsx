@@ -24,6 +24,7 @@ import {
   minifigSpot,
   modelText,
   plotX,
+  CHEST_SPOT,
   roomText,
   stationSpot,
   townBounds,
@@ -629,6 +630,9 @@ function Hills({ count }: { count: number }) {
 export function LegoRoom({
   stations,
   onTap,
+  chest = null,
+  gold = null,
+  onCollect,
   onLeave,
   look = BASE_HUNTER,
   className,
@@ -636,6 +640,12 @@ export function LegoRoom({
   stations: Station[];
   /** do the mission; resolves with the XP it paid */
   onTap: (id: string) => Promise<number | null>;
+  /** XP waiting in the chest (null: no chest yet) */
+  chest?: number | null;
+  /** your gold (null: no gold yet) */
+  gold?: number | null;
+  /** open the chest; resolves with the XP it paid */
+  onCollect?: () => Promise<number | null>;
   onLeave?: () => void;
   look?: MinifigLook;
   className?: string;
@@ -655,6 +665,17 @@ export function LegoRoom({
     setPaid({ id: st.id, xp });
     setTimeout(() => setPaid(null), 1100);
   };
+  const open = async () => {
+    if (!onCollect || busy) return;
+    setBusy("chest");
+    const xp = await onCollect();
+    setBusy(null);
+    if (!xp) return;
+    setPaid({ id: "chest", xp });
+    setTimeout(() => setPaid(null), 1400);
+  };
+  // missions pay gold too once gold exists
+  const payout = (xp: number) => (gold === null ? `+${xp} XP` : `+${xp} XP · +${xp} gold`);
 
   return (
     <div className={`relative ${className ?? ""}`}>
@@ -688,16 +709,44 @@ export function LegoRoom({
                 <span className="w-full truncate text-center text-[9px] font-medium opacity-90">{st.title}</span>
                 {paid?.id === st.id && (
                   <span
-                    className="xp-float absolute inset-x-0 -top-5 text-center font-mono font-bold text-sm"
+                    className="xp-float absolute left-1/2 -top-5 w-40 -ml-20 text-center font-mono font-bold text-sm"
                     style={{ color: "#ffb347" }}
                   >
-                    +{paid.xp} XP
+                    {payout(paid.xp)}
                   </span>
                 )}
               </button>
             ),
           };
-        })}
+        }).concat(
+          chest === null
+            ? []
+            : [
+                {
+                  key: "chest",
+                  at: [CHEST_SPOT[0] * LDU, 5, -CHEST_SPOT[1] * LDU] as [number, number, number],
+                  node: (
+                    <button
+                      onClick={open}
+                      disabled={!chest || busy === "chest"}
+                      className="relative px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap shadow-lg active:scale-95 transition-transform"
+                      style={
+                        chest
+                          ? { background: "linear-gradient(180deg,#ffd35c,#f0a818)", color: "#4a2a00" }
+                          : { background: "rgba(20,18,16,0.7)", color: "#fff" }
+                      }
+                    >
+                      {chest ? `Collect +${chest}` : "Chest empty"}
+                      {paid?.id === "chest" && (
+                        <span className="xp-float absolute left-1/2 -top-6 w-44 -ml-22 text-center font-mono font-bold text-sm" style={{ color: "#ffb347" }}>
+                          {payout(paid.xp)}
+                        </span>
+                      )}
+                    </button>
+                  ),
+                },
+              ],
+        )}
       >
         {room && <primitive object={room} />}
         <Minifig look={look} at={[0, -16, 60]} />
@@ -706,6 +755,11 @@ export function LegoRoom({
         <p className="absolute inset-x-0 top-4 text-center text-sm font-semibold" style={{ color: "#3a3a3a" }}>
           No missions yet. Add some and their stations appear here.
         </p>
+      )}
+      {gold !== null && (
+        <div className="absolute top-3 left-3 px-3 py-1.5 rounded-full text-sm font-bold shadow" style={{ background: "rgba(20,18,16,0.8)", color: "#ffd35c" }}>
+          {gold.toLocaleString()} gold
+        </div>
       )}
       {onLeave && (
         <div className="absolute inset-x-0 bottom-3 flex justify-center">

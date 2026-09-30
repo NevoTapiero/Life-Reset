@@ -26,8 +26,11 @@ Constitution, a clock for Discipline, a bookcase for Wisdom -- in a
 real-sized room (walls ten bricks high, windows, a plank floor) seen from
 about head height. Tapping a
 station is doing the mission -- it pays out (+XP floats up) and stays lit for
-the day, Clash of Clans collector style. Next: band-tracked missions fill
-their station on their own and you tap to collect; gold alongside XP.
+the day, Clash of Clans collector style, and pays the same in gold.
+What your watch earns while you're away (steps, sleep, recovery, workouts)
+waits in a treasure chest in the room; tap it to collect the XP and gold.
+Penalties still land at once. (migrations/2026-09-30-unclaimed-rewards.sql:
+ledger pending_xp, profiles.gold, collect(), gold follows mission XP.)
 In the town you knock on a friend's door, and once they let you in you can
 walk into their house (the roof comes off, dollhouse style).
 

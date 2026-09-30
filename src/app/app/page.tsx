@@ -37,7 +37,7 @@ export default function YouPage() {
   const [error, setError] = useState<string | null>(null);
   // inside your house: a station per mission
   const [inside, setInside] = useState(false);
-  const { stations, complete } = useStations();
+  const { stations, complete, chest, gold, collect } = useStations();
 
   const load = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
@@ -89,6 +89,13 @@ export default function YouPage() {
                   if (xp !== null) setProfile((p) => (p ? { ...p, xp: p.xp + xp } : p));
                   return xp;
                 }}
+                chest={chest}
+                gold={gold}
+                onCollect={async () => {
+                  const r = await collect();
+                  if (r) setProfile(r.profile);
+                  return r?.xp ?? null;
+                }}
                 onLeave={() => setInside(false)}
                 className="absolute inset-0"
               />
@@ -105,7 +112,7 @@ export default function YouPage() {
                   className="absolute top-3 right-3 px-3.5 py-2 rounded-full text-sm font-semibold shadow-lg active:scale-95 transition-transform"
                   style={{ background: "#ff8a1f", color: "#fff" }}
                 >
-                  Go inside{stations ? ` · ${stations.filter((s) => !s.done).length} to do` : ""}
+                  {chest ? `Collect +${chest} XP` : `Go inside${stations ? ` · ${stations.filter((s) => !s.done).length} to do` : ""}`}
                 </button>
               </>
             )}

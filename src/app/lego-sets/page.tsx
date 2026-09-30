@@ -40,9 +40,20 @@ export default function LegoPreview() {
     setTimeout(() => setVisits((v) => ({ ...v, [name]: "allowed" })), 1500);
   };
   const [stations, setStations] = useState(DEMO_STATIONS);
+  // what the watch earned overnight, waiting in the chest
+  const [chest, setChest] = useState(64);
+  const [gold, setGold] = useState(120);
+  const collect = async () => {
+    await new Promise((r) => setTimeout(r, 300));
+    const xp = chest;
+    setGold((g) => g + xp);
+    setChest(0);
+    return xp;
+  };
   const tap = async (id: string) => {
     await new Promise((r) => setTimeout(r, 300));
     setStations((all) => all.map((st) => (st.id === id ? { ...st, done: true } : st)));
+    setGold((g) => g + (stations.find((st) => st.id === id)?.xp ?? 0));
     return stations.find((st) => st.id === id)?.xp ?? null;
   };
   const button = (active: boolean) => `px-3 py-1.5 rounded border text-sm ${active ? "bg-white text-black" : ""}`;
@@ -63,7 +74,9 @@ export default function LegoPreview() {
           residents={DEMO_TOWN}
           visits={visits}
           onKnock={knock}
-          room={(leave) => <LegoRoom stations={stations} onTap={tap} onLeave={leave} className="w-full h-full" />}
+          room={(leave) => (
+            <LegoRoom stations={stations} onTap={tap} chest={chest} gold={gold} onCollect={collect} onLeave={leave} className="w-full h-full" />
+          )}
           className="w-full h-[75vh] rounded overflow-hidden" />
       ) : (
         <LegoWorld houseLevel={level} streak={12} className="w-full h-[75vh] rounded overflow-hidden" />

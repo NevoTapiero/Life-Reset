@@ -25,7 +25,7 @@ export default function TownPage() {
   const [visits, setVisits] = useState<Record<string, Visit>>({});
   const [atDoor, setAtDoor] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const { stations, complete } = useStations();
+  const { stations, complete, chest, gold, collect } = useStations();
 
   useEffect(() => {
     supabase.rpc("get_leaderboard").then(({ data, error }) => {
@@ -99,7 +99,17 @@ export default function TownPage() {
         residents={residents}
         visits={visits}
         onKnock={knock}
-        room={(leave) => <LegoRoom stations={stations ?? []} onTap={complete} onLeave={leave} className="w-full h-full" />}
+        room={(leave) => (
+          <LegoRoom
+            stations={stations ?? []}
+            onTap={complete}
+            chest={chest}
+            gold={gold}
+            onCollect={async () => (await collect())?.xp ?? null}
+            onLeave={leave}
+            className="w-full h-full"
+          />
+        )}
         className="rounded-2xl overflow-hidden h-[68vh] min-h-[380px]" />
 
       {residents.length === 1 && (
