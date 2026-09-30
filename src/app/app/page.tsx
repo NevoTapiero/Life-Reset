@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppActivity from "@/components/AppActivity";
 import BrickLoader from "@/components/BrickLoader";
@@ -9,7 +9,8 @@ import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
 import MinifigPicker from "@/components/MinifigPicker";
 import FirstTips from "@/components/FirstTips";
 import Minifig from "@/components/Minifig";
-import RankUp from "@/components/RankUp";
+import RankUp, { BrickBurst } from "@/components/RankUp";
+import { brickSound } from "@/lib/brickSound";
 import { useMissions } from "@/lib/useMissions";
 import { greeting, legoLevel, levelTitle } from "@/lib/brick";
 import {
@@ -34,6 +35,12 @@ export default function HomePage() {
   const m = useMissions();
   const [tab, setTab] = useState<Period>("daily");
   const [showYesterday, setShowYesterday] = useState(false);
+  // null until the first load, then whether today's daily missions were all done
+  const [wasCleared, setWasCleared] = useState<boolean | null>(null);
+  const [justCleared, setJustCleared] = useState(false);
+  useEffect(() => {
+    if (justCleared) brickSound.levelUp(false);
+  }, [justCleared]);
 
   if (!m.profile) {
     return (
@@ -65,6 +72,11 @@ export default function HomePage() {
   const tabQuests = m.inPeriod(tab);
   const daily = m.counts.daily;
   const clearedAll = daily.total > 0 && daily.done === daily.total;
+  if (m.days && clearedAll !== wasCleared) {
+    // cleared just now (not already cleared when the page opened): celebrate
+    if (clearedAll && wasCleared === false) setJustCleared(true);
+    setWasCleared(clearedAll);
+  }
   const yOpen = m.days ? m.yesterdayList.filter((q) => !m.isDoneOn(q, m.days!.yesterday)).length : 0;
 
   return (
@@ -181,9 +193,10 @@ export default function HomePage() {
       </div>
 
       {clearedAll && tab === "daily" && (
-        <div className="card mt-4 p-4 flex items-center gap-3 rise" style={{ background: "var(--lego-yellow)", boxShadow: "0 4px 0 var(--lego-yellow-edge)" }}>
-          <span className="bounce-in text-[var(--lego-black)]">
-            <Icon name="trophy" size={28} strokeWidth={2} />
+        <div className="card mt-4 p-4 flex items-center gap-3 rise relative" style={{ background: "var(--lego-yellow)", boxShadow: "0 4px 0 var(--lego-yellow-edge)" }}>
+          {justCleared && <BrickBurst count={26} />}
+          <span className="bounce-in">
+            <LegoIcon name="trophy" color="orange" size={44} />
           </span>
           <span>
             <span className="display block text-[17px]">All missions done</span>
