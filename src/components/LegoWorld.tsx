@@ -33,6 +33,11 @@ import {
   houseById,
   houseSpec,
   minifigSpot,
+  doorWalk,
+  SHOP_WALK,
+  walkRoute,
+  rerouteFrom,
+  type P3,
   modelText,
   CHEST_SPOT,
   DECOR,
@@ -319,7 +324,18 @@ function House({ level, name, id, cut, lit }: { level: number; name?: string; id
 }
 
 // `turn`: which way the figure faces (radians about the vertical, LDraw frame)
-function Minifig({ look, at, turn = 0 }: { look: MinifigLook; at: [number, number, number]; turn?: number }) {
+function Minifig({
+  look,
+  at,
+  turn = 0,
+  walking,
+}: {
+  look: MinifigLook;
+  at: [number, number, number];
+  turn?: number;
+  /** while true, the legs and arms swing */
+  walking?: React.RefObject<boolean>;
+}) {
   const [model, setModel] = useState<THREE.Object3D | null>(null);
   useEffect(() => {
     let live = true;
@@ -335,6 +351,7 @@ function Minifig({ look, at, turn = 0 }: { look: MinifigLook; at: [number, numbe
   const seen = useRef(0);
   const hopAt = useRef(-10); // frame-clock time the current hop started
   const base = useRef<THREE.Quaternion[]>([]);
+  const limbs = useRef<THREE.Quaternion[]>([]);
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
@@ -348,6 +365,15 @@ function Minifig({ look, at, turn = 0 }: { look: MinifigLook; at: [number, numbe
       head.quaternion.copy(base.current[0]).premultiply(yaw);
       hair.quaternion.copy(base.current[1]).premultiply(yaw);
     }
+    // walking: legs and arms swing, opposite each other
+    const parts = ["legL", "legR", "armL", "armR"].map((n) => model.children[MINIFIG_PARTS.indexOf(n)]);
+    if (parts.every(Boolean)) {
+      if (!limbs.current.length) limbs.current = parts.map((p) => p.quaternion.clone());
+      const swing = walking?.current ? Math.sin(t * 10) * 0.6 : 0;
+      parts.forEach((p, k) =>
+        p.quaternion.copy(limbs.current[k]).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), k % 2 ? swing : -swing)),
+      );
+    }
     // a hop when tapped (LDraw is -Y up)
     if (taps.current !== seen.current) {
       seen.current = taps.current;
@@ -355,7 +381,7 @@ function Minifig({ look, at, turn = 0 }: { look: MinifigLook; at: [number, numbe
     }
     const h = t - hopAt.current;
     root.current.position.y = at[1] - (h < 0.45 ? Math.sin((h / 0.45) * Math.PI) * 14 : 0);
-    root.current.rotation.y = turn + Math.sin(t * 0.3) * 0.25;
+    root.current.rotation.y = turn + (walking?.current ? 0 : Math.sin(t * 0.3) * 0.25);
   });
 
   if (!model) return null;
@@ -829,6 +855,9 @@ export function LegoTown({
     return () => clearTimeout(t);
   }, [built, meIndex]);
   const [inside, setInside] = useState<number | null>(null);
+  // where your minifig is walking to: the last place you looked at
+  const [dest, setDest] = useState(meIndex);
+  if (focus !== OVERVIEW && focus !== dest) setDest(focus);
   const [shopOpen, setShopOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
@@ -1004,6 +1033,12 @@ export function LegoTown({
               centre(residents[inside].level)[2] + 40,
             ]);
             return <Minifig key={res.name} look={BASE_HUNTER} at={[x, y, z]} turn={turnRad(lots[inside].facing)} />;
+          }
+          if (i === meIndex) {
+            // you walk to wherever you last looked (the whole-town view doesn't move you)
+            const shop = dest === SHOP_FOCUS || !residents[dest];
+            const to = shop ? SHOP_WALK : doorWalk(lots[dest], residents[dest].level, dest === meIndex ? 0 : 40);
+            return <Walker key="me" look={BASE_HUNTER} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
           }
           return (
             <Minifig
@@ -1312,6 +1347,64 @@ const STROLLERS: { look: MinifigLook; r: number; speed: number; start: number }[
   { look: { skin: COL.yellow, hair: COL.yellow, torso: COL.green, legs: COL.tan }, r: 104, speed: -0.17, start: Math.PI / 2 },
   { look: { skin: COL.yellow, hair: COL.darkOrange, torso: COL.purple, legs: COL.black }, r: 110, speed: 0.15, start: (3 * Math.PI) / 2 },
 ];
+// You, walking round town to wherever you look: your door, a friend's door
+// (beside them), the shop. Change your mind mid-walk and you turn round there.
+const WALK_SPEED = 260; // LDU a second
+function Walker({ look, to, turn }: { look: MinifigLook; to: P3[]; turn: number }) {
+  const root = useRef<THREE.Group>(null);
+  const walking = useRef(false);
+  const key = JSON.stringify(to);
+  const state = useRef<{ from: P3[]; pos: P3; walk: { r: ReturnType<typeof walkRoute>; i: number; f: number } | null }>(null);
+  useEffect(() => {
+    const dest: P3[] = JSON.parse(key);
+    const s = state.current;
+    if (!s) state.current = { from: dest, pos: dest[dest.length - 1], walk: null };
+    else {
+      const r = s.walk ? rerouteFrom(s.walk.r, s.walk.i, s.pos, dest) : walkRoute([...s.from].reverse(), dest);
+      s.walk = { r, i: 0, f: 0 };
+      s.from = dest;
+    }
+  }, [key]);
+  useFrame((_, dt) => {
+    const s = state.current;
+    const o = root.current;
+    if (!s || !o) return;
+    const w = s.walk;
+    walking.current = !!w;
+    if (!w) {
+      o.position.set(...s.pos);
+      o.rotation.y = turn;
+      return;
+    }
+    let step = WALK_SPEED * Math.min(dt, 0.1);
+    let [a, b] = [w.r.pts[w.i], w.r.pts[w.i + 1]];
+    for (;;) {
+      const left = Math.hypot(b[0] - a[0], b[2] - a[2]) - w.f;
+      if (step < left) break;
+      step -= left;
+      w.i++;
+      w.f = 0;
+      if (w.i >= w.r.pts.length - 1) {
+        s.walk = null;
+        s.pos = b;
+        return;
+      }
+      [a, b] = [w.r.pts[w.i], w.r.pts[w.i + 1]];
+    }
+    w.f += step;
+    const len = Math.hypot(b[0] - a[0], b[2] - a[2]) || 1;
+    const k = w.f / len;
+    s.pos = [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+    o.position.set(...s.pos);
+    o.rotation.y = Math.atan2(b[0] - a[0], b[2] - a[2]);
+  });
+  return (
+    <group ref={root}>
+      <Minifig look={look} at={[0, 0, 0]} walking={walking} />
+    </group>
+  );
+}
+
 function Stroller({ look, r, speed, start }: (typeof STROLLERS)[number]) {
   const root = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {

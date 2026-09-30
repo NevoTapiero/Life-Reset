@@ -759,6 +759,52 @@ export function townDecorText(): string {
   return modelText(out, "town-decor.ldr");
 }
 
+// ---- walking round town ----
+// You walk the inner streets round the plaza (x or z = +-ST; the cars keep to
+// the ring road). Every plot's front faces one of them, so a walk is: out of
+// where you are to your street, along the streets (round a corner, or across
+// one if the streets are parallel), and in to where you're going.
+export type P3 = [number, number, number];
+const ST = (PITCH / 2) * S;
+/** from the street to your spot at a lot's door; `side` steps along the door (so you stand beside its owner) */
+export function doorWalk(lot: Lot, level: number, side = 0): P3[] {
+  const [u, y, w] = minifigSpot(houseSpec(level));
+  return [inLot(lot, [u + side, 0, ST]), inLot(lot, [u + side, y, w])];
+}
+/** from the street on the plaza's left, between the planters and the bench, to the shop's front */
+export const SHOP_WALK: P3[] = [[-ST, 0, 290], [-150, 0, 290], [-120, 0, 250]];
+const onX = (p: P3) => Math.abs(Math.abs(p[0]) - ST) < 1; // on a street running along z
+const onZ = (p: P3) => Math.abs(Math.abs(p[2]) - ST) < 1;
+/** the corners between two points on the streets */
+export function streetLink(p: P3, q: P3): P3[] {
+  if ((onX(p) && onX(q) && Math.abs(p[0] - q[0]) < 1) || (onZ(p) && onZ(q) && Math.abs(p[2] - q[2]) < 1)) return [];
+  if (onX(p) && onZ(q)) return [[p[0], 0, q[2]]];
+  if (onZ(p) && onX(q)) return [[q[0], 0, p[2]]];
+  // parallel streets: cross by the nearer of the two others
+  const cross = (a: number, b: number) => (Math.abs(a - ST) + Math.abs(b - ST) < Math.abs(a + ST) + Math.abs(b + ST) ? ST : -ST);
+  if (onX(p)) {
+    const c = cross(p[2], q[2]);
+    return [[p[0], 0, c], [q[0], 0, c]];
+  }
+  const c = cross(p[0], q[0]);
+  return [[c, 0, p[2]], [c, 0, q[2]]];
+}
+/** a walk: `lead` (ending on a street), then the streets, then `to` (street first, spot last); `enter` is where `to` starts */
+export function walkRoute(lead: P3[], to: P3[]) {
+  const link = streetLink(lead[lead.length - 1], to[0]);
+  return { pts: [...lead, ...link, ...to], leave: lead.length - 1, enter: lead.length + link.length };
+}
+/** turn round mid-walk at `pos` on segment `i` of `r`: first back to the street (or on along it), then to `to` */
+export function rerouteFrom(r: { pts: P3[]; leave: number; enter: number }, i: number, pos: P3, to: P3[]) {
+  const lead =
+    i < r.leave
+      ? [pos, ...r.pts.slice(i + 1, r.leave + 1)] // still coming out: carry on out to the street
+      : i < r.enter
+        ? [pos] // on the streets
+        : [pos, ...r.pts.slice(r.enter, i + 1).reverse()]; // going in: back out to the street
+  return walkRoute(lead, to);
+}
+
 // Small official sets placed as props (baked glbs, see PROPS in pack.mjs):
 // where they stand (LDU, centre) and their quarter turns. The ice cream cart
 // is on the plaza, by the shop; a burger stand is in every empty-plot park
