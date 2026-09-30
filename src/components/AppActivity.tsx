@@ -94,7 +94,7 @@ function dueLabel(iso: string | null): string {
 function Stat({ value, label }: { value: number | string; label: string }) {
   return (
     <div className="flex-1 text-center">
-      <div className="display text-[22px]" style={{ color: "var(--lego-blue)" }}>{value}</div>
+      <div className="display tt-text text-[26px] leading-none">{value}</div>
       <div className="hud-label mt-1">{label}</div>
     </div>
   );
