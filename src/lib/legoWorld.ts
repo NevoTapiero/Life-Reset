@@ -986,7 +986,9 @@ export function townFlats(): Slab[] {
   const asphalt = "#43474c";
   const GRAVEL_W = PATH_W * S;
   // a road or path along a polyline: a turned box per leg (they overlap at the bends), its top at ground level
-  const along = (pts: P3[], w: number, color: string, h = 2, studs = true) => out.push({ x: 0, z: 0, w, d: 0, h, y: -h, color, studs, ribbon: pts });
+  // `drop`: LDU below ground level for its top (a band that lies under another must sit well below it: the map camera
+  // can't tell heights a LDU apart, and they shimmer)
+  const along = (pts: P3[], w: number, color: string, h = 2, studs = true, drop = 0) => out.push({ x: 0, z: 0, w, d: 0, h, y: -h - drop, color, studs, ribbon: pts });
   // a point `d` LDU along a polyline, and the leg's yaw
   const at = (pts: P3[], d: number): { x: number; z: number; yaw: number } | null => {
     for (let k = 0; k + 1 < pts.length; k++) {
@@ -1010,11 +1012,11 @@ export function townFlats(): Slab[] {
   }
   // the roundabout: an asphalt ring round a grassy island with its tree, and a gravel spur to it from the ring
   const side = 2 * (ROUND_R + ROAD_OUT * S);
-  out.push({ x: ROUNDABOUT[0], z: ROUNDABOUT[1], w: side, d: side, h: 2, y: -3, radius: side / 2, border: ROAD_OUT * S, color: asphalt }); // a LDU under the roads that meet it
+  out.push({ x: ROUNDABOUT[0], z: ROUNDABOUT[1], w: side, d: side, h: 2, y: -5, radius: side / 2, border: ROAD_OUT * S, color: asphalt }); // under the roads that meet it
   const spurStart = nearestStreet([ROUNDABOUT[0], 0, ROUNDABOUT[1]]);
   along([spurStart, [ROUNDABOUT[0], 0, ROUNDABOUT[1]]], GRAVEL_W, GRAVEL);
   // the river: sandy banks under a band of water, wandering across the north woods; a bridge where the road crosses it
-  along(RIVER, (RIVER_W + 6) * S, "#d8c79c", 1);
+  along(RIVER, (RIVER_W + 6) * S, "#d8c79c", 1, true, 4); // the banks, under the water
   along(RIVER, RIVER_W * S, "#3f8fd8", 2);
   if (bridge) {
     const [nx, nz] = [-bridge.dir[1], bridge.dir[0]];
@@ -1024,12 +1026,12 @@ export function townFlats(): Slab[] {
       out.push({ x: bridge.p[0] + nx * s * (ROAD_OUT / 2 + 0.5) * S, z: bridge.p[2] + nz * s * (ROAD_OUT / 2 + 0.5) * S, w: deck, d: S, h: 22, color: white, yaw: bridge.yaw });
   }
   // the lake in the woods, sand round it, and the dirt track out to it
-  const lake = (r: number, h: number, color: string) => out.push({ x: LAKE.x, z: LAKE.z, w: 2 * r, d: 2 * r, radius: r, h, y: -h, color, studs: true });
-  lake(LAKE.r + 3 * S, 1, "#d8c79c");
+  const lake = (r: number, h: number, color: string, drop = 0) => out.push({ x: LAKE.x, z: LAKE.z, w: 2 * r, d: 2 * r, radius: r, h, y: -h - drop, color, studs: true });
+  lake(LAKE.r + 3 * S, 1, "#d8c79c", 4); // the sand, under the water
   lake(LAKE.r, 2, "#3f8fd8");
   along(TRACK, GRAVEL_W, GRAVEL);
   // the gravel ring round the plaza, and a winding gravel path in from every house's gate
-  out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -3, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL, studs: true }); // a LDU under the paths that meet it
+  out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -5, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL, studs: true }); // under the paths that meet it
   for (let i = 0; i < MAX_RESIDENTS; i++) along(lotPath(lotFor(i), 3), GRAVEL_W, GRAVEL);
   // a sandy disc round the fountain with a darker border (round slabs)
   out.push(
