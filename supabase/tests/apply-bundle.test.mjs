@@ -4,7 +4,8 @@
 //   npm i --no-save @electric-sql/pglite && node supabase/tests/apply-bundle.test.mjs
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "fs";
-const R = new URL("../", import.meta.url).pathname;
+import { fileURLToPath } from "url";
+const R = fileURLToPath(new URL("../", import.meta.url)); // works on Windows too
 const bundle = readFileSync(R + "apply-ifti-2026-09-30.sql", "utf8");
 const fn = (file, name) => {
   const t = readFileSync(R + "migrations/" + file, "utf8");

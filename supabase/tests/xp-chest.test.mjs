@@ -101,6 +101,14 @@ assert((await prof()).gold === -60, "taking the mission back leaves a debt, so c
 await q("select award_external_xp($1, 'whoop_sleep_penalty', 'pen:1', -10, 'short night', $2)", [U, { kind: "sleep", rated: 12, day: "2026-09-28" }]);
 await q("select recalc_player($1)", [U]);
 assert((await ledger("pen:1")).xp === -10, "the penalty stays -10 through recalc");
+// G. a watch reward from before the chest (collected by default, never paid gold) re-priced later: XP moves, gold doesn't
+await q("insert into xp_ledger (user_id, source, ref, xp, meta) values ($1, 'health_steps', 'old:1', 7, $2)", [U, { kind: "steps", rated: 12, day: "2026-09-10" }]);
+const gOld = (await prof()).gold;
+await q("select rescore_external_xp($1, 'health_steps', 'old:1', 20, 'rescored', $2)", [U, { kind: "steps", rated: 30, day: "2026-09-10" }]);
+assert((await prof()).gold === gOld, "an old (pre-chest) reward re-priced leaves gold alone");
+await q("select recalc_player($1)", [U]);
+assert((await prof()).gold === gOld, "and recalc re-pricing it leaves gold alone too");
+
 // F. gold for past effort: paid once when gold arrives, never again on a re-run
 assert((await gold2()) === 40, "an existing player starts with gold for the XP their missions paid (40)");
 await db.exec(readFileSync(new URL("../migrations/2026-09-30-xp-chest.sql", import.meta.url), "utf8"));

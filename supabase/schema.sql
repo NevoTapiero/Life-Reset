@@ -1571,7 +1571,8 @@ begin
     values (p_user,p_source,p_ref,
             case when chest then 0 else amt end, case when chest then amt else 0 end,
             case when chest then null else now() end,
-            p_reason,coalesce(p_meta,'{}'::jsonb));
+            -- chest-born rows are marked: only they paid gold, so only they move gold when re-priced
+            p_reason,coalesce(p_meta,'{}'::jsonb) || case when chest then '{"chest": true}'::jsonb else '{}'::jsonb end);
     inserted := true;
   exception when unique_violation then inserted := false;
   end;
@@ -1592,11 +1593,12 @@ declare
   row_ record;
   amt int := greatest(0, least(coalesce(p_xp, 0), 200));
 begin
-  select xp, collected_at into row_ from public.xp_ledger where user_id = p_user and source = p_source and ref = p_ref for update;
+  select xp, collected_at, coalesce((meta->>'chest')::boolean, false) as chest into row_
+    from public.xp_ledger where user_id = p_user and source = p_source and ref = p_ref for update;
   if not found then return 0; end if;
   if row_.collected_at is null then
     update public.xp_ledger
-       set pending_xp = amt, reason = coalesce(p_reason, reason), meta = meta || coalesce(p_meta, '{}'::jsonb)
+       set pending_xp = amt, reason = coalesce(p_reason, reason), meta = meta || coalesce(p_meta, '{}'::jsonb) || '{"chest": true}'::jsonb
      where user_id = p_user and source = p_source and ref = p_ref;
     return 0;
   end if;
@@ -1605,7 +1607,7 @@ begin
    where user_id = p_user and source = p_source and ref = p_ref;
   update public.profiles
      set xp = greatest(0, xp + amt - row_.xp),
-         gold = gold + case when public.waits_in_chest(p_source) then amt - row_.xp else 0 end
+         gold = gold + case when row_.chest then amt - row_.xp else 0 end
    where id = p_user;
   return amt - row_.xp;
 end
@@ -1690,7 +1692,7 @@ begin
   update public.profiles
      set gold = gold + coalesce((
        select sum(p.price - l.xp) from _watch_price p join public.xp_ledger l on l.id = p.id
-        where l.collected_at is not null and public.waits_in_chest(l.source) and l.xp <> p.price), 0)
+        where l.collected_at is not null and l.meta->>'chest' = 'true' and l.xp <> p.price), 0)
    where id = p_uid;
   update public.xp_ledger l
      set xp = case when l.collected_at is null then 0 else p.price end,
