@@ -34,6 +34,7 @@ import {
   inLot,
   townText,
   plazaText,
+  townDecorText,
   SHOP_FRONT,
   FOUNTAIN,
   MAX_STATIONS,
@@ -470,6 +471,7 @@ export function LegoTown({
     true,
   );
   const plaza = useModel(useMemo(() => plazaText(), []), true);
+  const decor = useModel(useMemo(() => townDecorText(), []), true);
   const lots = useMemo(() => residents.map((_, i) => lotFor(i)), [residents]);
   const meIndex = Math.max(
     0,
@@ -591,6 +593,7 @@ export function LegoTown({
         {/* the shop at the back of the plaza, the fountain and the rest of the square in front of it */}
         <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} />
         {plaza && <primitive object={plaza} />}
+        {decor && <primitive object={decor} />}
         {residents.map((res, i) => (
           <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
             <House level={res.level} cut={i === inside ? CUT : undefined} />

@@ -25851,6 +25851,716 @@
 5 24 18.48 48 7.65 18.48 44 7.65 20 44 0 16 44 11.36
 5 24 18.48 48 -7.65 18.48 44 -7.65 20 44 0 16 44 -11.36
 0 NOFILE
+0 FILE 3027.dat
+0 Plate  6 x 16
+0 Name: 3027.dat
+0 Author: James Jessiman
+0 !LDRAW_ORG Part UPDATE 2002-03
+0 !LICENSE Licensed under CC BY 4.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2001-10-26 [PTadmin] Official Update 2001-01
+0 !HISTORY 2002-05-07 {unknown} BFC Certification
+0 !HISTORY 2002-06-11 [PTadmin] Official Update 2002-03
+0 !HISTORY 2007-06-07 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+
+
+1 16 140 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 120 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 100 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 80 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -80 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -100 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -120 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -140 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 140 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 120 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 100 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 80 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -80 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -100 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -120 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -140 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 140 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 120 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 100 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 80 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -80 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -100 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -120 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -140 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 140 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 120 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 100 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 80 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -80 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -100 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -120 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -140 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 140 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 120 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 100 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 80 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -80 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -100 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -120 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -140 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+
+0 BFC INVERTNEXT
+1 16 0 8 0 156 0 0 0 -4 0 0 0 56 box5.dat
+
+4 16 160 8 60 156 8 56 -156 8 56 -160 8 60
+0 // Next Line was 4 16 160 8 -60 156 8 -56 -156 8 -56 -160 8 -60
+4 16 -160 8 -60 -156 8 -56 156 8 -56 160 8 -60
+0 // Next Line was 4 16 160 8 60 156 8 56 156 8 -56 160 8 -60
+4 16 160 8 -60 156 8 -56 156 8 56 160 8 60
+4 16 -160 8 60 -156 8 56 -156 8 -56 -160 8 -60
+
+1 16 0 8 0 160 0 0 0 -8 0 0 0 60 box5.dat
+
+1 16 150 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 130 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 110 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 90 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -90 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -110 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -130 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -150 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 150 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 130 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 110 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 90 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -90 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -110 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -130 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -150 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 150 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 130 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 110 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 90 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -90 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -110 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -130 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -150 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 150 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 130 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 110 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 90 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -90 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -110 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -130 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -150 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 150 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 130 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 110 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 90 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -90 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -110 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -130 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -150 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 150 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 130 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 110 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 90 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -90 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -110 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -130 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -150 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+0
+0 NOFILE
+0 FILE 3033.dat
+0 Plate  6 x 10
+0 Name: 3033.dat
+0 Author: James Jessiman
+0 !LDRAW_ORG Part UPDATE 2003-03
+0 !LICENSE Licensed under CC BY 4.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2001-10-26 [PTadmin] Official Update 2001-01
+0 !HISTORY 2003-08-07 [jriley] BFCed
+0 !HISTORY 2003-12-19 [PTadmin] Official Update 2003-03
+0 !HISTORY 2007-06-07 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+
+
+1 16 80 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -80 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 80 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -80 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 80 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -80 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 80 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -80 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 80 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -80 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+0 BFC INVERTNEXT
+1 16 0 8 0 96 0 0 0 -4 0 0 0 56 box5.dat
+4 16 100 8 60 96 8 56 -96 8 56 -100 8 60
+4 16 100 8 -60 -100 8 -60 -96 8 -56 96 8 -56
+4 16 100 8 60 100 8 -60 96 8 -56 96 8 56
+4 16 -100 8 60 -96 8 56 -96 8 -56 -100 8 -60
+1 16 0 8 0 100 0 0 0 -8 0 0 0 60 box5.dat
+1 16 90 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -90 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 90 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -90 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 90 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -90 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 90 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -90 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 90 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -90 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 90 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -90 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+0
+0 NOFILE
+0 FILE 3958.dat
+0 Plate  6 x  6
+0 Name: 3958.dat
+0 Author: James Jessiman
+0 !LDRAW_ORG Part UPDATE 2017-01
+0 !LICENSE Licensed under CC BY 4.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2007-06-30 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2008-07-07 [guyvivan] Made BFC compliant (2005-05-17)
+0 !HISTORY 2009-05-02 [PTadmin] Official Update 2009-01
+0 !HISTORY 2017-01-09 [Steffen] used more stugs
+0 !HISTORY 2017-12-30 [PTadmin] Official Update 2017-01
+
+
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 stug-6x6.dat
+0 BFC INVERTNEXT
+1 16 0 8 0 56 0 0 0 -4 0 0 0 56 box5.dat
+4 16 60 8 60 56 8 56 -56 8 56 -60 8 60
+4 16 -60 8 60 -56 8 56 -56 8 -56 -60 8 -60
+4 16 -60 8 -60 -56 8 -56 56 8 -56 60 8 -60
+4 16 60 8 -60 56 8 -56 56 8 56 60 8 60
+1 16 0 8 0 60 0 0 0 -8 0 0 0 60 box5.dat
+1 16 0 4 0 1 0 0 0 -1 0 0 0 1 stug4-5x5.dat
+0 NOFILE
+0 FILE stug-6x6.dat
+0 Stud Group  6 x  6
+0 Name: stug-6x6.dat
+0 Author: Tore Eriksson [Tore_Eriksson]
+0 !LDRAW_ORG Primitive UPDATE 2011-01
+0 !LICENSE Licensed under CC BY 4.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2005-12-28 [PTadmin] Official Update 2005-01
+0 !HISTORY 2007-05-04 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2011-07-01 [PTadmin] Renamed from stug6
+0 !HISTORY 2011-07-25 [PTadmin] Official Update 2011-01
+
+
+1 16 -30 0 -30 1 0 0 0 1 0 0 0 1 stug-3x3.dat
+1 16 -30 0 30 1 0 0 0 1 0 0 0 1 stug-3x3.dat
+1 16 30 0 30 1 0 0 0 1 0 0 0 1 stug-3x3.dat
+1 16 30 0 -30 1 0 0 0 1 0 0 0 1 stug-3x3.dat
+0
+0 NOFILE
+0 FILE stug-3x3.dat
+0 Stud Group  3 x  3
+0 Name: stug-3x3.dat
+0 Author: Steve Bliss [sbliss]
+0 !LDRAW_ORG Primitive UPDATE 2011-01
+0 !LICENSE Licensed under CC BY 4.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2005-12-28 [PTadmin] Official Update 2005-01
+0 !HISTORY 2007-05-04 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2011-07-01 [PTadmin] Renamed from stug3
+0 !HISTORY 2011-07-25 [PTadmin] Official Update 2011-01
+
+
+1 16 -20 0 -20 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -20 0 0 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -20 0 20 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 0 0 -20 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 0 0 20 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 20 0 -20 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 20 0 0 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 20 0 20 1 0 0 0 1 0 0 0 1 stud.dat
+0
+0 NOFILE
+0 FILE stug4-5x5.dat
+0 Stud Tube Open Group  5 x  5
+0 Name: stug4-5x5.dat
+0 Author: Steffen [Steffen]
+0 !LDRAW_ORG Primitive UPDATE 2011-01
+0 !LICENSE Licensed under CC BY 4.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2011-07-25 [PTadmin] Official Update 2011-01
+
+
+1 16 -10 0 -10 1 0 0 0 1 0 0 0 1 stug4-4x4.dat
+1 16 -10 0 40 1 0 0 0 1 0 0 0 1 stug4-1x4.dat
+1 16 40 0 0 0 0 -1 0 1 0 1 0 0 stug4-1x5.dat
+0 NOFILE
+0 FILE stug4-4x4.dat
+0 Stud Tube Open Group  4 x  4
+0 Name: stug4-4x4.dat
+0 Author: Steffen [Steffen]
+0 !LDRAW_ORG Primitive UPDATE 2011-01
+0 !LICENSE Licensed under CC BY 4.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2011-07-25 [PTadmin] Official Update 2011-01
+
+
+1 16 -20 0 -20 1 0 0 0 1 0 0 0 1 stug4-2x2.dat
+1 16 -20 0 20 1 0 0 0 1 0 0 0 1 stug4-2x2.dat
+1 16 20 0 20 1 0 0 0 1 0 0 0 1 stug4-2x2.dat
+1 16 20 0 -20 1 0 0 0 1 0 0 0 1 stug4-2x2.dat
+0 NOFILE
+0 FILE stug4-2x2.dat
+0 Stud Tube Open Group  2 x  2
+0 Name: stug4-2x2.dat
+0 Author: Steffen [Steffen]
+0 !LDRAW_ORG Primitive UPDATE 2011-01
+0 !LICENSE Licensed under CC BY 4.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2011-07-25 [PTadmin] Official Update 2011-01
+
+
+1 16 -10 0 -10 1 0 0 0 1 0 0 0 1 stud4.dat
+1 16 10 0 -10 1 0 0 0 1 0 0 0 1 stud4.dat
+1 16 -10 0 10 1 0 0 0 1 0 0 0 1 stud4.dat
+1 16 10 0 10 1 0 0 0 1 0 0 0 1 stud4.dat
+0 NOFILE
+0 FILE stug4-1x4.dat
+0 Stud Tube Open Group  1 x  4
+0 Name: stug4-1x4.dat
+0 Author: Steffen [Steffen]
+0 !LDRAW_ORG Primitive UPDATE 2011-01
+0 !LICENSE Licensed under CC BY 4.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2011-07-25 [PTadmin] Official Update 2011-01
+
+
+1 16 -30 0 0 1 0 0 0 1 0 0 0 1 stud4.dat
+1 16 -10 0 0 1 0 0 0 1 0 0 0 1 stud4.dat
+1 16 10 0 0 1 0 0 0 1 0 0 0 1 stud4.dat
+1 16 30 0 0 1 0 0 0 1 0 0 0 1 stud4.dat
+0 NOFILE
+0 FILE stug4-1x5.dat
+0 Stud Tube Open Group  1 x  5
+0 Name: stug4-1x5.dat
+0 Author: Steffen [Steffen]
+0 !LDRAW_ORG Primitive UPDATE 2011-01
+0 !LICENSE Licensed under CC BY 4.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2011-07-25 [PTadmin] Official Update 2011-01
+
+
+1 16 -40 0 0 1 0 0 0 1 0 0 0 1 stud4.dat
+1 16 -20 0 0 1 0 0 0 1 0 0 0 1 stud4.dat
+1 16 0 0 0 1 0 0 0 1 0 0 0 1 stud4.dat
+1 16 20 0 0 1 0 0 0 1 0 0 0 1 stud4.dat
+1 16 40 0 0 1 0 0 0 1 0 0 0 1 stud4.dat
+0 NOFILE
+0 FILE 41539.dat
+0 Plate  8 x  8
+0 Name: 41539.dat
+0 Author: Martin G Cormier
+0 !LDRAW_ORG Part UPDATE 2004-04
+0 !LICENSE Licensed under CC BY 2.0 and CC BY 4.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2002-04-25 [PTadmin] Official Update 2002-02
+0 !HISTORY 2004-10-06 [guyvivan] Made BFC Compliant
+0 !HISTORY 2004-11-06 [PTadmin] Official Update 2004-04
+0 !HISTORY 2007-07-01 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+
+
+1 16 60 4 60 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 60 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 60 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 60 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 60 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 60 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 60 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 -40 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 -60 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 -60 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 -60 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 -60 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 -60 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 -60 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 -60 1 0 0 0 -1 0 0 0 1 stud4.dat
+0 BFC INVERTNEXT
+1 16 0 8 0 76 0 0 0 -4 0 0 0 76 box5.dat
+4 16 80 8 80 76 8 76 -76 8 76 -80 8 80
+4 16 -80 8 80 -76 8 76 -76 8 -76 -80 8 -80
+4 16 -80 8 -80 -76 8 -76 76 8 -76 80 8 -80
+4 16 80 8 -80 76 8 -76 76 8 76 80 8 80
+1 16 0 8 0 80 0 0 0 -8 0 0 0 80 box5.dat
+1 16 70 0 70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 -50 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 -70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 -70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 -70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 -70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 -70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 -70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 -70 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 -70 1 0 0 0 1 0 0 0 1 stud.dat
+0
+0 NOFILE
+0 FILE 3035.dat
+0 Plate  4 x  8
+0 Name: 3035.dat
+0 Author: James Jessiman
+0 !LDRAW_ORG Part UPDATE 2025-09
+0 !LICENSE Licensed under CC BY 4.0 : see CAreadme.txt
+
+0 BFC CERTIFY CCW
+
+0 !HISTORY 2001-10-26 [PTadmin] Official Update 2001-01
+0 !HISTORY 2004-07-26 [guyvivan] Made BFC Compliant
+0 !HISTORY 2004-11-06 [PTadmin] Official Update 2004-04
+0 !HISTORY 2007-06-07 [PTadmin] Header formatted for Contributor Agreement
+0 !HISTORY 2008-07-01 [PTadmin] Official Update 2008-01
+0 !HISTORY 2025-09-27 [OrionP] Changed winding to CCW
+0 !HISTORY 2025-09-29 [OrionP] Official Update 2025-09
+
+1 16 60 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 0 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 60 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 40 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 20 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 0 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -20 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -40 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+1 16 -60 4 -20 1 0 0 0 -1 0 0 0 1 stud4.dat
+0 BFC INVERTNEXT
+1 16 0 8 0 76 0 0 0 -4 0 0 0 36 box5.dat
+4 16 -80 8 -40 -76 8 -36 76 8 -36 80 8 -40
+4 16 80 8 -40 76 8 -36 76 8 36 80 8 40
+4 16 -80 8 -40 -80 8 40 -76 8 36 -76 8 -36
+4 16 -80 8 40 80 8 40 76 8 36 -76 8 36
+1 16 0 8 0 80 0 0 0 -8 0 0 0 40 box5.dat
+1 16 70 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 -10 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 70 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 50 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 30 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 10 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -10 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -30 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -50 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+1 16 -70 0 -30 1 0 0 0 1 0 0 0 1 stud.dat
+0
+0 NOFILE
 0 FILE 973.dat
 0 Minifig Torso
 0 Name: 973.dat

@@ -54,7 +54,7 @@ export const LEGO_PARTS = [
   "4186", "91405", "3062b", "3068b", "3069b", "3741ac05", "3470", "2435", "3471", "2417", "30055",
   "3031", "3754", "3003", "29592", "62698-f2", "33051", "14769p0f", "1", "60594", "60603", "3010", "3005", "87079",
   "3001", "3002", "3004", "3009", "3020", "3022", "3023b", "3032", "3036", "3795", "3666", "3710", "2431", "3941", "4589", "4079", "3068bp0t", "3068bp71", "3068bp74", "4738a", "4739a", "11602", "89801", "30224",
-  "3961", "3960", "60474", "11213", "87081", "6141", "98138", "2039", "30367c", "3942c",
+  "3961", "3960", "60474", "11213", "87081", "6141", "98138", "2039", "30367c", "3942c", "3027", "3033", "3958", "41539", "3035",
   "973", "3818", "3819", "3820", "3815", "3816", "3817", "3626cp01", "53981",
 ];
 
@@ -515,6 +515,50 @@ export function plazaText(): string {
     out.push(...place(flowerPot(side < 0 ? COL.red : COL.yellow), side * 240, 440, ROT[0]));
   }
   return modelText(out, "plaza.ldr");
+}
+
+// ---- the town's roads and sky ----
+// Dashed white centre lines (1x4 tiles) down every street, zebra crossings on
+// the four streets round the plaza, and big LEGO clouds -- plates stacked into
+// puffs, shown at 3x -- drifting over the hills. Separate from townText: it
+// never changes, so it's parsed once.
+export function townDecorText(): string {
+  const out: string[] = [];
+  const TILE_Y = -8; // a tile's origin is its top; it lies on the ground
+  const streets = [-(TOWN_HALF - 8), -PITCH / 2, PITCH / 2, TOWN_HALF - 8]; // street centre lines, studs
+  const crossings = [-PITCH / 2, PITCH / 2]; // the streets round the plaza
+  for (const c of streets)
+    for (let t = -TOWN_HALF + 4; t <= TOWN_HALF - 4; t += 8) {
+      if (streets.some((x) => Math.abs(t - x) < 10)) continue; // leave the junctions clear
+      if (crossings.includes(c) && Math.abs(t) < 8) continue; // and the zebra crossing
+      out.push(line(COL.white, c * S, TILE_Y, t * S, ROT[90], "2431")); // along a north-south street
+      out.push(line(COL.white, t * S, TILE_Y, c * S, ROT[0], "2431")); // along an east-west one
+    }
+  for (const c of crossings)
+    for (let k = -3.5; k <= 3.5; k++) {
+      out.push(line(COL.white, 0, TILE_Y, (c + k * 2) * S, ROT[0], "2431"));
+      out.push(line(COL.white, (c + k * 2) * S, TILE_Y, 0, ROT[90], "2431"));
+    }
+
+  // clouds: a flat base, puffs on top, shown three times LEGO size
+  const puff: [string, number, number, number][] = [
+    ["3027", 0, 0, 0],
+    ["3033", -40, 8, -10],
+    ["41539", 80, 8, 20],
+    ["3958", -60, 16, 0],
+    ["3035", 40, 16, -10],
+    ["3031", 0, 24, 0],
+  ];
+  const BIG: Mat = [3, 0, 0, 0, 3, 0, 0, 0, 3];
+  const rnd = seeded(11);
+  for (let a = 0; a < Math.PI * 2; a += 0.55 + rnd() * 0.35) {
+    const d = (TOWN_HALF + 80 + rnd() * 70) * S;
+    const cx = Math.cos(a) * d;
+    const cz = Math.sin(a) * d;
+    const cy = -(1100 + rnd() * 700);
+    for (const [part, dx, h, dz] of puff) out.push(line(COL.white, cx + dx * 3, cy - h * 3, cz + dz * 3, BIG, part));
+  }
+  return modelText(out, "town-decor.ldr");
 }
 
 // the chest's spot on the floor (LDU): front left of the rug, facing you
