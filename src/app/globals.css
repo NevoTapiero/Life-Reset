@@ -1743,3 +1743,16 @@ body {
 .char-tile:not(.on) .char-tile-face { filter: saturate(0.75) brightness(0.92); }
 .char-tile-name { font-family: var(--font-brick); font-weight: 700; font-size: 11.5px; line-height: 1.1; color: #fff; text-shadow: var(--tt-shadow); white-space: nowrap; }
 .char-tile.on .char-tile-name { color: var(--lego-yellow); }
+
+/* loading: studs lighting up in a row, one after another */
+.load-studs { display: inline-flex; gap: 6px; }
+.load-studs span {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; box-shadow: 0 0 0 2px var(--lego-black), 0 2px 0 2px var(--lego-black);
+  animation: loadStud 1.1s ease-in-out infinite;
+}
+@keyframes loadStud {
+  0%, 60%, 100% { background: #fff; transform: none; }
+  20% { background: radial-gradient(circle at 42% 38%, #fff6c4 0 18%, var(--lego-yellow) 45%, #c99a06 100%); transform: translateY(-4px); }
+}
+@media (prefers-reduced-motion: reduce) { .load-studs span { animation: none; } }
