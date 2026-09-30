@@ -11,6 +11,7 @@ import LegoIcon, { BrickColor } from "@/components/LegoIcon";
 import Minifig from "@/components/Minifig";
 import MinifigCard from "@/components/MinifigCard";
 import GoldBricks from "@/components/GoldBricks";
+import LevelRoad from "@/components/LevelRoad";
 import MonthMosaic from "@/components/MonthMosaic";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
@@ -271,6 +272,9 @@ export default function ProfilePage() {
         <Stat label="Playing since" value={new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(profile.created_at)).replace(" 20", " ")} color="azure" icon="calendar" />
       </section>
 
+      <div className="mt-4">
+        <LevelRoad character={profile.archetype} xp={profile.xp} />
+      </div>
       <div className="mt-4">
         <GoldBricks profile={profile} />
       </div>
