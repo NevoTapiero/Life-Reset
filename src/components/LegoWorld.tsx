@@ -816,7 +816,7 @@ export function LegoTown({
         <Slabs slabs={FLATS} />
         <Slabs slabs={CLOUDS} shadows={false} />
         {parks && <primitive object={parks} />}
-        <Traffic />
+        <Traffic night={mood.night} />
         <Seagulls />
         <FountainSpray />
         <TownSign name={residents[meIndex]?.name ?? "Your"} />
@@ -1095,7 +1095,8 @@ function alongLoop(d: number): [number, number, number] {
   return [a.x + (b.x - a.x) * f, a.z + (b.z - a.z) * f, Math.atan2(b.x - a.x, b.z - a.z)];
 }
 
-function Car({ car, start }: { car: Baked; start: number }) {
+function Car({ car, start, night }: { car: Baked; start: number; night: boolean }) {
+  const map = useMemo(() => glow(), []);
   const [obj, setObj] = useState<THREE.Object3D | null>(null);
   const root = useRef<THREE.Group>(null);
   useEffect(() => {
@@ -1114,7 +1115,18 @@ function Car({ car, start }: { car: Baked; start: number }) {
     root.current.rotation.y = heading;
   });
   // the glb's origin is its front-left corner; centre it on the lane
-  return <group ref={root}>{obj && <primitive object={obj} position={[-car.w * 10, 0, car.d * 10]} />}</group>;
+  return (
+    <group ref={root}>
+      {obj && <primitive object={obj} position={[-car.w * 10, 0, car.d * 10]} />}
+      {/* headlights after dark: two glows at the front, a little above the road */}
+      {night &&
+        [-1, 1].map((side) => (
+          <sprite key={side} position={[side * car.w * 6, -22, car.d * 10 + 6]} scale={[60, 60, 1]}>
+            <spriteMaterial map={map} color="#fff4d6" blending={THREE.AdditiveBlending} depthWrite={false} transparent fog={false} />
+          </sprite>
+        ))}
+    </group>
+  );
 }
 
 // ---- people strolling round the fountain ----
@@ -1247,12 +1259,12 @@ function TownSign({ name }: { name: string }) {
   );
 }
 
-function Traffic() {
+function Traffic({ night }: { night: boolean }) {
   const cars = VEHICLES as Baked[];
   return (
     <>
       {[0, 1, 2].map((k) => (
-        <Car key={k} car={cars[k % cars.length]} start={(k * LOOP_LENGTH) / 3} />
+        <Car key={k} car={cars[k % cars.length]} start={(k * LOOP_LENGTH) / 3} night={night} />
       ))}
     </>
   );
