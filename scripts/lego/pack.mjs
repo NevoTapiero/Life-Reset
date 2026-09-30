@@ -85,6 +85,11 @@ const HOUSES = [
 ];
 // the building in the middle of the town where you spend gold
 const SHOP = { id: "10190-1", name: "Market Street", turn: 2 };
+// cars that drive round the town: a sub-model of an official set, turned to face +Z
+const VEHICLES = [
+  { id: "car-1", name: "Car", turn: 1, set: "1472-1", model: "1472 - car 1.ldr" },
+  { id: "car-2", name: "Car", turn: 0, set: "1472-1", model: "1472 - car 2.ldr" },
+];
 const EXTRAS = /minifig|car \d|trailer|boat|quad|moose|bird|4719c01|anna|olivia|peter/i;
 
 // GLTFExporter reads its Blobs with the browser's FileReader; Node only has Blob
@@ -109,8 +114,15 @@ const HOUSE_OUT = `${OUT}houses/`;
 mkdirSync(HOUSE_OUT, { recursive: true });
 const tmp = mkdtempSync(join(tmpdir(), "lego-"));
 const manifest = [];
-for (const { id, name, turn } of [...HOUSES, SHOP]) {
-  const text = readFileSync(`${SETS}${id}.mpd`, "utf8").replace(/\r/g, "");
+for (const { id, name, turn, set, model: sub } of [...HOUSES, SHOP, ...VEHICLES]) {
+  let text = readFileSync(`${SETS}${set ?? id}.mpd`, "utf8").replace(/\r/g, "");
+  if (sub) {
+    // bake one sub-model: put its file first, so it's the one the loader builds
+    const files = text.split(/\n(?=0 FILE )/);
+    const i = files.findIndex((f) => f.startsWith(`0 FILE ${sub}`));
+    if (i < 0) throw new Error(`${set} has no ${sub}`);
+    text = [files[i], ...files.filter((_, k) => k !== i)].join("\n");
+  }
   const end = text.indexOf("\n0 FILE ", 1); // the main model is the first file
   const main = text.slice(0, end).split("\n").filter((l) => !(l.startsWith("1 ") && EXTRAS.test(l))).join("\n");
   // a set's own sub-parts are named "s\\..."; the loader looks them up as "parts/s/..."
@@ -151,5 +163,7 @@ for (const { id, name, turn } of [...HOUSES, SHOP]) {
   manifest.push({ id, name, w, d, h });
   console.log(`house ${id} ${name}: ${w}x${d} studs, ${(statSync(`${HOUSE_OUT}${id}.glb`).size / 1e6).toFixed(2)} MB`);
 }
-writeFileSync(fileURLToPath(new URL("../../src/lib/legoHouses.json", import.meta.url)), JSON.stringify(manifest.filter((m) => m.id !== SHOP.id), null, 2) + "\n");
+const isHouse = (m) => HOUSES.some((h) => h.id === m.id);
+writeFileSync(fileURLToPath(new URL("../../src/lib/legoHouses.json", import.meta.url)), JSON.stringify(manifest.filter(isHouse), null, 2) + "\n");
+writeFileSync(fileURLToPath(new URL("../../src/lib/legoVehicles.json", import.meta.url)), JSON.stringify(manifest.filter((m) => VEHICLES.some((v) => v.id === m.id)), null, 2) + "\n");
 writeFileSync(fileURLToPath(new URL("../../src/lib/legoShop.json", import.meta.url)), JSON.stringify(manifest.find((m) => m.id === SHOP.id), null, 2) + "\n");

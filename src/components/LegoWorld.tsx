@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
 import { LDrawConditionalLineMaterial } from "three/examples/jsm/materials/LDrawConditionalLineMaterial.js";
 import { LDrawUtils } from "three/examples/jsm/utils/LDrawUtils.js";
+import VEHICLES from "@/lib/legoVehicles.json";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import {
@@ -41,6 +42,7 @@ import {
   type Station,
   type MinifigLook,
   type Resident,
+  type House as Baked,
 } from "@/lib/legoWorld";
 
 // Your plot in real parts: the 48x48 baseplate, your house, your garden, and
@@ -594,6 +596,7 @@ export function LegoTown({
         <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} />
         {plaza && <primitive object={plaza} />}
         {decor && <primitive object={decor} />}
+        <Traffic />
         {residents.map((res, i) => (
           <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
             <House level={res.level} cut={i === inside ? CUT : undefined} />
@@ -799,6 +802,75 @@ function ShopSheet({
         </div>
       </div>
     </div>
+  );
+}
+
+// ---- traffic: official LEGO cars driving round the ring road ----
+// The loop is a rounded square down the ring road's outer lane (LDraw frame),
+// sampled once into points with their distance along it.
+const LANE = (TOWN_HALF - 4) * 20; // the ring road's outer lane, LDU from the centre
+const CORNER = 160; // corner radius, LDU
+const LOOP = (() => {
+  const pts: { x: number; z: number; d: number }[] = [];
+  const s = LANE - CORNER;
+  // corners at (+,+), (-,+), (-,-), (+,-), turning the same way round
+  const centres: [number, number][] = [[s, s], [-s, s], [-s, -s], [s, -s]];
+  centres.forEach(([cx, cz], k) => {
+    const a0 = (k * Math.PI) / 2;
+    for (let j = 0; j <= 8; j++) {
+      const a = a0 + (j / 8) * (Math.PI / 2);
+      pts.push({ x: cx + Math.cos(a) * CORNER, z: cz + Math.sin(a) * CORNER, d: 0 });
+    }
+  });
+  pts.push({ ...pts[0] });
+  for (let i = 1; i < pts.length; i++) pts[i].d = pts[i - 1].d + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+  return pts;
+})();
+const LOOP_LENGTH = LOOP[LOOP.length - 1].d;
+const CAR_SPEED = 360; // LDU a second: about 18 studs
+
+// where a car is `d` LDU along the loop, and which way it faces (radians about Y)
+function alongLoop(d: number): [number, number, number] {
+  const t = ((d % LOOP_LENGTH) + LOOP_LENGTH) % LOOP_LENGTH;
+  let i = 1;
+  while (LOOP[i].d < t) i++;
+  const a = LOOP[i - 1];
+  const b = LOOP[i];
+  const f = (t - a.d) / (b.d - a.d || 1);
+  // a car's own front is +Z; turning by θ about Y points it at (sin θ, cos θ)
+  return [a.x + (b.x - a.x) * f, a.z + (b.z - a.z) * f, Math.atan2(b.x - a.x, b.z - a.z)];
+}
+
+function Car({ car, start }: { car: Baked; start: number }) {
+  const [obj, setObj] = useState<THREE.Object3D | null>(null);
+  const root = useRef<THREE.Group>(null);
+  useEffect(() => {
+    let live = true;
+    loadHouse(houseUrl(car))
+      .then((o) => live && setObj(o.clone()))
+      .catch((e) => console.error("car:", e));
+    return () => {
+      live = false;
+    };
+  }, [car]);
+  useFrame(({ clock }) => {
+    if (!root.current) return;
+    const [x, z, heading] = alongLoop(start + clock.elapsedTime * CAR_SPEED);
+    root.current.position.set(x, 0, z);
+    root.current.rotation.y = heading;
+  });
+  // the glb's origin is its front-left corner; centre it on the lane
+  return <group ref={root}>{obj && <primitive object={obj} position={[-car.w * 10, 0, car.d * 10]} />}</group>;
+}
+
+function Traffic() {
+  const cars = VEHICLES as Baked[];
+  return (
+    <>
+      {[0, 1, 2].map((k) => (
+        <Car key={k} car={cars[k % cars.length]} start={(k * LOOP_LENGTH) / 3} />
+      ))}
+    </>
   );
 }
 
