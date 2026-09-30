@@ -2,10 +2,13 @@
 
 import { useEffect } from "react";
 import Minifig from "@/components/Minifig";
-import RankBadge from "@/components/RankBadge";
+import LegoIcon, { BrickColor } from "@/components/LegoIcon";
 import { legoLevel, levelTitle } from "@/lib/brick";
 import { brickSound } from "@/lib/brickSound";
 import type { Rank } from "@/lib/game";
+
+// each rank tier as a brick colour: Bronze, Silver, Gold, Platinum, Diamond, Champion
+const TIER_BRICK: BrickColor[] = ["orange", "grey", "yellow", "azure", "blue", "red"];
 
 const BURST = ["var(--lego-red)", "var(--lego-yellow)", "var(--lego-blue)", "var(--lego-green)", "var(--lego-orange)", "#ffffff"];
 
@@ -63,7 +66,7 @@ export default function RankUp({
           {newLevel ? (
             <Minifig character={character} level={legoLevel(rank.tierIndex)} size={210} />
           ) : (
-            <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={120} />
+            <LegoIcon name="star" color={TIER_BRICK[rank.tierIndex] ?? "yellow"} size={130} />
           )}
         </div>
       </div>
