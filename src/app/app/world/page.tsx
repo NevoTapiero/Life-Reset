@@ -9,6 +9,7 @@ import Icon from "@/components/Icon";
 import Minifig from "@/components/Minifig";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import TownArt from "@/components/TownArt";
+import TownNews from "@/components/TownNews";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import { rankForXp } from "@/lib/game";
 
@@ -196,6 +197,12 @@ export default function WorldPage() {
       })}
 
       {doorMsg && <p className="chip chip-green mt-4">{doorMsg}</p>}
+
+      {!alone && (
+        <div className="mt-6">
+          <TownNews friends={rows.filter((r) => !r.is_me).map((r) => ({ username: r.username, archetype: r.archetype, xp: r.xp }))} />
+        </div>
+      )}
 
       {/* the board */}
       <div className="flex items-center justify-between mt-8 mb-3">
