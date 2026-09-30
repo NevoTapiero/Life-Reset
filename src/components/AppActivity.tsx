@@ -93,7 +93,7 @@ function dueLabel(iso: string | null): string {
 function Stat({ value, label }: { value: number | string; label: string }) {
   return (
     <div className="flex-1 text-center">
-      <div className="display text-[18px]" style={{ color: "var(--accent)" }}>{value}</div>
+      <div className="display text-[22px]" style={{ color: "var(--lego-blue)" }}>{value}</div>
       <div className="hud-label mt-1">{label}</div>
     </div>
   );
@@ -119,14 +119,10 @@ function DoneButton({
       aria-label={label}
       disabled={busy || (!done && disabled)}
       onClick={onClick}
-      className={`w-8 h-8 rounded-[10px] border flex items-center justify-center flex-none transition-colors duration-150 active:scale-95 ${done ? "check-pop" : ""} ${busy ? "pulse-glow" : ""}`}
-      style={
-        done
-          ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 14px rgb(var(--accent-rgb) / 0.55)" }
-          : { borderColor: "var(--line-strong)", color: "transparent", opacity: disabled ? 0.35 : 1 }
-      }
+      className={`stud-check !w-[34px] !h-[34px] active:scale-95 ${done ? "on check-pop" : ""} ${busy ? "pulse-glow" : ""}`}
+      style={!done && disabled ? { opacity: 0.4 } : undefined}
     >
-      <Icon name="check" size={14} strokeWidth={2.6} />
+      <Icon name="check" size={16} strokeWidth={3} />
     </button>
   );
 }
@@ -149,14 +145,13 @@ function Row({
   return (
     <div
       className={`card px-3.5 py-3 flex items-center gap-3 ${dim ? "opacity-80" : ""}`}
-      style={done ? { borderColor: "rgb(var(--accent-rgb) / 0.6)" } : undefined}
     >
-      <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
-        <Icon name={icon} size={16} />
+      <span className="icon-tile !w-10 !h-10 !rounded-[11px]" style={{ color: done ? "var(--lego-green)" : "var(--lego-blue)" }}>
+        <Icon name={icon} size={18} strokeWidth={2} />
       </span>
       <span className="flex-1 min-w-0">
-        <span className={`block text-[14px] truncate ${done ? "line-through text-muted" : ""}`}>{title}</span>
-        <span className="hud-label mt-0.5 block">{sub}</span>
+        <span className={`block text-[15px] font-extrabold truncate ${done ? "line-through text-muted" : ""}`}>{title}</span>
+        <span className="text-[12.5px] font-bold text-muted mt-0.5 block truncate">{sub}</span>
       </span>
       {right}
     </div>
@@ -166,8 +161,7 @@ function Row({
 function XpTag({ xp }: { xp: number }) {
   return (
     <span className="flex items-baseline gap-1 flex-none">
-      <span className="display text-[15px]" style={{ color: "var(--accent)" }}>+{xp}</span>
-      <span className="hud-label">XP</span>
+      <span className="chip chip-green !text-[12px]">+{xp} XP</span>
     </span>
   );
 }
@@ -179,18 +173,19 @@ function YesterdayDrawer({ count, children }: { count: number; children: React.R
   return (
     <div className="mt-1.5">
       <button
-        className="card w-full px-4 py-3 flex items-center gap-3 active:scale-[0.99] transition-transform"
+        className="card w-full px-4 py-3 flex items-center gap-3 active:translate-y-[2px] transition-transform"
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
       >
-        <span className="icon-tile !w-8 !h-8 !rounded-[9px] text-muted">
-          <Icon name="calendar" size={14} />
+        <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
+          <Icon name="calendar" size={16} strokeWidth={2} />
         </span>
         <span className="flex-1 text-left">
-          <span className="display block text-[13px]">Yesterday</span>
-          <span className="hud-label mt-0.5">{count} item{count === 1 ? "" : "s"}</span>
+          <span className="display block text-[15px]">Yesterday</span>
+          <span className="text-[12.5px] font-bold text-muted">{count} item{count === 1 ? "" : "s"}</span>
         </span>
         <span className="text-muted transition-transform duration-300" style={{ transform: open ? "rotate(180deg)" : "none" }}>
-          <Icon name="chevron-down" size={16} />
+          <Icon name="chevron-down" size={17} strokeWidth={2.2} />
         </span>
       </button>
       {open && <div className="flex flex-col gap-2 mt-2 stagger">{children}</div>}
@@ -360,15 +355,15 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
   // nothing connected yet: one line pointing at the connect screen
   if (providers && !anyConnected && (entries?.length ?? 0) === 0) {
     return (
-      <Link href="/app/profile" className="card px-4 py-3.5 flex items-center gap-3 mt-6 active:scale-[0.99] transition-transform">
-        <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
-          <Icon name="sparkle" size={16} />
+      <Link href="/app/profile#apps" className="card px-4 py-3.5 flex items-center gap-3 mt-6 active:translate-y-[2px] transition-transform">
+        <span className="icon-tile !w-11 !h-11" style={{ color: "var(--lego-blue)" }}>
+          <Icon name="plug" size={20} strokeWidth={2} />
         </span>
         <span className="flex-1">
-          <span className="display block text-[14px]">Connect your apps</span>
-          <span className="hud-label mt-0.5 block">Google Tasks, Calendar, Google Health and WHOOP earn XP too</span>
+          <span className="display block text-[16px]">Connect your apps</span>
+          <span className="text-[13px] font-bold text-muted block">Google Tasks, Calendar, Google Health and WHOOP pay XP on their own</span>
         </span>
-        <Icon name="arrow-right" size={16} />
+        <Icon name="chevron-right" size={18} strokeWidth={2.2} className="text-muted" />
       </Link>
     );
   }
@@ -447,11 +442,11 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
   return (
     <div className="mt-6">
       <div className="flex items-center justify-between mb-3.5 gap-2">
-        <h2 className="display text-[19px]">From your apps</h2>
+        <h2 className="section-title" style={{ "--brick": "var(--lego-blue)" } as React.CSSProperties}>From your apps</h2>
         {syncing && <span className="hud-label pulse-glow">Syncing</span>}
       </div>
 
-      <div className="hud-frame px-3 py-3.5 flex items-stretch">
+      <div className="card px-3 py-3.5 flex items-stretch">
         {providers?.google ? (
           <>
             <Stat value={todayEvents.length + openDueToday + doneTasksToday.length} label="Today" />
@@ -465,21 +460,16 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
         <Stat value={total.toLocaleString()} label="XP earned" />
       </div>
 
-      {flash && <p className="hud-label mt-2.5" style={{ color: "var(--accent)" }}>{flash}</p>}
+      {flash && <p className="chip chip-green mt-2.5">{flash}</p>}
 
-      <div className="flex gap-1.5 mt-3.5 overflow-x-auto no-scrollbar -mx-1 px-1">
+      <div className="brick-tabs !flex mt-3.5 overflow-x-auto no-scrollbar">
         {connectedTabs.map((t) => {
           const on = current === t.key;
           return (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex-1 min-w-max py-2 px-2 rounded-[11px] hud-label !tracking-[0.02em] ${connectedTabs.length > 3 ? "!text-[9.5px]" : ""} flex items-center justify-center gap-1 whitespace-nowrap transition-colors ${on ? "" : "text-muted"}`}
-              style={
-                on
-                  ? { background: "rgb(var(--accent-rgb) / 0.14)", border: "1px solid rgb(var(--accent-rgb) / 0.45)", color: "var(--accent)" }
-                  : { border: "1px solid var(--line)" }
-              }
+              className={`brick-tab flex-1 min-w-max !px-2.5 ${connectedTabs.length > 3 ? "!text-[11.5px]" : ""} whitespace-nowrap ${on ? "on" : ""}`}
             >
               {t.mark && <span className="flex-none flex">{t.mark}</span>}
               {t.label}
@@ -524,7 +514,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
 
             {(tasks.length > 0 || doneTasksToday.length > 0) && <p className="hud-label mt-2">Tasks</p>}
             {!canWrite && tasks.length > 0 && (
-              <Link href="/app/profile" className="hud-label underline underline-offset-4" style={{ color: "var(--accent)" }}>
+              <Link href="/app/profile#apps" className="hud-label underline underline-offset-4" style={{ color: "var(--accent)" }}>
                 Reconnect Google once to tick tasks from here
               </Link>
             )}
@@ -558,7 +548,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
             </YesterdayDrawer>
 
             {google === false && !problem && (
-              <Link href="/app/profile" className="card px-4 py-3.5 flex items-center gap-3 active:scale-[0.99] transition-transform">
+              <Link href="/app/profile#apps" className="card px-4 py-3.5 flex items-center gap-3 active:translate-y-[2px] transition-transform">
                 <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
                   <Icon name="calendar" size={16} />
                 </span>

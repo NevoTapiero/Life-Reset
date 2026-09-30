@@ -1,207 +1,330 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
-import { supabase } from "@/lib/supabase";
-import Avatar from "@/components/Avatar";
+import AppActivity from "@/components/AppActivity";
+import BrickLoader from "@/components/BrickLoader";
 import Icon from "@/components/Icon";
+import PlayerAvatar from "@/components/PlayerAvatar";
 import RankBadge from "@/components/RankBadge";
-import XpMeter from "@/components/XpMeter";
-import { useStations } from "@/lib/useStations";
-
-// three.js touches window: load the LEGO world on the client only
-const LegoWorld = dynamic(() => import("@/components/LegoWorld"), { ssr: false });
-const LegoRoom = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoRoom), { ssr: false });
+import { useMissions } from "@/lib/useMissions";
+import { PILLAR_BRICK, greeting, legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import {
-  CHARACTERS,
-  CHARACTER_KEYS,
-  CHARACTER_SKIN_TIERS,
-  CharacterKey,
-  Profile,
-  STAT_ICONS,
-  STAT_INFO,
-  STAT_KEYS,
+  CARD_DAYS,
+  PERIODS,
+  PERIOD_LABEL,
+  PERIOD_UNIT,
+  PILLAR_ICONS,
+  Period,
+  Quest,
   TIERS,
-  characterOf,
+  TRACKER_NAME,
+  cardXp,
+  periodOf,
   rankForXp,
-  skinTierFor,
+  trackedBy,
 } from "@/lib/game";
 
-// You: the character, big, wearing the look your rank has earned. The five
-// stats climbing, the XP meter, the streak. Everything you do in real life
-// ends up here.
+// Home: who you are today, your missions (daily, weekly, monthly), yesterday's
+// grace list, and what your connected apps counted.
+export default function HomePage() {
+  const m = useMissions();
+  const [tab, setTab] = useState<Period>("daily");
+  const [showYesterday, setShowYesterday] = useState(false);
 
-export default function YouPage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // inside your house: a station per mission
-  const [inside, setInside] = useState(false);
-  const { stations, complete, chest, gold, collect, owned } = useStations();
-
-  const load = useCallback(async () => {
-    const { data: userData } = await supabase.auth.getUser();
-    const uid = userData.user?.id;
-    if (!uid) return;
-    const { data } = await supabase.from("profiles").select("*").eq("id", uid).single();
-    setProfile(data as Profile);
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  async function chooseCharacter(key: CharacterKey) {
-    const { data, error } = await supabase.rpc("set_archetype", { p_key: key });
-    if (error) setError(error.message);
-    else setProfile(data as Profile);
+  if (!m.profile) {
+    return (
+      <div className="py-24 flex justify-center">
+        <BrickLoader label="Building your day" />
+      </div>
+    );
   }
 
-  if (!profile) {
-    return <div className="hud-label pulse-glow text-center py-20">Loading…</div>;
-  }
-
-  const rank = rankForXp(profile.xp);
-  const character = characterOf(profile.archetype);
-  const accent = character?.accent ?? "var(--accent)";
-  const key = profile.archetype ?? "warrior";
-  const skin = skinTierFor(key, rank.tierIndex);
-  const nextSkin = CHARACTER_SKIN_TIERS[key].find((t) => t > rank.tierIndex);
-  const statMax = Math.max(100, ...STAT_KEYS.map((k) => profile.stats[k] ?? 0));
+  const p = m.profile;
+  const rank = rankForXp(p.xp);
+  const next = rank.atMax
+    ? null
+    : rank.stageIndex < 2
+      ? `${rank.tier} ${["I", "II", "III"][rank.stageIndex + 1]}`
+      : TIERS[rank.tierIndex + 1]
+        ? `${TIERS[rank.tierIndex + 1].name} I`
+        : null;
+  const tabQuests = m.inPeriod(tab);
+  const daily = m.counts.daily;
+  const clearedAll = daily.total > 0 && daily.done === daily.total;
+  const yOpen = m.days ? m.yesterdayList.filter((q) => !m.isDoneOn(q, m.days!.yesterday)).length : 0;
 
   return (
     <div className="slide-in">
-      {/* your plot: the brick house grows with rank, the garden with your streak; you by the door */}
-      <div className="scene p-0 text-center overflow-hidden" style={{ "--scene-glow": `${character?.accent ?? "#ff6b00"}66` } as React.CSSProperties}>
-        <span className="particle" style={{ left: "10%", top: "24%", background: accent, boxShadow: `0 0 8px ${accent}` }} />
-        <span className="particle" style={{ right: "12%", top: "18%", animationDelay: "1.2s", background: accent, boxShadow: `0 0 8px ${accent}` }} />
-        <span className="particle" style={{ left: "20%", bottom: "30%", animationDelay: "2.1s", background: accent, boxShadow: `0 0 8px ${accent}` }} />
-        <span className="particle" style={{ right: "22%", bottom: "38%", animationDelay: "0.6s", background: accent, boxShadow: `0 0 8px ${accent}` }} />
-
-        <div className="relative">
-          <div className="relative" style={{ height: "58vh", minHeight: 360 }}>
-            {inside ? (
-              <LegoRoom
-                stations={stations ?? []}
-                onTap={async (id) => {
-                  const r = await complete(id);
-                  // the XP bar and rank follow the server's result
-                  if (r) setProfile(r.profile);
-                  return r?.xp ?? null;
-                }}
-                chest={chest}
-                gold={gold}
-                onCollect={async () => {
-                  const r = await collect();
-                  if (r) setProfile(r.profile);
-                  return r?.xp ?? null;
-                }}
-                owned={owned}
-                onLeave={() => setInside(false)}
-                level={rank.tierIndex + 1}
-                character={profile.archetype}
-                name={profile.username}
-                className="absolute inset-0"
-              />
-            ) : (
-              <>
-                <LegoWorld
-                  // ponytail: house grows with rank tier until gold buys upgrades
-                  houseLevel={rank.tierIndex + 1}
-                  name={profile.username}
-                  streak={profile.streak_current}
-                  className="absolute inset-0"
-                />
-                <button
-                  onClick={() => setInside(true)}
-                  className="absolute top-3 right-3 px-3.5 py-2 rounded-full text-sm font-semibold shadow-lg active:scale-95 transition-transform"
-                  style={{ background: "#ff8a1f", color: "#fff" }}
-                >
-                  {chest ? `Collect +${chest} XP` : `Go inside${stations ? ` · ${stations.filter((s) => !s.done).length} to do` : ""}`}
-                </button>
-              </>
-            )}
-            <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none" style={{ background: "linear-gradient(180deg, transparent, var(--panel))" }} />
+      {m.rankUp && (
+        <div className="rankup-backdrop" onClick={m.dismissRankUp}>
+          <div className="relative flex items-center justify-center">
+            <div className="rankup-ring" />
+            <div className="rankup-ring late" />
+            <div className="rankup-badge">
+              <RankBadge tierIndex={m.rankUp.tierIndex} stageIndex={m.rankUp.stageIndex} size={120} />
+            </div>
           </div>
-          <div className="display text-[28px] leading-tight -mt-6 relative px-5">{profile.username}</div>
-          <div className="flex items-center justify-center gap-2.5 mt-3">
-            {character && (
-              <span className="class-pill" style={{ color: character.accent }}>
-                {character.name.replace("The ", "")}
-              </span>
-            )}
-            <span className="class-pill" style={{ color: rank.color }}>{rank.label}</span>
-          </div>
-          <div className="hud-label mt-4 pb-6">
-            {skin > 0
-              ? `${TIERS[skin].name} look`
-              : nextSkin !== undefined
-                ? `New look at ${TIERS[nextSkin].name}`
-                : "Base look"}
-          </div>
-        </div>
-      </div>
-
-      {/* first run: choose who you are */}
-      {!profile.archetype && (
-        <div className="hud-frame p-4 mt-4 rise">
-          <div className="display text-[15px] mb-3.5" style={{ color: "var(--accent)" }}>Choose your character</div>
-          <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
-            {CHARACTER_KEYS.map((k) => (
-              <button key={k} className="flex flex-col items-center gap-1.5 flex-none active:scale-95 transition-transform" onClick={() => chooseCharacter(k)}>
-                <Avatar size={64} character={k} />
-                <span className="hud-label !text-ink">{CHARACTERS[k].name.replace("The ", "")}</span>
-                <span className="hud-label !text-[9px]">{CHARACTERS[k].stat}</span>
-              </button>
-            ))}
+          <div className="rankup-title text-center mt-6">
+            <div className="hud-label !text-white/80">Rank up</div>
+            <div className="display-hero text-4xl mt-1">{m.rankUp.label}</div>
           </div>
         </div>
       )}
-      {error && <p className="text-danger text-sm mt-3">{error}</p>}
 
-      {/* rank and XP */}
-      <div className="card p-4 mt-4 flex items-center gap-4">
-        <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={54} />
-        <div className="flex-1 min-w-0">
-          <XpMeter rank={rank} xp={profile.xp} />
+      {/* you, today */}
+      <section className="card tile-studs p-4">
+        <div className="flex items-center gap-3.5">
+          <Link href="/app/profile" aria-label="Your profile">
+            <PlayerAvatar photo={photoOf(p)} character={p.archetype} size={58} />
+          </Link>
+          <div className="flex-1 min-w-0">
+            <div className="hud-label">{greeting()}</div>
+            <div className="display text-[24px] truncate">{p.username}</div>
+          </div>
+          <div className="flex flex-col items-end gap-1.5">
+            <span className="chip chip-orange" title="Days in a row">
+              <Icon name="flame" size={14} strokeWidth={2.2} />
+              {p.streak_current}
+            </span>
+            <span className="chip chip-yellow" title="Gold">
+              <span className="stud-icon" aria-hidden />
+              {(p.gold ?? 0).toLocaleString()}
+            </span>
+          </div>
         </div>
+
+        <div className="mt-4 flex items-center gap-2.5">
+          <span className="chip chip-blue">Level {legoLevel(rank.tierIndex)}</span>
+          <span className="display text-[15px]">{levelTitle(p.archetype, rank.tierIndex)}</span>
+          <span className="ml-auto hud-label">{rank.label}</span>
+        </div>
+        <div className="bar-seg mt-2.5" role="progressbar" aria-valuenow={rank.xpIntoStage} aria-valuemax={rank.xpForStage}>
+          <i style={{ width: `${Math.round(rank.progress * 100)}%` }} />
+          <b />
+        </div>
+        <div className="mt-1.5 flex justify-between text-[12.5px] font-bold text-muted">
+          <span>{p.xp.toLocaleString()} XP</span>
+          <span>{next ? `${rank.xpForStage - rank.xpIntoStage} XP to ${next}` : "Top rank"}</span>
+        </div>
+      </section>
+
+      {/* missions */}
+      <div className="flex items-center justify-between mt-7 mb-3">
+        <h1 className="section-title">Missions</h1>
+        <Link href="/app/quests" className="btn-ghost brick-flat !text-[13px] px-3.5 py-2 !rounded-[12px]">
+          <Icon name="plus" size={15} strokeWidth={2.4} />
+          Add or edit
+        </Link>
       </div>
 
-      {/* the five stats, climbing */}
-      <div className="card p-4 mt-3">
-        <div className="flex items-baseline justify-between mb-3">
-          <span className="hud-label">Stats</span>
-          <span className="hud-label" style={{ color: "var(--accent)" }}>
-            {profile.streak_current} day streak
+      <div className="brick-tabs grid-cols-3 mb-3.5" role="tablist">
+        {PERIODS.map((per) => {
+          const c = m.counts[per];
+          return (
+            <button key={per} role="tab" aria-selected={tab === per} onClick={() => setTab(per)} className={`brick-tab ${tab === per ? "on" : ""}`}>
+              {PERIOD_LABEL[per]}
+              {c.total > 0 && (
+                <span className="count-chip">
+                  {c.done}/{c.total}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {m.error && (
+        <p className="card px-4 py-3 mb-3 text-sm font-bold" style={{ color: "var(--danger)" }}>
+          {m.error}
+        </p>
+      )}
+
+      <div className="flex flex-col gap-3 stagger">
+        {tabQuests.map((q) => (
+          <MissionTile
+            key={q.id}
+            q={q}
+            done={m.isDoneOn(q, m.today)}
+            cardDay={m.cardDayOf(q)}
+            paidBy={trackedBy(q, m.trackers)}
+            pending={m.pendingId === q.id}
+            xpFloat={m.xpFloat?.id === q.id ? m.xpFloat.amount : null}
+            onToggle={() => m.toggle(q)}
+          />
+        ))}
+        {tabQuests.length === 0 && (
+          <div className="card p-6 text-center">
+            <div className="flex justify-center gap-1 mb-3" aria-hidden>
+              <span className="stack-brick !animate-none" style={{ "--c": "var(--lego-red)" } as React.CSSProperties} />
+              <span className="stack-brick !animate-none" style={{ "--c": "var(--lego-yellow)" } as React.CSSProperties} />
+            </div>
+            <p className="font-bold">
+              {tab === "daily" ? "No daily missions yet." : `No ${tab} missions yet.`}
+            </p>
+            <p className="text-muted text-sm mt-1">
+              {tab === "daily"
+                ? "Pick a few habits and every one you do builds your world."
+                : `Check it once a ${tab === "weekly" ? "week" : "month"}; it pays more.`}
+            </p>
+            <Link href="/app/quests" className="btn-primary brick-yellow px-5 py-3 mt-4">
+              Add a mission
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {clearedAll && tab === "daily" && (
+        <div className="card mt-4 p-4 flex items-center gap-3 rise" style={{ background: "var(--lego-yellow)", boxShadow: "0 4px 0 var(--lego-yellow-edge)" }}>
+          <span className="bounce-in text-[var(--lego-black)]">
+            <Icon name="trophy" size={28} strokeWidth={2} />
+          </span>
+          <span>
+            <span className="display block text-[17px]">All missions done</span>
+            <span className="text-sm font-bold opacity-75">The streak holds. See you tomorrow.</span>
           </span>
         </div>
-        <div className="flex flex-col gap-3">
-          {STAT_KEYS.map((k) => {
-            const v = profile.stats[k] ?? 0;
-            return (
-              <div key={k} className="flex items-center gap-3">
-                <span className="icon-tile !w-9 !h-9 !rounded-[10px]" style={{ color: accent }}>
-                  <Icon name={STAT_ICONS[k]} size={17} />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-[14px] font-semibold">{STAT_INFO[k].name}</span>
-                    <span className="display text-[15px]" style={{ color: accent }}>{v}</span>
-                  </div>
-                  <div className="bar-seg !h-[8px] mt-1.5">
-                    <i style={{ width: `${(v / statMax) * 100}%` }} />
-                    <b />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      )}
 
-      <Link href="/app/missions" className="btn-primary w-full py-4 mt-4">
-        Today&apos;s missions
-      </Link>
+      {/* yesterday: one day of grace to log what you forgot */}
+      {m.yesterdayList.length > 0 && m.days && (
+        <div className="mt-5">
+          <button className="card w-full px-4 py-3.5 flex items-center gap-3 active:translate-y-[2px] transition-transform" onClick={() => setShowYesterday(!showYesterday)} aria-expanded={showYesterday}>
+            <span className="icon-tile !w-10 !h-10 text-muted">
+              <Icon name="calendar" size={18} strokeWidth={2} />
+            </span>
+            <span className="flex-1 text-left">
+              <span className="display block text-[16px]">Yesterday</span>
+              <span className="text-[13px] font-bold text-muted">{yOpen === 0 ? "All done" : `${yOpen} not checked, you can still log them`}</span>
+            </span>
+            <span className="text-muted transition-transform duration-300" style={{ transform: showYesterday ? "rotate(180deg)" : "none" }}>
+              <Icon name="chevron-down" size={18} strokeWidth={2.2} />
+            </span>
+          </button>
+          {showYesterday && (
+            <div className="flex flex-col gap-2.5 mt-2.5 stagger">
+              {m.yesterdayList.map((q) => (
+                <MissionTile
+                  key={q.id}
+                  q={q}
+                  small
+                  done={m.isDoneOn(q, m.days!.yesterday)}
+                  cardDay={m.cardDayOf(q, m.days!.yesterday)}
+                  label={periodOf(q) === "daily" ? "Yesterday" : `Last ${periodOf(q) === "weekly" ? "week" : "month"}`}
+                  pending={m.pendingId === q.id}
+                  xpFloat={m.xpFloat?.id === q.id ? m.xpFloat.amount : null}
+                  onToggle={() => m.toggle(q, "yesterday")}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* what the connected apps counted */}
+      <AppActivity onXp={m.load} />
     </div>
+  );
+}
+
+// Seven studs: the quest's 7-day card. Green = banked, ringed = the one this
+// check counts as, the last (yellow) pays x2.5.
+function CardStuds({ day, done, unit }: { day: number; done: boolean; unit: string }) {
+  return (
+    <span className="flex items-center gap-[4px]" aria-label={`${unit} ${day} of ${CARD_DAYS}`}>
+      {Array.from({ length: CARD_DAYS }, (_, i) => {
+        const n = i + 1;
+        const filled = n < day || (n === day && done);
+        const current = n === day && !done;
+        const last = n === CARD_DAYS;
+        const size = last ? 11 : 9;
+        return (
+          <span
+            key={n}
+            className="rounded-full"
+            style={{
+              width: size,
+              height: size,
+              background: filled ? (last ? "var(--lego-yellow)" : "var(--lego-green)") : "var(--panel-2)",
+              boxShadow: filled
+                ? `inset 0 -1.5px 0 ${last ? "var(--lego-yellow-edge)" : "var(--lego-green-edge)"}`
+                : current
+                  ? "0 0 0 2px var(--lego-green)"
+                  : "inset 0 -1.5px 0 var(--line-strong)",
+            }}
+          />
+        );
+      })}
+    </span>
+  );
+}
+
+function MissionTile({
+  q,
+  done,
+  cardDay,
+  paidBy,
+  pending,
+  xpFloat,
+  onToggle,
+  small,
+  label,
+}: {
+  q: Quest;
+  done: boolean;
+  cardDay: number;
+  paidBy?: string | null;
+  pending: boolean;
+  xpFloat: number | null;
+  onToggle: () => void;
+  small?: boolean;
+  label?: string;
+}) {
+  const period = periodOf(q);
+  const brick = PILLAR_BRICK[q.pillar] ?? "var(--lego-blue)";
+  return (
+    <button
+      onClick={onToggle}
+      disabled={pending}
+      aria-pressed={done}
+      className={`card relative w-full text-left flex items-center gap-3 ${small ? "px-3 py-2.5" : "px-3 py-3"} transition-transform duration-100 active:translate-y-[2px]`}
+      style={{ opacity: paidBy ? 0.8 : 1 }}
+    >
+      <span className="pillar-strip" style={{ "--strip": brick } as React.CSSProperties} />
+      <span
+        className="grid place-items-center rounded-[12px] flex-none"
+        style={{
+          width: small ? 38 : 44,
+          height: small ? 38 : 44,
+          background: `color-mix(in srgb, ${brick} 16%, var(--panel))`,
+          color: brick,
+        }}
+      >
+        <Icon name={PILLAR_ICONS[q.pillar as keyof typeof PILLAR_ICONS] ?? "custom"} size={small ? 19 : 22} strokeWidth={2} />
+      </span>
+      <span className="flex-1 min-w-0">
+        <span className={`block font-extrabold ${small ? "text-[15px]" : "text-[16px]"} truncate ${done ? "line-through text-muted" : ""}`}>{q.title}</span>
+        {paidBy ? (
+          <span className="mt-1 inline-flex chip !text-[11px] !py-0">Paid by {TRACKER_NAME[paidBy as keyof typeof TRACKER_NAME]}</span>
+        ) : (
+          <span className="mt-1 flex items-center gap-2 flex-wrap">
+            <CardStuds day={cardDay} done={done} unit={PERIOD_UNIT[period]} />
+            <span className="text-[12px] font-extrabold text-muted">
+              {label ? `${label} · ` : ""}+{cardXp(q.xp, cardDay)} XP
+            </span>
+          </span>
+        )}
+      </span>
+      {paidBy ? (
+        <span className="icon-tile !w-9 !h-9" style={{ color: "var(--lego-blue)" }} aria-hidden>
+          <Icon name="sparkle" size={16} strokeWidth={2} />
+        </span>
+      ) : (
+        <span key={done ? "done" : "todo"} className={`stud-check ${done ? "on check-pop" : ""}`} aria-hidden>
+          <Icon name="check" size={18} strokeWidth={3} />
+        </span>
+      )}
+      {xpFloat !== null && <span className="xp-float absolute right-4 -top-2 text-[15px]">+{xpFloat} XP</span>}
+    </button>
   );
 }
