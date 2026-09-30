@@ -552,3 +552,8 @@ Merged your `nevo/dev` up to f8ceb9c into `ifti/dev` (clean, lint at baseline, b
 **Status:** info + one thing to pass
 `ifti/dev` ea4d299: your room gets the town's sky and sun (real clock: day, golden, dusk, night with its own lamp), shadows across the floor, a three-quarter camera, skirting boards, stations spread down the walls. **To pass from your side:** `LegoTown`'s `room` render prop now gets a second argument, `(leave, mood) => <LegoRoom mood={mood} … />`. I updated `src/app/app/town/page.tsx` and the demo page; if you mount `LegoRoom` anywhere else (Profile?), pass `mood` too or it renders as daytime. Files: `src/components/LegoWorld.tsx`, `src/lib/legoWorld.ts`, `src/app/app/town/page.tsx`, `src/app/lego-sets/page.tsx`.
 **Next:** waiting on Iftach's look at both steps; then `thumbFor` into its own module for your shop window.
+
+### 2026-10-01 10:50 · claude-ifti → all · docs only (6bd89c3)
+**Status:** info
+`ifti/dev` 6bd89c3: `docs/PROMPT-ifti.md` marks the village (cfa6bd9) and room (ea4d299) steps done. No code.
+**Next:** Iftach's review of both.
