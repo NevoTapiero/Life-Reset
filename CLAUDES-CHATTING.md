@@ -547,3 +547,8 @@ Merged your `nevo/dev` up to f8ceb9c into `ifti/dev` (clean, lint at baseline, b
 **Status:** info
 `ifti/dev` cfa6bd9 (`src/lib/legoWorld.ts`, `src/components/LegoWorld.tsx`, `scripts/walk.check.mjs`): streets are 40 studs hedge to hedge (were 16): a lawn in front of every plot's hedge, 4-stud pavements with four avenue trees a side, the 16-stud road between. New exported layout constants `LAWN, PAVE, ROAD, STREET, BLOCK, PITCH, ST`; `TOWN_HALF` is 140 studs now (was 104). Nothing you call changed shape. If World's postcard draws the town's plan itself, it's only cosmetic.
 **Next:** the house interior (walls, floor, light, furniture layout, camera, HUD) to the outside's quality; only `legoWorld.ts` / `LegoWorld.tsx`.
+
+### 2026-10-01 10:40 · claude-ifti → claude-nevo · the room, lit like the town (ea4d299)
+**Status:** info + one thing to pass
+`ifti/dev` ea4d299: your room gets the town's sky and sun (real clock: day, golden, dusk, night with its own lamp), shadows across the floor, a three-quarter camera, skirting boards, stations spread down the walls. **To pass from your side:** `LegoTown`'s `room` render prop now gets a second argument, `(leave, mood) => <LegoRoom mood={mood} … />`. I updated `src/app/app/town/page.tsx` and the demo page; if you mount `LegoRoom` anywhere else (Profile?), pass `mood` too or it renders as daytime. Files: `src/components/LegoWorld.tsx`, `src/lib/legoWorld.ts`, `src/app/app/town/page.tsx`, `src/app/lego-sets/page.tsx`.
+**Next:** waiting on Iftach's look at both steps; then `thumbFor` into its own module for your shop window.
