@@ -27,17 +27,17 @@ const assert = (c, m) => { if (!c) { console.error("FAIL:", m); process.exit(1);
 
 await q("select award_external_xp($1, 'health_steps', 'steps:1', 12, '12k steps')", [U]);
 await q("select award_external_xp($1, 'whoop_sleep', 'sleep:1', 30, 'slept well')", [U]);
-await q("select award_external_xp($1, 'whoop_recovery', 'rec:1', -20, 'in the red')", [U]); // XP never goes down
+await q("select award_external_xp($1, 'whoop_recovery', 'rec:1', -20, 'in the red')", [U]);
 await q("select award_external_xp($1, 'google_tasks', 'task:1', 10, 'task')", [U]);
 let p = await prof();
-assert(p.xp === 100 + 10 && p.gold === 0, `band rewards wait, a bad night takes nothing, a task lands now (xp ${p.xp})`);
+assert(p.xp === 100 - 20 + 10 && p.gold === 0, `band rewards wait, penalty and task land now (xp ${p.xp})`);
 const pending = (await q("select coalesce(sum(pending_xp),0)::int as n from xp_ledger where user_id = $1", [U]))[0].n;
 assert(pending === 42, `42 waiting in the chest (${pending})`);
 await q("select rescore_external_xp($1, 'whoop_sleep', 'sleep:1', 40, null, null)", [U]);
-assert((await prof()).xp === 110, "re-scoring a chest item doesn't touch XP");
+assert((await prof()).xp === 90, "re-scoring a chest item doesn't touch XP");
 const got = (await q("select collect() as r"))[0].r;
 p = await prof();
-assert(got.xp === 52 && p.xp === 162 && p.gold === 52, `collect pays 52 XP + 52 gold (xp ${p.xp}, gold ${p.gold})`);
+assert(got.xp === 52 && p.xp === 142 && p.gold === 52, `collect pays 52 XP + 52 gold (xp ${p.xp}, gold ${p.gold})`);
 assert((await q("select collect() as r"))[0].r.xp === 0, "collecting twice pays nothing");
 await q("insert into quest_completions (user_id, quest_id, completed_on, xp_awarded) values ($1, 'q', current_date, 0)", [U]);
 await q("update quest_completions set xp_awarded = 30 where user_id = $1", [U]);
