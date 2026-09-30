@@ -1024,6 +1024,7 @@ export function townFlats(): Slab[] {
   // the two roads out of the village, dashed down their middles, from the roundabout
   const bridge = crossing(ROADS[1], RIVER);
   for (const road of ROADS) {
+    along(road, (ROAD_OUT + 3) * S, "#9a9ea2", 1, false, 4); // a light kerb showing along both edges
     along(road, ROAD_OUT * S, asphalt, 2, false); // road plates are smooth
     for (let d = 14 * S; ; d += 8 * S) {
       const p = at(road, d);
@@ -1051,6 +1052,21 @@ export function townFlats(): Slab[] {
   const lake = (r: number, h: number, color: string, drop = 0) => out.push({ x: LAKE.x, z: LAKE.z, w: 2 * r, d: 2 * r, radius: r, h, y: -h - drop, color, studs: true });
   lake(LAKE.r + 3 * S, 1, "#d8c79c", 4); // the sand, under the water
   lake(LAKE.r, 2, "#3f8fd8");
+  // a wooden jetty out from where the track arrives, on posts, and two rowing boats
+  const shore = TRACK[TRACK.length - 1];
+  const [jx, jz] = [LAKE.x - shore[0], LAKE.z - shore[2]];
+  const jl = Math.hypot(jx, jz) || 1;
+  const jetty: P3[] = [[shore[0], 0, shore[2]], [shore[0] + (jx / jl) * 14 * S, 0, shore[2] + (jz / jl) * 14 * S]];
+  out.push({ x: 0, z: 0, w: 4 * S, d: 0, h: 4, y: 6, color: "#a0703c", studs: true, ribbon: jetty });
+  for (const t of [0.35, 0.95])
+    for (const side of [-1, 1])
+      out.push({ x: shore[0] + jx * (t * 14 * S) / jl + (-jz / jl) * side * 1.6 * S, z: shore[2] + jz * (t * 14 * S) / jl + (jx / jl) * side * 1.6 * S, w: 8, d: 8, h: 14, y: -4, color: "#6b4a2a" });
+  const boat = (dx: number, dz: number, yaw: number, color: string) => {
+    out.push({ x: LAKE.x + dx, z: LAKE.z + dz, w: 6 * S, d: 3 * S, h: 14, y: 1, radius: 28, yaw, color });
+    out.push({ x: LAKE.x + dx, z: LAKE.z + dz, w: 2 * S, d: 2.4 * S, h: 6, y: 15, yaw, color: "#a0703c" });
+  };
+  boat(-120, -90, 0.7, "#c4281c");
+  boat(150, 120, -0.4, "#f2f2ee");
   along(TRACK, GRAVEL_W, GRAVEL);
   // the gravel ring round the plaza, and a winding gravel path in from every house's gate
   out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -5, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL, studs: true }); // under the paths that meet it
