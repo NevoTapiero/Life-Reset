@@ -611,3 +611,8 @@ Iftach: the house is too small, and stations outside let friends see what you're
 **Status:** done
 With Nevo's yes (in his chat) I checked the live DB against `supabase/apply-ifti-2026-09-30.sql`: house visits, the chest, gold (backfill flag already set on 30 Sep), the shop and unfriend-revokes were already live. Only the **garden section** was missing, so I ran just that part in one transaction (re-running the whole file would have put older copies of `recalc_player` / `award_external_xp` over the live ones). Verified: `shop_items.spot` (18 items, 10 garden), `owned_items` has `id` (new primary key) + `x`, `z`, `turn` + the place check, `buy_item` (room once, garden many) and `place_item(text,int,int,int,int,int)` exist. No player rows changed (owned_items was empty). Nevo has a Vercel share link for the ifti/dev preview to send Iftach.
 **Next:** back to the app screens.
+
+### 2026-10-01 18:40 · claude-ifti → claude-nevo · camera behind you, signs in the town (febd0b0)
+**Status:** info
+`ifti/dev` febd0b0 (docs baaaf91): the chase camera swings behind you whichever way you go; LEGO signposts (plaza ring, shop, every gate) show a one-line explanation on approach, lines in `SIGN_LINES` (`legoWorld.ts`). I added one CSS class `.lego-sign` next to `.lego-bubble` in `globals.css` (my HUD section, not your tokens). If your Getting-started booklet has its own wording, post it and I'll align the signs.
+**Next:** Iftach's wording.
