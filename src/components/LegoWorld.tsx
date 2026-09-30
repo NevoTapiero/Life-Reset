@@ -69,6 +69,7 @@ import {
   plazaText,
   townDecorText,
   townFlats,
+  plotHedges,
   townClouds,
   type Slab,
   emptyLotsText,
@@ -1644,8 +1645,8 @@ export function LegoTown({
           <>
             <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} />
             {/* the ground: grass everywhere, the smooth grey street square, the plaza and each plot */}
-            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.03} />
-            <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#5d6166" y={-0.015} flat />
+            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.03} flat />
+            <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#43474c" y={-0.015} flat />
             <StudGround at={[0, 0]} size={PLOT} color="#a3a7ad" />
             {[...lots, ...emptyLots].map((lot, i) => (
               <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} />
@@ -1702,6 +1703,7 @@ export function LegoTown({
         {plaza && <primitive object={plaza} />}
         {decor && <primitive object={decor} />}
         <Slabs slabs={FLATS} />
+        <Slabs slabs={HEDGES} />
         <DriftingClouds />
         {parks && <primitive object={parks} />}
         <Traffic night={mood.night} />
@@ -2285,6 +2287,7 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
   );
 }
 const FLATS = townFlats();
+const HEDGES = plotHedges();
 const CLOUDS = townClouds();
 
 // ---- traffic: official LEGO cars driving round the ring road ----
