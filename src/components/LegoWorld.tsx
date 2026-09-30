@@ -94,6 +94,7 @@ import {
   carLoop,
   townClouds,
   balloonSlabs,
+  waterTowerSlabs,
   RING,
   type Slab,
   emptyLotsText,
@@ -1956,6 +1957,7 @@ export function LegoTown({
         {decor && <primitive object={decor} />}
         <Slabs slabs={FLATS} />
         <Slabs slabs={HEDGES} />
+        <Slabs slabs={WATER_TOWER_SLABS} />
         <DriftingClouds />
         {parks && <primitive object={parks} />}
         <Traffic night={mood.night} />
@@ -2877,6 +2879,7 @@ function roundedRect(w: number, d: number, r: number): THREE.Shape {
 const FLATS = townFlats();
 const HEDGES = plotHedges();
 const BALLOON = balloonSlabs();
+const WATER_TOWER_SLABS = waterTowerSlabs();
 // the balloon drifts round the village at a walking pace, high over the houses, bobbing a little
 function Balloon() {
   const g = useRef<THREE.Group>(null);

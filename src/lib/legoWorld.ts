@@ -614,6 +614,7 @@ function villageTrees(): string[] {
     if (paths.some((path) => toPath(x, z, path) < 7 * S)) continue;
     if (ROADS.some((p) => toPath(x, z, p) < (ROAD_OUT / 2 + 5) * S) || toPath(x, z, TRACK) < 6 * S) continue;
     if (Math.hypot(x - ROUNDABOUT[0], z - ROUNDABOUT[1]) < ROUND_R + (ROAD_OUT + 4) * S) continue;
+    if (Math.hypot(x - PLAYGROUND[0], z - PLAYGROUND[1]) < 260 || Math.hypot(x - WATER_TOWER[0], z - WATER_TOWER[1]) < 160) continue;
     if (taken.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 11 * S)) continue;
     taken.push([x, z]);
     const part = rnd() < 0.72 ? "2435" : rnd() < 0.5 ? "3471" : "3470";
@@ -1116,10 +1117,50 @@ export function townDecorText(): string {
     const facing = yawMat(a + Math.PI); // its front to the plaza
     out.push(...place(k % 2 ? bench : flowerPot([COL.red, COL.yellow, COL.pink][k % 3]), x, z, facing, 0));
   }
+  out.push(...playgroundText());
   // ducks on the lake
   for (const [dx, dz, turn] of [[-120, 60, 0], [40, -150, 90], [180, 90, 180], [-60, -40, 270]] as [number, number, 0 | 90 | 180 | 270][])
     out.push(...place([["49661", COL.yellow, 0, -2, 0]], LAKE.x + dx, LAKE.z + dz, ROT[turn], 0));
   return modelText(out, "town-decor.ldr");
+}
+
+// ---- landmarks between the houses: a playground and a water tower ----
+const at = (deg: number, r: number): [number, number] => [Math.sin((deg * Math.PI) / 180) * r * S, Math.cos((deg * Math.PI) / 180) * r * S];
+export const PLAYGROUND = at(300, 74); // in the gap between two houses, off the ring
+export const WATER_TOWER = at(18, 165); // at the village's edge, seen from everywhere
+const PITCH_X = (a: number): Mat => [1, 0, 0, 0, Math.cos(a), -Math.sin(a), 0, Math.sin(a), Math.cos(a)]; // a lean about X
+// swings (two round-brick towers, a bar, two seats), a slide (steps up, a plate leaning
+// down), a sandbox (a tan plate with a brick rim)
+const PLAYGROUND_PIECES: Piece[] = [
+  ...stack("3062b", COL.red, -80, -60, 5),
+  ...stack("3062b", COL.red, 80, -60, 5),
+  ["3010", COL.red, -40, 120, -60],
+  ["3010", COL.red, 40, 120, -60],
+  ["3068b", COL.yellow, -35, 40, -60],
+  ["3068b", COL.blue, 35, 40, -60],
+  ...stack("3005", COL.blue, 120, 60, 1),
+  ...stack("3005", COL.blue, 120, 40, 2),
+  ...stack("3005", COL.blue, 120, 20, 3),
+  ["3795", COL.yellow, 120, 60, -40, PITCH_X(0.6)],
+  ["3958", COL.tan, -110, 0, 60],
+  ["3010", COL.reddishBrown, -110, 8, 10],
+  ["3010", COL.reddishBrown, -110, 8, 110],
+  ["3010", COL.reddishBrown, -160, 8, 60, ROT[90]],
+  ["3010", COL.reddishBrown, -60, 8, 60, ROT[90]],
+];
+export function playgroundText(): string[] {
+  return place(PLAYGROUND_PIECES, PLAYGROUND[0], PLAYGROUND[1], yawMat((300 * Math.PI) / 180 + Math.PI), 0);
+}
+// the water tower: four grey legs, a blue tank, a lid (slabs the renderer stacks)
+export function waterTowerSlabs(): Slab[] {
+  const [x, z] = WATER_TOWER;
+  const out: Slab[] = [];
+  for (const [dx, dz] of [[-55, -55], [55, -55], [-55, 55], [55, 55]]) out.push({ x: x + dx, z: z + dz, w: 10, d: 10, h: 300, y: 0, color: "#6d6e6c" });
+  out.push({ x, z, w: 0, d: 0, r: 70, h: 8, y: 300, color: "#6d6e6c" });
+  out.push({ x, z, w: 0, d: 0, r: 95, h: 130, y: 308, color: "#0055bf" });
+  out.push({ x, z, w: 0, d: 0, r: 100, h: 12, y: 438, color: "#f2f2ee" });
+  out.push({ x, z, w: 0, d: 0, r: 30, h: 30, y: 450, color: "#f2f2ee" });
+  return out;
 }
 
 // ---- signs: how the game works, told where it happens ----
@@ -1250,6 +1291,7 @@ export function townBlockers(residents: Resident[]): Blocker[] {
   out.push({ x0: (-shop.w / 2) * S + 10, x1: (shop.w / 2) * S - 10, z0: SHOP_FRONT - shop.d * S, z1: SHOP_FRONT - 10 });
   out.push({ cx: FOUNTAIN[0], cz: FOUNTAIN[1], r: 95 });
   out.push({ cx: PLAZA_SIGN[0], cz: PLAZA_SIGN[1], r: 22 }, { cx: SHOP_SIGN[0], cz: SHOP_SIGN[1], r: 22 });
+  out.push({ cx: PLAYGROUND[0], cz: PLAYGROUND[1], r: 200 }, { cx: WATER_TOWER[0], cz: WATER_TOWER[1], r: 110 });
   residents.slice(0, MAX_RESIDENTS).forEach((r, i) => {
     const [gx, gz] = gateSignAt(houseSpec(r.level));
     const [cx, , cz] = inLot(lotFor(i), [gx, 0, gz]);
