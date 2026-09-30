@@ -1055,10 +1055,11 @@ export default function LegoWorld({
 // The town follows your real clock: blue day, golden sunrise and sunset, a
 // dusk when the lamps come on, and night with stars and moonlight.
 // ponytail: four fixed moods; blend between them if the switch ever jars
-export type Mood = { name: string; top: string; horizon: string; sun: number; sunColor: string; ambient: number; night: boolean };
+export type Mood = { name: string; top: string; horizon: string; sun: number; sunColor: string; ambient: number; night: boolean; /** the light from the sky (the hemisphere light's colour) */ skyLight?: string };
 const MOODS: Record<string, Mood> = {
-  day: { name: "day", top: "#2f86ea", horizon: "#bfe3ff", sun: 2.6, sunColor: "#fff8ee", ambient: 1, night: false },
-  golden: { name: "golden", top: "#5a86d6", horizon: "#ffc98a", sun: 2.1, sunColor: "#ffae66", ambient: 0.8, night: false },
+  // a soft, slightly hazy day: a pale horizon, warm sun, blue-tinted light from the sky
+  day: { name: "day", top: "#4d9ae8", horizon: "#d9ecf8", sun: 2.3, sunColor: "#fff1d8", ambient: 1, night: false, skyLight: "#e8f2ff" },
+  golden: { name: "golden", top: "#5a86d6", horizon: "#ffd6a6", sun: 2.0, sunColor: "#ffb870", ambient: 0.85, night: false, skyLight: "#ffe6c8" },
   // LEGO-game nights stay readable: a cool blue moonlight, not just darker
   dusk: { name: "dusk", top: "#2c3f7e", horizon: "#f0957a", sun: 1.0, sunColor: "#ffa27a", ambient: 0.62, night: true },
   night: { name: "night", top: "#0c1740", horizon: "#2b3f78", sun: 0.75, sunColor: "#a9c2ff", ambient: 0.5, night: true },
@@ -1306,6 +1307,7 @@ function Stage({
   const [box, setBox] = useState({ w: 400, h: 700 });
   const sized = useCallback((w: number, h: number) => setBox({ w, h }), []);
   const near = !!follow || !mood; // a close view (playing, or a room) rather than the whole town
+  const camDist = width / 2 / Math.tan(THREE.MathUtils.degToRad(fov / 2)); // about how far back the camera sits to frame `width`
   const budget = Math.max(1, Math.min(dpr, Math.sqrt(PIXEL_BUDGET / (box.w * box.h))));
   const controls = useRef<OrbitControlsImpl>(null);
   const light = useRef<THREE.DirectionalLight>(null);
@@ -1327,7 +1329,7 @@ function Stage({
     <div className={className} role="img" aria-label={label}>
       <div className="relative w-full h-full">
         <Canvas
-          shadows
+          shadows="soft"
           dpr={[1, budget]}
           camera={{ fov, near: 1, far: far }}
           gl={{ antialias: true }}
@@ -1344,9 +1346,11 @@ function Stage({
           <PixelBudget onSize={sized} />
           <color attach="background" args={[mood?.horizon ?? sky]} />
           {/* the haze scales with how much is in view: a house, the shop, or the whole town */}
-          <fog attach="fog" args={[mood?.horizon ?? sky, Math.max(200, width * 3.2), Math.max(520, width * 8)]} />
+          {/* the air: distance turns the sky's colour. Playing, the woods fade at their far edge; from the
+              map, the hills and mountains sit in haze (the look of a city seen from high up) */}
+          <fog attach="fog" args={[mood?.horizon ?? sky, mood ? camDist * 1.05 + 40 : 200, mood ? camDist + Math.max(440, width * 1.4) : 520]} />
           {mood && <SkyDome mood={mood} />}
-          <hemisphereLight args={["#fff8ef", "#6f8f55", mood?.ambient ?? 0.9]} />
+          <hemisphereLight args={[mood?.skyLight ?? "#fff8ef", "#7a9a5a", (mood?.ambient ?? 0.9) * 1.15]} />
           <primitive object={sun} position={[target.x, 0, target.z]} />
           {follow && <SunFollows follow={follow} sun={sun} light={light} />}
           <directionalLight
@@ -1435,8 +1439,8 @@ function Stage({
             {mood ? <Vignette offset={0.35} darkness={0.28} /> : null}
             <ToneMapping mode={ToneMappingMode.NEUTRAL} />
             {/* toy-box colour: a touch more saturation and contrast than life */}
-            <HueSaturation saturation={0.05} />
-            <BrightnessContrast contrast={0.06} />
+            <HueSaturation saturation={0.1} />
+            <BrightnessContrast contrast={0.08} />
           </EffectComposer>
         </Canvas>
         {/* pinned buttons: plain DOM over the canvas, moved every frame by PinTracker */}
@@ -1468,7 +1472,7 @@ function Stage({
 export type Visit = "allowed" | "knocked";
 const SHOP_FOCUS = -1;
 const OVERVIEW = -2; // the whole town from above
-const LOOK_DOWN = new THREE.Vector3(0.25, 1.35, -0.75).normalize();
+const LOOK_DOWN = new THREE.Vector3(0.25, 0.95, -0.75).normalize(); // a high three-quarter view: the hills and the sky in the frame
 // playing: the camera behind and above you, looking down at about 40 degrees, close
 // enough that you're the star (LEGO-game style); you can swing it round with a drag
 const CHASE_DIR = new THREE.Vector3(0.1, 0.44, -0.9).normalize(); // about 25 degrees down: the horizon shows
