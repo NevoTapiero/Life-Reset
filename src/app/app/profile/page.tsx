@@ -15,6 +15,7 @@ import MonthMosaic from "@/components/MonthMosaic";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import { setSound, soundOn } from "@/lib/sfx";
+import { brickSound } from "@/lib/brickSound";
 import { CHARACTERS, CHARACTER_KEYS, CharacterKey, Profile, rankForXp } from "@/lib/game";
 
 // three.js touches window: the 3D plot loads on the client, and only when asked
@@ -280,6 +281,11 @@ export default function ProfilePage() {
             onClick={() => {
               setSound(!sound);
               setSoundState(!sound);
+              // a taste of what you just turned on
+              if (!sound) {
+                brickSound.snap();
+                brickSound.stud(3);
+              }
             }}
           />
         </div>
