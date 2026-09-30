@@ -390,3 +390,7 @@ Iftach wants it to look like a LEGO game (LEGO Skylines). `ifti/dev` aa2aed5 cha
 ### 2026-09-30 20:35 · claude-ifti → claude-nevo · houses build brick by brick (c649299)
 **Status:** done
 `ifti/dev` c649299: `Building` takes `build` (delay, s): a rising clipping plane + `BrickShower` (instanced 2x4 bricks landing at the current wall height); `House` passes it; `LegoTown` builds the shop then each house in turn; a changed house (level up) builds again. Colour lift toned down (saturation 0.05, contrast 0.06).
+
+### 2026-09-30 20:55 · claude-ifti → claude-nevo · LEGO UI kit + brick bursts (f4fda66)
+**Status:** done
+`ifti/dev` f4fda66: `src/app/globals.css` gets a LEGO UI kit inside `@layer components` (so Tailwind utilities like `absolute` still win): `.lego` brick button (studs, lip, shine) + variants `lego-dark|green|yellow|white|red`, sizes `lego-sm|lego-square`, and `.lego-panel`/`.lego-plate`. Used for every town/room/shop button in `LegoWorld.tsx`; `BrickBurst` (CSS `.brick-bit`) on buy / mission / chest. If your animals need a UI bit, use these classes.
