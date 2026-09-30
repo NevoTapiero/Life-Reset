@@ -37,7 +37,7 @@ export default function YouPage() {
   const [error, setError] = useState<string | null>(null);
   // inside your house: a station per mission
   const [inside, setInside] = useState(false);
-  const { stations, complete, chest, gold, collect } = useStations();
+  const { stations, complete, chest, gold, collect, prices, owned, buy } = useStations();
 
   const load = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
@@ -96,6 +96,9 @@ export default function YouPage() {
                   if (r) setProfile(r.profile);
                   return r?.xp ?? null;
                 }}
+                prices={prices}
+                owned={owned}
+                onBuy={buy}
                 onLeave={() => setInside(false)}
                 className="absolute inset-0"
               />

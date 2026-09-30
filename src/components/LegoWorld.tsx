@@ -25,6 +25,7 @@ import {
   modelText,
   plotX,
   CHEST_SPOT,
+  DECOR,
   roomText,
   stationSpot,
   townBounds,
@@ -633,6 +634,9 @@ export function LegoRoom({
   chest = null,
   gold = null,
   onCollect,
+  owned = [],
+  prices = null,
+  onBuy,
   onLeave,
   look = BASE_HUNTER,
   className,
@@ -646,12 +650,31 @@ export function LegoRoom({
   gold?: number | null;
   /** open the chest; resolves with the XP it paid */
   onCollect?: () => Promise<number | null>;
+  /** furniture you've bought (DECOR ids) */
+  owned?: string[];
+  /** the shop's prices by item id (null: no shop yet) */
+  prices?: Record<string, number> | null;
+  /** buy a piece; resolves with an error message, or null when it's yours */
+  onBuy?: (id: string) => Promise<string | null>;
   onLeave?: () => void;
   look?: MinifigLook;
   className?: string;
 }) {
-  // roomText only reads each station's id and pillar, so doing one doesn't rebuild the room
-  const room = useModel(roomText(stations), true);
+  // roomText only reads each station's id and pillar (and what you own), so doing one doesn't rebuild the room
+  const room = useModel(roomText(stations, owned), true);
+  const [shopOpen, setShopOpen] = useState(false);
+  const [shopNote, setShopNote] = useState<string | null>(null);
+  const buy = async (id: string, name: string) => {
+    if (!onBuy || busy) return;
+    setBusy(id);
+    const err = await onBuy(id);
+    setBusy(null);
+    if (err) return setShopNote(err);
+    // close the shop so you see it arrive
+    setShopOpen(false);
+    setShopNote(`${name} is in your room`);
+    setTimeout(() => setShopNote(null), 2500);
+  };
   const [busy, setBusy] = useState<string | null>(null);
   const [paid, setPaid] = useState<{ id: string; xp: number } | null>(null);
   const target = useMemo(() => new THREE.Vector3(0, 3, 3), []);
@@ -761,7 +784,71 @@ export function LegoRoom({
           {gold.toLocaleString()} gold
         </div>
       )}
-      {onLeave && (
+      {prices && (
+        <button
+          onClick={() => {
+            setShopOpen(true);
+            setShopNote(null);
+          }}
+          className="absolute top-3 right-3 px-3.5 py-1.5 rounded-full text-sm font-bold shadow-lg active:scale-95 transition-transform"
+          style={{ background: "#ff8a1f", color: "#fff" }}
+        >
+          Shop
+        </button>
+      )}
+      {shopNote && !shopOpen && (
+        <div className="absolute top-14 inset-x-0 flex justify-center pointer-events-none">
+          <span className="px-3 py-1.5 rounded-full text-sm font-semibold shadow" style={{ background: "rgba(20,18,16,0.85)", color: "#fff" }}>
+            {shopNote}
+          </span>
+        </div>
+      )}
+      {shopOpen && prices && (
+        <div className="absolute inset-0 flex items-end" style={{ background: "rgba(0,0,0,0.35)" }} onClick={() => setShopOpen(false)}>
+          <div
+            className="w-full max-h-[70%] overflow-y-auto rounded-t-2xl p-4 slide-in"
+            style={{ background: "var(--panel, #1b1916)", color: "var(--ink, #fff)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="display text-[17px]">Shop</span>
+              <span className="text-sm font-bold" style={{ color: "#ffd35c" }}>
+                {(gold ?? 0).toLocaleString()} gold
+              </span>
+            </div>
+            {shopNote && <p className="text-sm mb-2" style={{ color: "#ff8a7a" }}>{shopNote}</p>}
+            <div className="flex flex-col gap-2">
+              {DECOR.filter((d) => prices[d.id] !== undefined)
+                .sort((a, b) => prices[a.id] - prices[b.id])
+                .map((d) => {
+                  const price = prices[d.id];
+                  const have = owned.includes(d.id);
+                  const short = price - (gold ?? 0);
+                  return (
+                    <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5" style={{ borderColor: "var(--line, #333)" }}>
+                      <span className="font-semibold text-sm">{d.name}</span>
+                      {have ? (
+                        <span className="text-xs text-muted">In your room</span>
+                      ) : short > 0 ? (
+                        <span className="text-xs text-muted">{price} gold · need {short} more</span>
+                      ) : (
+                        <button
+                          onClick={() => buy(d.id, d.name)}
+                          disabled={busy === d.id}
+                          className="px-3 py-1.5 rounded-full text-xs font-bold active:scale-95 transition-transform"
+                          style={{ background: "linear-gradient(180deg,#ffd35c,#f0a818)", color: "#4a2a00", opacity: busy === d.id ? 0.7 : 1 }}
+                        >
+                          Buy · {price} gold
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
+      {onLeave && !shopOpen && (
         <div className="absolute inset-x-0 bottom-3 flex justify-center">
           <TownButton onClick={onLeave}>Step outside</TownButton>
         </div>

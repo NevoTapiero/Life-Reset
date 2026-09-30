@@ -31,6 +31,11 @@ What your watch earns while you're away (steps, sleep, recovery, workouts)
 waits in a treasure chest in the room; tap it to collect the XP and gold.
 Penalties still land at once. (migrations/2026-09-30-unclaimed-rewards.sql:
 ledger pending_xp, profiles.gold, collect(), gold follows mission XP.)
+**The shop** (a button in your room) sells furniture for gold: floor lamp,
+coffee table, cat, indoor trees, sofa, TV, aquarium, trophy -- each built
+from LEGO parts with its own spot in the room (DECOR in legoWorld.ts).
+Prices live in shop_items; buy_item() checks and takes the gold on the
+server (migrations/2026-09-30-shop.sql).
 In the town you knock on a friend's door, and once they let you in you can
 walk into their house (the roof comes off, dollhouse style).
 

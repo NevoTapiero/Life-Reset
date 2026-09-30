@@ -15,6 +15,9 @@ export function useStations() {
   // null until the chest migration (2026-09-30-unclaimed-rewards.sql) is applied
   const [chest, setChest] = useState<number | null>(null);
   const [gold, setGold] = useState<number | null>(null);
+  // the shop: prices by item id (null until the shop migration), and what you own
+  const [prices, setPrices] = useState<Record<string, number> | null>(null);
+  const [owned, setOwned] = useState<string[]>([]);
 
   useEffect(() => {
     const loadChest = async (uid: string) => {
@@ -59,6 +62,15 @@ export function useStations() {
         }),
       );
 
+      const [{ data: items, error: shopError }, { data: mine }] = await Promise.all([
+        supabase.from("shop_items").select("id, price"),
+        supabase.from("owned_items").select("item_id").eq("user_id", uid),
+      ]);
+      if (!shopError) {
+        setPrices(Object.fromEntries(((items ?? []) as { id: string; price: number }[]).map((i) => [i.id, i.price])));
+        setOwned(((mine ?? []) as { item_id: string }[]).map((o) => o.item_id));
+      }
+
       // what's already waiting, then ask the watch for anything new (safe to repeat)
       await loadChest(uid);
       const { data: session } = await supabase.auth.getSession();
@@ -91,5 +103,14 @@ export function useStations() {
     return { xp: r.xp, profile: r.profile };
   }
 
-  return { stations, complete, chest, gold, collect };
+  // buy a piece of furniture; resolves with an error message, or null when it's yours
+  async function buy(id: string): Promise<string | null> {
+    const { data, error } = await supabase.rpc("buy_item", { p_item: id });
+    if (error) return error.message;
+    setGold(data as number);
+    setOwned((o) => [...o, id]);
+    return null;
+  }
+
+  return { stations, complete, chest, gold, collect, prices, owned, buy };
 }

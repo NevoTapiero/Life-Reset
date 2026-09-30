@@ -10,6 +10,11 @@ const LegoWorld = dynamic(() => import("@/components/LegoWorld"), { ssr: false }
 const LegoTown = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoTown), { ssr: false });
 const LegoRoom = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoRoom), { ssr: false });
 
+// the shop's prices (the real ones are in shop_items)
+const DEMO_PRICES: Record<string, number> = {
+  "floor-lamp": 50, "coffee-table": 60, cat: 80, "indoor-trees": 100, sofa: 150, tv: 200, aquarium: 250, trophy: 300,
+};
+
 // sample missions for your room
 const DEMO_STATIONS = [
   { id: "gym", title: "Workout", pillar: "Strength", xp: 40, done: false },
@@ -42,7 +47,16 @@ export default function LegoPreview() {
   const [stations, setStations] = useState(DEMO_STATIONS);
   // what the watch earned overnight, waiting in the chest
   const [chest, setChest] = useState(64);
-  const [gold, setGold] = useState(120);
+  const [gold, setGold] = useState(400);
+  const [owned, setOwned] = useState<string[]>([]);
+  const buy = async (id: string) => {
+    const price = DEMO_PRICES[id];
+    if (gold < price) return "not enough gold";
+    await new Promise((r) => setTimeout(r, 300));
+    setGold((g) => g - price);
+    setOwned((o) => [...o, id]);
+    return null;
+  };
   const collect = async () => {
     await new Promise((r) => setTimeout(r, 300));
     const xp = chest;
@@ -75,7 +89,18 @@ export default function LegoPreview() {
           visits={visits}
           onKnock={knock}
           room={(leave) => (
-            <LegoRoom stations={stations} onTap={tap} chest={chest} gold={gold} onCollect={collect} onLeave={leave} className="w-full h-full" />
+            <LegoRoom
+              stations={stations}
+              onTap={tap}
+              chest={chest}
+              gold={gold}
+              onCollect={collect}
+              prices={DEMO_PRICES}
+              owned={owned}
+              onBuy={buy}
+              onLeave={leave}
+              className="w-full h-full"
+            />
           )}
           className="w-full h-[75vh] rounded overflow-hidden" />
       ) : (

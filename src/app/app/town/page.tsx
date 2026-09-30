@@ -25,7 +25,7 @@ export default function TownPage() {
   const [visits, setVisits] = useState<Record<string, Visit>>({});
   const [atDoor, setAtDoor] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const { stations, complete, chest, gold, collect } = useStations();
+  const { stations, complete, chest, gold, collect, prices, owned, buy } = useStations();
 
   useEffect(() => {
     supabase.rpc("get_leaderboard").then(({ data, error }) => {
@@ -106,6 +106,9 @@ export default function TownPage() {
             chest={chest}
             gold={gold}
             onCollect={async () => (await collect())?.xp ?? null}
+            prices={prices}
+            owned={owned}
+            onBuy={buy}
             onLeave={leave}
             className="w-full h-full"
           />

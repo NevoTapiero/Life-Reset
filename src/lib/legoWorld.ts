@@ -24,6 +24,7 @@ export const COL = {
   darkRed: 320,
   darkOrange: 484,
   transLightBlue: 43,
+  pearlGold: 297,
   purple: 22,
   brightGreen: 10,
   red: 4,
@@ -50,7 +51,7 @@ const BOTTOM: Record<string, number> = {
 export const LEGO_PARTS = [
   "4186", "91405", "3062b", "3068b", "3069b", "3741ac05", "3470", "2435", "3471", "2417", "30055",
   "3031", "3754", "3003", "29592", "62698-f2", "33051", "14769p0f", "1", "60594", "60603", "3010", "3005", "87079",
-  "3001", "3002", "3004", "3009", "3020", "3022", "3023b", "3032", "3036", "3795", "3666", "3710", "2431", "3941", "4589", "4079", "3068bp0t", "3068bp71", "3068bp74", "4738a", "4739a",
+  "3001", "3002", "3004", "3009", "3020", "3022", "3023b", "3032", "3036", "3795", "3666", "3710", "2431", "3941", "4589", "4079", "3068bp0t", "3068bp71", "3068bp74", "4738a", "4739a", "11602", "89801", "30224",
   "973", "3818", "3819", "3820", "3815", "3816", "3817", "3626cp01", "53981",
 ];
 
@@ -295,6 +296,7 @@ const HEIGHT: Record<string, number> = {
   "3020": 8, "3022": 8, "3023b": 8, "3031": 8, "3032": 8, "3036": 8, "3795": 8, "3710": 8,
   "3068b": 8, "87079": 8, "2431": 8, "14769p0f": 8, "4079": 8, "3741ac05": 12,
   "29592": 11, "62698-f2": 1, "33051": 0, "1": 96, "4738a": 32, "4739a": 25,
+  "3009": 24, "2435": 8, "11602": 0, "89801": 0, "30224": 8,
 };
 type Piece = [part: string, color: number, dx: number, h: number, dz: number, m?: Mat];
 const FLOOR = -8; // top of the planks
@@ -406,6 +408,78 @@ function picture(tile: string, x: number, z: number, f: Mat): string {
   return line(COL.white, x, -170, z, turnMat(f, ON_WALL), tile);
 }
 
+// ---- the shop: furniture you buy with gold ----
+// Each piece has its own spot, clear of the stations along the walls, the rug
+// and the chest. Prices live in the database (shop_items); `id` matches.
+export type Decor = { id: string; name: string; at: [number, number]; facing: 0 | 90 | 180 | 270; pieces: Piece[] };
+export const DECOR: Decor[] = [
+  { id: "cat", name: "Cat", at: [70, 40], facing: 180, pieces: [["11602", COL.orange, 0, 8, 0]] },
+  {
+    id: "floor-lamp",
+    name: "Floor lamp",
+    at: [140, -140],
+    facing: 0,
+    pieces: [...stack("3062b", COL.black, 0, 0, 4), ["3941", COL.yellow, 0, 96, 0]],
+  },
+  {
+    id: "coffee-table",
+    name: "Coffee table",
+    at: [50, -110],
+    facing: 0,
+    pieces: [
+      ...[-30, 30].flatMap((dx) => [["3062b", COL.reddishBrown, dx, 0, -10], ["3062b", COL.reddishBrown, dx, 0, 10]] as Piece[]),
+      ["3020", COL.reddishBrown, 0, 24, 0],
+      ["87079", COL.tan, 0, 32, 0],
+    ],
+  },
+  {
+    id: "sofa",
+    name: "Sofa",
+    at: [-90, -120],
+    facing: 0,
+    pieces: [
+      ["3009", COL.darkBlue, 0, 0, 0],
+      ["3009", COL.darkBlue, 0, 0, 20],
+      ...stack("3009", COL.darkBlue, 0, -20, 2),
+      ["3005", COL.darkBlue, -50, 24, 10],
+      ["3005", COL.darkBlue, 50, 24, 10],
+    ],
+  },
+  {
+    id: "tv",
+    name: "TV",
+    at: [150, 100],
+    facing: 270,
+    pieces: [["3020", COL.darkGrey, 0, 0, 0], ["3004", COL.darkGrey, 0, 8, 0], ...stack("3009", COL.black, 0, 0, 3, 32)],
+  },
+  {
+    id: "aquarium",
+    name: "Aquarium",
+    at: [110, 250],
+    facing: 0,
+    pieces: [
+      ["3001", COL.darkGrey, 0, 0, 0],
+      ...stack("3001", COL.transLightBlue, 0, 0, 2, 24),
+      ["30224", COL.orange, -15, 32, 0],
+      ["87079", COL.black, 0, 72, 0],
+    ],
+  },
+  {
+    id: "trophy",
+    name: "Trophy",
+    at: [-150, 50],
+    facing: 0,
+    pieces: [...stack("3941", COL.white, 0, 0, 2), ["89801", COL.pearlGold, 0, 48, 0]],
+  },
+  {
+    id: "indoor-trees",
+    name: "Indoor trees",
+    at: [0, 0], // two pots, in the front corners (see roomText)
+    facing: 0,
+    pieces: [],
+  },
+];
+
 // the chest's spot on the floor (LDU): front left of the rug, facing you
 export const CHEST_SPOT: [number, number] = [-130, 190];
 
@@ -424,7 +498,7 @@ export function stationSpot(i: number): [number, number] {
 }
 const stationFacing = (i: number): Mat => (i < 4 ? ROT[0] : i < 7 ? ROT[90] : ROT[270]);
 
-export function roomText(stations: Station[]): string {
+export function roomText(stations: Station[], owned: string[] = []): string {
   const out: string[] = [];
   // the floor: base plates, then smooth planks (2x4 tiles in staggered rows,
   // a 2x2 tile closing each row) between the walls
@@ -459,7 +533,18 @@ export function roomText(stations: Station[]): string {
     }
   // the starter house: a rug in the middle, plants in the front corners, pictures on the walls
   out.push(line(COL.darkRed, 0, FLOOR - 8, 40, ROT[0], "3036"));
-  for (const side of [-1, 1]) out.push(...place([["3941", COL.darkOrange, 0, 0, 0], ["3741ac05", side < 0 ? COL.pink : COL.yellow, 0, 24, 0]], side * 265, 275, ROT[0]));
+  const trees = owned.includes("indoor-trees");
+  for (const side of [-1, 1])
+    out.push(
+      ...place(
+        [["3941", COL.darkOrange, 0, 0, 0], trees ? ["2435", COL.green, 0, 24, 0] : ["3741ac05", side < 0 ? COL.pink : COL.yellow, 0, 24, 0]],
+        side * 265,
+        275,
+        ROT[0],
+      ),
+    );
+  // what you've bought
+  for (const d of DECOR) if (owned.includes(d.id) && d.pieces.length) out.push(...place(d.pieces, d.at[0], d.at[1], ROT[d.facing]));
   out.push(picture("3068bp0t", 0, -ROOM + 28, ROT[0]), picture("3068bp71", -ROOM + 28, 30, ROT[90]), picture("3068bp74", ROOM - 28, 30, ROT[270]));
 
   // the chest, where what your watch earned waits to be collected
