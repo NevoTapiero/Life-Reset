@@ -92,7 +92,7 @@ export default function FriendProfilePage() {
       </button>
 
       <div className="mt-4">
-        <MinifigCard character={file.archetype} level={legoLevel(rank.tierIndex)} size={230}>
+        <MinifigCard character={file.archetype} level={legoLevel(rank.tierIndex)} size={230} tap>
           <PlayerAvatar photo={photoOf(file)} character={file.archetype} size={54} />
           <span className="flex-1 min-w-0">
             <span className="display block text-[24px] truncate">{file.username}</span>

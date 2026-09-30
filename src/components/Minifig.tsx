@@ -38,18 +38,21 @@ export default function Minifig({
   level = 1,
   size = 180,
   className,
+  alive = false,
 }: {
   character?: string | null;
   level?: number;
   /** height in px */
   size?: number;
   className?: string;
+  /** idle life: blinks, breathes, the item arm sways */
+  alive?: boolean;
 }) {
   const o = OUTFITS[character ?? "warrior"] ?? OUTFITS.warrior;
   const id = useId().replace(/:/g, "");
   const shade = `url(#${id}-shade)`;
   return (
-    <svg viewBox="0 0 120 170" height={size} width={(size * 120) / 170} className={className} aria-hidden style={{ display: "block", overflow: "visible" }}>
+    <svg viewBox="0 0 120 170" height={size} width={(size * 120) / 170} className={[className, alive ? "mf-alive" : ""].filter(Boolean).join(" ") || undefined} aria-hidden style={{ display: "block", overflow: "visible" }}>
       <defs>
         {/* one cylinder shade for every part: lit left, darker right */}
         <linearGradient id={`${id}-shade`} x1="0" x2="1" y1="0" y2="0">
@@ -72,6 +75,8 @@ export default function Minifig({
       <rect x="22" y="153" width="76" height="9" rx="2.5" fill="#1b2a34" />
       <rect x="22" y="153" width="76" height="3" rx="1.5" fill="#3d4e5a" />
 
+      {/* each part is its own group, so it can fall off and snap back */}
+      <g className="mf-legs">
       {/* legs */}
       <rect x="36" y="112" width="23" height="36" rx="2" fill={o.legs} />
       <rect x="61" y="112" width="23" height="36" rx="2" fill={o.legs} />
@@ -81,7 +86,11 @@ export default function Minifig({
       {/* hips */}
       <rect x="35" y="103" width="50" height="11" rx="2" fill={o.hips} />
       <rect x="57" y="106" width="6" height="8" rx="1" fill="#000" opacity="0.25" />
+      </g>
 
+      <g className="mf-torso">
+      {/* neck */}
+      <rect x="52" y="52" width="16" height="8" rx="2" fill={SKIN_SHADE} />
       {/* torso: a trapezoid, wider at the hips */}
       <path d="M44 58h32l10 46H34Z" fill={o.torso} />
       <path d="M44 58h32l10 46H34Z" fill={shade} />
@@ -96,30 +105,34 @@ export default function Minifig({
           <rect x="56.5" y="95" width="7" height="7" rx="1.5" fill="#b88a06" />
         </>
       )}
+      </g>
 
-      {/* arms: from the shoulders, angled out */}
-      <path d="M44 60c-6 1-9 4-11 10l-5 20 9 3 5-18c1-5 2-9 2-15Z" fill={o.torso} />
-      <path d="M76 60c6 1 9 4 11 10l5 20-9 3-5-18c-1-5-2-9-2-15Z" fill={o.torso} />
-      <path d="M44 60c-6 1-9 4-11 10l-5 20 9 3 5-18c1-5 2-9 2-15Z" fill="#fff" opacity="0.14" />
-      <path d="M76 60c6 1 9 4 11 10l5 20-9 3-5-18c-1-5-2-9-2-15Z" fill="#000" opacity="0.14" />
-      {/* hands: yellow C-clips */}
-      <Hand x={31} y={96} />
-      <Hand x={89} y={96} flip />
+      {/* arms: from the shoulders, angled out, yellow C-clip hands; the
+          right hand (the viewer's left) holds the item from level 2 */}
+      <g className="mf-arm-l">
+        <path d="M44 60c-6 1-9 4-11 10l-5 20 9 3 5-18c1-5 2-9 2-15Z" fill={o.torso} />
+        <path d="M44 60c-6 1-9 4-11 10l-5 20 9 3 5-18c1-5 2-9 2-15Z" fill="#fff" opacity="0.14" />
+        <Hand x={31} y={96} />
+        {level >= 2 && <Item kind={o.item} extra={o.extra} blade={`url(#${id}-blade)`} />}
+      </g>
+      <g className="mf-arm-r">
+        <path d="M76 60c6 1 9 4 11 10l5 20-9 3-5-18c-1-5-2-9-2-15Z" fill={o.torso} />
+        <path d="M76 60c6 1 9 4 11 10l5 20-9 3-5-18c-1-5-2-9-2-15Z" fill="#000" opacity="0.14" />
+        <Hand x={89} y={96} flip />
+      </g>
 
-      {/* the item in the right hand (level 2+) */}
-      {level >= 2 && <Item kind={o.item} extra={o.extra} blade={`url(#${id}-blade)`} />}
-
-      {/* neck */}
-      <rect x="52" y="52" width="16" height="8" rx="2" fill={SKIN_SHADE} />
+      <g className="mf-head">
       {/* head: stud + rounded cylinder */}
       <rect x="51" y="8" width="18" height="8" rx="2.5" fill={SKIN_SHADE} />
       <rect x="41" y="14" width="38" height="40" rx="11" fill={SKIN} />
       <rect x="41" y="14" width="38" height="40" rx="11" fill={shade} />
       {/* face */}
-      <ellipse cx="53" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
-      <ellipse cx="67" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
-      <circle cx="54" cy="30.8" r="1" fill="#fff" />
-      <circle cx="68" cy="30.8" r="1" fill="#fff" />
+      <g className="mf-eyes">
+        <ellipse cx="53" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
+        <ellipse cx="67" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
+        <circle cx="54" cy="30.8" r="1" fill="#fff" />
+        <circle cx="68" cy="30.8" r="1" fill="#fff" />
+      </g>
       <path d="M51.5 40c5 4.6 12 4.6 17 0" fill="none" stroke="#1b2a34" strokeWidth="2.6" strokeLinecap="round" />
       <HeadGear o={o} />
 
@@ -127,6 +140,7 @@ export default function Minifig({
       {level >= 5 && (
         <path d="M44 6l5 7 5-9 6 9 6-9 5 9 5-7-2 12H46Z" fill={GOLD} stroke="#b88a06" strokeWidth="1.2" strokeLinejoin="round" transform={o.head === "hat" ? "translate(0 -10)" : o.head === "spikes" ? "translate(0 -6)" : undefined} />
       )}
+      </g>
     </svg>
   );
 }

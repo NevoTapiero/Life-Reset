@@ -179,7 +179,7 @@ export default function ProfilePage() {
     <div className="slide-in">
       {/* the collectible minifigure card: your minifig on its stand, your level as the series number */}
       <div ref={cardRef}>
-      <MinifigCard character={profile.archetype} level={level}>
+      <MinifigCard character={profile.archetype} level={level} tap>
           <div className="relative flex-none">
             <PlayerAvatar photo={photo} character={profile.archetype} size={54} />
             <button
