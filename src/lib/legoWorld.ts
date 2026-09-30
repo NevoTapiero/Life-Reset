@@ -162,10 +162,10 @@ export function buildGarden(streak: number, s: HouseSpec, stations: Station[] = 
   const pathL = door[1];
   const front = s.z0 + s.d;
 
-  // the path from the door to the edge, and on over the lawn to the pavement
+  // the path from the door to the edge, and on to the gate where the gravel path begins
   let z = front;
-  for (; z + 1 < PLOT + LAWN; z += 2) out.push(put("3068b", COL.lightGrey, pathL + 0.5, z + 0.5, 0));
-  if (z < PLOT + LAWN) out.push(put("3069b", COL.lightGrey, pathL + 0.5, z, 0));
+  for (; z + 1 < PLOT + 3; z += 2) out.push(put("3068b", COL.lightGrey, pathL + 0.5, z + 0.5, 0));
+  if (z < PLOT + 3) out.push(put("3069b", COL.lightGrey, pathL + 0.5, z, 0));
 
   // one flower per streak day, up to 12, in beds either side of the path
   const beds: [number, number][] = [];
@@ -285,36 +285,37 @@ export type Resident = {
 // around it on 48x48 plots, every one facing the plaza. Between the plots
 // there's air: a lawn in front of every hedge, a wide pavement, then the
 // road; a ring road round it all, and forest beyond.
-export const LAWN = 10; // grass between a plot's hedge and the pavement, studs (room for the plot's twist and shift)
-export const PAVE = 4; // the pavement, studs
-export const ROAD = 16; // the asphalt, studs
-export const STREET = 2 * (LAWN + PAVE) + ROAD; // hedge to hedge across a street, studs
-export const BLOCK = PLOT + 2 * LAWN; // a plot and its lawn, studs
-export const PITCH = PLOT + STREET; // a block and the street after it, studs
-export const TOWN_HALF = 1.5 * PLOT + STREET + LAWN + PAVE + ROAD; // three plots, two streets, the ring road
-const PAVE_C = PLOT / 2 + LAWN + PAVE / 2; // the pavement's centre line, studs from a block's centre
-/** a plot on its block: its centre (LDU), which street its front faces, and its actual
- *  turn `yaw` (radians about Y, LDraw frame): the facing plus a small twist, so no two
- *  houses stand quite square to the street. `bx, bz`: the block's centre (LDU). */
-export type Lot = { x: number; z: number; bx: number; bz: number; facing: 0 | 90 | 180 | 270; yaw: number };
-// you first, right behind the shop; then your friends around the square
-const LOTS: [number, number, Lot["facing"]][] = [
-  [0, -1, 0], [-1, -1, 0], [1, -1, 0], [-1, 0, 90], [1, 0, 270], [0, 1, 180], [-1, 1, 180], [1, 1, 180],
+export const ROAD = 16; // the road round the village, studs wide
+export const TOWN_HALF = 212; // the village's radius to the road's outer edge, studs
+export const RING = 40; // the gravel ring round the plaza, studs from the centre: where every path meets
+export const PATH_W = 6; // the paths, studs
+export const RING_R = RING * S; // the ring, LDU
+/** a plot in the village: its centre (LDU), its turn `yaw` (radians about Y, LDraw
+ *  frame: its front faces the plaza, give or take a twist), and how far round and out it
+ *  stands (`a` radians, `r` studs) */
+export type Lot = { x: number; z: number; yaw: number; a: number; r: number };
+// Like a Minecraft village: the houses stand round the plaza at their own distances and
+// angles, none square to another. You first, right behind the shop; then your friends
+// round the circle. [angle from north (degrees), distance (studs), twist (degrees)]
+const LOTS: [number, number, number][] = [
+  [180, 118, -6],
+  [228, 138, 7],
+  [136, 130, -9],
+  [272, 122, 5],
+  [86, 142, -5],
+  [4, 126, 8],
+  [316, 144, -7],
+  [46, 134, 6],
 ];
-// each plot sits a little off its block's centre and a little twisted (studs, degrees):
-// a village, not a grid. The lawn round the plot has the room for it.
-const LOT_SHIFT: [number, number][] = [[2, -3], [-3, 2], [3, 3], [-2, -2], [3, -2], [-3, -3], [2, 2], [-2, 3]];
-const LOT_TWIST = [-6, 5, -4, 7, -7, 4, -5, 6];
 export const MAX_RESIDENTS = LOTS.length;
 /** a turn about Y (LDraw), as ROT is for the quarter turns */
 export const yawMat = (yaw: number): Mat => [Math.cos(yaw), 0, Math.sin(yaw), 0, 1, 0, -Math.sin(yaw), 0, Math.cos(yaw)];
 export const lotMat = (lot: Lot): Mat => yawMat(lot.yaw);
 export function lotFor(i: number): Lot {
-  const [gx, gz, facing] = LOTS[i];
-  const [sx, sz] = LOT_SHIFT[i];
-  const bx = gx * PITCH * S;
-  const bz = gz * PITCH * S;
-  return { x: bx + sx * S, z: bz + sz * S, bx, bz, facing, yaw: ((facing + LOT_TWIST[i]) * Math.PI) / 180 };
+  const [deg, r, twist] = LOTS[i];
+  const a = (deg * Math.PI) / 180;
+  // its front (+z in its frame, (sin yaw, cos yaw) in the town's) points back at the plaza
+  return { x: Math.sin(a) * r * S, z: Math.cos(a) * r * S, yaw: a + Math.PI + (twist * Math.PI) / 180, a, r };
 }
 // a point in the town's frame back into a lot's own frame
 export function fromLot(lot: Lot, [x, z]: [number, number]): [number, number] {
@@ -327,10 +328,21 @@ export function inLot(lot: Lot, [x, y, z]: [number, number, number]): [number, n
   const m = lotMat(lot);
   return [lot.x + m[0] * x + m[2] * z, y, lot.z + m[6] * x + m[8] * z];
 }
-/** from a point by a lot's front, straight out onto the centre line of the street it faces */
-export function toStreet(lot: Lot, p: P3): P3 {
-  const f = (lot.facing * Math.PI) / 180;
-  return lot.facing % 180 ? [lot.bx + Math.sin(f) * ST, 0, p[2]] : [p[0], 0, lot.bz + Math.cos(f) * ST];
+/** the gravel path from a lot's front gate (just past its hedge, by the door) in to the ring
+ *  round the plaza: from the ring inwards, winding a little, LDU */
+export function lotPath(lot: Lot, level: number): P3[] {
+  const [u] = minifigSpot(houseSpec(level));
+  const gate = inLot(lot, [u, 0, (PLOT / 2 + 3) * S]);
+  const end = nearestStreet(gate);
+  const [dx, dz] = [end[0] - gate[0], end[2] - gate[2]];
+  const len = Math.hypot(dx, dz) || 1;
+  const [nx, nz] = [-dz / len, dx / len]; // across the path
+  const bend = (lot.a * 7 + lot.r) % 2 ? 1 : -1;
+  const wind = [0, 0.35, 0.7, 1].map((t, k) => {
+    const w = k === 0 || k === 3 ? 0 : bend * (k === 1 ? 1 : -1) * 6 * S;
+    return [gate[0] + dx * t + nx * w, 0, gate[2] + dz * t + nz * w] as P3;
+  });
+  return wind.reverse();
 }
 
 // The town as one LDraw file: each plot (its garden) as its own submodel
@@ -467,7 +479,7 @@ export function forestTrees(): { x: number; z: number; h: number; pine: boolean 
   const to = from + FOREST_DEPTH;
   for (let i = -to; i <= to; i += FOREST_CELL)
     for (let j = -to; j <= to; j += FOREST_CELL) {
-      if (Math.abs(i) < from && Math.abs(j) < from) continue; // the town
+      if (Math.hypot(i, j) < from || Math.hypot(i, j) > to) continue; // the town (round), and a round edge
       if (Math.abs(i) < ROAD_OUT / 2 + 6) continue; // the roads out
       if (Math.abs(j - RIVER_Z) < RIVER_W / 2 + 6) continue; // the river
       const pine = rnd() < 0.82;
@@ -476,22 +488,44 @@ export function forestTrees(): { x: number; z: number; h: number; pine: boolean 
   return out;
 }
 export function townLand(): string[] {
-  return avenueTrees();
+  return villageTrees();
 }
-// Leafy trees in rows along the pavements of every street (four a block
-// side, clear of the corner lamps and of the path from each door), the plaza block excepted: it has its own.
-function avenueTrees(): string[] {
+/** is (x, z) LDU within `margin` LDU of a lot's plot (its turned square)? */
+function nearLot(x: number, z: number, lot: Lot, margin: number): boolean {
+  const [u, v] = fromLot(lot, [x, z]);
+  const h = (PLOT / 2) * S + margin;
+  return Math.abs(u) < h && Math.abs(v) < h;
+}
+/** the distance from (x, z) to a polyline, LDU */
+function toPath(x: number, z: number, path: P3[]): number {
+  let best = Infinity;
+  for (let i = 0; i + 1 < path.length; i++) {
+    const [a, b] = [path[i], path[i + 1]];
+    const [dx, dz] = [b[0] - a[0], b[2] - a[2]];
+    const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[2]) * dz) / (dx * dx + dz * dz || 1)));
+    best = Math.min(best, Math.hypot(x - a[0] - dx * t, z - a[2] - dz * t));
+  }
+  return best;
+}
+// Trees scattered between the houses, the village way: leafy ones mostly, the odd pine,
+// never on a plot, a path, the plaza or the road. The same scatter every visit.
+function villageTrees(): string[] {
   const out: string[] = [];
-  const e = PAVE_C;
-  const y = -8 - BOTTOM["2435"]; // standing on the 8-LDU pavement
-  for (const gx of [-1, 0, 1])
-    for (const gz of [-1, 0, 1]) {
-      if (gx === 0 && gz === 0) continue;
-      for (const k of [-24, -9, 9, 24]) {
-        for (const sx of [-1, 1]) out.push(line(COL.green, (gx * PITCH + sx * e) * S, y, (gz * PITCH + k) * S, ROT[0], "2435"));
-        for (const sz of [-1, 1]) out.push(line(COL.green, (gx * PITCH + k) * S, y, (gz * PITCH + sz * e) * S, ROT[0], "2435"));
-      }
-    }
+  const rnd = seeded(23);
+  const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
+  const paths = lots.map((lot) => lotPath(lot, 3)); // level 3's door is about where every level's is
+  const taken: [number, number][] = [];
+  for (let tries = 0; tries < 900 && out.length < 90; tries++) {
+    const a = rnd() * Math.PI * 2;
+    const r = (RING + 14 + rnd() * (TOWN_HALF - ROAD - 8 - RING - 14)) * S;
+    const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
+    if (lots.some((lot) => nearLot(x, z, lot, 6 * S))) continue;
+    if (paths.some((path) => toPath(x, z, path) < 7 * S)) continue;
+    if (taken.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 11 * S)) continue;
+    taken.push([x, z]);
+    const part = rnd() < 0.72 ? "2435" : rnd() < 0.5 ? "3471" : "3470";
+    out.push(line(part === "3471" ? COL.darkGreen : COL.green, Math.round(x / S) * S, -BOTTOM[part], Math.round(z / S) * S, ROT[0], part));
+  }
   return out;
 }
 
@@ -750,17 +784,16 @@ const lamp: Piece[] = [["2039", COL.black, 0, 0, 0], ["30367c", COL.transYellow,
 const LAMP_SPOTS: [number, number][] = [-1, 1].flatMap((side) => [380, 60, -300].map((z) => [side * 400, z] as [number, number]));
 // where the lamps' lights are, for the glow after dark (LDU; -Y is up)
 export const PLAZA_LAMPS: [number, number, number][] = LAMP_SPOTS.map(([x, z]) => [x, -(168 + 14), z]);
-// a lamppost on each block corner that faces the plaza, on the pavement (LDU):
-// all four round the plaza, two on the side blocks, one on the corner blocks
-const STREET_LAMPS: [number, number][] = [-1, 0, 1].flatMap((gx) =>
-  [-1, 0, 1].flatMap((gz) =>
-    [-1, 1]
-      .flatMap((sx) => [-1, 1].map((sz) => [sx, sz]))
-      .filter(([sx, sz]) => (gx === 0 || sx === -gx) && (gz === 0 || sz === -gz))
-      .map(([sx, sz]) => [(gx * PITCH + sx * PAVE_C) * S, (gz * PITCH + sz * PAVE_C) * S] as [number, number]),
-  ),
-);
-export const STREET_LAMP_LIGHTS: [number, number, number][] = STREET_LAMPS.map(([x, z]) => [x, -(168 + 14 + 8), z]); // on the pavement
+// a lamppost where each house's path meets the ring, just outside the ring, off the path (LDU)
+const STREET_LAMPS: [number, number][] = Array.from({ length: MAX_RESIDENTS }, (_, i) => {
+  const lot = lotFor(i);
+  const [end, next] = lotPath(lot, 3);
+  const [dx, dz] = [next[0] - end[0], next[2] - end[2]];
+  const len = Math.hypot(dx, dz) || 1;
+  const r = Math.hypot(end[0], end[2]) || 1;
+  return [end[0] + (end[0] / r) * 4 * S + (-dz / len) * 6 * S, end[2] + (end[2] / r) * 4 * S + (dx / len) * 6 * S] as [number, number];
+});
+export const STREET_LAMP_LIGHTS: [number, number, number][] = STREET_LAMPS.map(([x, z]) => [x, -(168 + 14), z]);
 const bench: Piece[] = [
   ["3005", COL.darkGrey, -30, 0, 0],
   ["3005", COL.darkGrey, 30, 0, 0],
@@ -841,41 +874,43 @@ export function emptyLotsText(first: number): string {
 // LDU; y = bottom height; r: a round slab; yaw: a box turned about Y; radius (+ border): a
 // rounded rectangle (a ring `border` wide when set) instead of a box
 export type Slab = { x: number; z: number; w: number; d: number; h: number; y?: number; r?: number; yaw?: number; radius?: number; border?: number; color: string };
-export const TOWN_ROUND = 48; // the ring road's outer corners, studs
-export const BLOCK_ROUND = 12; // a block's pavement corners, studs
+const GRAVEL = "#c9b48a";
 
-const PAVEMENT = "#a0a5a9";
 export function townFlats(): Slab[] {
   const out: Slab[] = [];
-  const streets = [-(TOWN_HALF - ROAD / 2), -PITCH / 2, PITCH / 2, TOWN_HALF - ROAD / 2]; // street centre lines, studs
-  const crossings = [-PITCH / 2, PITCH / 2]; // the streets round the plaza
   const white = "#f2f2ee";
-  // dashed centre lines, leaving the junctions and the zebra crossings clear
-  for (const c of streets)
-    for (let t = -TOWN_HALF + 4; t <= TOWN_HALF - 4; t += 8) {
-      if (streets.some((x) => Math.abs(t - x) < ROAD / 2 + 2)) continue;
-      if (crossings.includes(c) && Math.abs(t) < 8) continue;
-      if (!crossings.includes(c) && Math.abs(t) > TOWN_HALF - TOWN_ROUND) continue;
-      out.push({ x: c * S, z: t * S, w: 20, d: 80, h: 2, color: white }, { x: t * S, z: c * S, w: 80, d: 20, h: 2, color: white });
+  const asphalt = "#43474c";
+  // the road round the village: a ring, its top at ground level, dashes round its middle
+  const road = (TOWN_HALF - ROAD / 2) * S;
+  out.push({ x: 0, z: 0, w: 2 * TOWN_HALF * S, d: 2 * TOWN_HALF * S, h: 2, y: -2, radius: TOWN_HALF * S, border: ROAD * S, color: asphalt });
+  const dashes = Math.round((2 * Math.PI * road) / (8 * S));
+  for (let k = 0; k < dashes; k++) {
+    const a = (k / dashes) * Math.PI * 2;
+    const [x, z] = [Math.sin(a) * road, Math.cos(a) * road];
+    if (Math.abs(x) < (ROAD_OUT / 2 + 4) * S && Math.abs(z) > road - S) continue; // the roads out join here
+    out.push({ x, z, w: 80, d: 20, h: 2, color: white, yaw: Math.atan2(-Math.cos(a), Math.sin(a)) + Math.PI / 2 });
+  }
+  // the gravel ring round the plaza, and a winding gravel path in from every house's gate
+  out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -2, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL });
+  for (let i = 0; i < MAX_RESIDENTS; i++) {
+    const path = lotPath(lotFor(i), 3);
+    for (let k = 0; k + 1 < path.length; k++) {
+      const [a, b] = [path[k], path[k + 1]];
+      const [dx, dz] = [b[0] - a[0], b[2] - a[2]];
+      out.push({ x: (a[0] + b[0]) / 2, z: (a[2] + b[2]) / 2, w: Math.hypot(dx, dz) + PATH_W * S, d: PATH_W * S, h: 2, y: -2, color: GRAVEL, yaw: Math.atan2(-dz, dx) });
     }
+  }
   // a sandy disc round the fountain with a darker border (round slabs)
   out.push(
     { x: FOUNTAIN[0], z: FOUNTAIN[1], r: 150, w: 0, d: 0, h: 1, color: "#8b7a5c" },
     { x: FOUNTAIN[0], z: FOUNTAIN[1], r: 138, w: 0, d: 0, h: 2, color: "#d8c79c" },
   );
-  // zebra crossings on the four streets round the plaza
-  for (const c of crossings)
-    for (let k = -2.5; k <= 2.5; k++) {
-      out.push({ x: 0, z: (c + k * 2) * S, w: 80, d: 20, h: 2, color: white }, { x: (c + k * 2) * S, z: 0, w: 20, d: 80, h: 2, color: white });
-    }
-  // (the ring road's corners are round: no dashes there)
   // the roads out of town, north and south, to the hills; over the river, a bridge
-  const asphalt = "#43474c";
   const span = (z0: number, z1: number) => out.push({ x: 0, z: ((z0 + z1) / 2) * S, w: ROAD_OUT * S, d: Math.abs(z1 - z0) * S, h: 1, color: asphalt });
   const bank = RIVER_W / 2 + 4;
-  span(-TOWN_HALF, RIVER_Z + bank);
+  span(-TOWN_HALF + 1, RIVER_Z + bank);
   span(RIVER_Z - bank, -ROAD_END);
-  span(TOWN_HALF, ROAD_END);
+  span(TOWN_HALF - 1, ROAD_END);
   for (const dir of [-1, 1])
     for (let t = TOWN_HALF + 4; t < ROAD_END; t += 8) {
       if (dir < 0 && Math.abs(-t - RIVER_Z) < bank + 2) continue; // not on the bridge
@@ -888,13 +923,6 @@ export function townFlats(): Slab[] {
   // the bridge: a grey deck a little above the road, white railings
   out.push({ x: 0, z: RIVER_Z * S, w: (ROAD_OUT + 2) * S, d: 2 * bank * S, h: 6, color: "#8c9196" });
   for (const side of [-1, 1]) out.push({ x: side * (ROAD_OUT / 2 + 0.5) * S, z: RIVER_Z * S, w: S, d: 2 * bank * S, h: 22, color: "#f2f2ee" });
-  // a kerbed pavement round every block, outside its lawn: a ring with round corners,
-  // set 2 LDU into the ground so the garden paths' tiles sit proud of it
-  for (const bx of [-PITCH, 0, PITCH])
-    for (const bz of [-PITCH, 0, PITCH]) {
-      const side = (BLOCK + 2 * PAVE) * S;
-      out.push({ x: bx * S, z: bz * S, w: side, d: side, h: 8, y: -2, radius: (BLOCK_ROUND + PAVE) * S, border: PAVE * S, color: PAVEMENT });
-    }
   return out;
 }
 
@@ -926,24 +954,22 @@ export function townClouds(): Slab[] {
 // The lampposts on the pavement corners that face the plaza (LDraw).
 export function townDecorText(): string {
   const out: string[] = [];
-  for (const [x, z] of STREET_LAMPS) out.push(...place(lamp, x, z, ROT[0], -8)); // on the pavement
+  for (const [x, z] of STREET_LAMPS) out.push(...place(lamp, x, z, ROT[0], 0));
   return modelText(out, "town-decor.ldr");
 }
 
 // ---- walking round town ----
-// You walk the inner streets round the plaza (x or z = +-ST; the cars keep to
-// the ring road). Every plot's front faces one of them. A place is a chain of
-// points from its street (first) to where you stand (last), so a walk is: back
-// along your chain to where it meets the new one (the street, if they share
-// nothing), along the streets if need be, and on down the new chain.
+// Everyone walks the gravel ring round the plaza (RING studs out) and the paths off it,
+// one to each house; the cars keep to the road round the village. A place is a chain of
+// points from the ring (first) to where you stand (last), so a walk is: back along your
+// chain to where it meets the new one (the ring, if they share nothing), round the ring
+// if need be, and on down the new chain.
 export type P3 = [number, number, number];
-export const ST = (PITCH / 2) * S; // the inner streets' centre lines, LDU
-/** from the street to your spot at a lot's door; `side` steps along the door (so you stand beside its owner) */
+/** from the ring, along the path, to your spot at a lot's door; `side` steps along the door (so you stand beside its owner) */
 export function doorWalk(lot: Lot, level: number, side = 0): P3[] {
   const [u, y, w] = minifigSpot(houseSpec(level));
-  const door = inLot(lot, [u + side, y, w]);
-  const kerb = inLot(lot, [u + side, 0, (PLOT / 2 + LAWN + PAVE) * S]);
-  return [toStreet(lot, kerb), kerb, door];
+  const path = lotPath(lot, level);
+  return [...path, inLot(lot, [u + side, y, w])];
 }
 /** where a house's rooms are on its plot (LDU, plot frame): their middle, and the z of their front wall */
 export type Rooms = { x: number; z: number; front: number };
@@ -962,51 +988,39 @@ export function insideWalk(lot: Lot, level: number, side = 0, rooms?: Rooms): P3
     inLot(lot, [r.x, floor, r.z]),
   ];
 }
-/** the joggers' loop: laps of the streets round the plaza, in the lane on the plaza's side
- *  (clear of the walkers on the centre line); returns where you are `d` LDU round and which way you face */
+/** the joggers' loop: laps of the gravel ring round the plaza, on its inner edge (clear of
+ *  the walkers on its middle); returns where you are `d` LDU round and which way you face */
 export function jogAt(d: number): { at: P3; heading: number } {
-  const h = ST - 80;
-  const side = 2 * h;
-  const lap = 4 * side;
-  const u = ((d % lap) + lap) % lap;
-  const k = Math.floor(u / side);
-  const f = u - k * side;
-  // the four sides in turn: along -z at x = h, along -x at z = -h, along +z at x = -h, along +x at z = h
-  const legs: [P3, number, number][] = [
-    [[h, 0, h - f], 0, -1],
-    [[h - f, 0, -h], -1, 0],
-    [[-h, 0, -h + f], 0, 1],
-    [[-h + f, 0, h], 1, 0],
-  ];
-  const [at, dx, dz] = legs[k];
-  return { at, heading: Math.atan2(dx, dz) };
+  const r = RING_R - 50;
+  const a = -d / r; // clockwise, seen from above
+  return { at: [Math.sin(a) * r, 0, Math.cos(a) * r], heading: Math.atan2(-Math.cos(a), Math.sin(a)) };
 }
 /** where a resident's ride is parked: in the street in front of their plot, just off the
  *  pavement and ending beside the walk from their door (the ride runs off away from it) */
 export function rideSpot(lot: Lot, level: number): P3 {
   const [u] = minifigSpot(houseSpec(level));
-  return inLot(lot, [u - 2 * S, 0, (PLOT / 2 + LAWN + PAVE + 2) * S + 10]);
+  return inLot(lot, [u - 5 * S, 0, (PLOT / 2 + 4) * S + 10]);
 }
-/** from the street on the plaza's left, between the planters and the bench, to the shop's front;
+/** from the ring on the plaza's left, between the planters and the bench, to the shop's front;
  *  `k` of 0..3 stands further along the front (so friends shopping don't stand in each other) */
-export const shopWalk = (k = 0): P3[] => [[-ST, 0, 290], [-150, 0, 290], [-120 + 45 * k, 0, 222]]; // outside the strollers' circle
+export const shopWalk = (k = 0): P3[] => [nearestStreet([-150, 0, 290]), [-150, 0, 290], [-120 + 45 * k, 0, 222]]; // outside the strollers' circle
 export const SHOP_WALK = shopWalk(0);
-const onX = (p: P3) => Math.abs(Math.abs(p[0]) - ST) < 1; // on a street running along z
-const onZ = (p: P3) => Math.abs(Math.abs(p[2]) - ST) < 1;
+/** on the ring round the plaza? */
+export const onRing = (p: P3) => Math.abs(Math.hypot(p[0], p[2]) - RING_R) < 1;
 const same = (p: P3, q: P3) => Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2]) < 1;
-/** the corners between two points on the streets */
+/** the way round the ring between two points on it: a point every few steps, the short way */
 export function streetLink(p: P3, q: P3): P3[] {
-  if ((onX(p) && onX(q) && Math.abs(p[0] - q[0]) < 1) || (onZ(p) && onZ(q) && Math.abs(p[2] - q[2]) < 1)) return [];
-  if (onX(p) && onZ(q)) return [[p[0], 0, q[2]]];
-  if (onZ(p) && onX(q)) return [[q[0], 0, p[2]]];
-  // parallel streets: cross by the nearer of the two others
-  const cross = (a: number, b: number) => (Math.abs(a - ST) + Math.abs(b - ST) < Math.abs(a + ST) + Math.abs(b + ST) ? ST : -ST);
-  if (onX(p)) {
-    const c = cross(p[2], q[2]);
-    return [[p[0], 0, c], [q[0], 0, c]];
+  const [a0, a1] = [Math.atan2(p[0], p[2]), Math.atan2(q[0], q[2])];
+  let d = a1 - a0;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  const n = Math.ceil(Math.abs(d) / (Math.PI / 10));
+  const out: P3[] = [];
+  for (let k = 1; k < n; k++) {
+    const a = a0 + (d * k) / n;
+    out.push([Math.sin(a) * RING_R, 0, Math.cos(a) * RING_R]);
   }
-  const c = cross(p[0], q[0]);
-  return [[c, 0, p[2]], [c, 0, q[2]]];
+  return out;
 }
 /** a walk: its points, and for each the chain from the street that leads to it (length 1: on the street) */
 export type Route = { pts: P3[]; chains: P3[][] };
@@ -1058,7 +1072,7 @@ export function townBlockers(residents: Resident[]): Blocker[] {
 const EDGE = (TOWN_HALF - 4) * S;
 /** can you stand here? */
 export function free(x: number, z: number, blockers: Blocker[]): boolean {
-  if (Math.abs(x) > EDGE || Math.abs(z) > EDGE) return false;
+  if (Math.hypot(x, z) > EDGE) return false;
   return !blockers.some((b) => {
     if ("yaw" in b) {
       const [c, s] = [Math.cos(b.yaw), Math.sin(b.yaw)];
@@ -1075,16 +1089,10 @@ export function stepFree(x: number, z: number, dx: number, dz: number, blockers:
   if (free(x, z + dz, blockers)) return [x, z + dz];
   return [x, z];
 }
-/** the nearest point on the streets round the plaza (where walks begin and end) */
+/** the nearest point on the ring round the plaza (where walks begin and end) */
 export function nearestStreet([x, , z]: P3): P3 {
-  const lim = (v: number) => Math.max(-EDGE, Math.min(EDGE, v));
-  const options: P3[] = [
-    [ST, 0, lim(z)],
-    [-ST, 0, lim(z)],
-    [lim(x), 0, ST],
-    [lim(x), 0, -ST],
-  ];
-  return options.reduce((a, b) => (Math.hypot(b[0] - x, b[2] - z) < Math.hypot(a[0] - x, a[2] - z) ? b : a));
+  const r = Math.hypot(x, z) || 1;
+  return [(x / r) * RING_R, 0, (z / r) * RING_R];
 }
 /** a walk from wherever you are (after driving yourself about) to a place: straight
  *  there if it's close by, otherwise out to the street, along, and in */

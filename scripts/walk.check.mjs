@@ -1,10 +1,12 @@
 // node scripts/walk.check.mjs -- every walk between any two places (doors, insides, the shop) keeps to the streets
 import assert from "node:assert";
-import { ST, CROWD, PERSON, sidestep, intoSomeone, jogAt, townBlockers, free, stepFree, nearestStreet, walkFrom, doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, shopWalk, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
+import { onRing, RING_R, CROWD, PERSON, sidestep, intoSomeone, jogAt, townBlockers, free, stepFree, nearestStreet, walkFrom, doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, shopWalk, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
 
 const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
 const places = [SHOP_WALK, shopWalk(1), shopWalk(3), ...lots.flatMap((lot, i) => [doorWalk(lot, 1 + (i % 5), 40), doorWalk(lot, 1 + (i % 5), -40), insideWalk(lot, 1 + (i % 5), 40)])];
-const straight = (a, b) => Math.abs(a[0] - b[0]) < 1 || Math.abs(a[2] - b[2]) < 1;
+// on the ring (or a step inside it, mid-way between two of its points), or straight along
+const nearRing = (p) => Math.abs(Math.hypot(p[0], p[2]) - RING_R) < 12;
+const straight = (a, b) => (nearRing(a) && nearRing(b)) || Math.abs(a[0] - b[0]) < 1 || Math.abs(a[2] - b[2]) < 1;
 const onStreets = (r) => {
   for (let i = 0; i < r.pts.length - 1; i++)
     if (r.chains[i].length === 1 && r.chains[i + 1].length === 1) assert(straight(r.pts[i], r.pts[i + 1]), JSON.stringify(r.pts));
@@ -49,7 +51,7 @@ for (let lvl = 1; lvl <= 5; lvl++) {
 // the nearest street point is on a street, and a walk from anywhere ends where it should
 for (const p of [[100, 0, 900], [-1500, 0, 200], [30, 0, -30]]) {
   const st = nearestStreet(p);
-  assert(Math.abs(Math.abs(st[0]) - ST) < 1 || Math.abs(Math.abs(st[2]) - ST) < 1);
+  assert(onRing(st));
   const r = walkFrom(p, places[4]);
   assert.deepEqual(r.pts.at(-1), places[4].at(-1));
   assert.equal(r.pts.length, r.chains.length);

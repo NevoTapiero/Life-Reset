@@ -76,10 +76,7 @@ import {
   stationSpots,
   stationAt,
   PLAZA,
-  TOWN_ROUND,
-  BLOCK_ROUND,
   TOWN_HALF,
-  BLOCK,
   MAX_RESIDENTS,
   SHOP_BUILDING,
   lotFor,
@@ -1197,7 +1194,7 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
     </instancedMesh>
   );
 }
-const PLAZA_LOT: Lot = { x: 0, z: 0, bx: 0, bz: 0, facing: 0, yaw: 0 };
+const PLAZA_LOT: Lot = { x: 0, z: 0, yaw: 0, a: 0, r: 0 };
 
 // Following someone round the town, the sunlight (and its shadow area, only
 // ~44 units across) goes with them, so you and what's around you always cast shadows.
@@ -1852,7 +1849,7 @@ export function LegoTown({
         }
         far={1500}
         // the house and shop framings rely on the usual 110 limit; only the overview pulls further out
-        maxDistance={focus === OVERVIEW ? 600 : 110}
+        maxDistance={focus === OVERVIEW ? 1100 : 110}
         dir={dir}
         bounds={bounds}
         pan={!following}
@@ -1865,18 +1862,13 @@ export function LegoTown({
           <>
             <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} />
             {following && <NearStuds follow={me3} grass={grass} lots={[...lots, ...emptyLots]} />}
-            {/* the ground: grass everywhere, the smooth grey street square with round corners, the plaza
-                (paved out to its pavement) and each plot, turned a little, on its block's lawn. The
-                layers sit 0.1 apart (two LDU): the map camera's depth buffer can't tell closer ones apart. */}
+            {/* the ground: grass everywhere (the road, ring and paths are Slabs on it), the paved
+                plaza, and each plot turned its own way. Layers sit 0.1 apart (two LDU): the map
+                camera's depth buffer can't tell closer ones apart. */}
             <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.3} flat />
-            <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#43474c" y={-0.2} flat radius={TOWN_ROUND} />
-            <StudGround at={[0, 0]} size={BLOCK} color="#a3a7ad" y={-0.1} flat radius={BLOCK_ROUND} />
             <StudGround at={[0, 0]} size={PLAZA} color="#a3a7ad" radius={8} />
             {[...lots, ...emptyLots].map((lot, i) => (
-              <group key={i}>
-                <StudGround at={[lot.bx * LDU, -lot.bz * LDU]} size={BLOCK} color={grass} y={-0.1} flat radius={BLOCK_ROUND} />
-                <StudGround at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} yaw={-lot.yaw} />
-              </group>
+              <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} yaw={-lot.yaw} />
             ))}
           </>
         }
@@ -2749,7 +2741,7 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
         g.translate(b.x, -(b.y ?? 0) - b.h / 2, b.z);
       }
       if (!byColor.has(b.color)) byColor.set(b.color, []);
-      byColor.get(b.color)!.push(g);
+      byColor.get(b.color)!.push(g.index ? g.toNonIndexed() : g); // extruded shapes have no index; a merge needs all alike
     }
     return [...byColor].map(([color, gs]) => ({ color, geometry: mergeGeometries(gs) }));
   }, [slabs]);
@@ -2787,7 +2779,7 @@ const CLOUDS = townClouds();
 // The loop is a rounded square down the ring road's outer lane (LDraw frame),
 // sampled once into points with their distance along it.
 const LANE = (TOWN_HALF - 4) * 20; // the ring road's outer lane, LDU from the centre
-const CORNER = (TOWN_ROUND - 4) * 20; // corner radius, LDU: round with the road's outer edge
+const CORNER = LANE; // corner radius, LDU: the whole loop is one circle, the road round the village
 const LOOP = (() => {
   const pts: { x: number; z: number; d: number }[] = [];
   const s = LANE - CORNER;
