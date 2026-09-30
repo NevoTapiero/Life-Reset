@@ -314,7 +314,7 @@ export default function ProfilePage() {
       <section className="scene mt-4 overflow-hidden">
         {show3d ? (
           <div className="relative" style={{ height: 320 }}>
-            <LegoWorld houseLevel={level} name={profile.username} streak={profile.streak_current} character={profile.archetype} className="absolute inset-0" />
+            <LegoWorld houseLevel={level} name={profile.username} streak={streak} character={profile.archetype} className="absolute inset-0" />
             <button className="absolute right-3 top-3 icon-tile !w-9 !h-9 !bg-white" aria-label="Close the 3D view" onClick={() => setShow3d(false)}>
               <Icon name="x" size={16} strokeWidth={2.4} />
             </button>
@@ -323,8 +323,10 @@ export default function ProfilePage() {
           <button className="w-full px-4 py-4 flex items-center gap-3 text-left" onClick={() => setShow3d(true)}>
             <LegoIcon name="home" color="orange" size={46} />
             <span className="flex-1">
-              <span className="display block text-[18px] text-white" style={{ textShadow: "0 2px 0 rgb(0 0 0 / 0.15)" }}>My house in 3D</span>
-              <span className="block text-[13px] font-extrabold text-white/90">Level {level} house, {profile.streak_current} day garden</span>
+              <span className="display tt-text block text-[20px]">My house in 3D</span>
+              <span className="block text-[13px] font-extrabold text-[var(--ink)]">
+                Level {level} house, {streak} day garden
+              </span>
             </span>
             <span className="chip">Show</span>
           </button>
