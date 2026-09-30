@@ -875,24 +875,6 @@ body {
 .world-play > .slide-in { height: 100%; display: flex; flex-direction: column; animation: none; }
 .world-play > .slide-in > div:first-child:has(> h1) { display: none; }
 .world-play > .slide-in > [class~="h-[68vh]"] { flex: 1; height: auto; min-height: 0; border-radius: 0; }
-.world-back {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 84px);
-  left: 14px;
-  z-index: 45;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 6px 13px 6px 8px;
-  border-radius: 999px;
-  background: #fff;
-  color: var(--lego-black);
-  font-weight: 800;
-  font-size: 13px;
-  box-shadow: 0 3px 0 var(--lip), 0 6px 14px rgb(27 42 52 / 0.25);
-}
-.world-back:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--lip); }
-
 @media (prefers-reduced-motion: reduce) {
   .rise, .stagger > *, .slide-in, .check-pop, .bounce-in, .rankup-badge, .rankup-title { animation-duration: 1ms; animation-delay: 0ms; }
   .flame-flicker, .shine-overlay::before, .particle { animation: none; }

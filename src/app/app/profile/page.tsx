@@ -242,7 +242,7 @@ export default function ProfilePage() {
       <section className="scene mt-4 overflow-hidden">
         {show3d ? (
           <div className="relative" style={{ height: 320 }}>
-            <LegoWorld houseLevel={level} name={profile.username} streak={profile.streak_current} className="absolute inset-0" />
+            <LegoWorld houseLevel={level} name={profile.username} streak={profile.streak_current} character={profile.archetype} className="absolute inset-0" />
             <button className="absolute right-3 top-3 icon-tile !w-9 !h-9 !bg-white" aria-label="Close the 3D view" onClick={() => setShow3d(false)}>
               <Icon name="x" size={16} strokeWidth={2.4} />
             </button>

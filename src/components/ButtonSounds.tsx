@@ -8,7 +8,7 @@ import { brickSound } from "@/lib/brickSound";
 export default function ButtonSounds() {
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
-      const el = (e.target as Element | null)?.closest?.(".btn-primary, .btn-ghost, .brick-tab, .option-row, .brick-nav a, .world-back");
+      const el = (e.target as Element | null)?.closest?.(".btn-primary, .btn-ghost, .brick-tab, .option-row, .brick-nav a");
       if (!el || (el as HTMLButtonElement).disabled) return;
       if (el.matches(".brick-tab, .brick-nav a")) brickSound.tap();
       else brickSound.press();

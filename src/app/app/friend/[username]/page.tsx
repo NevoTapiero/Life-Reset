@@ -101,7 +101,7 @@ export default function FriendProfilePage() {
           <span className="text-muted font-bold">· {rank.label}</span>
         </div>
         <p className="text-[12.5px] font-bold text-muted mt-2">Playing since {formatDate(new Date(file.member_since))}</p>
-        <Link href="/app/town" className="btn-primary brick-yellow w-full py-3 mt-4">
+        <Link href={`/app/town?visit=${encodeURIComponent(file.username)}`} className="btn-primary brick-yellow w-full py-3 mt-4">
           <Icon name="home" size={17} strokeWidth={2.4} />
           Visit their house
         </Link>

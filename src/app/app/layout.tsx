@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { resetTheme } from "@/lib/theme";
-import Icon from "@/components/Icon";
 import LegoIcon, { BrickColor } from "@/components/LegoIcon";
 import BrickLoader from "@/components/BrickLoader";
 
@@ -78,11 +77,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <main className="world-play fixed inset-0 z-30 bg-[var(--bg-top)]">
         {children}
-        {/* the way back out, under the player card (the joystick lives bottom left) */}
-        <Link href="/app/world" className="world-back" aria-label="Back to World">
-          <Icon name="chevron-left" size={17} strokeWidth={2.6} />
-          World
-        </Link>
       </main>
     );
   }
