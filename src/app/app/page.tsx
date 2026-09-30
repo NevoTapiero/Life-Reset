@@ -193,6 +193,10 @@ export default function HomePage() {
     if (!clearedAll) setJustCleared(false);
     setWasCleared(clearedAll);
   }
+  const xpToday = m
+    .inPeriod("daily")
+    .filter((q) => !trackedBy(q, m.trackers) && m.isDoneOn(q, m.today))
+    .reduce((sum, q) => sum + cardXp(q.xp, m.cardDayOf(q)), 0);
   const yOpen = m.days ? m.yesterdayList.filter((q) => !m.isDoneOn(q, m.days!.yesterday)).length : 0;
 
   return (
@@ -438,16 +442,44 @@ export default function HomePage() {
       </div>
 
       {clearedAll && tab === "daily" && (
-        <div className="card mt-4 p-4 flex items-center gap-3 rise relative" style={{ background: "var(--lego-yellow)", boxShadow: "0 4px 0 var(--lego-yellow-edge)" }}>
+        // the LEGO games' results screen: a big outlined title, then the
+        // day's numbers sliding in one by one
+        <section className="day-complete mt-4 rise relative" aria-label="Day complete">
           {justCleared && <BrickBurst count={26} />}
-          <span className="bounce-in">
-            <LegoIcon name="trophy" color="orange" size={44} />
-          </span>
-          <span>
-            <span className="display block text-[17px]">All missions done</span>
-            <span className="text-sm font-bold opacity-75">The streak holds. See you tomorrow.</span>
-          </span>
-        </div>
+          <div className="flex items-center justify-between">
+            <h2 className="display tt-text text-[26px] leading-none">Day complete!</h2>
+            <span className="bounce-in">
+              <LegoIcon name="trophy" color="yellow" size={42} />
+            </span>
+          </div>
+          <ul className="day-complete-rows">
+            <li style={{ animationDelay: "0.15s" }}>
+              <LegoIcon name="check" color="green" size={30} />
+              <span>Missions</span>
+              <b>
+                {daily.done}/{daily.total}
+              </b>
+            </li>
+            <li style={{ animationDelay: "0.3s" }}>
+              <span className="day-complete-stud" aria-hidden />
+              <span>XP built today</span>
+              <b>+{xpToday}</b>
+            </li>
+            <li style={{ animationDelay: "0.45s" }}>
+              <LegoIcon name="star" color="yellow" size={30} />
+              <span>True Hunter</span>
+              <b className="text-[var(--lego-yellow)]">Yes!</b>
+            </li>
+            <li style={{ animationDelay: "0.6s" }}>
+              <LegoIcon name="flame" color="orange" size={30} />
+              <span>Streak</span>
+              <b>
+                {streakNow} {streakNow === 1 ? "day" : "days"}
+              </b>
+            </li>
+          </ul>
+          <p className="text-[13px] font-bold text-white/80 mt-3">The streak holds. See you tomorrow.</p>
+        </section>
       )}
 
       {evening && daily.total > daily.done && tab === "daily" && (
