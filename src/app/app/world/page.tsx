@@ -227,7 +227,14 @@ export default function WorldPage() {
             {rest.map((r, i) => (
               <div key={r.username} className="card px-3 py-2.5 flex items-center gap-3" style={r.is_me ? { boxShadow: "0 0 0 3px var(--lego-blue), 0 5px 0 3px var(--lego-blue-edge)" } : undefined}>
                 <span className="w-7 text-center display text-[17px] text-muted flex-none">{i + 4}</span>
-                <PlayerAvatar photo={photoOf(r)} character={r.archetype} size={42} />
+                <span className="relative flex-none -my-1">
+                  <Minifig character={r.archetype} level={legoLevel(rankForXp(r.xp).tierIndex)} size={54} />
+                  {photoOf(r) && (
+                    <span className="absolute -right-2 top-0">
+                      <PlayerAvatar photo={photoOf(r)} character={r.archetype} size={18} />
+                    </span>
+                  )}
+                </span>
                 <button className="flex-1 min-w-0 text-left" onClick={() => !r.is_me && router.push(`/app/friend/${encodeURIComponent(r.username)}`)}>
                   <span className="block font-extrabold text-[15px] truncate">
                     {r.username}

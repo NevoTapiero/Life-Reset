@@ -212,6 +212,13 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M10.5 12h9M16 7.5l3.5 4.5L16 16.5" />
     </>
   ),
+  mic: (
+    <>
+      <rect x="9" y="3.5" width="6" height="11" rx="3" />
+      <path d="M5.8 11.5a6.2 6.2 0 0 0 12.4 0M12 17.7v2.8" />
+    </>
+  ),
+  bolt: <path d="M13 3.5 6 13.2h5.2L10.5 20.5 18 10.6h-5.3Z" />,
   home: (
     <>
       <path d="M4 11.2 12 4.5l8 6.7" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import AppActivity from "@/components/AppActivity";
 import BrickLoader from "@/components/BrickLoader";
@@ -8,9 +8,12 @@ import Icon from "@/components/Icon";
 import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
 import MinifigPicker from "@/components/MinifigPicker";
 import FirstTips from "@/components/FirstTips";
+import TellTheJudge from "@/components/TellTheJudge";
 import Minifig from "@/components/Minifig";
 import RankUp, { BrickBurst } from "@/components/RankUp";
 import { brickSound } from "@/lib/brickSound";
+import { energyFrom, todayKey, type LedgerMeta } from "@/lib/energy";
+import { supabase } from "@/lib/supabase";
 import { useMissions } from "@/lib/useMissions";
 import { greeting, legoLevel, levelTitle } from "@/lib/brick";
 import {
@@ -38,9 +41,48 @@ export default function HomePage() {
   // null until the first load, then whether today's daily missions were all done
   const [wasCleared, setWasCleared] = useState<boolean | null>(null);
   const [justCleared, setJustCleared] = useState(false);
+  // studs flying from a checked mission into the stud counter
+  const counterRef = useRef<HTMLSpanElement>(null);
+  const [flying, setFlying] = useState<{ id: number; x: number; y: number; dx: number; dy: number; delay: number }[]>([]);
+  const [bump, setBump] = useState(false);
+  const flyId = useRef(0);
+  function flyStuds(from: DOMRect) {
+    const to = counterRef.current?.getBoundingClientRect();
+    if (!to) return;
+    const tx = to.left + 14;
+    const ty = to.top + to.height / 2;
+    const base = (flyId.current += 10);
+    const studs = Array.from({ length: 7 }, (_, i) => {
+      const x = from.right - 40 - (i % 3) * 14;
+      const y = from.top + from.height / 2 + ((i * 7) % 11) - 5;
+      return { id: base + i, x, y, dx: tx - x, dy: ty - y, delay: i * 55 };
+    });
+    setFlying((f) => [...f, ...studs]);
+    setTimeout(() => setBump(true), 620);
+    setTimeout(() => {
+      setBump(false);
+      setFlying((f) => f.filter((s) => s.id < base || s.id > base + 6));
+    }, 1100);
+  }
   useEffect(() => {
     if (justCleared) brickSound.levelUp(false);
   }, [justCleared]);
+  // energy for running in the town, from last night's sleep and today's steps
+  // (the same rule as the town: src/lib/energy.ts)
+  const [energy, setEnergy] = useState<number | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id;
+      if (!uid) return;
+      const since = new Date(new Date().getTime() - 36 * 3600 * 1000).toISOString();
+      supabase
+        .from("xp_ledger")
+        .select("meta")
+        .eq("user_id", uid)
+        .gte("created_at", since)
+        .then(({ data: rows }) => setEnergy(energyFrom((rows ?? []).map((r) => r.meta as LedgerMeta), todayKey())));
+    });
+  }, []);
 
   if (!m.profile) {
     return (
@@ -82,6 +124,14 @@ export default function HomePage() {
   return (
     <div className="slide-in">
       {!p.archetype && <MinifigPicker onPicked={m.setProfile} />}
+      {flying.map((f) => (
+        <span
+          key={f.id}
+          className="flying-stud"
+          aria-hidden
+          style={{ left: f.x, top: f.y, "--dx": `${f.dx}px`, "--dy": `${f.dy}px`, animationDelay: `${f.delay}ms` } as React.CSSProperties}
+        />
+      ))}
       {m.rankUp && <RankUp rank={m.rankUp.rank} previousTier={m.rankUp.previousTier} character={p.archetype} onClose={m.dismissRankUp} />}
 
       {/* you, today: a LEGO-game player card */}
@@ -93,7 +143,7 @@ export default function HomePage() {
           <div className="flex-1 min-w-0 pb-3">
             <div className="flex items-center justify-between gap-2">
               <div className="hud-label">{greeting()}</div>
-              <span className="stud-counter" title="Gold studs">
+              <span className={`stud-counter ${bump ? "bump" : ""}`} title="Gold studs" ref={counterRef}>
                 <span className="stud-spin" aria-hidden />
                 {(p.gold ?? 0).toLocaleString()}
               </span>
@@ -122,6 +172,20 @@ export default function HomePage() {
             })}
           </div>
           <div className="mt-1.5 text-[12px] font-extrabold text-muted">{p.xp.toLocaleString()} XP total</div>
+          {energy !== null && (
+            <div className="mt-3 flex items-center gap-2" title="Energy for running in the world: sleep well and walk to fill it">
+              <span className="text-[12.5px] font-extrabold flex items-center gap-1">
+                <Icon name="bolt" size={13} strokeWidth={2.4} />
+                Energy
+              </span>
+              <span className="energy-bricks flex-1" aria-label={`Energy ${Math.round(energy)} of 100`}>
+                {Array.from({ length: 10 }, (_, i) => (
+                  <span key={i} className={i < Math.round(energy / 10) ? (energy >= 60 ? "g" : energy >= 30 ? "a" : "r") : ""} />
+                ))}
+              </span>
+              <span className="text-[12px] font-extrabold text-muted w-[88px] text-right">{energy >= 60 ? "Ready to run" : energy >= 30 ? "Sleep, walk" : "Tired"}</span>
+            </div>
+          )}
         </div>
       </section>
 
@@ -135,6 +199,23 @@ export default function HomePage() {
           Add or edit
         </Link>
       </div>
+
+      <TellTheJudge
+        missions={m.inPeriod(tab).filter((q) => !m.isDoneOn(q, m.today) && !trackedBy(q, m.trackers)).map((q) => ({ id: q.id, title: q.title }))}
+        onMatched={async (ids) => {
+          for (const id of ids) {
+            const q = m.quests.find((x) => x.id === id);
+            if (!q || m.isDoneOn(q, m.today)) continue;
+            const el = document.querySelector(`[data-quest="${CSS.escape(id)}"]`);
+            if (el) {
+              el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+              flyStuds(el.getBoundingClientRect());
+            }
+            await m.toggle(q);
+            await new Promise((r) => setTimeout(r, 450));
+          }
+        }}
+      />
 
       <div className="brick-tabs grid-cols-3 mb-3.5" role="tablist">
         {PERIODS.map((per) => {
@@ -168,7 +249,10 @@ export default function HomePage() {
             paidBy={trackedBy(q, m.trackers)}
             pending={m.pendingId === q.id}
             xpFloat={m.xpFloat?.id === q.id ? m.xpFloat.amount : null}
-            onToggle={() => m.toggle(q)}
+            onToggle={(from) => {
+              if (!m.isDoneOn(q, m.today) && !trackedBy(q, m.trackers)) flyStuds(from);
+              m.toggle(q);
+            }}
           />
         ))}
         {tabQuests.length === 0 && (
@@ -209,9 +293,7 @@ export default function HomePage() {
       {m.yesterdayList.length > 0 && m.days && (
         <div className="mt-5">
           <button className="card w-full px-4 py-3.5 flex items-center gap-3 active:translate-y-[2px] transition-transform" onClick={() => setShowYesterday(!showYesterday)} aria-expanded={showYesterday}>
-            <span className="icon-tile !w-10 !h-10 text-muted">
-              <Icon name="calendar" size={18} strokeWidth={2} />
-            </span>
+            <LegoIcon name="calendar" color="white" size={38} />
             <span className="flex-1 text-left">
               <span className="display block text-[16px]">Yesterday</span>
               <span className="text-[13px] font-bold text-muted">{yOpen === 0 ? "All done" : `${yOpen} not checked, you can still log them`}</span>
@@ -295,20 +377,23 @@ function MissionTile({
   paidBy?: string | null;
   pending: boolean;
   xpFloat: number | null;
-  onToggle: () => void;
+  onToggle: (from: DOMRect) => void;
   small?: boolean;
   label?: string;
 }) {
   const period = periodOf(q);
   return (
     <button
-      onClick={onToggle}
+      onClick={(e) => onToggle(e.currentTarget.getBoundingClientRect())}
       disabled={pending}
       aria-pressed={done}
+      data-quest={q.id}
       className={`card relative w-full text-left flex items-center gap-3 ${small ? "px-3 py-2.5" : "px-3 py-3"} transition-transform duration-100 active:translate-y-[2px]`}
       style={{ opacity: paidBy ? 0.8 : 1 }}
     >
-      <LegoIcon name={PILLAR_ICONS[q.pillar as keyof typeof PILLAR_ICONS] ?? "sparkle"} color={PILLAR_BRICK_COLOR[q.pillar] ?? "blue"} size={small ? 38 : 44} />
+      <span className={done && xpFloat !== null ? "brick-snap" : undefined}>
+        <LegoIcon name={PILLAR_ICONS[q.pillar as keyof typeof PILLAR_ICONS] ?? "sparkle"} color={PILLAR_BRICK_COLOR[q.pillar] ?? "blue"} size={small ? 38 : 44} />
+      </span>
       <span className="flex-1 min-w-0">
         <span className={`block font-extrabold ${small ? "text-[15px]" : "text-[16px]"} truncate ${done ? "line-through text-muted" : ""}`}>{q.title}</span>
         {paidBy ? (

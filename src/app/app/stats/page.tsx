@@ -6,10 +6,12 @@ import Radar from "@/components/Radar";
 import Icon from "@/components/Icon";
 import Link from "next/link";
 import BrickLoader from "@/components/BrickLoader";
+import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { PILLAR_BRICK, photoOf } from "@/lib/brick";
 import {
   PILLARS,
+  PILLAR_STAT,
   PILLAR_ICONS,
   Pillar,
   Profile,
@@ -151,27 +153,30 @@ export default function StatsPage() {
 
       <div className="card p-4 mt-4">
         <div className="display text-[17px] mb-3.5">What you train most</div>
-        <div className="flex flex-col gap-3">
+        {/* a brick tower per pillar, as tall as how often you trained it */}
+        <div className="grid grid-cols-5 gap-2 items-end" style={{ height: 190 }}>
           {PILLARS.map((p: Pillar) => {
             const count = pillarCounts[p] ?? 0;
+            const bricks = count === 0 ? 0 : Math.max(1, Math.round((count / maxPillar) * 8));
             return (
-              <div key={p} className="flex items-center gap-2">
-                <span className="w-7 flex-none flex justify-center" style={{ color: PILLAR_BRICK[p] }}>
-                  <Icon name={PILLAR_ICONS[p]} size={19} strokeWidth={2} />
-                </span>
-                <span className="hud-label flex-none w-[108px]">{p}</span>
-                <div className="track flex-1">
-                  <div
-                    style={{
-                      width: `${(count / maxPillar) * 100}%`,
-                      background: PILLAR_BRICK[p],
-                    }}
-                  />
+              <div key={p} className="flex flex-col items-center justify-end h-full">
+                <span className="display text-[15px] mb-1">{count}</span>
+                <div className="brick-tower" style={{ "--c": PILLAR_BRICK[p] } as React.CSSProperties}>
+                  {Array.from({ length: bricks }, (_, i) => (
+                    <span key={i} className="tower-brick rise" style={{ animationDelay: `${(bricks - i) * 40}ms` }} />
+                  ))}
                 </div>
-                <span className="display text-[13px] w-6 text-right text-muted">{count}</span>
               </div>
             );
           })}
+        </div>
+        <div className="grid grid-cols-5 gap-2 mt-2">
+          {PILLARS.map((p: Pillar) => (
+            <div key={p} className="flex flex-col items-center gap-1">
+              <LegoIcon name={PILLAR_ICONS[p]} color={PILLAR_BRICK_COLOR[p]} size={30} />
+              <span className="text-[11px] font-extrabold text-muted">{PILLAR_STAT[p]}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

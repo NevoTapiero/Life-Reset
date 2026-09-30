@@ -7,17 +7,8 @@ import { supabase } from "@/lib/supabase";
 import BrickLogo from "@/components/BrickLogo";
 import Icon from "@/components/Icon";
 import LegoIcon from "@/components/LegoIcon";
-import TownArt from "@/components/TownArt";
+import HeroLineup from "@/components/HeroLineup";
 import { resetTheme } from "@/lib/theme";
-
-// the postcard town on the welcome screen: one of each character
-const DEMO = [
-  { name: "wizard", level: 4, character: "wizard", me: false },
-  { name: "guardian", level: 3, character: "guardian", me: false },
-  { name: "you", level: 5, character: "warrior", me: true },
-  { name: "mentalist", level: 2, character: "mentalist", me: false },
-  { name: "shadow", level: 3, character: "shadow", me: false },
-];
 
 const STEPS = [
   { icon: "check", color: "green" as const, title: "Do your missions", body: "Real habits: training, sleep, reading, your tasks." },
@@ -41,8 +32,8 @@ export default function Landing() {
         <p className="mt-5 display text-[20px]">Real habits build your LEGO world.</p>
       </div>
 
-      <div className="scene mt-6 rise" style={{ animationDelay: "80ms" }}>
-        <TownArt residents={DEMO} className="w-full h-auto block" />
+      <div className="mt-6 rise" style={{ animationDelay: "80ms" }}>
+        <HeroLineup />
       </div>
 
       <div className="flex flex-col gap-2.5 mt-6 stagger">
