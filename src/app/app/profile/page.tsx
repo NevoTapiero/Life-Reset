@@ -52,6 +52,7 @@ export default function ProfilePage() {
         name: profile.username,
         title: `${levelTitle(profile.archetype, r.tierIndex)} · ${r.label}`,
         svg,
+        invite: profile.friend_code ? `${window.location.origin}/join/${profile.friend_code}` : null,
       });
       if (res === "failed") setMsg("Couldn't make the picture on this device.");
     } catch {

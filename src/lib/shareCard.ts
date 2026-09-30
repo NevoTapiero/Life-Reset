@@ -4,7 +4,7 @@
 
 import { CARD_COLORS } from "@/components/MinifigCard";
 
-type CardInfo = { character: string | null; level: number; name: string; title: string; svg: SVGSVGElement };
+type CardInfo = { character: string | null; level: number; name: string; title: string; svg: SVGSVGElement; invite?: string | null };
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
@@ -130,7 +130,11 @@ export async function shareCard(info: CardInfo): Promise<"shared" | "downloaded"
   const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
   if (nav.canShare?.({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title: "My LEGO minifig", text: `${info.name}, ${info.title}` });
+      await navigator.share({
+        files: [file],
+        title: "My LEGO minifig",
+        text: info.invite ? `${info.name}, ${info.title}. Come build in my town: ${info.invite}` : `${info.name}, ${info.title}`,
+      });
       return "shared";
     } catch (e) {
       // closed the share sheet: nothing to say
