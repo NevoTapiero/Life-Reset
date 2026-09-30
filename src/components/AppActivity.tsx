@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import LegoIcon, { BrickColor } from "@/components/LegoIcon";
 import Icon, { GoogleHealthMark, GoogleMark, WhoopMark } from "@/components/Icon";
 
 // What the connected services (Google Tasks/Calendar, Google Health, WHOOP)
@@ -36,17 +37,17 @@ type AgendaTask = { id: string; listId: string; title: string; due: string | nul
 type Provider = "google" | "ghealth" | "whoop";
 type Tab = Provider | "earned";
 
-const SOURCES: Record<string, { icon: string; label: string }> = {
-  google_tasks: { icon: "tasks", label: "Task done" },
-  google_calendar: { icon: "calendar", label: "Meeting" },
-  whoop_sleep: { icon: "moon", label: "Sleep" },
-  whoop_recovery: { icon: "stat-con", label: "Recovery" },
-  whoop_workout: { icon: "dumbbell", label: "Workout" },
-  health_workout: { icon: "dumbbell", label: "Workout" },
-  health_sleep: { icon: "moon", label: "Sleep" },
-  health_steps: { icon: "stat-str", label: "Steps" },
-  streak_bonus: { icon: "flame", label: "Streak bonus" },
-  legacy: { icon: "trophy", label: "Earlier quests" },
+const SOURCES: Record<string, { icon: string; label: string; color: BrickColor }> = {
+  google_tasks: { icon: "tasks", label: "Task done", color: "blue" },
+  google_calendar: { icon: "calendar", label: "Meeting", color: "azure" },
+  whoop_sleep: { icon: "moon", label: "Sleep", color: "purple" },
+  whoop_recovery: { icon: "stat-con", label: "Recovery", color: "green" },
+  whoop_workout: { icon: "dumbbell", label: "Workout", color: "red" },
+  health_workout: { icon: "dumbbell", label: "Workout", color: "red" },
+  health_sleep: { icon: "moon", label: "Sleep", color: "purple" },
+  health_steps: { icon: "steps", label: "Steps", color: "green" },
+  streak_bonus: { icon: "flame", label: "Streak bonus", color: "orange" },
+  legacy: { icon: "trophy", label: "Earlier quests", color: "yellow" },
 };
 
 const TABS: { key: Tab; label: string; mark?: React.ReactNode }[] = [
@@ -134,7 +135,9 @@ function Row({
   done,
   right,
   dim,
+  color,
 }: {
+  color?: BrickColor;
   icon: string;
   title: string;
   sub: string;
@@ -146,9 +149,7 @@ function Row({
     <div
       className={`card px-3.5 py-3 flex items-center gap-3 ${dim ? "opacity-80" : ""}`}
     >
-      <span className="icon-tile !w-10 !h-10 !rounded-[11px]" style={{ color: done ? "var(--lego-green)" : "var(--lego-blue)" }}>
-        <Icon name={icon} size={18} strokeWidth={2} />
-      </span>
+      <LegoIcon name={icon} color={done ? "green" : color ?? "blue"} size={38} />
       <span className="flex-1 min-w-0">
         <span className={`block text-[15px] font-extrabold truncate ${done ? "line-through text-muted" : ""}`}>{title}</span>
         <span className="text-[12.5px] font-bold text-muted mt-0.5 block truncate">{sub}</span>
@@ -177,9 +178,7 @@ function YesterdayDrawer({ count, children }: { count: number; children: React.R
         onClick={() => setOpen(!open)}
         aria-expanded={open}
       >
-        <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
-          <Icon name="calendar" size={16} strokeWidth={2} />
-        </span>
+        <LegoIcon name="calendar" color="white" size={36} />
         <span className="flex-1 text-left">
           <span className="display block text-[15px]">Yesterday</span>
           <span className="text-[12.5px] font-bold text-muted">{count} item{count === 1 ? "" : "s"}</span>
@@ -357,9 +356,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
   if (providers && !anyConnected && (entries?.length ?? 0) === 0) {
     return (
       <Link href="/app/profile#apps" className="card px-4 py-3.5 flex items-center gap-3 mt-6 active:translate-y-[2px] transition-transform">
-        <span className="icon-tile !w-11 !h-11" style={{ color: "var(--lego-blue)" }}>
-          <Icon name="plug" size={20} strokeWidth={2} />
-        </span>
+        <LegoIcon name="plug" color="blue" size={44} />
         <span className="flex-1">
           <span className="display block text-[16px]">Connect your apps</span>
           <span className="text-[13px] font-bold text-muted block">Google Tasks, Calendar, Google Health and WHOOP pay XP on their own</span>
@@ -389,7 +386,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
     return (
       <Row
         key={`${e.source}-${e.ref}`}
-        icon={meta.icon}
+        icon={meta.icon} color={meta.color}
         title={e.reason || meta.label}
         sub={`Done · +${e.xp} XP`}
         done
@@ -419,7 +416,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
     return (
       <Row
         key={`${e.source}-${e.ref}`}
-        icon={meta.icon}
+        icon={meta.icon} color={meta.color}
         title={e.reason || meta.label}
         sub={`${meta.label} · ${ago(e.created_at)}`}
         right={<XpTag xp={e.xp} />}
@@ -486,9 +483,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
 
             {problem && (
               <div className="card px-3.5 py-3 flex items-start gap-3" style={{ borderColor: "var(--danger)" }}>
-                <span className="icon-tile !w-9 !h-9 !rounded-[10px]" style={{ color: "var(--danger)" }}>
-                  <Icon name="x" size={16} />
-                </span>
+                <LegoIcon name="x" color="red" size={36} />
                 <span className="flex-1 text-[13px] leading-snug">{problem}</span>
               </div>
             )}
@@ -550,9 +545,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
 
             {google === false && !problem && (
               <Link href="/app/profile#apps" className="card px-4 py-3.5 flex items-center gap-3 active:translate-y-[2px] transition-transform">
-                <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
-                  <Icon name="calendar" size={16} />
-                </span>
+                <LegoIcon name="calendar" color="azure" size={36} />
                 <span className="flex-1">
                   <span className="display block text-[14px]">Reconnect Google</span>
                   <span className="hud-label mt-0.5 block">Your schedule and task list show up here</span>

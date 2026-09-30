@@ -209,9 +209,7 @@ export default function HomePage() {
       {m.yesterdayList.length > 0 && m.days && (
         <div className="mt-5">
           <button className="card w-full px-4 py-3.5 flex items-center gap-3 active:translate-y-[2px] transition-transform" onClick={() => setShowYesterday(!showYesterday)} aria-expanded={showYesterday}>
-            <span className="icon-tile !w-10 !h-10 text-muted">
-              <Icon name="calendar" size={18} strokeWidth={2} />
-            </span>
+            <LegoIcon name="calendar" color="white" size={38} />
             <span className="flex-1 text-left">
               <span className="display block text-[16px]">Yesterday</span>
               <span className="text-[13px] font-bold text-muted">{yOpen === 0 ? "All done" : `${yOpen} not checked, you can still log them`}</span>
