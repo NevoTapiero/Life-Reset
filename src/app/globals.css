@@ -1825,3 +1825,6 @@ body {
 .shop-tile.room { background: color-mix(in srgb, var(--lego-tan) 38%, #fff); }
 .shop-tile { box-shadow: 0 0 0 2px var(--lego-black), 0 3px 0 2px var(--lego-black) !important; }
 .shop-tile.afford { box-shadow: 0 0 0 3px var(--lego-yellow), 0 0 0 5px var(--lego-black), 0 3px 0 5px var(--lego-black) !important; }
+
+/* the HUD's bricks and studs get the outline too */
+.xp-bricks span, .streak-studs span, .true-meter-bar, .true-meter-medal, .true-meter-label { outline: 1.5px solid var(--lego-black); outline-offset: 0; }
