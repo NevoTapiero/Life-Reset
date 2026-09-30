@@ -34,6 +34,14 @@ export function levelTitle(character: string | null | undefined, tierIndex: numb
 }
 
 // "Good morning" by the hour of the app day
+// The saved streak is the run ending on the last day something was checked:
+// it only still counts if that day was today or yesterday (the server's day).
+export function liveStreak(p: { streak_current: number; last_completed_on: string | null }, today: string | null): number {
+  if (!today || !p.last_completed_on || p.streak_current <= 0) return 0;
+  const yesterday = new Date(new Date(today + "T00:00:00Z").getTime() - 86400000).toISOString().slice(0, 10);
+  return p.last_completed_on === today || p.last_completed_on === yesterday ? p.streak_current : 0;
+}
+
 // bedtime in Israel: minifigs doze on Home
 export function sleepyHour(d = new Date()): boolean {
   const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Jerusalem" }).format(d));
