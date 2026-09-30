@@ -130,7 +130,8 @@ function loadHouse(url: string) {
 // A baked building placed at `at` (LDU). `cut`: a height (three's y) above
 // which it is clipped away -- the roof comes off and you look down into the
 // rooms, dollhouse style.
-function Building({ url, at, cut }: { url: string; at: [number, number, number]; cut?: number }) {
+// `lit`: after dark the window glass glows warm -- somebody's home.
+function Building({ url, at, cut, lit = false }: { url: string; at: [number, number, number]; cut?: number; lit?: boolean }) {
   const [model, setModel] = useState<{
     url: string;
     obj: THREE.Object3D;
@@ -164,13 +165,23 @@ function Building({ url, at, cut }: { url: string; at: [number, number, number];
       m.needsUpdate = true;
     });
   }, [model, cut]);
+  useEffect(() => {
+    if (!model) return;
+    model.obj.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      const m = mesh.material as THREE.MeshStandardMaterial | undefined;
+      if (!mesh.isMesh || !m?.transparent || !m.emissive) return; // glass is the transparent part
+      m.emissive.set(lit ? "#ffc56b" : "#000000");
+      m.emissiveIntensity = lit ? 0.9 : 0;
+    });
+  }, [model, lit]);
   if (!model || model.url !== url) return null;
   return <primitive object={model.obj} position={at} />;
 }
 
 // A house on its plot (in the plot's own frame).
-function House({ level, cut }: { level: number; cut?: number }) {
-  return <Building url={houseUrl(houseFor(level))} at={houseAt(houseSpec(level))} cut={cut} />;
+function House({ level, cut, lit }: { level: number; cut?: number; lit?: boolean }) {
+  return <Building url={houseUrl(houseFor(level))} at={houseAt(houseSpec(level))} cut={cut} lit={lit} />;
 }
 
 // `turn`: which way the figure faces (radians about the vertical, LDraw frame)
@@ -708,7 +719,7 @@ export function LegoTown({
         {town && <primitive object={town} />}
         {/* the shop, its front to the camera's side of the plaza */}
         {/* the shop at the back of the plaza, the fountain and the rest of the square in front of it */}
-        <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} />
+        <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} lit={mood.night} />
         {plaza && <primitive object={plaza} />}
         {decor && <primitive object={decor} />}
         <Traffic />
@@ -718,7 +729,7 @@ export function LegoTown({
         ))}
         {residents.map((res, i) => (
           <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
-            <House level={res.level} cut={i === inside ? CUT : undefined} />
+            <House level={res.level} cut={i === inside ? CUT : undefined} lit={mood.night} />
           </group>
         ))}
         {residents.map((res, i) => {
