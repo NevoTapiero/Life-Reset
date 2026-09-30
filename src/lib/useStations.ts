@@ -14,7 +14,7 @@ import type { Station } from "@/lib/legoWorld";
 export function useStations() {
   const [stations, setStations] = useState<Station[] | null>(null);
   const [today, setToday] = useState<string | null>(null);
-  // null until the chest migration (2026-09-30-unclaimed-rewards.sql) is applied
+  // null until the chest migration (2026-09-30-xp-chest.sql) is applied
   const [chest, setChest] = useState<number | null>(null);
   const [gold, setGold] = useState<number | null>(null);
   // the shop: prices by item id (null until the shop migration), and what you own

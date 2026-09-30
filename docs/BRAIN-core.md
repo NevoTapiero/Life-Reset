@@ -34,7 +34,7 @@ station is doing the mission -- it pays out (+XP floats up) and stays lit for
 the day, Clash of Clans collector style, and pays the same in gold.
 What your watch earns while you're away (steps, sleep, recovery, workouts)
 waits in a treasure chest in the room; tap it to collect the XP and gold.
-Penalties still land at once. (migrations/2026-09-30-unclaimed-rewards.sql:
+Penalties still land at once. (migrations/2026-09-30-xp-chest.sql:
 ledger pending_xp, profiles.gold, collect(), gold follows mission XP.)
 **The shop** (the Market Street building in the middle of town: walk up to
 it and go in) sells furniture for gold: floor lamp,

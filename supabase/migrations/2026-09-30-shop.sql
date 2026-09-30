@@ -1,5 +1,5 @@
 -- ============ the shop: spend gold on furniture ============
--- Gold comes from 2026-09-30-unclaimed-rewards.sql; the column is created here
+-- Gold comes from 2026-09-30-xp-chest.sql; the column is created here
 -- too, so the two can be applied in either order.
 --
 -- shop_items is the catalogue and its prices (the app draws each item; the
