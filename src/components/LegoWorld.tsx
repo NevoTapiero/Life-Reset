@@ -10,6 +10,7 @@ import { sfx, setSound, soundOn } from "@/lib/sfx";
 import { CAN_RUN_AT, ENERGY_MAX, JUMP_COST, RUN_COST, TRICKLE } from "@/lib/energy";
 import * as THREE from "three";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { LDrawConditionalLineMaterial } from "three/examples/jsm/materials/LDrawConditionalLineMaterial.js";
 import { LDrawUtils } from "three/examples/jsm/utils/LDrawUtils.js";
 import VEHICLES from "@/lib/legoVehicles.json";
@@ -2355,28 +2356,46 @@ function BrickBurst({ count = 16 }: { count?: number }) {
 
 
 // ---- pictures of the things for sale ----
-// Each item is rendered once, in a small hidden renderer of its own (the
-// parts are already loaded for the town), from the front and a little above,
-// on nothing; the picture is kept for the session.
+// Each item is photographed once, LEGO-catalogue style, in a small hidden
+// renderer of its own (the parts are already loaded for the town): filling
+// the frame from the front and a little above, under studio light with
+// reflections so the plastic shines, a soft shadow under it, on nothing.
+// Shot at 4x the tile and kept for the session.
+const THUMB = 256;
 const thumbs = new Map<string, Promise<string>>();
-let thumbGl: { gl: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; stage: THREE.Group } | null = null;
+let thumbGl: { gl: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; stage: THREE.Group; floor: THREE.Mesh } | null = null;
 function thumbRenderer() {
   if (thumbGl) return thumbGl;
   const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 192;
+  canvas.width = canvas.height = THUMB;
   const gl = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
   gl.setPixelRatio(1);
   gl.toneMapping = THREE.NeutralToneMapping;
+  gl.toneMappingExposure = 1.15;
+  gl.shadowMap.enabled = true;
+  gl.shadowMap.type = THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene();
-  scene.add(new THREE.HemisphereLight("#fff8ef", "#6f8f55", 1.1));
-  const sun = new THREE.DirectionalLight("#fff4e2", 2.4);
-  sun.position.set(3, 6, 4);
-  scene.add(sun);
+  // the studio: a room's reflections for the sheen, a key light with a soft shadow, a fill
+  scene.environment = new THREE.PMREMGenerator(gl).fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.9;
+  const key = new THREE.DirectionalLight("#fff6e8", 2.2);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.radius = 4;
+  scene.add(key);
+  const fill = new THREE.DirectionalLight("#dbe8ff", 0.7);
+  scene.add(fill);
+  scene.add(new THREE.HemisphereLight("#ffffff", "#c8c8c0", 0.5));
   const stage = new THREE.Group();
   stage.rotation.x = Math.PI; // LDraw is -Y up
   scene.add(stage);
-  const camera = new THREE.PerspectiveCamera(30, 1, 1, 5000);
-  return (thumbGl = { gl, scene, camera, stage });
+  // the floor only shows the shadow
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShadowMaterial({ opacity: 0.28 }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+  const camera = new THREE.PerspectiveCamera(28, 1, 1, 20000);
+  return (thumbGl = { gl, scene, camera, stage, floor });
 }
 function thumbFor(id: string): Promise<string> {
   let p = thumbs.get(id);
@@ -2392,16 +2411,34 @@ function thumbFor(id: string): Promise<string> {
       if (!g?.prop) throw new Error(`no picture for ${id}`);
       obj = (await loadHouse(houseUrl((PROPS as Baked[]).find((x) => x.id === g.prop)!))).clone();
     }
-    const { gl, scene, camera, stage } = thumbRenderer();
+    const { gl, scene, camera, stage, floor } = thumbRenderer();
     stage.clear();
     stage.add(obj);
     stage.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(stage);
-    const size = box.getSize(new THREE.Vector3()).length();
     const centre = box.getCenter(new THREE.Vector3());
-    // from the front (three's -Z after the flip) and a little above, right of centre
-    camera.position.copy(centre).add(new THREE.Vector3(0.55, 0.5, -0.8).normalize().multiplyScalar(size * 1.35));
+    const size = box.getSize(new THREE.Vector3());
+    const radius = size.length() / 2;
+    // the floor under it, big enough for the shadow; the lights follow the size
+    floor.position.set(centre.x, box.min.y, centre.z);
+    floor.scale.setScalar(radius * 8);
+    const key = scene.children.find((o) => (o as THREE.DirectionalLight).isDirectionalLight) as THREE.DirectionalLight;
+    key.position.copy(centre).add(new THREE.Vector3(-0.6, 1.2, -0.7).normalize().multiplyScalar(radius * 4));
+    key.target.position.copy(centre);
+    key.target.updateMatrixWorld();
+    const cam = key.shadow.camera;
+    cam.left = cam.bottom = -radius * 1.6;
+    cam.right = cam.top = radius * 1.6;
+    cam.near = 1;
+    cam.far = radius * 12;
+    cam.updateProjectionMatrix();
+    key.shadow.bias = -0.0005;
+    // from the front (three's -Z after the flip) and a little above, right of centre, filling the frame
+    const dist = (radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2))) * 1.02;
+    camera.position.copy(centre).add(new THREE.Vector3(0.62, 0.52, -0.75).normalize().multiplyScalar(dist));
     camera.lookAt(centre);
+    camera.near = dist / 20;
+    camera.far = dist * 4;
     camera.updateProjectionMatrix();
     gl.render(scene, camera);
     const url = gl.domElement.toDataURL("image/png");
@@ -2424,10 +2461,10 @@ function Thumb({ id, name }: { id: string; name: string }) {
     };
   }, [id]);
   return (
-    <span className="flex-none w-14 h-14 rounded-lg overflow-hidden grid place-items-center" style={{ background: "#fff", boxShadow: "inset 0 -3px 0 #d9d9d2" }}>
+    <span className="flex-none w-16 h-16 rounded-lg overflow-hidden grid place-items-center" style={{ background: "#fff", boxShadow: "inset 0 -3px 0 #d9d9d2" }}>
       {/* a data URL made here, nothing for next/image to optimise */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {url ? <img src={url} alt={name} width={56} height={56} className="w-14 h-14 object-contain" /> : <span className="stud-icon" />}
+      {url ? <img src={url} alt={name} width={64} height={64} className="w-16 h-16 object-contain" /> : <span className="stud-icon" />}
     </span>
   );
 }
