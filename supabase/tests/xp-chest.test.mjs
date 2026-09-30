@@ -21,6 +21,9 @@ await db.exec(`
   insert into profiles (id, xp) values ('00000000-0000-0000-0000-000000000001', 100);
   insert into xp_ledger (user_id, source, ref, xp) values ('00000000-0000-0000-0000-000000000001', 'seed', 'start', 100);
   insert into quests (id, xp) values ('q', 50);
+  -- another player who already did missions before gold existed
+  insert into profiles (id, xp) values ('00000000-0000-0000-0000-000000000002', 40);
+  insert into quest_completions (user_id, quest_id, completed_on, xp_awarded) values ('00000000-0000-0000-0000-000000000002', 'q', '2026-09-01', 25), ('00000000-0000-0000-0000-000000000002', 'q', '2026-09-02', 15);
   set test.uid = '00000000-0000-0000-0000-000000000001';
   ${fn("2026-09-30-streak-cards.sql", "card_xp")}
   ${fn("2026-09-30-periods-and-tracked.sql", "period_start")}
@@ -28,6 +31,7 @@ await db.exec(`
 `);
 await db.exec(readFileSync(new URL("../migrations/2026-09-30-xp-chest.sql", import.meta.url), "utf8"));
 const U = "00000000-0000-0000-0000-000000000001";
+const gold2 = async () => (await q("select gold from profiles where id = '00000000-0000-0000-0000-000000000002'"))[0].gold;
 const prof = async () => (await q("select xp, gold from profiles where id = $1", [U]))[0];
 const assert = (c, m) => { if (!c) { console.error("FAIL:", m); process.exit(1); } console.log("ok:", m); };
 
@@ -97,4 +101,8 @@ assert((await prof()).gold === -60, "taking the mission back leaves a debt, so c
 await q("select award_external_xp($1, 'whoop_sleep_penalty', 'pen:1', -10, 'short night', $2)", [U, { kind: "sleep", rated: 12, day: "2026-09-28" }]);
 await q("select recalc_player($1)", [U]);
 assert((await ledger("pen:1")).xp === -10, "the penalty stays -10 through recalc");
+// F. gold for past effort: paid once when gold arrives, never again on a re-run
+assert((await gold2()) === 40, "an existing player starts with gold for the XP their missions paid (40)");
+await db.exec(readFileSync(new URL("../migrations/2026-09-30-xp-chest.sql", import.meta.url), "utf8"));
+assert((await gold2()) === 40, "running the migration again doesn't pay it twice");
 console.log("all good");

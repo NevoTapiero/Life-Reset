@@ -1,7 +1,8 @@
 -- ============================================================================
 -- Iftach's migrations, one paste. Supabase -> SQL Editor -> paste all -> Run.
 --
--- What it adds: house visits (knocking), the chest + gold, the furniture shop.
+-- What it adds: house visits (knocking), the chest + gold (existing players
+-- get gold for the XP their missions already paid, once), the furniture shop.
 -- Safe to run twice (every statement is "if not exists" / "or replace").
 -- All or nothing: it runs in one transaction, and it stops before changing
 -- anything if Nevo's migrations it builds on aren't there yet
@@ -121,7 +122,8 @@ grant execute on function public.my_visits() to authenticated;
 -- re-priced later, the gold it paid moves by the same difference.
 -- Penalties (a short night, a red recovery) still land at once.
 -- Missions pay gold too: gold follows each completion's xp_awarded.
--- Gold may go below zero (a debt that just blocks buying).
+-- Gold may go below zero (a debt that just blocks buying). Existing players
+-- start with gold for the XP their missions already paid (once).
 -- ponytail: 1 gold per XP everywhere; tune when the shop exists
 
 alter table public.profiles add column if not exists gold int not null default 0;
@@ -310,6 +312,21 @@ begin
 end $$;
 revoke all on function public.recalc_player(uuid) from public, anon, authenticated;
 grant execute on function public.recalc_player(uuid) to service_role;
+
+-- Gold for past effort (Iftach, 2026-09-30): once, when gold arrives, every
+-- player gets gold equal to the XP their missions have already paid. A flag
+-- row makes sure re-running this file never pays it twice.
+create table if not exists public.app_flags (name text primary key, at timestamptz not null default now());
+alter table public.app_flags enable row level security; -- no policies: server-side only
+do $backfill$
+begin
+  if not exists (select 1 from public.app_flags where name = 'gold_backfill') then
+    update public.profiles p
+       set gold = gold + coalesce((select sum(c.xp_awarded) from public.quest_completions c where c.user_id = p.id), 0);
+    insert into public.app_flags (name) values ('gold_backfill');
+  end if;
+end
+$backfill$;
 
 -- missions pay gold: it follows what each completion is worth, including
 -- re-pricing and unchecking. No floor: taking a mission back can put gold into
