@@ -41,6 +41,8 @@ export function useMissions() {
   const [error, setError] = useState<string | null>(null);
   // the latest profile, for checks run back to back (Tell the Judge checks several)
   const profileRef = useRef<Profile | null>(null);
+  // the mission being saved, readable from back-to-back calls (state lags a render)
+  const pendingRef = useRef<string | null>(null);
   useEffect(() => {
     profileRef.current = profile;
   }, [profile]);
@@ -127,14 +129,21 @@ export function useMissions() {
     [days, history],
   );
 
-  async function toggle(q: Quest, day: "today" | "yesterday" = "today") {
-    if (pendingId || !days) return;
+  // Would a check go ahead right now? (nothing else saving, not paid by a watch)
+  function canToggle(q: Quest): boolean {
+    return !pendingRef.current && !!days && !trackedBy(q, trackers);
+  }
+
+  // Check or uncheck; resolves true when the server saved it.
+  async function toggle(q: Quest, day: "today" | "yesterday" = "today"): Promise<boolean> {
+    if (pendingRef.current || !days) return false;
     setError(null);
     const watch = trackedBy(q, trackers);
     if (watch) {
       setError(`${TRACKER_NAME[watch]} tracks this and pays for it automatically.`);
-      return;
+      return false;
     }
+    pendingRef.current = q.id;
     setPendingId(q.id);
     const on = day === "today" ? days.today : days.yesterday;
     const period = periodOf(q);
@@ -177,8 +186,10 @@ export function useMissions() {
       profileRef.current = updated;
       setProfile(updated);
     }
+    pendingRef.current = null;
     setPendingId(null);
     setTimeout(() => setXpFloat(null), 1100);
+    return !rpcError;
   }
 
   const today = days?.today ?? "";
@@ -214,6 +225,7 @@ export function useMissions() {
     error,
     load,
     toggle,
+    canToggle,
     isDoneOn,
     cardDayOf,
     inPeriod,

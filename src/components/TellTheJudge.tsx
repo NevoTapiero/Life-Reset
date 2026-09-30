@@ -15,6 +15,7 @@ type Recognition = {
   continuous: boolean;
   start: () => void;
   stop: () => void;
+  abort?: () => void;
   onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
   onend: (() => void) | null;
   onerror: (() => void) | null;
@@ -29,7 +30,7 @@ function makeRecognition(): Recognition | null {
 // "Tell the Judge what you did": one line (typed or spoken) checks every
 // mission it clearly matches. The Judge only matches; checking goes through
 // the normal mission check, so XP rules stay on the server.
-export default function TellTheJudge({ missions, onMatched }: { missions: Mission[]; onMatched: (ids: string[]) => Promise<void> }) {
+export default function TellTheJudge({ missions, onMatched }: { missions: Mission[]; onMatched: (ids: string[]) => Promise<string[]> }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [reply, setReply] = useState<{ tone: "ok" | "none"; text: string } | null>(null);
@@ -40,10 +41,19 @@ export default function TellTheJudge({ missions, onMatched }: { missions: Missio
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- feature check after mount
     setCanTalk(!!makeRecognition());
+    // leaving the page stops the mic
+    return () => {
+      const r = rec.current;
+      rec.current = null;
+      if (r) {
+        r.onresult = r.onend = r.onerror = null;
+        r.abort?.();
+      }
+    };
   }, []);
 
   function talk() {
-    if (listening) {
+    if (listening || rec.current) {
       rec.current?.stop();
       return;
     }
@@ -58,11 +68,19 @@ export default function TellTheJudge({ missions, onMatched }: { missions: Missio
         .join(" ");
       setText(said);
     };
-    r.onend = () => setListening(false);
-    r.onerror = () => setListening(false);
+    const done = () => {
+      rec.current = null;
+      setListening(false);
+    };
+    r.onend = done;
+    r.onerror = done;
     rec.current = r;
-    setListening(true);
-    r.start();
+    try {
+      r.start();
+      setListening(true);
+    } catch {
+      done();
+    }
   }
 
   async function send(e?: React.FormEvent) {
@@ -82,16 +100,32 @@ export default function TellTheJudge({ missions, onMatched }: { missions: Missio
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` },
         body: JSON.stringify({ text: said, missions }),
       });
+      if (r.status === 401) {
+        setReply({ tone: "none", text: "Your session ended. Sign in again, then tell me." });
+        return;
+      }
+      if (r.status === 429) {
+        setReply({ tone: "none", text: "Easy there. Give the Judge a minute, or tap the missions." });
+        return;
+      }
+      if (!r.ok) throw new Error("judge");
       const out = (await r.json()) as { ids?: string[]; reply?: string };
       const ids = out.ids ?? [];
       if (ids.length === 0) {
         brickSound.error();
         setReply({ tone: "none", text: "That didn't match a mission. Add it as a new mission, or say it another way." });
       } else {
-        const names = missions.filter((m) => ids.includes(m.id)).map((m) => m.title);
-        setReply({ tone: "ok", text: out.reply || `Checked: ${names.join(", ")}.` });
-        setText("");
-        await onMatched(ids);
+        setReply({ tone: "ok", text: "Snapping them in..." });
+        const saved = await onMatched(ids);
+        const names = missions.filter((m) => saved.includes(m.id)).map((m) => m.title);
+        if (saved.length === ids.length) {
+          setReply({ tone: "ok", text: out.reply || `Checked: ${names.join(", ")}.` });
+          setText("");
+        } else if (saved.length > 0) {
+          setReply({ tone: "none", text: `Checked ${names.join(", ")}. Some didn't save, tap them to try again.` });
+        } else {
+          setReply({ tone: "none", text: "Nothing saved. Check your connection and try again." });
+        }
       }
     } catch {
       setReply({ tone: "none", text: "The Judge didn't answer. Try again in a moment." });
@@ -123,11 +157,15 @@ export default function TellTheJudge({ missions, onMatched }: { missions: Missio
           {busy ? "..." : "Log"}
         </button>
       </form>
-      {reply && (
-        <p className={`mt-2 text-[13px] font-extrabold px-1 ${reply.tone === "ok" ? "" : "text-muted"}`} style={reply.tone === "ok" ? { color: "var(--lego-green-edge)" } : undefined} role="status" dir="auto">
-          {reply.text}
-        </p>
-      )}
+      {/* always in the page, so screen readers announce what changes in it */}
+      <p
+        className={`text-[13px] font-extrabold px-1 ${reply ? "mt-2" : ""} ${reply?.tone === "ok" ? "" : "text-muted"}`}
+        style={reply?.tone === "ok" ? { color: "var(--lego-green-edge)" } : undefined}
+        role="status"
+        dir="auto"
+      >
+        {reply?.text ?? ""}
+      </p>
     </div>
   );
 }

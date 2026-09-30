@@ -42,8 +42,12 @@ export default function HomePage() {
   // the evening recap (also opened by the app shortcut /app?build=1)
   const [building, setBuilding] = useState(false);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the address once
-    if (new URLSearchParams(window.location.search).get("build") === "1") setBuilding(true);
+    if (new URLSearchParams(window.location.search).get("build") === "1") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the address once
+      setBuilding(true);
+      // a reload shouldn't reopen it
+      history.replaceState(null, "", window.location.pathname);
+    }
   }, []);
   // null until the first load, then whether today's daily missions were all done
   const [wasCleared, setWasCleared] = useState<boolean | null>(null);
@@ -125,6 +129,7 @@ export default function HomePage() {
   if (m.days && clearedAll !== wasCleared) {
     // cleared just now (not already cleared when the page opened): celebrate
     if (clearedAll && wasCleared === false) setJustCleared(true);
+    if (!clearedAll) setJustCleared(false);
     setWasCleared(clearedAll);
   }
   const yOpen = m.days ? m.yesterdayList.filter((q) => !m.isDoneOn(q, m.days!.yesterday)).length : 0;
@@ -132,13 +137,13 @@ export default function HomePage() {
   return (
     <div className="slide-in">
       {!p.archetype && <MinifigPicker onPicked={m.setProfile} />}
-      {building && (
+      {building && p.archetype && (
         <BuildYourDay
           quests={m.inPeriod("daily").filter((q) => !trackedBy(q, m.trackers))}
           isDone={(q) => m.isDoneOn(q, m.today)}
           pendingId={m.pendingId}
           onCheck={(q, from) => {
-            flyStuds(from);
+            if (m.canToggle(q)) flyStuds(from);
             m.toggle(q);
           }}
           onClose={() => setBuilding(false)}
@@ -223,17 +228,19 @@ export default function HomePage() {
       <TellTheJudge
         missions={m.inPeriod(tab).filter((q) => !m.isDoneOn(q, m.today) && !trackedBy(q, m.trackers)).map((q) => ({ id: q.id, title: q.title }))}
         onMatched={async (ids) => {
+          const saved: string[] = [];
           for (const id of ids) {
             const q = m.quests.find((x) => x.id === id);
-            if (!q || m.isDoneOn(q, m.today)) continue;
+            if (!q || m.isDoneOn(q, m.today) || !m.canToggle(q)) continue;
             const el = document.querySelector(`[data-quest="${CSS.escape(id)}"]`);
             if (el) {
               el.scrollIntoView({ block: "nearest", behavior: "smooth" });
               flyStuds(el.getBoundingClientRect());
             }
-            await m.toggle(q);
+            if (await m.toggle(q)) saved.push(id);
             await new Promise((r) => setTimeout(r, 450));
           }
+          return saved;
         }}
       />
 
@@ -270,7 +277,7 @@ export default function HomePage() {
             pending={m.pendingId === q.id}
             xpFloat={m.xpFloat?.id === q.id ? m.xpFloat.amount : null}
             onToggle={(from) => {
-              if (!m.isDoneOn(q, m.today) && !trackedBy(q, m.trackers)) flyStuds(from);
+              if (!m.isDoneOn(q, m.today) && m.canToggle(q)) flyStuds(from);
               m.toggle(q);
             }}
           />

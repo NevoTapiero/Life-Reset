@@ -37,7 +37,8 @@ function audio(): { a: AudioContext; out: AudioNode } | null {
       return null;
     }
   }
-  if (ctx.state === "suspended") void ctx.resume();
+  // iOS parks audio as "interrupted" after a call or backgrounding
+  if (ctx.state !== "running") void ctx.resume();
   return { a: ctx, out: out! };
 }
 

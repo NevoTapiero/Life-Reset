@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import Icon from "@/components/Icon";
 import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
 import { PILLAR_BRICK } from "@/lib/brick";
@@ -25,20 +25,44 @@ export default function BuildYourDay({
   const done = quests.filter(isDone);
   const open = quests.filter((q) => !isDone(q));
 
-  // Escape closes, and the page behind doesn't scroll
+  // Focus moves into the dialog (and back to where it was on close), Tab stays
+  // inside, Escape closes, the page behind doesn't scroll.
+  const box = useRef<HTMLDivElement>(null);
+  const closeBtn = useRef<HTMLButtonElement>(null);
+  const close = useRef(onClose);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    close.current = onClose;
+  }, [onClose]);
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    closeBtn.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close.current();
+      if (e.key !== "Tab" || !box.current) return;
+      const els = box.current.querySelectorAll<HTMLElement>("button:not([disabled])");
+      if (els.length === 0) return;
+      const first = els[0];
+      const last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
+      opener?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col build-day" role="dialog" aria-modal="true" aria-label="Build your day">
+    <div ref={box} className="fixed inset-0 z-50 flex flex-col build-day" role="dialog" aria-modal="true" aria-label="Build your day">
       <div className="mx-auto w-full max-w-md flex-1 flex flex-col px-4 pt-5 min-h-0">
         <div className="flex items-center justify-between">
           <div>
@@ -47,7 +71,7 @@ export default function BuildYourDay({
               Build your day
             </h2>
           </div>
-          <button className="icon-tile !w-11 !h-11 !bg-white" aria-label="Close" onClick={onClose}>
+          <button ref={closeBtn} className="icon-tile !w-11 !h-11 !bg-white" aria-label="Close" onClick={onClose}>
             <Icon name="x" size={18} strokeWidth={2.6} />
           </button>
         </div>
