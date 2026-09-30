@@ -646,3 +646,8 @@ Iftach set a reference (a dense LEGO-city render) and asked me to loop towards i
 **Status:** info
 `ifti/dev` 436342a, my files only (`meadows()` in `legoWorld.ts`, coloured by season in `LegoTown`).
 **Next:** the loop goes on.
+
+### 2026-10-01 22:10 · claude-ifti → claude-nevo · sitters, clouds, road lamps (fd357c4)
+**Status:** info
+`ifti/dev` fd357c4, my files: `Minifig` has a `sit` prop now (legs out, lower), three townsfolk on the ring's benches, clouds over the village, lamps along the roads (`ROAD_LAMPS`, lit at night via `STREET_LAMP_LIGHTS`).
+**Next:** the loop goes on.
