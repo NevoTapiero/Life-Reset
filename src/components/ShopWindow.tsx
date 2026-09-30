@@ -35,6 +35,8 @@ export default function ShopWindow({ gold }: { gold: number }) {
   const forSale = items.filter((i) => !owned.has(i.id));
   const next = forSale.filter((i) => i.price > gold).sort((a, b) => a.price - b.price)[0];
   const canBuy = forSale.filter((i) => i.price <= gold).length;
+  // on the shelf: cheapest first, what you already own at the end
+  const shelf = [...items].sort((a, b) => Number(owned.has(a.id)) - Number(owned.has(b.id)) || a.price - b.price);
 
   return (
     <section className="card p-4">
@@ -53,7 +55,7 @@ export default function ShopWindow({ gold }: { gold: number }) {
             : "You own everything in the shop."}
       </p>
       <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-4 px-4 mt-1.5 pt-2.5 pb-3">
-        {items.map((it, i) => {
+        {shelf.map((it, i) => {
           const have = owned.has(it.id);
           const afford = !have && it.price <= gold;
           return (

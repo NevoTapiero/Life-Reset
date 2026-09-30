@@ -65,7 +65,7 @@ export default function MinifigPicker({ onPicked }: { onPicked: (p: Profile) => 
           </div>
 
           {error && <p className="text-sm font-bold mt-3" style={{ color: "var(--danger)" }}>{error}</p>}
-          <button className="btn-primary brick-yellow w-full py-4 mt-6 !text-[18px]" disabled={busy} onClick={confirm}>
+          <button className="btn-primary brick-yellow w-full py-4 mt-10 !text-[18px]" disabled={busy} onClick={confirm}>
             {busy ? "Building your minifig..." : `Play as the ${c.name.replace("The ", "")}`}
             {!busy && <Icon name="arrow-right" size={18} strokeWidth={2.6} />}
           </button>

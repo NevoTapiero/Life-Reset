@@ -40,7 +40,26 @@ export default function MinifigCard({
   const [flipped, setFlipped] = useState(false);
   const [top, bottom] = CARD_COLORS[character ?? "warrior"] ?? CARD_COLORS.warrior;
   return (
-    <section className="minifig-card" style={{ "--card": top, "--card-2": bottom } as React.CSSProperties}>
+    <section
+      className="minifig-card"
+      style={{ "--card": top, "--card-2": bottom } as React.CSSProperties}
+      // a collectible card tilts toward your pointer, the foil following it
+      onPointerMove={(e) => {
+        if (e.pointerType === "touch") return; // on phones a drag is a scroll
+        const r = e.currentTarget.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width - 0.5;
+        const y = (e.clientY - r.top) / r.height - 0.5;
+        e.currentTarget.style.setProperty("--ry", `${(x * 10).toFixed(2)}deg`);
+        e.currentTarget.style.setProperty("--rx", `${(-y * 8).toFixed(2)}deg`);
+        e.currentTarget.style.setProperty("--gx", `${Math.round((x + 0.5) * 100)}%`);
+        e.currentTarget.classList.add("tilting");
+      }}
+      onPointerLeave={(e) => {
+        e.currentTarget.style.setProperty("--ry", "0deg");
+        e.currentTarget.style.setProperty("--rx", "0deg");
+        e.currentTarget.classList.remove("tilting");
+      }}
+    >
       <div className="relative flex items-start justify-between px-4 pt-4">
         <span className="minifig-card-brand">
           SOLO LEVELING

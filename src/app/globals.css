@@ -1848,3 +1848,12 @@ body {
   background-image: radial-gradient(circle at 50% 45%, #ffffff 0 2.6px, #e3e9ef 3.1px 4.4px, var(--lego-black) 4.6px 6px, transparent 6.4px);
   background-size: 18px 12px; height: 11px; top: -8px;
 }
+
+/* the collectible card tilts toward the pointer; the foil glints where it points */
+.minifig-card { transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform 420ms var(--ease-bounce); }
+.minifig-card.tilting { transition: transform 80ms linear; }
+.minifig-card.tilting::after {
+  animation: none; transform: none;
+  background: radial-gradient(circle at var(--gx, 50%) 30%, rgb(255 255 255 / 0.3), transparent 45%);
+}
+@media (prefers-reduced-motion: reduce) { .minifig-card { transform: none; } }
