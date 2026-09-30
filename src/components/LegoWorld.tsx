@@ -9,6 +9,7 @@ import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
 import { LDrawConditionalLineMaterial } from "three/examples/jsm/materials/LDrawConditionalLineMaterial.js";
 import { LDrawUtils } from "three/examples/jsm/utils/LDrawUtils.js";
 import VEHICLES from "@/lib/legoVehicles.json";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import {
@@ -37,6 +38,9 @@ import {
   townText,
   plazaText,
   townDecorText,
+  townFlats,
+  townClouds,
+  type Slab,
   emptyLotsText,
   PLAZA_LAMPS,
   STREET_LAMP_LIGHTS,
@@ -744,6 +748,8 @@ export function LegoTown({
         <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} lit={mood.night} />
         {plaza && <primitive object={plaza} />}
         {decor && <primitive object={decor} />}
+        <Slabs slabs={FLATS} />
+        <Slabs slabs={CLOUDS} shadows={false} />
         {parks && <primitive object={parks} />}
         <Traffic />
         {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
@@ -957,6 +963,33 @@ function ShopSheet({
     </div>
   );
 }
+
+// Plain boxes (road markings, pavements, clouds), merged into one mesh per
+// colour. LDraw frame: -Y is up, so a slab resting at height y spans -y-h..-y.
+function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) {
+  const meshes = useMemo(() => {
+    const byColor = new Map<string, THREE.BufferGeometry[]>();
+    for (const b of slabs) {
+      const g = new THREE.BoxGeometry(b.w, b.h, b.d);
+      g.translate(b.x, -(b.y ?? 0) - b.h / 2, b.z);
+      if (!byColor.has(b.color)) byColor.set(b.color, []);
+      byColor.get(b.color)!.push(g);
+    }
+    return [...byColor].map(([color, gs]) => ({ color, geometry: mergeGeometries(gs) }));
+  }, [slabs]);
+  useEffect(() => () => meshes.forEach((m) => m.geometry.dispose()), [meshes]);
+  return (
+    <>
+      {meshes.map((m) => (
+        <mesh key={m.color} geometry={m.geometry} castShadow={shadows} receiveShadow={shadows}>
+          <meshStandardMaterial color={m.color} roughness={0.7} />
+        </mesh>
+      ))}
+    </>
+  );
+}
+const FLATS = townFlats();
+const CLOUDS = townClouds();
 
 // ---- traffic: official LEGO cars driving round the ring road ----
 // The loop is a rounded square down the ring road's outer lane (LDraw frame),

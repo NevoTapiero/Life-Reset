@@ -497,10 +497,14 @@ const lamp: Piece[] = [["2039", COL.black, 0, 0, 0], ["30367c", COL.transYellow,
 const LAMP_SPOTS: [number, number][] = [-1, 1].flatMap((side) => [380, 60, -300].map((z) => [side * 400, z] as [number, number]));
 // where the lamps' lights are, for the glow after dark (LDU; -Y is up)
 export const PLAZA_LAMPS: [number, number, number][] = LAMP_SPOTS.map(([x, z]) => [x, -(168 + 14), z]);
-// a lamppost on every block's four corners, on the pavement (LDU)
+// a lamppost on each block corner that faces the plaza, on the pavement (LDU):
+// all four round the plaza, two on the side blocks, one on the corner blocks
 const STREET_LAMPS: [number, number][] = [-1, 0, 1].flatMap((gx) =>
   [-1, 0, 1].flatMap((gz) =>
-    [-1, 1].flatMap((sx) => [-1, 1].map((sz) => [(gx * PITCH + sx * (PLOT / 2 + 1)) * S, (gz * PITCH + sz * (PLOT / 2 + 1)) * S] as [number, number])),
+    [-1, 1]
+      .flatMap((sx) => [-1, 1].map((sz) => [sx, sz]))
+      .filter(([sx, sz]) => (gx === 0 || sx === -gx) && (gz === 0 || sz === -gz))
+      .map(([sx, sz]) => [(gx * PITCH + sx * (PLOT / 2 + 1)) * S, (gz * PITCH + sz * (PLOT / 2 + 1)) * S] as [number, number]),
   ),
 );
 export const STREET_LAMP_LIGHTS: [number, number, number][] = STREET_LAMPS.map(([x, z]) => [x, -(168 + 14 + 8), z]); // on the pavement
@@ -552,60 +556,74 @@ export function emptyLotsText(first: number): string {
 }
 
 // ---- the town's roads and sky ----
-// Dashed white centre lines (1x4 tiles) down every street, zebra crossings on
-// the four streets round the plaza, and big LEGO clouds -- plates stacked into
-// puffs, shown at 3x -- drifting over the hills. Separate from townText: it
-// never changes, so it's parsed once.
-export function townDecorText(): string {
-  const out: string[] = [];
-  const TILE_Y = -8; // a tile's origin is its top; it lies on the ground
+// Road markings, pavements and clouds are flat or plain shapes, so they're
+// drawn as boxes (townFlats, townClouds) rather than LDraw: the tile versions
+// cost ~550k triangles of undersides and studs nobody ever sees. The lampposts
+// on the pavement corners are real LDraw (townDecorText).
+export type Slab = { x: number; z: number; w: number; d: number; h: number; y?: number; color: string }; // LDU; y = bottom height
+
+const PAVEMENT = "#a0a5a9";
+export function townFlats(): Slab[] {
+  const out: Slab[] = [];
   const streets = [-(TOWN_HALF - 8), -PITCH / 2, PITCH / 2, TOWN_HALF - 8]; // street centre lines, studs
   const crossings = [-PITCH / 2, PITCH / 2]; // the streets round the plaza
+  const white = "#f2f2ee";
+  // dashed centre lines, leaving the junctions and the zebra crossings clear
   for (const c of streets)
     for (let t = -TOWN_HALF + 4; t <= TOWN_HALF - 4; t += 8) {
-      if (streets.some((x) => Math.abs(t - x) < 10)) continue; // leave the junctions clear
-      if (crossings.includes(c) && Math.abs(t) < 8) continue; // and the zebra crossing
-      out.push(line(COL.white, c * S, TILE_Y, t * S, ROT[90], "2431")); // along a north-south street
-      out.push(line(COL.white, t * S, TILE_Y, c * S, ROT[0], "2431")); // along an east-west one
+      if (streets.some((x) => Math.abs(t - x) < 10)) continue;
+      if (crossings.includes(c) && Math.abs(t) < 8) continue;
+      out.push({ x: c * S, z: t * S, w: 20, d: 80, h: 2, color: white }, { x: t * S, z: c * S, w: 80, d: 20, h: 2, color: white });
     }
+  // zebra crossings on the four streets round the plaza
   for (const c of crossings)
     for (let k = -2.5; k <= 2.5; k++) {
-      out.push(line(COL.white, 0, TILE_Y, (c + k * 2) * S, ROT[0], "2431"));
-      out.push(line(COL.white, (c + k * 2) * S, TILE_Y, 0, ROT[90], "2431"));
+      out.push({ x: 0, z: (c + k * 2) * S, w: 80, d: 20, h: 2, color: white }, { x: (c + k * 2) * S, z: 0, w: 20, d: 80, h: 2, color: white });
     }
-
-  // sidewalks: a 2-stud pavement of light grey 2x4 tiles round every block,
-  // and a lamppost on each corner
+  // a kerbed 2-stud pavement round every block
   for (const bx of [-PITCH, 0, PITCH])
     for (const bz of [-PITCH, 0, PITCH]) {
-      const e = PLOT / 2 + 1; // the pavement's centre line, studs from the block's centre
-      for (let t = -PLOT / 2 - 2; t < PLOT / 2 + 2; t += 4) {
-        for (const side of [-1, 1]) {
-          out.push(line(COL.lightGrey, (bx + t + 2) * S, TILE_Y, (bz + side * e) * S, ROT[0], "87079"));
-          if (t + 4 <= PLOT / 2 && t >= -PLOT / 2) out.push(line(COL.lightGrey, (bx + side * e) * S, TILE_Y, (bz + t + 2) * S, ROT[90], "87079"));
-        }
-      }
+      const e = (PLOT / 2 + 1) * S;
+      const long = (PLOT + 4) * S;
+      out.push(
+        { x: bx * S, z: bz * S - e, w: long, d: 40, h: 8, color: PAVEMENT },
+        { x: bx * S, z: bz * S + e, w: long, d: 40, h: 8, color: PAVEMENT },
+        { x: bx * S - e, z: bz * S, w: 40, d: PLOT * S, h: 8, color: PAVEMENT },
+        { x: bx * S + e, z: bz * S, w: 40, d: PLOT * S, h: 8, color: PAVEMENT },
+      );
     }
-  for (const [x, z] of STREET_LAMPS) out.push(...place(lamp, x, z, ROT[0], TILE_Y)); // on the pavement
+  return out;
+}
 
-  // clouds: a flat base, puffs on top, shown three times LEGO size
-  const puff: [string, number, number, number][] = [
-    ["3027", 0, 0, 0],
-    ["3033", -40, 8, -10],
-    ["41539", 80, 8, 20],
-    ["3958", -60, 16, 0],
-    ["3035", 40, 16, -10],
-    ["3031", 0, 24, 0],
+// Clouds: plate-shaped slabs stacked into puffs, three times LEGO size, in a
+// ring over the hills.
+export function townClouds(): Slab[] {
+  const out: Slab[] = [];
+  const puff: [number, number, number, number, number][] = [
+    // dx, dz, w, d (studs), layer
+    [0, 0, 16, 6, 0],
+    [-2, -0.5, 10, 6, 1],
+    [4, 1, 8, 8, 1],
+    [-3, 0, 6, 6, 2],
+    [2, -0.5, 8, 4, 2],
+    [0, 0, 4, 4, 3],
   ];
-  const BIG: Mat = [3, 0, 0, 0, 3, 0, 0, 0, 3];
   const rnd = seeded(11);
   for (let a = 0; a < Math.PI * 2; a += 0.55 + rnd() * 0.35) {
     const d = (TOWN_HALF + 80 + rnd() * 70) * S;
     const cx = Math.cos(a) * d;
     const cz = Math.sin(a) * d;
-    const cy = -(1100 + rnd() * 700);
-    for (const [part, dx, h, dz] of puff) out.push(line(COL.white, cx + dx * 3, cy - h * 3, cz + dz * 3, BIG, part));
+    const cy = 1100 + rnd() * 700; // height of the cloud's base
+    for (const [dx, dz, w, dd, layer] of puff)
+      out.push({ x: cx + dx * 60, z: cz + dz * 60, w: w * 60, d: dd * 60, h: 24, y: cy + layer * 24, color: "#ffffff" });
   }
+  return out;
+}
+
+// The lampposts on the pavement corners that face the plaza (LDraw).
+export function townDecorText(): string {
+  const out: string[] = [];
+  for (const [x, z] of STREET_LAMPS) out.push(...place(lamp, x, z, ROT[0], -8)); // on the pavement
   return modelText(out, "town-decor.ldr");
 }
 
