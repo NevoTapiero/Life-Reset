@@ -7,6 +7,7 @@ import { ContactShadows, Environment, Lightformer, OrbitControls, PerformanceMon
 import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import { sfx, setSound, soundOn } from "@/lib/sfx";
+import { CAN_RUN_AT, ENERGY_MAX, JUMP_COST, RUN_COST, TRICKLE } from "@/lib/energy";
 import * as THREE from "three";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
 import { LDrawConditionalLineMaterial } from "three/examples/jsm/materials/LDrawConditionalLineMaterial.js";
@@ -1368,6 +1369,7 @@ export function LegoTown({
   season: seasonProp,
   visit,
   onBack,
+  energy = null,
   className,
 }: {
   residents: Resident[];
@@ -1391,6 +1393,8 @@ export function LegoTown({
   visit?: string | null;
   /** a way back out of the town (the app's World page) */
   onBack?: () => void;
+  /** your energy today (0..100, from sleep and steps); null: no energy yet, no limits */
+  energy?: number | null;
   className?: string;
 }) {
   const residents = all.slice(0, MAX_RESIDENTS);
@@ -1470,7 +1474,19 @@ export function LegoTown({
   const following = focus !== OVERVIEW && inside === null;
   const stick = useRef({ x: 0, y: 0 });
   const jumps = useRef(0);
-  useKeysToStick(stick, jumps);
+  // energy: the walker drains it as you run; a jump takes a bite; the bar reads it
+  const energyRef = useRef(energy ?? ENERGY_MAX);
+  useEffect(() => {
+    if (energy !== null) energyRef.current = energy;
+  }, [energy]);
+  const jump = () => {
+    if (energy !== null && energyRef.current < JUMP_COST) return;
+    if (energy !== null) energyRef.current -= JUMP_COST;
+    jumps.current++;
+    sfx.jump();
+  };
+  useKeysToStick(stick, undefined, jump);
+  const energyNow = useEnergyReadout(energy === null ? undefined : energyRef, energy ?? ENERGY_MAX);
   const me3 = useRef(new THREE.Vector3());
   const meAim = useRef<number | null>(null);
   const blockers = useMemo(() => townBlockers(residents), [residents]);
@@ -1762,7 +1778,7 @@ export function LegoTown({
             }
             // you wave at the friend you've come to see, or at one who's come round to yours
             const wave = inside === null && !shop && (dest !== meIndex || visited(meIndex));
-            return <Walker key="me" id="me" wave={wave} go={goes} input={stick} jumpRef={jumps} aimRef={meAim} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
+            return <Walker key="me" id="me" wave={wave} go={goes} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
           }
           // friends: at their door, at the shop, or on a neighbour's step, turned to them
           const out = outing(i);
@@ -1818,6 +1834,7 @@ export function LegoTown({
                   </span>
                 )}
               </div>
+              {energy !== null && <EnergyBar value={energyNow} />}
             </div>
           </div>
         </div>
@@ -1849,18 +1866,7 @@ export function LegoTown({
           <span className="lego lego-sm lego-white mb-2 self-center">Tap a place to walk there</span>
         )}
         <div className="flex items-end gap-3">
-          {following && (
-            <RoundAction
-              icon="jump"
-              text="Jump"
-              tone="dark"
-              small
-              onClick={() => {
-                jumps.current++;
-                sfx.jump();
-              }}
-            />
-          )}
+          {following && <RoundAction icon="jump" text="Jump" tone="dark" small onClick={jump} disabled={energy !== null && energyNow < JUMP_COST} />}
           {action && <RoundAction icon={action.icon} text={action.text} onClick={action.onClick} disabled={!action.onClick} tone={action.tone} />}
         </div>
       </div>
@@ -1949,25 +1955,30 @@ function Joystick({ outRef }: { outRef: React.RefObject<{ x: number; y: number }
 }
 
 // WASD or the arrow keys walk you too (on a computer)
-function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>, jumpRef?: React.RefObject<number>) {
+function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>, jumpRef?: React.RefObject<number>, onJump?: () => void) {
   useEffect(() => {
     const down = new Set<string>();
     const set = () => {
       const k = (a: string, b: string) => (down.has(a) || down.has(b) ? 1 : 0);
-      outRef.current = { x: k("d", "arrowright") - k("a", "arrowleft"), y: k("w", "arrowup") - k("s", "arrowdown") };
+      // keys walk; hold Shift to run
+      const push = down.has("shift") ? 1 : 0.7;
+      outRef.current = { x: (k("d", "arrowright") - k("a", "arrowleft")) * push, y: (k("w", "arrowup") - k("s", "arrowdown")) * push };
     };
     const on = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest?.("input, textarea, select")) return;
       const key = e.key.toLowerCase();
-      if (key === " " && jumpRef) {
+      if (key === " " && (jumpRef || onJump)) {
         e.preventDefault();
         if (e.type === "keydown" && !e.repeat) {
-          jumpRef.current++;
-          sfx.jump();
+          if (onJump) onJump();
+          else if (jumpRef) {
+            jumpRef.current++;
+            sfx.jump();
+          }
         }
         return;
       }
-      if (!["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) return;
+      if (!["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright", "shift"].includes(key)) return;
       e.preventDefault();
       if (e.type === "keydown") down.add(key);
       else down.delete(key);
@@ -1979,7 +1990,7 @@ function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>, jumpR
       window.removeEventListener("keydown", on);
       window.removeEventListener("keyup", on);
     };
-  }, [outRef, jumpRef]);
+  }, [outRef, jumpRef, onJump]);
 }
 
 // Walk up to a friend and they say something (LEGO games' chatter): whoever
@@ -2122,6 +2133,33 @@ function SoundToggle() {
       }}
     />
   );
+}
+
+// The energy bar (0..100) on the player card: ten little bricks, green, then
+// amber, then red as it runs down.
+function EnergyBar({ value }: { value: number }) {
+  const on = Math.round((Math.max(0, value) / ENERGY_MAX) * 10);
+  const colour = value > 50 ? "#4b9f4a" : value > 25 ? "#f5cd2f" : "#d01012";
+  return (
+    <span className="energy-bar" role="meter" aria-label="Energy" aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={ENERGY_MAX}>
+      <span className="bolt" aria-hidden>
+        ⚡
+      </span>
+      {Array.from({ length: 10 }, (_, i) => (
+        <i key={i} className={i < on ? "on" : ""} style={{ "--e": colour } as React.CSSProperties} />
+      ))}
+    </span>
+  );
+}
+// Reads a live energy value (a ref the walker drains) a few times a second for the bar.
+function useEnergyReadout(energyRef: React.RefObject<number> | undefined, initial: number) {
+  const [shown, setShown] = useState(initial);
+  useEffect(() => {
+    if (!energyRef) return;
+    const t = setInterval(() => setShown((v) => (Math.abs(v - energyRef.current) > 0.4 ? energyRef.current : v)), 250);
+    return () => clearInterval(t);
+  }, [energyRef]);
+  return shown;
 }
 
 // Your minifig's head, for the player card: yellow, a stud on top, a smile.
@@ -2431,6 +2469,7 @@ function Walker({
   where,
   jumpRef,
   aimRef,
+  energyRef,
 }: {
   /** who this is (for keeping out of each other's way) */
   id: string;
@@ -2442,6 +2481,8 @@ function Walker({
   jumpRef?: React.RefObject<number>;
   /** which way the camera should come round to (behind you, as an angle round you), or null: leave it */
   aimRef?: React.RefObject<number | null>;
+  /** your energy (0..100), drained by running and jumps, trickling back while you rest; none: no limits */
+  energyRef?: React.RefObject<number>;
   input?: React.RefObject<{ x: number; y: number }>;
   blockers?: Blocker[];
   where?: React.RefObject<THREE.Vector3>;
@@ -2464,6 +2505,7 @@ function Walker({
   const look3 = useMemo(() => new THREE.Vector3(), []);
   const off = useMemo(() => ({ x: 0, z: 0 }), []); // sidestepping someone
   const stepped = useRef({ x: 0, z: 0, d: 0 }); // for your footsteps
+  const [running, setRunning] = useState(false);
   useEffect(() => () => void CROWD.delete(id), [id]);
   useFrame(({ camera }, dt) => {
     const s = state.current;
@@ -2499,6 +2541,14 @@ function Walker({
     // driving: the stick moves you relative to the camera, sliding along walls
     const stick = input?.current;
     const push = stick ? Math.min(1, Math.hypot(stick.x, stick.y)) : 0;
+    // running: the stick pushed right out (or Shift), while you have the energy for it
+    const e = energyRef?.current;
+    const run = push > 0.85 && (e === undefined || e >= CAN_RUN_AT);
+    if (run !== running) setRunning(run);
+    if (energyRef) {
+      if (run) energyRef.current = Math.max(0, energyRef.current - RUN_COST * dt);
+      else energyRef.current = Math.min(ENERGY_MAX, energyRef.current + TRICKLE * dt);
+    }
     if (stick && push > 0.15) {
       camera.getWorldDirection(look3);
       const f = Math.hypot(look3.x, look3.z) || 1;
@@ -2507,7 +2557,7 @@ function Walker({
       const mz = fz * stick.y + fx * stick.x;
       const m = Math.hypot(mx, mz) || 1;
       const [dx, dz] = [mx / m, -mz / m]; // LDraw: z is flipped
-      const len = DRIVE_SPEED * push * Math.min(dt, 0.1);
+      const len = DRIVE_SPEED * (run ? 1.8 : push) * Math.min(dt, 0.1);
       // start from where you're actually standing (if you'd stepped aside for someone)
       const [ox, oz] = [s.pos[0] + off.x, s.pos[2] + off.z];
       let [x, z] = stepFree(ox, oz, dx * len, dz * len, blockers ?? []);
@@ -2559,7 +2609,7 @@ function Walker({
   });
   return (
     <group ref={root}>
-      <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} stride={16} jumpRef={jumpRef} />
+      <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} stride={running ? 24 : 16} jumpRef={jumpRef} />
     </group>
   );
 }

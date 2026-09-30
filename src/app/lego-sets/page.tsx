@@ -142,6 +142,7 @@ export default function LegoPreview() {
           onBuy={buy}
           time={time}
           season={season}
+          energy={40}
           className="w-full h-[75vh] rounded overflow-hidden"
         />
       ) : (

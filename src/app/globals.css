@@ -1227,3 +1227,16 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .brick-wipe.in .wipe-brick, .brick-wipe.out .wipe-brick { animation-duration: 1ms; }
 }
+
+/* the energy bar on the player card: ten little bricks, filled from the left */
+.energy-bar { display: flex; gap: 2px; align-items: center; }
+.energy-bar i {
+  display: block;
+  width: 9px;
+  height: 7px;
+  border-radius: 2px;
+  background: #d9d9d2;
+  box-shadow: inset 0 -1.5px 0 rgba(0, 0, 0, 0.12);
+}
+.energy-bar i.on { background: var(--e, #4b9f4a); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1.5px 0 rgba(0, 0, 0, 0.22); }
+.energy-bar .bolt { font-size: 11px; line-height: 1; margin-right: 2px; }

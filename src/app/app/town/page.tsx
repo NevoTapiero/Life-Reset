@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { rankForXp } from "@/lib/game";
 import type { Resident } from "@/lib/legoWorld";
+import { energyFrom, todayKey, type LedgerMeta } from "@/lib/energy";
 import type { Visit } from "@/components/LegoWorld";
 import { useStations } from "@/lib/useStations";
 
@@ -24,6 +25,21 @@ type VisitRow = { username: string; knocked_by_me: boolean; allowed: boolean };
 export default function TownPage() {
   const [residents, setResidents] = useState<Resident[] | null>(null);
   // /app/town?visit=<username>: open on that friend's house
+  // your energy today: last night's sleep and today's steps, from the ledger's watch rows
+  const [energy, setEnergy] = useState<number | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id;
+      if (!uid) return;
+      const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
+      supabase
+        .from("xp_ledger")
+        .select("meta")
+        .eq("user_id", uid)
+        .gte("created_at", since)
+        .then(({ data: rows }) => setEnergy(energyFrom((rows ?? []).map((r) => r.meta as LedgerMeta), todayKey())));
+    });
+  }, []);
   const [visit] = useState(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("visit")));
   const [visits, setVisits] = useState<Record<string, Visit>>({});
   const [atDoor, setAtDoor] = useState<string[]>([]);
@@ -126,6 +142,7 @@ export default function TownPage() {
         onBuy={buy}
         onInvite={() => router.push("/app/leaderboard")}
         visit={visit}
+        energy={energy}
         onBack={() => router.push("/app/world")}
         className="rounded-2xl overflow-hidden h-[68vh] min-h-[380px]" />
 
