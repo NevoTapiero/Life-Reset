@@ -25,6 +25,7 @@ export const COL = {
   darkRed: 320,
   darkOrange: 484,
   transLightBlue: 43,
+  transYellow: 46,
   pearlGold: 297,
   purple: 22,
   brightGreen: 10,
@@ -53,6 +54,7 @@ export const LEGO_PARTS = [
   "4186", "91405", "3062b", "3068b", "3069b", "3741ac05", "3470", "2435", "3471", "2417", "30055",
   "3031", "3754", "3003", "29592", "62698-f2", "33051", "14769p0f", "1", "60594", "60603", "3010", "3005", "87079",
   "3001", "3002", "3004", "3009", "3020", "3022", "3023b", "3032", "3036", "3795", "3666", "3710", "2431", "3941", "4589", "4079", "3068bp0t", "3068bp71", "3068bp74", "4738a", "4739a", "11602", "89801", "30224",
+  "3961", "3960", "60474", "11213", "87081", "6141", "98138", "2039", "30367c", "3942c",
   "973", "3818", "3819", "3820", "3815", "3816", "3817", "3626cp01", "53981",
 ];
 
@@ -290,6 +292,7 @@ const HEIGHT: Record<string, number> = {
   "3068b": 8, "87079": 8, "2431": 8, "14769p0f": 8, "4079": 8, "3741ac05": 12,
   "29592": 11, "62698-f2": 1, "33051": 0, "1": 96, "4738a": 32, "4739a": 25,
   "3009": 24, "2435": 8, "11602": 0, "89801": 0, "30224": 8,
+  "3961": 24, "3960": 16, "60474": 8, "11213": 8, "87081": 24, "6141": 8, "98138": 8, "2039": 168, "30367c": 24,
 };
 type Piece = [part: string, color: number, dx: number, h: number, dz: number, m?: Mat];
 const FLOOR = -8; // top of the planks
@@ -472,6 +475,47 @@ export const DECOR: Decor[] = [
     pieces: [],
   },
 ];
+
+// ---- the plaza: the square in the middle of the town ----
+// The shop stands at the back of the plaza; in front of it a two-tier
+// fountain, benches facing it, lampposts and trees in planters down both
+// sides, flower pots at the front. LDU, the plaza's centre at 0; the shop's
+// front edge is at SHOP_FRONT.
+export const SHOP_FRONT = (-PLOT / 2 + 34) * S; // Market Street is 34 deep, backed onto the plaza's back edge
+export const FOUNTAIN: [number, number] = [0, 340];
+const fountain: Piece[] = [
+  ["3961", COL.lightGrey, 0, 0, 0], // the basin: a big inverted dish
+  ["11213", COL.transLightBlue, 0, 16, 0], // its water
+  ...stack("3941", COL.lightGrey, 0, 0, 2, 24), // the column
+  ["3960", COL.lightGrey, 0, 72, 0], // the upper bowl
+  ["60474", COL.transLightBlue, 0, 80, 0], // its water
+  ...stack("6141", COL.transClear, 0, 0, 3, 88), // the jet
+  ["98138", COL.transClear, 0, 112, 0],
+];
+const lamp: Piece[] = [["2039", COL.black, 0, 0, 0], ["30367c", COL.transYellow, 0, 168, 0]];
+const bench: Piece[] = [
+  ["3005", COL.darkGrey, -30, 0, 0],
+  ["3005", COL.darkGrey, 30, 0, 0],
+  ["3020", COL.reddishBrown, 0, 24, 0],
+  ["3010", COL.reddishBrown, 0, 32, -10],
+];
+const planterTree: Piece[] = [["87081", COL.darkTan, 0, 0, 0], ["2435", COL.green, 0, 24, 0]];
+const flowerPot = (color: number): Piece[] => [["3941", COL.darkOrange, 0, 0, 0], ["3741ac05", color, 0, 24, 0]];
+
+export function plazaText(): string {
+  const out: string[] = [];
+  const [fx, fz] = FOUNTAIN;
+  out.push(...place(fountain, fx, fz, ROT[0]));
+  // benches either side of the fountain, facing it
+  out.push(...place(bench, fx - 150, fz, ROT[90]), ...place(bench, fx + 150, fz, ROT[270]));
+  // down both sides: lampposts and trees in planters, alternating
+  for (const side of [-1, 1]) {
+    for (const z of [380, 60, -300]) out.push(...place(lamp, side * 400, z, ROT[0]));
+    for (const z of [220, -120, -440]) out.push(...place(planterTree, side * 400, z, ROT[0]));
+    out.push(...place(flowerPot(side < 0 ? COL.red : COL.yellow), side * 240, 440, ROT[0]));
+  }
+  return modelText(out, "plaza.ldr");
+}
 
 // the chest's spot on the floor (LDU): front left of the rug, facing you
 export const CHEST_SPOT: [number, number] = [-130, 190];

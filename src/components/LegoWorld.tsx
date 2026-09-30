@@ -33,6 +33,9 @@ import {
   lotFor,
   inLot,
   townText,
+  plazaText,
+  SHOP_FRONT,
+  FOUNTAIN,
   MAX_STATIONS,
   type Station,
   type MinifigLook,
@@ -466,6 +469,7 @@ export function LegoTown({
     useMemo(() => townText(residents), [residents]),
     true,
   );
+  const plaza = useModel(useMemo(() => plazaText(), []), true);
   const lots = useMemo(() => residents.map((_, i) => lotFor(i)), [residents]);
   const meIndex = Math.max(
     0,
@@ -484,7 +488,8 @@ export function LegoTown({
   const houseCentre = (i: number) => inLot(lots[i], centre(residents[i].level));
 
   const target = useMemo(() => {
-    if (focus === SHOP_FOCUS) return new THREE.Vector3(0, 12, 0); // halfway up the shop
+    // the shop and the fountain in front of it, looking up at the building
+    if (focus === SHOP_FOCUS) return new THREE.Vector3(0, 10, -((SHOP_FRONT + FOUNTAIN[1]) / 2) * LDU);
     const [x, , z] = toThree(houseCentre(focus));
     return new THREE.Vector3(x, inside === null ? 3 : 2, z);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -565,7 +570,7 @@ export function LegoTown({
         pins={[
           {
             key: "shop",
-            at: [0, SHOP_BUILDING.h * LDU + 3, 0] as [number, number, number],
+            at: [0, SHOP_BUILDING.h * LDU + 3, -(SHOP_FRONT - (SHOP_BUILDING.d / 2) * 20) * LDU] as [number, number, number],
             node: label("Shop", false, () => go(SHOP_FOCUS)),
           },
           ...residents.flatMap((res, i) => {
@@ -583,7 +588,9 @@ export function LegoTown({
       >
         {town && <primitive object={town} />}
         {/* the shop, its front to the camera's side of the plaza */}
-        <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, (SHOP_BUILDING.d / 2) * 20]} />
+        {/* the shop at the back of the plaza, the fountain and the rest of the square in front of it */}
+        <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} />
+        {plaza && <primitive object={plaza} />}
         {residents.map((res, i) => (
           <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
             <House level={res.level} cut={i === inside ? CUT : undefined} />
