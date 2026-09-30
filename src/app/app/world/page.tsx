@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BrickLoader from "@/components/BrickLoader";
@@ -9,6 +8,7 @@ import Icon from "@/components/Icon";
 import Minifig from "@/components/Minifig";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import TownArt from "@/components/TownArt";
+import BrickWipe from "@/components/BrickWipe";
 import TownNews from "@/components/TownNews";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import { rankForXp } from "@/lib/game";
@@ -41,6 +41,9 @@ export default function WorldPage() {
   const [copied, setCopied] = useState<"code" | "link" | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  // the brick wipe into the 3D world
+  const [jumping, setJumping] = useState(false);
+  const jump = useCallback(() => router.push("/app/town"), [router]);
 
   const load = useCallback(async () => {
     const [{ data, error }, { data: userData }, { data: visits }] = await Promise.all([
@@ -169,10 +172,11 @@ export default function WorldPage() {
       <section className="scene overflow-hidden">
         <TownArt residents={residents} className="w-full h-auto block" />
       </section>
-      <Link href="/app/town" className="btn-primary brick-yellow w-full py-4 mt-4 !text-[19px]">
+      <button className="btn-primary brick-yellow w-full py-4 mt-4 !text-[19px]" onClick={() => setJumping(true)}>
         <Icon name="play" size={18} />
         Jump into the world
-      </Link>
+      </button>
+      {jumping && <BrickWipe onCovered={jump} />}
       {knocks.map((name) => {
         const r = rows.find((x) => x.username === name);
         return (
