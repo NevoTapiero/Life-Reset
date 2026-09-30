@@ -2389,8 +2389,9 @@ function thumbRenderer() {
   const stage = new THREE.Group();
   stage.rotation.x = Math.PI; // LDraw is -Y up
   scene.add(stage);
-  // the floor only shows the shadow
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShadowMaterial({ opacity: 0.28 }));
+  // the floor: a studded LEGO plate (green grass for garden things, the room's wood for
+  // furniture), with the thing's shadow on it
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ map: studTexture().clone(), roughness: 0.55 }));
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   scene.add(floor);
@@ -2419,9 +2420,13 @@ function thumbFor(id: string): Promise<string> {
     const centre = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
     const radius = size.length() / 2;
-    // the floor under it, big enough for the shadow; the lights follow the size
-    floor.position.set(centre.x, box.min.y, centre.z);
-    floor.scale.setScalar(radius * 8);
+    // the floor under it, big enough to fill the frame; its studs stay one stud each
+    floor.position.set(centre.x, box.min.y - 0.5, centre.z);
+    floor.scale.setScalar(radius * 20);
+    const mat = floor.material as THREE.MeshStandardMaterial;
+    mat.color.set(gardenItem(id) ? "#4b9f4a" : "#b8865a");
+    mat.map!.repeat.set(radius, radius); // one stud a stud (20 LDU) across a plate 20 radii wide
+    mat.map!.needsUpdate = true;
     const key = scene.children.find((o) => (o as THREE.DirectionalLight).isDirectionalLight) as THREE.DirectionalLight;
     key.position.copy(centre).add(new THREE.Vector3(-0.6, 1.2, -0.7).normalize().multiplyScalar(radius * 4));
     key.target.position.copy(centre);
@@ -2461,7 +2466,10 @@ function Thumb({ id, name }: { id: string; name: string }) {
     };
   }, [id]);
   return (
-    <span className="flex-none w-16 h-16 rounded-lg overflow-hidden grid place-items-center" style={{ background: "#fff", boxShadow: "inset 0 -3px 0 #d9d9d2" }}>
+    <span
+      className="flex-none w-16 h-16 rounded-lg overflow-hidden grid place-items-center"
+      style={{ background: gardenItem(id) ? "#4b9f4a" : "#b8865a", boxShadow: "inset 0 -3px 0 rgba(0,0,0,0.25)" }}
+    >
       {/* a data URL made here, nothing for next/image to optimise */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {url ? <img src={url} alt={name} width={64} height={64} className="w-16 h-16 object-contain" /> : <span className="stud-icon" />}
