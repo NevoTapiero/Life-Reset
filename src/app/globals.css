@@ -1619,3 +1619,14 @@ body {
 .door-knock { display: inline-block; animation: doorKnock 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
 @keyframes doorKnock { 0%, 60%, 100% { transform: none; } 64% { transform: rotate(-12deg); } 68% { transform: rotate(10deg); } 72% { transform: rotate(-8deg); } 76% { transform: rotate(5deg); } 80% { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .door-knock { animation: none; } }
+
+/* a stat's row of ten studs on the character sheet */
+.stat-studs { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; max-width: 230px; }
+.stat-studs span { aspect-ratio: 1; border-radius: 50%; background: var(--panel-2); box-shadow: inset 0 -2px 0 var(--line-strong); }
+.stat-studs span.on {
+  background: radial-gradient(circle at 40% 35%, rgb(255 255 255 / 0.55) 0 22%, transparent 45%), var(--c);
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.25);
+  animation: studPop 420ms var(--ease-bounce) both;
+}
+@keyframes studPop { 0% { transform: scale(0.2); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .stat-studs span.on { animation: none; } }
