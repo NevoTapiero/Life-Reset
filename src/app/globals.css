@@ -322,17 +322,18 @@ body {
   flex: none;
 }
 
+/* text fields: a recessed white slot with the same dark outline as panels */
 .field {
   background: var(--panel);
-  border: 2px solid var(--line-strong);
+  border: var(--ol) solid var(--ol-c);
   border-radius: 14px;
   color: var(--ink);
   outline: none;
   font-weight: 700;
-  box-shadow: inset 0 2px 0 var(--panel-2);
-  transition: border-color 140ms ease;
+  box-shadow: inset 0 3px 0 var(--panel-2);
+  transition: box-shadow 140ms ease;
 }
-.field:focus { border-color: var(--accent); }
+.field:focus { box-shadow: inset 0 3px 0 var(--panel-2), 0 0 0 3px var(--lego-yellow); }
 .field::placeholder { color: var(--muted); font-weight: 600; }
 
 .track {
