@@ -9,6 +9,7 @@ import Connections from "@/components/Connections";
 import Icon from "@/components/Icon";
 import PlayerAvatar, { MinifigHead } from "@/components/PlayerAvatar";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
+import { setSound, soundOn } from "@/lib/sfx";
 import { CHARACTERS, CHARACTER_KEYS, CharacterKey, Profile, rankForXp } from "@/lib/game";
 
 // three.js touches window: the 3D plot loads on the client, and only when asked
@@ -25,6 +26,7 @@ export default function ProfilePage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [show3d, setShow3d] = useState(false);
+  const [sound, setSoundState] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
@@ -41,6 +43,12 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads from the server, then sets state
     reload();
   }, [reload]);
+
+  // the sound switch reads this device's setting after mount
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads a device setting once
+    setSoundState(soundOn());
+  }, []);
 
   // jump to the apps section when linked from Home (#apps)
   useEffect(() => {
@@ -247,6 +255,25 @@ export default function ProfilePage() {
             <span className="block text-[12.5px] font-bold text-muted">{profile.share_activity ? "Your house and rank show in their town" : "You are hidden from friends"}</span>
           </span>
           <button className={`switch ${profile.share_activity ? "on" : ""}`} role="switch" aria-checked={profile.share_activity} aria-label="Friends can see me" onClick={togglePrivacy} />
+        </div>
+        <div className="px-4 py-3.5 flex items-center gap-3">
+          <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
+            <Icon name="sparkle" size={17} strokeWidth={2} />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block font-extrabold text-[15px]">Sounds</span>
+            <span className="block text-[12.5px] font-bold text-muted">Brick snaps and chimes on this device</span>
+          </span>
+          <button
+            className={`switch ${sound ? "on" : ""}`}
+            role="switch"
+            aria-checked={sound}
+            aria-label="Sounds"
+            onClick={() => {
+              setSound(!sound);
+              setSoundState(!sound);
+            }}
+          />
         </div>
       </section>
 

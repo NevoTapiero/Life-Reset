@@ -7,7 +7,7 @@ import BrickLoader from "@/components/BrickLoader";
 import Icon from "@/components/Icon";
 import MinifigPicker from "@/components/MinifigPicker";
 import PlayerAvatar from "@/components/PlayerAvatar";
-import RankBadge from "@/components/RankBadge";
+import RankUp from "@/components/RankUp";
 import { useMissions } from "@/lib/useMissions";
 import { PILLAR_BRICK, greeting, legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import {
@@ -58,21 +58,7 @@ export default function HomePage() {
   return (
     <div className="slide-in">
       {!p.archetype && <MinifigPicker onPicked={m.setProfile} />}
-      {m.rankUp && (
-        <div className="rankup-backdrop" onClick={m.dismissRankUp}>
-          <div className="relative flex items-center justify-center">
-            <div className="rankup-ring" />
-            <div className="rankup-ring late" />
-            <div className="rankup-badge">
-              <RankBadge tierIndex={m.rankUp.tierIndex} stageIndex={m.rankUp.stageIndex} size={120} />
-            </div>
-          </div>
-          <div className="rankup-title text-center mt-6">
-            <div className="hud-label !text-white/80">Rank up</div>
-            <div className="display-hero text-4xl mt-1">{m.rankUp.label}</div>
-          </div>
-        </div>
-      )}
+      {m.rankUp && <RankUp rank={m.rankUp.rank} previousTier={m.rankUp.previousTier} character={p.archetype} onClose={m.dismissRankUp} />}
 
       {/* you, today */}
       <section className="card tile-studs p-4">

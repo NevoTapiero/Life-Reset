@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { sfx } from "@/lib/sfx";
 import {
   PERIODS,
   Period,
@@ -36,7 +37,7 @@ export function useMissions() {
   const [days, setDays] = useState<{ today: string; yesterday: string } | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [xpFloat, setXpFloat] = useState<{ id: string; amount: number } | null>(null);
-  const [rankUp, setRankUp] = useState<Rank | null>(null);
+  const [rankUp, setRankUp] = useState<{ rank: Rank; previousTier: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -126,6 +127,8 @@ export function useMissions() {
       for (const d of before) if (periodStart(period, d) === periodStart(period, on)) after.delete(d);
     } else after.add(on);
     setHistory((prev) => new Map(prev).set(q.id, after));
+    if (isDone) sfx.click();
+    else sfx.snap();
     if (!isDone) setXpFloat({ id: q.id, amount: cardXp(q.xp, cardStepOn(before, period, on)) });
     const { data, error: rpcError } = await supabase.rpc(isDone ? "uncomplete_quest_for" : "complete_quest_for", {
       p_quest_id: q.id,
@@ -141,8 +144,8 @@ export function useMissions() {
         const was = rankForXp(profile.xp);
         const now = rankForXp(updated.xp);
         if (now.label !== was.label) {
-          setRankUp(now);
-          setTimeout(() => setRankUp(null), 2800);
+          setRankUp({ rank: now, previousTier: was.tierIndex });
+          setTimeout(() => setRankUp(null), now.tierIndex > was.tierIndex ? 5000 : 3000);
         }
       }
       setProfile(updated);
