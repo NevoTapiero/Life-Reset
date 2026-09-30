@@ -1023,13 +1023,23 @@ export function LegoTown({
   const [inside, setInside] = useState<number | null>(null);
   // where your minifig is walking to: the last place you looked at
   const [dest, setDest] = useState(meIndex);
-  // your friends go out too: each spends about a third of the time at the shop, staggered
+  // your friends go out too, a few at a time: to the shop, or round to a neighbour's door
+  // (sometimes yours) if they're in. Whoever you go to see heads home; after dark everyone's home.
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 15_000);
     return () => clearInterval(t);
   }, []);
-  const outShopping = (i: number) => i !== meIndex && i !== dest && i !== inside && (tick + i * 2) % 6 >= 4;
+  const phase = (i: number) => (tick + i * 3) % 8; // 15 s steps: 0-3 home, 4-5 the shop, 6-7 visiting
+  const outing = (i: number): "shop" | number | null => {
+    if (i === meIndex || i === dest || i === inside || mood.night || residents.length < 2) return null;
+    if (phase(i) < 4) return null;
+    if (phase(i) < 6) return "shop";
+    let host = (i + 1 + Math.floor(tick / 8)) % residents.length;
+    if (host === i) host = (host + 1) % residents.length;
+    const hostIn = host === meIndex || host === dest || phase(host) < 4;
+    return hostIn ? host : "shop";
+  };
   if (focus !== OVERVIEW && focus !== dest) setDest(focus);
   const [shopOpen, setShopOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -1219,14 +1229,21 @@ export function LegoTown({
             }
             return <Walker key="me" look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
           }
-          // friends: at their door, or off to the shop now and then (home when you come round)
-          const away = outShopping(i);
+          // friends: at their door, at the shop, or on a neighbour's step, turned to them
+          const out = outing(i);
+          const host = typeof out === "number" ? out : null;
           return (
             <Walker
               key={res.name}
               look={loadoutFor(res.level, res.character ?? undefined)}
-              to={away ? shopWalk(1 + (i % 3)) : doorWalk(lots[i], res.level)}
-              turn={away ? Math.PI : turnRad(lots[i].facing)}
+              to={
+                out === "shop"
+                  ? shopWalk(1 + (i % 3))
+                  : host !== null
+                    ? doorWalk(lots[host], residents[host].level, -40)
+                    : doorWalk(lots[i], res.level)
+              }
+              turn={out === "shop" ? Math.PI : host !== null ? turnRad(lots[host].facing) + Math.PI / 2 : turnRad(lots[i].facing)}
             />
           );
         })}
