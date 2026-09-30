@@ -108,7 +108,7 @@ export default function BuildYourDay({
           ) : (
             <>
               <div className="text-[12.5px] font-extrabold text-muted px-1 mb-2">Still open: tap to add it</div>
-              <div className="grid grid-cols-2 gap-2 max-h-[34vh] overflow-y-auto no-scrollbar">
+              <div className="grid grid-cols-2 gap-2.5 max-h-[34vh] overflow-y-auto no-scrollbar p-[4px] pb-3 -mx-[4px]">
                 {open.map((q) => (
                   <button
                     key={q.id}

@@ -105,7 +105,7 @@ function AuthForm() {
       <div className="text-center">
         <BrickLogo size={0.8} />
         <h1 className="display tt-text text-[32px] mt-6">{mode === "signup" ? "Join the town" : mode === "newpass" ? "A new password" : "Welcome back"}</h1>
-        <p className="text-[14px] font-bold text-muted mt-1">
+        <p className="text-[14px] font-bold text-[var(--ink)] mt-1">
           {mode === "signup" ? "Make your minifig and start building." : mode === "newpass" ? "Choose one, then you're straight back in." : "Your town missed you."}
         </p>
       </div>
