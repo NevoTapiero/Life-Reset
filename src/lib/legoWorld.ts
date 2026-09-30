@@ -620,6 +620,18 @@ function villageTrees(): string[] {
     const part = rnd() < 0.72 ? "2435" : rnd() < 0.5 ? "3471" : "3470";
     out.push(line(part === "3471" ? COL.darkGreen : COL.green, Math.round(x / S) * S, -BOTTOM[part], Math.round(z / S) * S, ROT[0], part));
   }
+  // wildflowers in clusters of three in the gaps, never on a plot or a path (gone in winter, like every flower)
+  for (let tries = 0; tries < 400 && out.length < 190; tries++) {
+    const a = rnd() * Math.PI * 2;
+    const r = (RING + 12 + rnd() * (WOODS_FROM - RING - 20)) * S;
+    const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
+    if (lots.some((lot) => nearLot(x, z, lot, 4 * S))) continue;
+    if (paths.some((path) => toPath(x, z, path) < 5 * S) || toPath(x, z, TRACK) < 5 * S) continue;
+    if (Math.hypot(x - PLAYGROUND[0], z - PLAYGROUND[1]) < 240 || Math.hypot(x - WATER_TOWER[0], z - WATER_TOWER[1]) < 150) continue;
+    if (taken.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 4 * S)) continue;
+    const colour = [COL.red, COL.yellow, COL.pink, COL.white][Math.floor(rnd() * 4)];
+    for (const [dx, dz] of [[0, 0], [20, 20], [-20, 20]]) out.push(line(colour, Math.round(x / S) * S + dx, -BOTTOM["3741ac05"], Math.round(z / S) * S + dz, ROT[0], "3741ac05"));
+  }
   // leafy trees lining both sides of the roads out, every 16 studs, as far as the woods' edge
   for (const road of ROADS)
     for (let k = 0; k + 1 < road.length; k++) {
@@ -1038,6 +1050,16 @@ export function townFlats(): Slab[] {
   out.push({ x: ROUNDABOUT[0], z: ROUNDABOUT[1], w: side, d: side, h: 2, y: -5, radius: side / 2, border: ROAD_OUT * S, color: asphalt }); // under the roads that meet it
   const spurStart = nearestStreet([ROUNDABOUT[0], 0, ROUNDABOUT[1]]);
   along([spurStart, [ROUNDABOUT[0], 0, ROUNDABOUT[1]]], GRAVEL_W, GRAVEL);
+  {
+    // a zebra crossing over the roundabout's road where the spur reaches it
+    const [dx, dz] = [ROUNDABOUT[0] - spurStart[0], ROUNDABOUT[1] - spurStart[2]];
+    const len = Math.hypot(dx, dz) || 1;
+    const [ux, uz, nx, nz] = [dx / len, dz / len, -dz / len, dx / len];
+    const from = len - ROUND_R - ROAD_OUT * S;
+    for (let k = -2; k <= 2; k++)
+      for (let d = from + 20; d < len - ROUND_R - 10; d += 40)
+        out.push({ x: spurStart[0] + ux * d + nx * k * 40, z: spurStart[2] + uz * d + nz * k * 40, w: 20, d: 20, h: 2, color: white, yaw: Math.atan2(-uz, ux) });
+  }
   // the river: sandy banks under a band of water, wandering across the north woods; a bridge where the road crosses it
   along(RIVER, (RIVER_W + 6) * S, "#d8c79c", 1, true, 4); // the banks, under the water
   along(RIVER, RIVER_W * S, "#3f8fd8", 2);
@@ -1138,6 +1160,27 @@ export function townDecorText(): string {
   for (const [dx, dz, turn] of [[-120, 60, 0], [40, -150, 90], [180, 90, 180], [-60, -40, 270]] as [number, number, 0 | 90 | 180 | 270][])
     out.push(...place([["49661", COL.yellow, 0, -2, 0]], LAKE.x + dx, LAKE.z + dz, ROT[turn], 0));
   return modelText(out, "town-decor.ldr");
+}
+
+// ---- meadows: round patches of a slightly different green, in the gaps and under the woods ----
+export function meadows(): { x: number; z: number; r: number; k: number }[] {
+  const out: { x: number; z: number; r: number; k: number }[] = [];
+  const rnd = seeded(31);
+  const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
+  const paths = lots.map((lot) => lotPath(lot, 3));
+  for (let tries = 0; tries < 300 && out.length < 26; tries++) {
+    const a = rnd() * Math.PI * 2;
+    const r = (RING + 30 + rnd() * (TOWN_HALF + 60 - RING - 30)) * S;
+    const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
+    const size = (18 + rnd() * 26) * S;
+    if (lots.some((lot) => nearLot(x, z, lot, size))) continue;
+    if (paths.some((p) => toPath(x, z, p) < size) || toPath(x, z, TRACK) < size || ROADS.some((p) => toPath(x, z, p) < size + 10 * S)) continue;
+    if (toPath(x, z, RIVER) < size + 12 * S || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + size) continue;
+    if (Math.hypot(x - PLAYGROUND[0], z - PLAYGROUND[1]) < size + 200 || Math.hypot(x - WATER_TOWER[0], z - WATER_TOWER[1]) < size + 120) continue;
+    if (out.some((m) => Math.hypot(m.x - x, m.z - z) < m.r + size)) continue;
+    out.push({ x, z, r: size, k: Math.floor(rnd() * 3) });
+  }
+  return out;
 }
 
 // ---- landmarks between the houses: a playground and a water tower ----

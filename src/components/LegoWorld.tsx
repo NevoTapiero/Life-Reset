@@ -95,6 +95,7 @@ import {
   townClouds,
   balloonSlabs,
   waterTowerSlabs,
+  meadows,
   RING,
   type Slab,
   emptyLotsText,
@@ -1900,6 +1901,10 @@ export function LegoTown({
                 plaza, and each plot turned its own way. Layers sit 0.1 apart (two LDU): the map
                 camera's depth buffer can't tell closer ones apart. */}
             <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.3} />
+            {/* meadows: round patches a shade off the grass, so the green isn't one flat sheet */}
+            {MEADOWS.map((m, i) => (
+              <StudGround key={`m${i}`} at={[m.x * LDU, -m.z * LDU]} size={(2 * m.r) / 20} color={meadowShade(grass, m.k)} y={-0.2} radius={m.r / 20} />
+            ))}
             <StudGround at={[0, 0]} size={PLAZA} color="#a3a7ad" radius={8} />
             {[...lots, ...emptyLots].map((lot, i) => (
               <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} yaw={-lot.yaw} />
@@ -2880,6 +2885,7 @@ const FLATS = townFlats();
 const HEDGES = plotHedges();
 const BALLOON = balloonSlabs();
 const WATER_TOWER_SLABS = waterTowerSlabs();
+const MEADOWS = meadows();
 // the balloon drifts round the village at a walking pace, high over the houses, bobbing a little
 function Balloon() {
   const g = useRef<THREE.Group>(null);
@@ -3511,6 +3517,14 @@ function StudGround({
   );
 }
 
+// a meadow's green: a little lighter, a little darker, or a little yellower than the grass
+function meadowShade(grass: string, k: number): string {
+  const c = new THREE.Color(grass);
+  if (k === 0) c.multiplyScalar(1.08);
+  else if (k === 1) c.multiplyScalar(0.9);
+  else c.lerp(new THREE.Color("#b7c94a"), 0.25);
+  return `#${c.getHexString()}`;
+}
 // The grass by season: fresh in spring, LEGO green in summer, olive in autumn, snow in winter.
 const GRASS: Record<Season, string> = { spring: "#58ab41", summer: "#4b9f4a", autumn: "#80a83e", winter: "#eef2f6" };
 
