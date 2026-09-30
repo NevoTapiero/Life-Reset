@@ -61,4 +61,40 @@ const got2 = (await q("select collect() as r"))[0].r;
 assert(got2.xp === 7 && (await prof()).xp === before + 7, `collecting it pays its card price (+${got2.xp})`);
 await q("select recalc_player($1)", [U]);
 assert((await prof()).xp === before + 7, "and the next recalc keeps it paid, once");
+
+// ---- from the claude-nevo + Codex review ----
+const ledger = async (ref) => (await q("select xp, pending_xp, collected_at from xp_ledger where ref = $1", [ref]))[0];
+// A. a waiting reward re-priced to 0 and back up stays in the chest (it used to fall out and land straight in XP)
+const night = { kind: "sleep", rated: 12, day: "2026-09-29" };
+await q("select award_external_xp($1, 'health_sleep', 'sleep:3', 7, 'night', $2)", [U, night]);
+await q("select rescore_external_xp($1, 'health_sleep', 'sleep:3', 0, 'short night', $2)", [U, { ...night, rated: 0 }]);
+let r3 = await ledger("sleep:3");
+assert(r3.collected_at === null && r3.xp === 0 && r3.pending_xp === 0, "re-priced to 0 it stays in the chest");
+const xpBefore = (await prof()).xp;
+await q("select rescore_external_xp($1, 'health_sleep', 'sleep:3', 7, 'night', $2)", [U, night]);
+r3 = await ledger("sleep:3");
+assert(r3.collected_at === null && r3.xp === 0 && (await prof()).xp === xpBefore, "and back up it's still waiting, not in XP");
+// B. recalc re-prices a collected watch reward (sleep:2 is now day 2 of a sleep run): gold moves with XP
+const g0 = await prof();
+const s2before = (await ledger("sleep:2")).xp;
+await q("select recalc_player($1)", [U]);
+const s2after = (await ledger("sleep:2")).xp;
+const g1 = await prof();
+assert(s2after !== s2before && g1.gold - g0.gold === s2after - s2before, `a collected reward re-priced ${s2before}->${s2after} moves gold by the same (${g1.gold - g0.gold})`);
+assert((await ledger("sleep:3")).collected_at === null, "recalc prices sleep:3 but leaves it in the chest");
+// C. rescore of a collected chest reward moves gold too
+await q("select collect()");
+const g2 = await prof();
+const s3 = (await ledger("sleep:3")).xp;
+await q("select rescore_external_xp($1, 'health_sleep', 'sleep:3', $2, 'rescored', $3)", [U, s3 + 5, night]);
+assert((await prof()).gold - g2.gold === 5, "re-scoring a collected chest reward moves its gold");
+// D. gold can go into debt: check a mission, spend the gold, uncheck it
+await q("insert into quest_completions (user_id, quest_id, completed_on, xp_awarded) values ($1, 'q', current_date, 60)", [U]);
+await q("update profiles set gold = 0 where id = $1", [U]); // spent it all
+await q("delete from quest_completions where user_id = $1", [U]);
+assert((await prof()).gold === -60, "taking the mission back leaves a debt, so check-buy-uncheck can't print gold");
+// E. a penalty row carrying watch meta is never re-priced into a gain
+await q("select award_external_xp($1, 'whoop_sleep_penalty', 'pen:1', -10, 'short night', $2)", [U, { kind: "sleep", rated: 12, day: "2026-09-28" }]);
+await q("select recalc_player($1)", [U]);
+assert((await ledger("pen:1")).xp === -10, "the penalty stays -10 through recalc");
 console.log("all good");

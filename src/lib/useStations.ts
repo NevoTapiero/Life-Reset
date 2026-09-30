@@ -24,7 +24,7 @@ export function useStations() {
   useEffect(() => {
     const loadChest = async (uid: string) => {
       const [{ data: waiting, error }, { data: prof }] = await Promise.all([
-        supabase.from("xp_ledger").select("pending_xp").eq("user_id", uid).gt("pending_xp", 0),
+        supabase.from("xp_ledger").select("pending_xp").eq("user_id", uid).is("collected_at", null),
         supabase.from("profiles").select("gold").eq("id", uid).single(),
       ]);
       if (error) return;
