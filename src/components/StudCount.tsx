@@ -18,27 +18,29 @@ export default function StudCount({ value, storeKey }: { value: number; storeKey
     }
   });
   const [rolling, setRolling] = useState(false);
+  // the number on screen right now: a new value mid-roll carries on from here
+  const shownRef = useRef(shown);
   const raf = useRef(0);
 
   useEffect(() => {
-    let seen: number | null = null;
-    try {
-      const v = localStorage.getItem(storeKey);
-      seen = v === null ? null : Number(v);
-    } catch {}
     const save = () => {
       try {
         localStorage.setItem(storeKey, String(value));
       } catch {}
     };
+    const show = (n: number) => {
+      shownRef.current = n;
+      setShown(n);
+    };
+    const from = shownRef.current;
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (seen === null || !Number.isFinite(seen) || seen >= value || reduce) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- no roll: show the value as it is
-      setShown(value);
+    if (from >= value || reduce) {
+      // no roll (nothing new, or gold was spent): show the value as it is
+      show(value);
+      setRolling(false);
       save();
       return;
     }
-    const from = seen;
     const start = performance.now();
     const dur = Math.min(1600, 500 + (value - from) * 12);
     let lastTick = 0;
@@ -47,19 +49,20 @@ export default function StudCount({ value, storeKey }: { value: number; storeKey
     const frame = (now: number) => {
       const k = Math.min(1, (now - start) / dur);
       const eased = 1 - Math.pow(1 - k, 3);
-      setShown(Math.round(from + (value - from) * eased));
+      show(Math.round(from + (value - from) * eased));
       if (now - lastTick > 110 && k < 1) {
         lastTick = now;
         brickSound.stud(Math.min(7, step++));
       }
       if (k < 1) raf.current = requestAnimationFrame(frame);
-      else {
-        setRolling(false);
-        save();
-      }
+      else setRolling(false);
     };
     raf.current = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf.current);
+    // leaving mid-roll counts as seen, so it doesn't replay next visit
+    return () => {
+      cancelAnimationFrame(raf.current);
+      save();
+    };
   }, [value, storeKey]);
 
   return <span className={rolling ? "stud-rolling" : undefined}>{shown.toLocaleString()}</span>;

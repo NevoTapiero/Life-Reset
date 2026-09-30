@@ -24,7 +24,7 @@ export default function BrickKit() {
         <button className="btn-primary brick-yellow px-4 py-2" onClick={() => setDemo("level")}>Show level up</button>
         <button className="btn-ghost px-4 py-2" onClick={() => setDemo("rank")}>Show rank up</button>
       </div>
-      {demo && <RankUp rank={rankForXp(demo === "level" ? 1500 : 700)} previousTier={demo === "level" ? 1 : 1} character="warrior" onClose={() => setDemo(null)} />}
+      {demo && <RankUp rank={rankForXp(demo === "level" ? 1500 : 700)} previousTier={1} character="warrior" onClose={() => setDemo(null)} />}
 
       <section className="card p-4">
         <h2 className="section-title mb-3">Icons</h2>

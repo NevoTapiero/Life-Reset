@@ -355,6 +355,7 @@ function Podium({ rows, score, onOpen }: { rows: Row[]; score: (r: Row) => numbe
                   level={legoLevel(rankForXp(r.xp).tierIndex)}
                   size={place[i] === 1 ? 108 : 92}
                   alive
+                  phase={i * 1.4}
                   className={place[i] === 1 ? "mf-cheer" : undefined}
                 />
               </span>
