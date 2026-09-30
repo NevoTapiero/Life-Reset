@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
-import { PILLARS, PILLAR_ICONS, PILLAR_STAT, Pillar, Quest } from "@/lib/game";
+import { PILLARS, PILLAR_ICONS, PILLAR_STAT, Pillar, Quest, cardXp, questBase } from "@/lib/game";
 
 type FormState = { id: string | null; title: string; pillar: Pillar };
 const EMPTY_FORM: FormState = { id: null, title: "", pillar: "Strength" };
@@ -214,7 +214,7 @@ export default function QuestManager() {
                 onClick={() => setStForm({ ...stForm, minutes: l.minutes })}
               >
                 <span className="text-sm font-semibold">{l.label}</span>
-                <span className="hud-label">+{l.xp} XP</span>
+                <span className="hud-label">+{questBase(l.xp)} XP</span>
               </button>
             ))}
           </div>
@@ -238,7 +238,10 @@ export default function QuestManager() {
           <div className="display text-[15px]" style={{ color: "var(--accent)" }}>Verdict</div>
           <p className="text-sm mt-1.5">
             <span className="font-semibold">{verdict.title}</span> is worth{" "}
-            <span className="display text-[16px]" style={{ color: "var(--accent)" }}>+{verdict.xp} XP</span>
+            <span className="display text-[16px]" style={{ color: "var(--accent)" }}>+{questBase(verdict.xp)} XP</span>
+          </p>
+          <p className="text-xs text-muted mt-1">
+            Pays more each day in a row, up to +{cardXp(verdict.xp, 7)} XP on day 7.
           </p>
           {verdict.reason && <p className="text-xs text-muted mt-1.5">{verdict.reason}</p>}
           <button className="hud-label mt-2.5 underline underline-offset-4" onClick={() => setVerdict(null)}>
@@ -296,7 +299,7 @@ export default function QuestManager() {
               </button>
               <button className="flex-1 text-left min-w-0" onClick={() => toggleActive(q)}>
                 <span className={`block text-[15px] truncate ${on ? "" : "text-muted"}`}>{q.title}</span>
-                <span className="hud-label mt-0.5">{q.pillar} · +{q.xp} XP {on ? "· active" : ""}</span>
+                <span className="hud-label mt-0.5">{q.pillar} · +{questBase(q.xp)} XP {on ? "· active" : ""}</span>
               </button>
               <button
                 className="icon-tile !w-9 !h-9 !rounded-[10px] active:scale-95 transition-transform"
@@ -338,7 +341,7 @@ export default function QuestManager() {
               </span>
               <span className="flex-1 text-left min-w-0">
                 <span className={`block text-[15px] truncate ${on ? "" : "text-muted"}`}>{q.title}</span>
-                <span className="hud-label mt-0.5">{q.pillar} · +{q.xp} XP</span>
+                <span className="hud-label mt-0.5">{q.pillar} · +{questBase(q.xp)} XP</span>
               </span>
               <span
                 className="hud-label flex-none"

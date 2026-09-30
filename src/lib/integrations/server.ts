@@ -79,6 +79,44 @@ export async function paidRefs(uid: string, sources: string[]): Promise<Set<stri
   return new Set((await paidAt(uid, sources)).keys());
 }
 
+// Paid items of one source with their stored meta, ref -> meta.
+export async function paidMeta(uid: string, source: string): Promise<Map<string, Record<string, unknown>>> {
+  try {
+    const r = await fetch(`${SUPA}/rest/v1/xp_ledger?user_id=eq.${uid}&source=eq.${source}&select=ref,meta`, {
+      headers: { apikey: SERVICE, authorization: `Bearer ${SERVICE}` },
+    });
+    const rows = await r.json();
+    return new Map(
+      Array.isArray(rows) ? rows.map((x: { ref: string; meta: Record<string, unknown> | null }) => [x.ref, x.meta ?? {}]) : [],
+    );
+  } catch {
+    return new Map();
+  }
+}
+
+// Re-price an item that was already paid (e.g. a workout re-scored by intensity).
+// Returns the XP difference applied to the player.
+export async function rescoreXp(
+  uid: string,
+  source: string,
+  ref: string,
+  xp: number,
+  reason: string,
+  meta: Record<string, unknown>,
+): Promise<number> {
+  try {
+    const r = await fetch(`${SUPA}/rest/v1/rpc/rescore_external_xp`, {
+      method: "POST",
+      headers: { apikey: SERVICE, authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_user: uid, p_source: source, p_ref: ref, p_xp: xp, p_reason: reason, p_meta: meta }),
+    });
+    const n = Number(await r.json());
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
 // Take back the XP for one item (the player unchecked it). Returns the amount.
 export async function revokeXp(uid: string, source: string, ref: string): Promise<number> {
   try {

@@ -138,15 +138,51 @@ export type Quest = {
 };
 
 // ---------- ranks: 6 tiers x 3 stages, ascending, rising XP cost ----------
+// Costs doubled on 30.9 (players reached Silver II on day three).
 
 export const TIERS = [
-  { name: "Bronze", color: "#c9885a", divXp: 100 },
-  { name: "Silver", color: "#c3cede", divXp: 150 },
-  { name: "Gold", color: "#f5c752", divXp: 225 },
-  { name: "Platinum", color: "#7fe3e0", divXp: 325 },
-  { name: "Diamond", color: "#8ea2ff", divXp: 450 },
-  { name: "Champion", color: "#ff4655", divXp: 600 },
+  { name: "Bronze", color: "#c9885a", divXp: 200 },
+  { name: "Silver", color: "#c3cede", divXp: 300 },
+  { name: "Gold", color: "#f5c752", divXp: 450 },
+  { name: "Platinum", color: "#7fe3e0", divXp: 650 },
+  { name: "Diamond", color: "#8ea2ff", divXp: 900 },
+  { name: "Champion", color: "#ff4655", divXp: 1200 },
 ] as const;
+
+// ---------- 7-day cards: XP rewards consistency, not single actions ----------
+// Every quest runs its own 7-day card. Each consecutive day the quest pays more,
+// day 7 pays x2.5, then the card starts again at day 1. Missing a day also
+// sends it back to day 1. Mirrored exactly by public.card_xp() in the database,
+// which is what actually pays; these helpers only preview it.
+
+// Kept in whole percents: 10 x 1.15 is 11.4999... in floating point but 11.5 in
+// Postgres numeric, which would make the preview disagree with the payout.
+export const QUEST_XP_PCT = 60; // a quest's rated value (1-60) -> its day-1 payout
+export const CARD_DAYS = 7;
+export const CARD_MULT_PCT = [100, 115, 130, 150, 175, 200, 250] as const;
+// Every 7th day of the streak (days with at least one quest done) pays this on top.
+export const STREAK_BONUS_XP = 50;
+
+export function questBase(rated: number): number {
+  return Math.max(1, Math.round((rated * QUEST_XP_PCT) / 100));
+}
+
+export function cardXp(rated: number, day: number): number {
+  const d = Math.min(CARD_DAYS, Math.max(1, day));
+  return Math.max(1, Math.round((questBase(rated) * CARD_MULT_PCT[d - 1]) / 100));
+}
+
+function shiftDay(ymd: string, delta: number): string {
+  return new Date(new Date(ymd + "T00:00:00Z").getTime() + delta * 86400000).toISOString().slice(0, 10);
+}
+
+// The card day a completion on `on` counts as: one past the unbroken run of
+// completions ending the day before, wrapping back to 1 after day 7.
+export function cardDayOn(doneDates: Set<string>, on: string): number {
+  let run = 0;
+  for (let d = shiftDay(on, -1); doneDates.has(d); d = shiftDay(d, -1)) run++;
+  return (run % CARD_DAYS) + 1;
+}
 
 export const STAGES = ["I", "II", "III"] as const;
 

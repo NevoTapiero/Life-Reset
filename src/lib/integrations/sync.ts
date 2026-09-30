@@ -1,6 +1,6 @@
-import { getIntegration, touchSync, awardXp, paidRefs } from "./server";
+import { getIntegration, touchSync, awardXp, paidRefs, paidMeta, rescoreXp } from "./server";
 import { freshAccessToken as googleToken, completedTasksSince, judge, localDayRange, GTask, GEvent } from "./google";
-import { recentExercise, recentSleep as healthSleep, dailySteps, exerciseMinutes, pointId } from "./health";
+import { recentExercise, recentSleep as healthSleep, dailySteps, exerciseMinutes, pointId, workoutXp } from "./health";
 import {
   freshAccessToken as whoopToken,
   recentSleep,
@@ -97,9 +97,10 @@ export async function syncGoogle(uid: string): Promise<GoogleSync> {
 }
 
 // --- Google Health --------------------------------------------------------
-// Workouts pay by active minutes, sleep by hours actually asleep, and steps by
-// the thousand, but only for finished days so a half-walked day is not locked
-// in at breakfast.
+// Workouts pay by how hard they were (heart-rate zones, else Active Zone
+// Minutes, else calories), sleep by hours actually asleep, and steps by the
+// thousand, but only for finished days so a half-walked day is not locked in at
+// breakfast.
 
 export type HealthSync = { connected: boolean; newItems: number; xpGained: number; error?: string };
 
@@ -120,10 +121,11 @@ export async function syncHealth(uid: string): Promise<HealthSync> {
   // steps are whole days: count from the day of connection, finished days only
   const firstDay = ymd(from);
 
-  const [workouts, sleeps, steps] = await Promise.all([
+  const [workouts, sleeps, steps, paidWorkouts] = await Promise.all([
     recentExercise(token, since),
     healthSleep(token, since), // sessions that ended after connecting
     firstDay < today ? dailySteps(token, firstDay, today) : Promise.resolve([]), // end exclusive: today left out
+    paidMeta(uid, "health_workout"),
   ]);
 
   let xpGained = 0;
@@ -140,7 +142,22 @@ export async function syncHealth(uid: string): Promise<HealthSync> {
     const minutes = exerciseMinutes(w);
     if (minutes < 10) continue; // a walk to the car is not a workout
     const label = w.exercise?.displayName || prettyType(w.exercise?.exerciseType) || "Workout";
-    await grant("health_workout", `workout:${pointId(w.name)}`, Math.min(40, Math.round(minutes * 0.6)), `${label} · ${minutes} min`);
+    const ref = `workout:${pointId(w.name)}`;
+    const { xp, basis } = workoutXp(w);
+    const reason = `${label} · ${minutes} min · ${basis}`;
+    const meta = { scoring: "intensity-v2", basis };
+    const paidBefore = paidWorkouts.get(ref);
+    if (paidBefore && paidBefore.scoring !== "intensity-v2") {
+      // paid under the old minutes-only rule: re-price it by intensity once
+      const delta = await rescoreXp(uid, "health_workout", ref, xp, reason, meta);
+      xpGained += delta;
+      continue;
+    }
+    if (paidBefore) continue;
+    if (xp > 0 && (await awardXp(uid, "health_workout", ref, xp, reason, meta))) {
+      xpGained += xp;
+      newItems++;
+    }
   }
   for (const s of sleeps) {
     const asleep = Number(s.sleep?.summary?.minutesAsleep ?? 0);
