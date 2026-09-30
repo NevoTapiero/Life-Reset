@@ -30,7 +30,9 @@ export default function WorldPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [board, setBoard] = useState<Board>("all");
   const [myCode, setMyCode] = useState<string | null>(null);
-  const [knocks, setKnocks] = useState(0);
+  // friends at your door, waiting for an answer
+  const [knocks, setKnocks] = useState<string[]>([]);
+  const [doorMsg, setDoorMsg] = useState<string | null>(null);
   const [codeDraft, setCodeDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -46,7 +48,11 @@ export default function WorldPage() {
     ]);
     if (error) setError(error.message);
     else setRows((data as Row[]) ?? []);
-    setKnocks(((visits as { knocked_by_me: boolean; allowed: boolean }[] | null) ?? []).filter((v) => !v.knocked_by_me && !v.allowed).length);
+    setKnocks(
+      ((visits as { username: string; knocked_by_me: boolean; allowed: boolean }[] | null) ?? [])
+        .filter((v) => !v.knocked_by_me && !v.allowed)
+        .map((v) => v.username),
+    );
     const uid = userData.user?.id;
     if (uid) {
       const { data: prof } = await supabase.from("profiles").select("friend_code").eq("id", uid).single();
@@ -70,6 +76,14 @@ export default function WorldPage() {
     setNotice(friend?.username ? `${friend.username} moved into your town.` : "Friend added.");
     setCodeDraft("");
     load();
+  }
+
+  async function answer(name: string, allow: boolean) {
+    setError(null);
+    const { error } = await supabase.rpc("answer_knock", { p_visitor: name, p_allow: allow });
+    if (error) return setError(error.message);
+    setKnocks((k) => k.filter((n) => n !== name));
+    setDoorMsg(allow ? `${name} can come into your house now.` : `You told ${name} not now.`);
   }
 
   async function removeFriend(username: string) {
@@ -156,17 +170,30 @@ export default function WorldPage() {
         <Icon name="play" size={18} />
         Jump into the world
       </Link>
-      {knocks > 0 && (
-        <Link href="/app/town" className="card mt-4 px-4 py-3 flex items-center gap-3 active:translate-y-[2px] transition-transform">
-          <span className="icon-tile !w-10 !h-10" style={{ color: "var(--lego-orange)" }}>
-            <Icon name="home" size={19} strokeWidth={2} />
-          </span>
-          <span className="flex-1 font-extrabold text-[15px]">
-            {knocks === 1 ? "Someone is knocking on your door" : `${knocks} friends are knocking on your door`}
-          </span>
-          <Icon name="chevron-right" size={18} strokeWidth={2.2} className="text-muted" />
-        </Link>
-      )}
+      {knocks.map((name) => {
+        const r = rows.find((x) => x.username === name);
+        return (
+          <div key={name} className="card mt-4 p-3.5 rise">
+            <div className="flex items-center gap-3">
+              <PlayerAvatar photo={r ? photoOf(r) : null} character={r?.archetype} size={44} />
+              <span className="flex-1 min-w-0">
+                <span className="block font-extrabold text-[15px] truncate">{name} is at your door</span>
+                <span className="block text-[12.5px] font-bold text-muted">Let them into your house?</span>
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 mt-3">
+              <button className="btn-ghost brick-flat py-2.5 !text-[14px]" onClick={() => answer(name, false)}>
+                Not now
+              </button>
+              <button className="btn-primary brick-green brick-flat py-2.5 !text-[14px]" onClick={() => answer(name, true)}>
+                Let in
+              </button>
+            </div>
+          </div>
+        );
+      })}
+
+      {doorMsg && <p className="chip chip-green mt-4">{doorMsg}</p>}
 
       {/* the board */}
       <div className="flex items-center justify-between mt-8 mb-3">
