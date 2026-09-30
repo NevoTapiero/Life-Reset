@@ -6,6 +6,7 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ContactShadows, Environment, Lightformer, OrbitControls, PerformanceMonitor } from "@react-three/drei";
 import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
+import { sfx, setSound, soundOn } from "@/lib/sfx";
 import * as THREE from "three";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
 import { LDrawConditionalLineMaterial } from "three/examples/jsm/materials/LDrawConditionalLineMaterial.js";
@@ -516,6 +517,7 @@ function Building({
   const lid = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), OPEN), []);
   const progress = useRef(0);
   const started = useRef<number | null>(null);
+  const lastRow = useRef(0);
   useEffect(() => {
     let live = true;
     let own: THREE.Material[] = [];
@@ -571,6 +573,10 @@ function Building({
     // a whole row of bricks at a time, the way LEGO goes up
     const rows = Math.ceil(-model.box.min.y / ROW);
     const row = k === 0 ? 0 : Math.min(rows, Math.floor(k * rows) + 1);
+    if (row !== lastRow.current) {
+      lastRow.current = row;
+      if (row > 0) sfx.snap(); // a row of bricks snaps on
+    }
     rise.set(rise.normal, row === 0 ? -1 : row * ROW * LDU + 0.02);
     if (k === 1) {
       started.current = null;
@@ -994,8 +1000,9 @@ export type Mood = { name: string; top: string; horizon: string; sun: number; su
 const MOODS: Record<string, Mood> = {
   day: { name: "day", top: "#2f86ea", horizon: "#bfe3ff", sun: 2.6, sunColor: "#fff8ee", ambient: 1, night: false },
   golden: { name: "golden", top: "#5a86d6", horizon: "#ffc98a", sun: 2.1, sunColor: "#ffae66", ambient: 0.8, night: false },
-  dusk: { name: "dusk", top: "#26356a", horizon: "#e58a6c", sun: 0.7, sunColor: "#ff9a6a", ambient: 0.45, night: true },
-  night: { name: "night", top: "#070d26", horizon: "#1d2a52", sun: 0.35, sunColor: "#9fb4ff", ambient: 0.28, night: true },
+  // LEGO-game nights stay readable: a cool blue moonlight, not just darker
+  dusk: { name: "dusk", top: "#2c3f7e", horizon: "#f0957a", sun: 1.0, sunColor: "#ffa27a", ambient: 0.62, night: true },
+  night: { name: "night", top: "#0c1740", horizon: "#2b3f78", sun: 0.75, sunColor: "#a9c2ff", ambient: 0.5, night: true },
 };
 export function moodAt(hour: number): Mood {
   if (hour >= 20.5 || hour < 5) return MOODS.night;
@@ -1533,7 +1540,13 @@ export function LegoTown({
   const r = here === null || here < 0 ? null : residents[here]; // the shop and the overview are nobody's house
   const access = r && (r.me ? "allowed" : visits[r.name]);
   const label = (text: string, me: boolean, onClick: () => void) => (
-    <button onClick={onClick} className={`lego lego-sm ${me ? "" : "lego-white"}`}>
+    <button
+      onClick={() => {
+        sfx.click();
+        onClick();
+      }}
+      className={`lego lego-sm ${me ? "" : "lego-white"}`}
+    >
       {text}
     </button>
   );
@@ -1676,7 +1689,9 @@ export function LegoTown({
             friends={residents.filter((res) => !res.me).map((res) => res.name)}
             onTalk={(name) => {
               setTalker(name);
-              if (name) setMeetings((n) => n + 1);
+              if (!name) return;
+              setMeetings((n) => n + 1);
+              sfx.blip();
             }}
           />
         )}
@@ -1794,15 +1809,15 @@ export function LegoTown({
         </div>
       )}
       {/* top right: the map (the whole town), and from it, back to playing */}
-      {inside === null && (
-        <div className="absolute top-3 right-3">
-          {following ? (
+      <div className="absolute top-3 right-3 flex items-start gap-2">
+        <SoundToggle />
+        {inside === null &&
+          (following ? (
             <RoundAction icon="map" text="Map" tone="dark" small onClick={() => go(OVERVIEW)} />
           ) : (
             <RoundAction icon="play" text="Play" small onClick={() => setFocus(dest)} />
-          )}
-        </div>
-      )}
+          ))}
+      </div>
       {note && !shopOpen && (
         <div className="absolute top-3 inset-x-0 flex justify-center pointer-events-none">
           <span className="lego lego-green text-sm">
@@ -1820,7 +1835,18 @@ export function LegoTown({
           <span className="lego lego-sm lego-white mb-2 self-center">Tap a place to walk there</span>
         )}
         <div className="flex items-end gap-3">
-          {following && <RoundAction icon="jump" text="Jump" tone="dark" small onClick={() => jumps.current++} />}
+          {following && (
+            <RoundAction
+              icon="jump"
+              text="Jump"
+              tone="dark"
+              small
+              onClick={() => {
+                jumps.current++;
+                sfx.jump();
+              }}
+            />
+          )}
           {action && <RoundAction icon={action.icon} text={action.text} onClick={action.onClick} disabled={!action.onClick} tone={action.tone} />}
         </div>
       </div>
@@ -1921,7 +1947,10 @@ function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>, jumpR
       const key = e.key.toLowerCase();
       if (key === " " && jumpRef) {
         e.preventDefault();
-        if (e.type === "keydown" && !e.repeat) jumpRef.current++;
+        if (e.type === "keydown" && !e.repeat) {
+          jumpRef.current++;
+          sfx.jump();
+        }
         return;
       }
       if (!["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) return;
@@ -2018,6 +2047,8 @@ const ICONS: Record<string, React.ReactNode> = {
   jump: <path d="M12 19V6M6 11l6-6 6 6" strokeWidth="2.8" />,
   map: <path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4Zm0 0v13.5m6-11v13.5" strokeWidth="2" />,
   play: <path d="M12 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm-4 16v-5a4 4 0 0 1 8 0v5" strokeWidth="2.4" />,
+  sound: <path d="M4 10v4h4l5 4V6L8 10H4Zm12.5-1.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" strokeWidth="2.2" />,
+  mute: <path d="M4 10v4h4l5 4V6L8 10H4Zm12 0 5 5m0-5-5 5" strokeWidth="2.2" />,
 };
 function Icon({ name }: { name: keyof typeof ICONS }) {
   return (
@@ -2045,11 +2076,36 @@ function RoundAction({
 }) {
   return (
     <div className="flex flex-col items-center gap-1.5 pointer-events-auto">
-      <button onClick={onClick} disabled={disabled} aria-label={text} className={`lego-round ${tone} ${small ? "small" : ""}`}>
+      <button
+        onClick={() => {
+          sfx.click();
+          onClick?.();
+        }}
+        disabled={disabled}
+        aria-label={text}
+        className={`lego-round ${tone} ${small ? "small" : ""}`}
+      >
         <Icon name={icon} />
       </button>
       {text && <span className="lego-chip max-w-[120px] truncate" style={{ background: "rgba(20,18,16,0.72)", color: "#fff" }}>{text}</span>}
     </div>
+  );
+}
+
+// The speaker: sound on or off (remembered on this device)
+function SoundToggle() {
+  const [on, setOn] = useState(soundOn);
+  return (
+    <RoundAction
+      icon={on ? "sound" : "mute"}
+      text={on ? "Sound" : "Muted"}
+      tone="dark"
+      small
+      onClick={() => {
+        setSound(!on);
+        setOn(!on);
+      }}
+    />
   );
 }
 
@@ -2071,6 +2127,7 @@ function HeadIcon() {
 // bottom, to cover the screen; then falls away (going into / out of a room).
 const WIPE_COLOURS = ["#d01012", "#0055bf", "#f5cd2f", "#4b9f4a", "#fe8a18", "#ffffff", "#a0a5a9", "#582a12"];
 function BrickWipe({ phase }: { phase: "in" | "out" }) {
+  useEffect(() => sfx.clatter(), [phase]);
   const rows = 12;
   const cols = 6;
   return (
@@ -2101,6 +2158,7 @@ const WIPE_OUT = 460 + 11 * 12 + 40;
 // inside (a button, the screen) and tumbling down: something good happened.
 const BURST_COLOURS = ["#d01012", "#0055bf", "#f5cd2f", "#4b9f4a", "#fe8a18", "#ffffff", "#a0a5a9"];
 function BrickBurst({ count = 16 }: { count?: number }) {
+  useEffect(() => sfx.ting(), []);
   return (
     <span className="absolute left-1/2 top-1/2 pointer-events-none" aria-hidden>
       {Array.from({ length: count }, (_, i) => {
@@ -2146,6 +2204,7 @@ function ShopSheet({
   const [error, setError] = useState<string | null>(null);
   const buy = async (id: string, name: string) => {
     if (busy) return;
+    sfx.click();
     setBusy(id);
     const err = await onBuy(id);
     setBusy(null);
@@ -2388,6 +2447,7 @@ function Walker({
   }, [key]);
   const look3 = useMemo(() => new THREE.Vector3(), []);
   const off = useMemo(() => ({ x: 0, z: 0 }), []); // sidestepping someone
+  const stepped = useRef({ x: 0, z: 0, d: 0 }); // for your footsteps
   useEffect(() => () => void CROWD.delete(id), [id]);
   useFrame(({ camera }, dt) => {
     const s = state.current;
@@ -2405,6 +2465,14 @@ function Walker({
       else [off.x, off.z] = [0, 0];
       o.position.set(x, s.pos[1], z);
       CROWD.set(id, { x, z });
+      // your footsteps: a soft plastic tick every stride
+      if (id === "me") {
+        const f = stepped.current;
+        f.d += Math.hypot(x - f.x, z - f.z);
+        [f.x, f.z] = [x, z];
+        if (f.d > 38 && f.d < 400) sfx.step();
+        if (f.d > 38) f.d = 0;
+      }
       where?.current.set(x * LDU, -s.pos[1] * LDU, -z * LDU);
     };
     // behind someone heading (dx, dz) in LDraw: the camera sits the other way round (three's x, -z)
@@ -2884,6 +2952,7 @@ export function LegoRoom({
 
   const tap = async (st: Station) => {
     if (st.done || busy) return;
+    sfx.click();
     setBusy(st.id);
     const xp = await onTap(st.id);
     setBusy(null);
@@ -2994,8 +3063,11 @@ export function LegoRoom({
           </div>
         </div>
       </div>
+      <div className="absolute top-3 right-3">
+        <SoundToggle />
+      </div>
       {stations.length > 0 && (
-        <div className="absolute top-3 right-3 pointer-events-none">
+        <div className="absolute top-3 right-20 pointer-events-none">
           {stations.every((st) => st.done) ? (
             <span className="lego lego-sm lego-green">All done today ✓</span>
           ) : (
