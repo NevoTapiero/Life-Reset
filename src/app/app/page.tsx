@@ -49,7 +49,7 @@ export default function HomePage() {
   const [wasCleared, setWasCleared] = useState<boolean | null>(null);
   const [justCleared, setJustCleared] = useState(false);
   // studs flying from a checked mission into the stud counter
-  const counterRef = useRef<HTMLSpanElement>(null);
+  const counterRef = useRef<HTMLAnchorElement>(null);
   const [flying, setFlying] = useState<{ id: number; x: number; y: number; dx: number; dy: number; delay: number }[]>([]);
   const [bump, setBump] = useState(false);
   const flyId = useRef(0);
@@ -163,10 +163,10 @@ export default function HomePage() {
           <div className="flex-1 min-w-0 pb-3">
             <div className="flex items-center justify-between gap-2">
               <div className="hud-label">{greeting()}</div>
-              <span className={`stud-counter ${bump ? "bump" : ""}`} title="Gold studs" ref={counterRef}>
+              <Link href="/app/town" aria-label={`${(p.gold ?? 0).toLocaleString()} gold studs: spend them in your world`} className={`stud-counter ${bump ? "bump" : ""}`} title="Gold studs: spend them in your world" ref={counterRef}>
                 <span className="stud-spin" aria-hidden />
                 {(p.gold ?? 0).toLocaleString()}
-              </span>
+              </Link>
             </div>
             <div className="display text-[25px] truncate leading-tight mt-0.5">{p.username}</div>
             <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
