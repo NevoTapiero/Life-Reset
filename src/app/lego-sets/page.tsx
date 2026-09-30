@@ -8,6 +8,19 @@ import type { Visit } from "@/components/LegoWorld";
 
 const LegoWorld = dynamic(() => import("@/components/LegoWorld"), { ssr: false });
 const LegoTown = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoTown), { ssr: false });
+const LegoRoom = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoRoom), { ssr: false });
+
+// sample missions for your room
+const DEMO_STATIONS = [
+  { id: "gym", title: "Workout", pillar: "Strength", xp: 40, done: false },
+  { id: "deep", title: "Deep work 1h", pillar: "Focus", xp: 30, done: true },
+  { id: "water", title: "Drink 2L", pillar: "Constitution", xp: 15, done: false },
+  { id: "bed", title: "In bed by 23:00", pillar: "Discipline", xp: 25, done: false },
+  { id: "read", title: "Read 20 pages", pillar: "Wisdom", xp: 20, done: false },
+  { id: "run", title: "Run 5k", pillar: "Strength", xp: 50, done: false },
+  { id: "phone", title: "No phone 1h", pillar: "Discipline", xp: 25, done: false },
+  { id: "learn", title: "Course lesson", pillar: "Wisdom", xp: 30, done: false },
+];
 
 // a sample street (the real one is /app/town, from your friends list)
 const DEMO_TOWN = [
@@ -26,6 +39,12 @@ export default function LegoPreview() {
     setVisits((v) => ({ ...v, [name]: "knocked" }));
     setTimeout(() => setVisits((v) => ({ ...v, [name]: "allowed" })), 1500);
   };
+  const [stations, setStations] = useState(DEMO_STATIONS);
+  const tap = async (id: string) => {
+    await new Promise((r) => setTimeout(r, 300));
+    setStations((all) => all.map((st) => (st.id === id ? { ...st, done: true } : st)));
+    return stations.find((st) => st.id === id)?.xp ?? null;
+  };
   const button = (active: boolean) => `px-3 py-1.5 rounded border text-sm ${active ? "bg-white text-black" : ""}`;
   return (
     <main className="min-h-screen p-4">
@@ -40,7 +59,12 @@ export default function LegoPreview() {
         ))}
       </div>
       {level === null ? (
-        <LegoTown residents={DEMO_TOWN} visits={visits} onKnock={knock} className="w-full h-[75vh] rounded overflow-hidden" />
+        <LegoTown
+          residents={DEMO_TOWN}
+          visits={visits}
+          onKnock={knock}
+          room={(leave) => <LegoRoom stations={stations} onTap={tap} onLeave={leave} className="w-full h-full" />}
+          className="w-full h-[75vh] rounded overflow-hidden" />
       ) : (
         <LegoWorld houseLevel={level} streak={12} className="w-full h-[75vh] rounded overflow-hidden" />
       )}

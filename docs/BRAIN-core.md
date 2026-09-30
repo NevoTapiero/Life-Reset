@@ -20,6 +20,15 @@ Model Repository. `scripts/lego/pack.mjs` packs the parts the plot uses into
 `public/lego/houses/` (turned to face the garden, outlines dropped, meshopt).
 The Town tab lays you and your friends' plots along one street.
 
+**Inside your house** is a room with a station for each of your missions (up
+to 10): a barbell for Strength, a laptop for Focus, an apple for
+Constitution, a clock for Discipline, a bookcase for Wisdom. Tapping a
+station is doing the mission -- it pays out (+XP floats up) and stays lit for
+the day, Clash of Clans collector style. Next: band-tracked missions fill
+their station on their own and you tap to collect; gold alongside XP.
+In the town you knock on a friend's door, and once they let you in you can
+walk into their house (the roof comes off, dollhouse style).
+
 **Licensing:** the geometry is free, but LEGO and the minifigure are LEGO
 Group trademarks, and the houses are LEGO's own set designs. This must not ship publicly (merge to `main` auto-deploys)
 until the licence is in place.

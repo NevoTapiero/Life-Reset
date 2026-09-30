@@ -8,9 +8,11 @@ import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
 import XpMeter from "@/components/XpMeter";
+import { useStations } from "@/lib/useStations";
 
 // three.js touches window: load the LEGO world on the client only
 const LegoWorld = dynamic(() => import("@/components/LegoWorld"), { ssr: false });
+const LegoRoom = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoRoom), { ssr: false });
 import {
   CHARACTERS,
   CHARACTER_KEYS,
@@ -33,6 +35,9 @@ import {
 export default function YouPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // inside your house: a station per mission
+  const [inside, setInside] = useState(false);
+  const { stations, complete } = useStations();
 
   const load = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
@@ -75,12 +80,35 @@ export default function YouPage() {
 
         <div className="relative">
           <div className="relative" style={{ height: "58vh", minHeight: 360 }}>
-            <LegoWorld
-              // ponytail: house grows with rank tier until gold buys upgrades
-              houseLevel={rank.tierIndex + 1}
-              streak={profile.streak_current}
-              className="absolute inset-0"
-            />
+            {inside ? (
+              <LegoRoom
+                stations={stations ?? []}
+                onTap={async (id) => {
+                  const xp = await complete(id);
+                  // the XP bar and rank follow the payout
+                  if (xp !== null) setProfile((p) => (p ? { ...p, xp: p.xp + xp } : p));
+                  return xp;
+                }}
+                onLeave={() => setInside(false)}
+                className="absolute inset-0"
+              />
+            ) : (
+              <>
+                <LegoWorld
+                  // ponytail: house grows with rank tier until gold buys upgrades
+                  houseLevel={rank.tierIndex + 1}
+                  streak={profile.streak_current}
+                  className="absolute inset-0"
+                />
+                <button
+                  onClick={() => setInside(true)}
+                  className="absolute top-3 right-3 px-3.5 py-2 rounded-full text-sm font-semibold shadow-lg active:scale-95 transition-transform"
+                  style={{ background: "#ff8a1f", color: "#fff" }}
+                >
+                  Go inside{stations ? ` · ${stations.filter((s) => !s.done).length} to do` : ""}
+                </button>
+              </>
+            )}
             <div className="absolute inset-x-0 bottom-0 h-16 pointer-events-none" style={{ background: "linear-gradient(180deg, transparent, var(--panel))" }} />
           </div>
           <div className="display text-[28px] leading-tight -mt-6 relative px-5">{profile.username}</div>

@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { ContactShadows, Environment, Html, Lightformer, OrbitControls } from "@react-three/drei";
+import { ContactShadows, Environment, Lightformer, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
 import { LDrawConditionalLineMaterial } from "three/examples/jsm/materials/LDrawConditionalLineMaterial.js";
@@ -24,8 +24,12 @@ import {
   minifigSpot,
   modelText,
   plotX,
+  roomText,
+  stationSpot,
   townBounds,
   townText,
+  MAX_STATIONS,
+  type Station,
   type MinifigLook,
   type Resident,
 } from "@/lib/legoWorld";
@@ -252,6 +256,26 @@ export default function LegoWorld({
   );
 }
 
+export type Pin = { key: string; at: [number, number, number]; node: React.ReactNode };
+
+// Moves each pinned button to its point's place on screen, every frame.
+// (drei's Html gives each label its own React root, and under React 19 the
+// first one is dropped; plain DOM moved by hand has no such trouble.)
+function PinTracker({ pins, els }: { pins: Pin[]; els: React.RefObject<Map<string, HTMLDivElement>> }) {
+  const v = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ camera, size }) => {
+    for (const p of pins) {
+      const el = els.current.get(p.key);
+      if (!el) continue;
+      v.set(...p.at).project(camera);
+      const x = ((v.x + 1) / 2) * size.width;
+      const y = ((1 - v.y) / 2) * size.height;
+      el.style.transform = v.z > 1 ? "translate(-9999px, 0)" : `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+    }
+  });
+  return null;
+}
+
 // Sky, light and camera around whatever LDraw models are passed in. The light
 // and the contact shadow follow the target, so a long town is lit wherever you look.
 function Stage({
@@ -264,6 +288,7 @@ function Stage({
   bounds,
   onPick,
   overlay,
+  pins = [],
   children,
 }: {
   className?: string;
@@ -276,12 +301,15 @@ function Stage({
   bounds?: THREE.Box3;
   /** a tap on the ground (not a drag), at this point in three's space */
   onPick?: (p: THREE.Vector3) => void;
-  /** things placed in three's space rather than LDraw's (labels) */
+  /** things placed in three's space rather than LDraw's (hills) */
   overlay?: React.ReactNode;
+  /** buttons pinned over points in three's space (names, station bubbles) */
+  pins?: Pin[];
   children: React.ReactNode;
 }) {
   const [sun] = useState(() => new THREE.Object3D());
   const controls = useRef<OrbitControlsImpl>(null);
+  const pinEls = useRef(new Map<string, HTMLDivElement>());
   // keep the camera over the town: pull the target back inside, camera with it
   const clamp = () => {
     const c = controls.current;
@@ -293,70 +321,93 @@ function Stage({
   };
   return (
     <div className={className} role="img" aria-label={label}>
-      <Canvas shadows dpr={[1, 2]} camera={{ fov: 32, near: 1, far: 500 }} gl={{ antialias: true }}
-        onCreated={({ gl }) => (gl.localClippingEnabled = true)}
-      >
-        <color attach="background" args={["#bfe3ff"]} />
-        <fog attach="fog" args={["#bfe3ff", 140, 330]} />
-        <hemisphereLight args={["#fff8ef", "#5a7a4a", 0.9]} />
-        <primitive object={sun} position={[target.x, 0, target.z]} />
-        <directionalLight
-          target={sun}
-          position={[target.x + 18, 30, target.z - 14]}
-          intensity={2.3}
-          castShadow
-          shadow-mapSize={[2048, 2048]}
-          shadow-camera-left={-22}
-          shadow-camera-right={22}
-          shadow-camera-top={22}
-          shadow-camera-bottom={-22}
-          shadow-camera-far={90}
-          shadow-bias={-0.0004}
-        />
-        <Environment resolution={256}>
-          <Lightformer intensity={2} position={[0, 10, 10]} scale={[20, 8, 1]} />
-          <Lightformer intensity={1} position={[-10, 4, -6]} scale={[8, 8, 1]} />
-        </Environment>
-
-        {/* LDraw is -Y up: a half-turn about X stands it upright */}
-        <group
-          rotation={[Math.PI, 0, 0]}
-          scale={LDU}
-          onClick={
-            onPick &&
-            ((e) => {
-              if (e.delta > 6) return; // a drag, not a tap
-              onPick(e.point);
-            })
-          }
+      <div className="relative w-full h-full">
+        <Canvas
+          shadows
+          dpr={[1, 2]}
+          camera={{ fov: 32, near: 1, far: 500 }}
+          gl={{ antialias: true }}
+          onCreated={({ gl }) => (gl.localClippingEnabled = true)}
         >
-          {children}
-        </group>
-        {overlay}
+          <color attach="background" args={["#bfe3ff"]} />
+          <fog attach="fog" args={["#bfe3ff", 140, 330]} />
+          <hemisphereLight args={["#fff8ef", "#5a7a4a", 0.9]} />
+          <primitive object={sun} position={[target.x, 0, target.z]} />
+          <directionalLight
+            target={sun}
+            position={[target.x + 18, 30, target.z - 14]}
+            intensity={2.3}
+            castShadow
+            shadow-mapSize={[2048, 2048]}
+            shadow-camera-left={-22}
+            shadow-camera-right={22}
+            shadow-camera-top={22}
+            shadow-camera-bottom={-22}
+            shadow-camera-far={90}
+            shadow-bias={-0.0004}
+          />
+          <Environment resolution={256}>
+            <Lightformer intensity={2} position={[0, 10, 10]} scale={[20, 8, 1]} />
+            <Lightformer intensity={1} position={[-10, 4, -6]} scale={[8, 8, 1]} />
+          </Environment>
 
-        <ContactShadows position={[target.x, 0.02, target.z]} opacity={0.2} scale={36} blur={2} far={10} />
-        <FitCamera target={target} width={width} dir={dir} />
-        <OrbitControls
-          ref={controls}
-          onChange={clamp}
-          target={target}
-          enablePan={pan}
-          screenSpacePanning={false}
-          // in the town a one-finger drag walks along the street; two fingers turn and zoom
-          {...(pan && {
-            mouseButtons: {
-              LEFT: THREE.MOUSE.PAN,
-              MIDDLE: THREE.MOUSE.DOLLY,
-              RIGHT: THREE.MOUSE.ROTATE,
-            },
-            touches: { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE },
-          })}
-          minDistance={14}
-          maxDistance={110}
-          minPolarAngle={0.45}
-          maxPolarAngle={1.25}
-        />
-      </Canvas>
+          {/* LDraw is -Y up: a half-turn about X stands it upright */}
+          <group
+            rotation={[Math.PI, 0, 0]}
+            scale={LDU}
+            onClick={
+              onPick &&
+              ((e) => {
+                if (e.delta > 6) return; // a drag, not a tap
+                onPick(e.point);
+              })
+            }
+          >
+            {children}
+          </group>
+          {overlay}
+          <PinTracker pins={pins} els={pinEls} />
+
+          <ContactShadows position={[target.x, 0.02, target.z]} opacity={0.2} scale={36} blur={2} far={10} />
+          <FitCamera target={target} width={width} dir={dir} />
+          <OrbitControls
+            ref={controls}
+            onChange={clamp}
+            target={target}
+            enablePan={pan}
+            screenSpacePanning={false}
+            // in the town a one-finger drag walks along the street; two fingers turn and zoom
+            {...(pan && {
+              mouseButtons: {
+                LEFT: THREE.MOUSE.PAN,
+                MIDDLE: THREE.MOUSE.DOLLY,
+                RIGHT: THREE.MOUSE.ROTATE,
+              },
+              touches: { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE },
+            })}
+            minDistance={14}
+            maxDistance={110}
+            minPolarAngle={0.45}
+            maxPolarAngle={1.25}
+          />
+        </Canvas>
+        {/* pinned buttons: plain DOM over the canvas, moved every frame by PinTracker */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {pins.map((p) => (
+            <div
+              key={p.key}
+              ref={(el) => {
+                if (el) pinEls.current.set(p.key, el);
+                else pinEls.current.delete(p.key);
+              }}
+              className="absolute left-0 top-0 pointer-events-auto"
+              style={{ transform: "translate(-9999px, 0)" }}
+            >
+              {p.node}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -370,17 +421,26 @@ export function LegoTown({
   residents,
   visits = {},
   onKnock,
+  room,
   className,
 }: {
   residents: Resident[];
   /** by friend's name: they let you in, or you knocked and they haven't answered */
   visits?: Record<string, Visit>;
   onKnock?: (name: string) => void;
+  /** your own house's inside (your room); without it you get the roof-off view */
+  room?: (leave: () => void) => React.ReactNode;
   className?: string;
 }) {
-  const town = useModel(useMemo(() => townText(residents), [residents]), true);
+  const town = useModel(
+    useMemo(() => townText(residents), [residents]),
+    true,
+  );
   const count = residents.length;
-  const meIndex = Math.max(0, residents.findIndex((r) => r.me));
+  const meIndex = Math.max(
+    0,
+    residents.findIndex((r) => r.me),
+  );
   const [focus, setFocus] = useState(meIndex);
   const [inside, setInside] = useState<number | null>(null);
   const plotW = PLOT * 20 * LDU;
@@ -407,6 +467,8 @@ export function LegoTown({
     setInside(null);
   };
 
+  if (room && inside === meIndex) return <div className={className}>{room(() => setInside(null))}</div>;
+
   return (
     <div className={`relative ${className ?? ""}`}>
       <Stage
@@ -418,26 +480,27 @@ export function LegoTown({
         bounds={bounds}
         pan
         onPick={(p) => go(Math.min(count - 1, Math.max(0, Math.round(p.x / plotW + (count - 1) / 2))))}
-        overlay={
-          <>
-            <Hills count={count} />
-            {residents.map((res, i) => {
-              if (i === inside) return null;
-              const [cx, cz] = centre(res.level);
-              return (
-                <Html key={res.name} position={[(plotX(i, count) + cx) * LDU, houseFor(res.level).h * LDU + 3, -cz * LDU]} center zIndexRange={[10, 0]}>
-                  <button
-                    onClick={() => go(i)}
-                    className="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
-                    style={{ background: res.me ? "#ff8a1f" : "rgba(20,18,16,0.8)", color: "#fff" }}
-                  >
-                    {res.me ? "You" : res.name}
-                  </button>
-                </Html>
-              );
-            })}
-          </>
-        }
+        overlay={<Hills count={count} />}
+        pins={residents.flatMap((res, i) => {
+          if (i === inside) return [];
+          const [cx, cz] = centre(res.level);
+          const at: [number, number, number] = [(plotX(i, count) + cx) * LDU, houseFor(res.level).h * LDU + 3, -cz * LDU];
+          return [
+            {
+              key: res.name,
+              at,
+              node: (
+                <button
+                  onClick={() => go(i)}
+                  className="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
+                  style={{ background: res.me ? "#ff8a1f" : "rgba(20,18,16,0.8)", color: "#fff" }}
+                >
+                  {res.me ? "You" : res.name}
+                </button>
+              ),
+            },
+          ];
+        })}
       >
         {town && <primitive object={town} />}
         {residents.map((res, i) => (
@@ -458,7 +521,11 @@ export function LegoTown({
       <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-2 px-3 pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-2">
           {focus + 1 < count && (
-            <TownButton quiet onClick={() => go(focus + 1)} label={`Walk to ${residents[focus + 1].me ? "your house" : residents[focus + 1].name}`}>
+            <TownButton
+              quiet
+              onClick={() => go(focus + 1)}
+              label={`Walk to ${residents[focus + 1].me ? "your house" : residents[focus + 1].name}`}
+            >
               ‹
             </TownButton>
           )}
@@ -472,7 +539,11 @@ export function LegoTown({
             <TownButton onClick={() => onKnock(r.name)}>Knock on {r.name}&apos;s door</TownButton>
           ) : null}
           {focus > 0 && (
-            <TownButton quiet onClick={() => go(focus - 1)} label={`Walk to ${residents[focus - 1].me ? "your house" : residents[focus - 1].name}`}>
+            <TownButton
+              quiet
+              onClick={() => go(focus - 1)}
+              label={`Walk to ${residents[focus - 1].me ? "your house" : residents[focus - 1].name}`}
+            >
               ›
             </TownButton>
           )}
@@ -484,6 +555,8 @@ export function LegoTown({
 
 // looking steeply down into a house with its roof off
 const LOOK_IN = new THREE.Vector3(0.3, 1.25, -0.55).normalize();
+// straight into your room from its open front, steeply from above
+const ROOM_VIEW = new THREE.Vector3(0, 1.35, -0.7).normalize();
 // how high (three units, about four bricks) the walls stay when you're inside
 const CUT = 4.6;
 
@@ -521,9 +594,10 @@ function Hills({ count }: { count: number }) {
     const b = townBounds(count);
     const out: { p: [number, number, number]; r: number }[] = [];
     let seed = 3;
-    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const back = -b.zBack * LDU + 100;
-    for (let x = b.x0 * LDU - 140; x < b.x1 * LDU + 140; x += 45 + rnd() * 30) out.push({ p: [x, 0, back + rnd() * 50], r: 45 + rnd() * 45 });
+    for (let x = b.x0 * LDU - 140; x < b.x1 * LDU + 140; x += 45 + rnd() * 30)
+      out.push({ p: [x, 0, back + rnd() * 50], r: 45 + rnd() * 45 });
     for (const side of [-1, 1]) {
       const x = side < 0 ? b.x0 * LDU - 110 : b.x1 * LDU + 110;
       for (let z = -90; z < back; z += 50) out.push({ p: [x + side * rnd() * 40, 0, z], r: 45 + rnd() * 35 });
@@ -539,5 +613,93 @@ function Hills({ count }: { count: number }) {
         </mesh>
       ))}
     </>
+  );
+}
+
+// Your room: a station for each mission. Tap one to do it -- it pays out
+// (+XP floats up) and stays lit for the day.
+export function LegoRoom({
+  stations,
+  onTap,
+  onLeave,
+  look = BASE_HUNTER,
+  className,
+}: {
+  stations: Station[];
+  /** do the mission; resolves with the XP it paid */
+  onTap: (id: string) => Promise<number | null>;
+  onLeave?: () => void;
+  look?: MinifigLook;
+  className?: string;
+}) {
+  // roomText only reads each station's id and pillar, so doing one doesn't rebuild the room
+  const room = useModel(roomText(stations), true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [paid, setPaid] = useState<{ id: string; xp: number } | null>(null);
+  const target = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+
+  const tap = async (st: Station) => {
+    if (st.done || busy) return;
+    setBusy(st.id);
+    const xp = await onTap(st.id);
+    setBusy(null);
+    if (xp === null) return;
+    setPaid({ id: st.id, xp });
+    setTimeout(() => setPaid(null), 1100);
+  };
+
+  return (
+    <div className={`relative ${className ?? ""}`}>
+      <Stage
+        className="absolute inset-0"
+        label="Your room"
+        target={target}
+        width={20}
+        dir={ROOM_VIEW}
+        pins={stations.slice(0, MAX_STATIONS).map((st, i) => {
+          const [x, z] = stationSpot(i);
+          return {
+            key: st.id,
+            at: [x * LDU, 5.5, -z * LDU] as [number, number, number],
+            node: (
+              <button
+                onClick={() => tap(st)}
+                disabled={busy === st.id}
+                className="relative flex flex-col items-center w-[84px] px-1.5 py-1 rounded-xl leading-tight shadow-md active:scale-95 transition-transform"
+                style={{
+                  background: st.done ? "rgba(40,120,60,0.92)" : "#ff8a1f",
+                  color: "#fff",
+                  opacity: busy === st.id ? 0.7 : 1,
+                }}
+              >
+                <span className="w-full truncate text-center text-[10px] font-semibold">{st.title}</span>
+                <span className="text-[11px] font-bold">{st.done ? "✓ done" : `+${st.xp} XP`}</span>
+                {paid?.id === st.id && (
+                  <span
+                    className="xp-float absolute inset-x-0 -top-5 text-center font-mono font-bold text-sm"
+                    style={{ color: "#ffb347" }}
+                  >
+                    +{paid.xp} XP
+                  </span>
+                )}
+              </button>
+            ),
+          };
+        })}
+      >
+        {room && <primitive object={room} />}
+        <Minifig look={look} at={[0, 0, 285]} />
+      </Stage>
+      {stations.length === 0 && (
+        <p className="absolute inset-x-0 top-4 text-center text-sm font-semibold" style={{ color: "#3a3a3a" }}>
+          No missions yet. Add some and their stations appear here.
+        </p>
+      )}
+      {onLeave && (
+        <div className="absolute inset-x-0 bottom-3 flex justify-center">
+          <TownButton onClick={onLeave}>Step outside</TownButton>
+        </div>
+      )}
+    </div>
   );
 }

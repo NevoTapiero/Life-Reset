@@ -7,8 +7,10 @@ import { supabase } from "@/lib/supabase";
 import { rankForXp } from "@/lib/game";
 import type { Resident } from "@/lib/legoWorld";
 import type { Visit } from "@/components/LegoWorld";
+import { useStations } from "@/lib/useStations";
 
 const LegoTown = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoTown), { ssr: false });
+const LegoRoom = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoRoom), { ssr: false });
 
 // ponytail: nearest 9 plots by rank order; page the street when friend lists get long
 const MAX_PLOTS = 9;
@@ -23,6 +25,7 @@ export default function TownPage() {
   const [visits, setVisits] = useState<Record<string, Visit>>({});
   const [atDoor, setAtDoor] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const { stations, complete } = useStations();
 
   useEffect(() => {
     supabase.rpc("get_leaderboard").then(({ data, error }) => {
@@ -92,7 +95,12 @@ export default function TownPage() {
       ))}
       {error && <p className="text-danger text-sm mb-3">{error}</p>}
 
-      <LegoTown residents={residents} visits={visits} onKnock={knock} className="rounded-2xl overflow-hidden h-[68vh] min-h-[380px]" />
+      <LegoTown
+        residents={residents}
+        visits={visits}
+        onKnock={knock}
+        room={(leave) => <LegoRoom stations={stations ?? []} onTap={complete} onLeave={leave} className="w-full h-full" />}
+        className="rounded-2xl overflow-hidden h-[68vh] min-h-[380px]" />
 
       {residents.length === 1 && (
         <p className="text-muted text-sm mt-3 text-center">

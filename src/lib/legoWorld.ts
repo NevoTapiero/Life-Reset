@@ -19,6 +19,8 @@ export const COL = {
   blue: 1,
   green: 2,
   darkGreen: 288,
+  orange: 25,
+  purple: 22,
   brightGreen: 10,
   red: 4,
   yellow: 14,
@@ -43,6 +45,7 @@ const BOTTOM: Record<string, number> = {
 // these (the houses are official sets, baked separately into public/lego/houses)
 export const LEGO_PARTS = [
   "4186", "91405", "3062b", "3068b", "3069b", "3741ac05", "3470", "2435", "3471", "2417", "30055",
+  "3031", "3754", "3003", "29592", "62698-f2", "33051", "14769p0f", "1",
   "973", "3818", "3819", "3820", "3815", "3816", "3817", "3626cp01", "53981",
 ];
 
@@ -262,4 +265,50 @@ export function townLand(count: number): string[] {
     }
   }
   return out;
+}
+
+// ---- your room: a station per mission ------------------------------------
+
+// Inside your house is a room with a station for each of your missions (up to
+// 10). Tapping a station is doing the mission: it pays out and lights up.
+export type Station = { id: string; title: string; pillar: string; xp: number; done: boolean };
+export const MAX_STATIONS = 10;
+
+// Each pillar's station: a 4x4 plate in its colour with a prop on top. `top`
+// is the plate's upper surface (LDraw -Y is up).
+const LAY_FLAT: Mat = [0, -1, 0, 1, 0, 0, 0, 0, 1]; // a quarter turn about Z
+const STATION_LOOK: Record<string, { colour: number; props: (x: number, z: number, top: number) => string[] }> = {
+  Strength: { colour: COL.red, props: (x, z, top) => [line(COL.darkGrey, x, top - 11, z, LAY_FLAT, "29592")] },
+  Focus: {
+    colour: COL.blue,
+    props: (x, z, top) => [line(COL.darkGrey, x, top - 24, z, ROT[0], "3003"), line(COL.lightGrey, x, top - 25, z, ROT[180], "62698-f2")],
+  },
+  Constitution: { colour: COL.green, props: (x, z, top) => [line(COL.red, x + 6, top, z, ROT[0], "33051")] },
+  Discipline: {
+    colour: COL.orange,
+    props: (x, z, top) => [line(COL.white, x, top - 24, z, ROT[0], "3003"), line(COL.white, x, top - 32, z, ROT[0], "14769p0f")],
+  },
+  Wisdom: { colour: COL.purple, props: (x, z, top) => [line(COL.reddishBrown, x, top - 96, z, ROT[180], "1")] },
+};
+
+// Station i's centre on the room floor (LDU): three across, four rows deep --
+// a phone-shaped room.
+export function stationSpot(i: number): [number, number] {
+  // the camera looks in from the front, where screen-left is +x
+  return [(1 - (i % 3)) * 100, (Math.floor(i / 3) - 1.5) * 130];
+}
+
+// The room: a 16x32 floor of two 16x16 plates, a white wall behind and one on
+// the left (the camera looks in from the open front), and the stations.
+export function roomText(stations: Station[]): string {
+  const out: string[] = [];
+  for (const z of [-160, 160]) out.push(line(COL.tan, 0, 0, z, ROT[0], "91405"));
+  for (const x of [-90, 30]) out.push(line(COL.white, x, -120, -310, ROT[0], "3754"));
+  for (let k = -2; k <= 2; k++) out.push(line(COL.white, -150, -120, k * 120, ROT[90], "3754"));
+  stations.slice(0, MAX_STATIONS).forEach((st, i) => {
+    const [x, z] = stationSpot(i);
+    const look = STATION_LOOK[st.pillar] ?? STATION_LOOK.Discipline;
+    out.push(line(look.colour, x, -8, z, ROT[0], "3031"), ...look.props(x, z, -8));
+  });
+  return modelText(out, "room.ldr");
 }
