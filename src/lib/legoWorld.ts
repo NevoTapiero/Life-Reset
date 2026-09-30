@@ -391,10 +391,11 @@ const FURNITURE: Record<string, Piece[][]> = {
   ],
 };
 
-// Parts placed at (x, z) on the floor, turned by `f`.
-function place(pieces: Piece[], x: number, z: number, f: Mat): string[] {
+// Parts placed at (x, z), turned by `f`, standing on `floor` (the room's
+// planks by default; 0 is the ground outdoors).
+function place(pieces: Piece[], x: number, z: number, f: Mat, floor = FLOOR): string[] {
   return pieces.map(([part, color, dx, h, dz, m]) =>
-    line(color, x + f[0] * dx + f[2] * dz, FLOOR - h - HEIGHT[part], z + f[6] * dx + f[8] * dz, turnMat(f, m ?? ROT[0]), part),
+    line(color, x + f[0] * dx + f[2] * dz, floor - h - HEIGHT[part], z + f[6] * dx + f[8] * dz, turnMat(f, m ?? ROT[0]), part),
   );
 }
 
@@ -496,6 +497,13 @@ const lamp: Piece[] = [["2039", COL.black, 0, 0, 0], ["30367c", COL.transYellow,
 const LAMP_SPOTS: [number, number][] = [-1, 1].flatMap((side) => [380, 60, -300].map((z) => [side * 400, z] as [number, number]));
 // where the lamps' lights are, for the glow after dark (LDU; -Y is up)
 export const PLAZA_LAMPS: [number, number, number][] = LAMP_SPOTS.map(([x, z]) => [x, -(168 + 14), z]);
+// a lamppost on every block's four corners, on the pavement (LDU)
+const STREET_LAMPS: [number, number][] = [-1, 0, 1].flatMap((gx) =>
+  [-1, 0, 1].flatMap((gz) =>
+    [-1, 1].flatMap((sx) => [-1, 1].map((sz) => [(gx * PITCH + sx * (PLOT / 2 + 1)) * S, (gz * PITCH + sz * (PLOT / 2 + 1)) * S] as [number, number])),
+  ),
+);
+export const STREET_LAMP_LIGHTS: [number, number, number][] = STREET_LAMPS.map(([x, z]) => [x, -(168 + 14 + 8), z]); // on the pavement
 const bench: Piece[] = [
   ["3005", COL.darkGrey, -30, 0, 0],
   ["3005", COL.darkGrey, 30, 0, 0],
@@ -508,14 +516,14 @@ const flowerPot = (color: number): Piece[] => [["3941", COL.darkOrange, 0, 0, 0]
 export function plazaText(): string {
   const out: string[] = [];
   const [fx, fz] = FOUNTAIN;
-  out.push(...place(fountain, fx, fz, ROT[0]));
+  out.push(...place(fountain, fx, fz, ROT[0], 0));
   // benches either side of the fountain, facing it
-  out.push(...place(bench, fx - 150, fz, ROT[90]), ...place(bench, fx + 150, fz, ROT[270]));
+  out.push(...place(bench, fx - 150, fz, ROT[90], 0), ...place(bench, fx + 150, fz, ROT[270], 0));
   // down both sides: lampposts and trees in planters, alternating
   for (const side of [-1, 1]) {
-    for (const [x, z] of LAMP_SPOTS.filter(([x]) => Math.sign(x) === side)) out.push(...place(lamp, x, z, ROT[0]));
-    for (const z of [220, -120, -440]) out.push(...place(planterTree, side * 400, z, ROT[0]));
-    out.push(...place(flowerPot(side < 0 ? COL.red : COL.yellow), side * 240, 440, ROT[0]));
+    for (const [x, z] of LAMP_SPOTS.filter(([x]) => Math.sign(x) === side)) out.push(...place(lamp, x, z, ROT[0], 0));
+    for (const z of [220, -120, -440]) out.push(...place(planterTree, side * 400, z, ROT[0], 0));
+    out.push(...place(flowerPot(side < 0 ? COL.red : COL.yellow), side * 240, 440, ROT[0], 0));
   }
   return modelText(out, "plaza.ldr");
 }
@@ -561,10 +569,24 @@ export function townDecorText(): string {
       out.push(line(COL.white, t * S, TILE_Y, c * S, ROT[0], "2431")); // along an east-west one
     }
   for (const c of crossings)
-    for (let k = -3.5; k <= 3.5; k++) {
+    for (let k = -2.5; k <= 2.5; k++) {
       out.push(line(COL.white, 0, TILE_Y, (c + k * 2) * S, ROT[0], "2431"));
       out.push(line(COL.white, (c + k * 2) * S, TILE_Y, 0, ROT[90], "2431"));
     }
+
+  // sidewalks: a 2-stud pavement of light grey 2x4 tiles round every block,
+  // and a lamppost on each corner
+  for (const bx of [-PITCH, 0, PITCH])
+    for (const bz of [-PITCH, 0, PITCH]) {
+      const e = PLOT / 2 + 1; // the pavement's centre line, studs from the block's centre
+      for (let t = -PLOT / 2 - 2; t < PLOT / 2 + 2; t += 4) {
+        for (const side of [-1, 1]) {
+          out.push(line(COL.lightGrey, (bx + t + 2) * S, TILE_Y, (bz + side * e) * S, ROT[0], "87079"));
+          if (t + 4 <= PLOT / 2 && t >= -PLOT / 2) out.push(line(COL.lightGrey, (bx + side * e) * S, TILE_Y, (bz + t + 2) * S, ROT[90], "87079"));
+        }
+      }
+    }
+  for (const [x, z] of STREET_LAMPS) out.push(...place(lamp, x, z, ROT[0], TILE_Y)); // on the pavement
 
   // clouds: a flat base, puffs on top, shown three times LEGO size
   const puff: [string, number, number, number][] = [

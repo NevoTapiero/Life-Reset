@@ -39,6 +39,7 @@ import {
   townDecorText,
   emptyLotsText,
   PLAZA_LAMPS,
+  STREET_LAMP_LIGHTS,
   SHOP_FRONT,
   FOUNTAIN,
   MAX_STATIONS,
@@ -745,7 +746,7 @@ export function LegoTown({
         {decor && <primitive object={decor} />}
         {parks && <primitive object={parks} />}
         <Traffic />
-        {mood.night && <LampGlows at={PLAZA_LAMPS} />}
+        {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
         {STROLLERS.map((p, i) => (
           <Stroller key={i} {...p} />
         ))}
