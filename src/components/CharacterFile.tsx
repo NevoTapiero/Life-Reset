@@ -4,7 +4,7 @@ import { CHARACTERS, STAT_INFO, STAT_KEYS, type CharacterKey, type Stats } from 
 // in a minifigure bag. Class, title, rank, strongest stat, best streak, when
 // they started, and a line about who they are.
 
-const BIO: Record<CharacterKey, string> = {
+export const BIO: Record<CharacterKey, string> = {
   warrior: "Trains hard, shows up early, never skips leg day. Gets stronger with every brick.",
   mentalist: "Keeps a calm head and a sharp mind. Notices what everyone else misses.",
   wizard: "Always learning something new. Carries a book everywhere, just in case.",

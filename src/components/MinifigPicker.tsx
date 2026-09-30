@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
 import Minifig from "@/components/Minifig";
 import MinifigCard from "@/components/MinifigCard";
+import { BIO } from "@/components/CharacterFile";
 import { CHARACTERS, CHARACTER_KEYS, CharacterKey, Profile } from "@/lib/game";
 
 // First run: pick the minifig you'll be in the LEGO world. Shown on Home while
@@ -34,13 +35,19 @@ export default function MinifigPicker({ onPicked }: { onPicked: (p: Profile) => 
             This is you in the LEGO world. Every mission you do dresses them up and builds their house.
           </p>
 
-          <div className="mt-4">
-            <MinifigCard character={pick} level={2} size={190} showLevel={false}>
+          {/* the chosen one hops in; tap it to see it fall apart */}
+          <div className="mt-4 bounce-in" key={pick}>
+            <MinifigCard character={pick} level={2} size={190} showLevel={false} tap>
               <span className="flex-1 min-w-0">
                 <span className="display block text-[21px]">{c.name}</span>
                 <span className="block text-[13px] font-bold text-muted">{c.focus}</span>
+                <span className="block text-[12.5px] font-bold text-muted mt-1 leading-snug">{BIO[pick]}</span>
               </span>
-              <span className="chip chip-blue">{c.stat}</span>
+              {/* what they grow into */}
+              <span className="flex flex-col items-center flex-none" title="At level 5">
+                <Minifig character={pick} level={5} size={62} />
+                <span className="chip chip-yellow !text-[10px] !py-0 -mt-1">Lv 5</span>
+              </span>
             </MinifigCard>
           </div>
 
