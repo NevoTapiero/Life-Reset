@@ -8,9 +8,10 @@ import { brickSound } from "@/lib/brickSound";
 export default function ButtonSounds() {
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
-      const el = (e.target as Element | null)?.closest?.(".btn-primary, .btn-ghost, .brick-tab, .option-row, .brick-nav a");
+      const el = (e.target as Element | null)?.closest?.(".btn-primary, .btn-ghost, .brick-tab, .option-row, .brick-nav a, .switch");
       if (!el || (el as HTMLButtonElement).disabled) return;
-      if (el.matches(".brick-tab, .brick-nav a")) brickSound.tap();
+      if (el.matches(".switch")) brickSound.snap();
+      else if (el.matches(".brick-tab, .brick-nav a")) brickSound.tap();
       else brickSound.press();
     };
     window.addEventListener("pointerdown", onDown, { capture: true });
