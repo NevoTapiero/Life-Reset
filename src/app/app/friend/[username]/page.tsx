@@ -38,6 +38,17 @@ export default function FriendProfilePage() {
   const router = useRouter();
   const [file, setFile] = useState<FriendFile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  async function removeFriend() {
+    if (!file) return;
+    const { error } = await supabase.rpc("remove_friend", { p_username: file.username });
+    if (error) {
+      setConfirmRemove(false);
+      return setError(error.message);
+    }
+    router.replace("/app/world");
+  }
 
   useEffect(() => {
     const username = decodeURIComponent(params.username ?? "");
@@ -147,6 +158,25 @@ export default function FriendProfilePage() {
         })}
         {file.quests.length === 0 && <div className="card p-5 text-center text-[14px] font-bold text-muted">No missions yet.</div>}
       </div>
+
+      {confirmRemove ? (
+        <div className="card p-4 mt-4 text-center">
+          <p className="font-extrabold">Remove {file.username}?</p>
+          <p className="text-[13px] font-bold text-muted mt-1">Their house leaves your town and yours leaves theirs.</p>
+          <div className="grid grid-cols-2 gap-2.5 mt-4">
+            <button className="btn-ghost brick-flat py-2.5" onClick={() => setConfirmRemove(false)}>
+              Keep
+            </button>
+            <button className="btn-primary brick-red brick-flat py-2.5" onClick={removeFriend}>
+              Remove
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button className="w-full text-center text-[13px] font-extrabold text-muted underline underline-offset-4 mt-4 py-2" onClick={() => setConfirmRemove(true)}>
+          Remove friend
+        </button>
+      )}
     </div>
   );
 }

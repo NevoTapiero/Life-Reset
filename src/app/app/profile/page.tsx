@@ -50,10 +50,14 @@ export default function ProfilePage() {
     setSoundState(soundOn());
   }, []);
 
-  // jump to the apps section when linked from Home (#apps)
+  // jump to the apps section when linked from Home (#apps), once
+  const jumped = useRef(false);
   useEffect(() => {
-    if (profile && window.location.hash === "#apps") {
+    if (!profile || jumped.current) return;
+    jumped.current = true;
+    if (window.location.hash === "#apps") {
       document.getElementById("apps")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      history.replaceState(null, "", window.location.pathname);
     }
   }, [profile]);
 
@@ -167,7 +171,7 @@ export default function ProfilePage() {
         </div>
         {photo && (
           <div>
-            <button className="text-[12.5px] font-extrabold text-muted underline underline-offset-4 mt-2" onClick={useMinifig}>
+            <button className="text-[12.5px] font-extrabold text-muted underline underline-offset-4 mt-2" disabled={uploading} onClick={useMinifig}>
               Use my minifig instead
             </button>
           </div>

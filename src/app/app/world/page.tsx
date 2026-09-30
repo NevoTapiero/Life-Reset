@@ -83,6 +83,7 @@ export default function WorldPage() {
     const { error } = await supabase.rpc("answer_knock", { p_visitor: name, p_allow: allow });
     if (error) return setError(error.message);
     setKnocks((k) => k.filter((n) => n !== name));
+    window.dispatchEvent(new Event("sl-knocks"));
     setDoorMsg(allow ? `${name} can come into your house now.` : `You told ${name} not now.`);
   }
 

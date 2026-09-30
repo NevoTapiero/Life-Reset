@@ -1824,8 +1824,11 @@ begin
   if me is null then
     raise exception 'not signed in';
   end if;
-  if p_url is not null and p_url not like
-     'https://etlumfjimkjjdmhimzwr.supabase.co/storage/v1/object/public/avatars/' || me::text || '/%' then
+  -- exactly <project>/storage/v1/object/public/avatars/<your uid>/<name>.<image ext>:
+  -- no "..", no query string, no other folder
+  if p_url is not null and p_url !~ (
+     '^https://etlumfjimkjjdmhimzwr\.supabase\.co/storage/v1/object/public/avatars/'
+     || me::text || '/[A-Za-z0-9_-]+\.(jpg|jpeg|png|webp)$') then
     raise exception 'that picture is not in your folder';
   end if;
   update public.profiles set avatar_url = p_url where id = me returning * into result;

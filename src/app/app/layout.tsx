@@ -47,13 +47,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, [router]);
 
-  // re-count on every screen change, so answering a knock clears the badge
+  // re-count on every screen change, and when a screen says a knock was answered
   useEffect(() => {
     if (!authed) return;
-    supabase.rpc("my_visits").then(({ data }) => {
-      const rows = (data as { knocked_by_me: boolean; allowed: boolean }[] | null) ?? [];
-      setKnocks(rows.filter((v) => !v.knocked_by_me && !v.allowed).length);
-    });
+    const count = () =>
+      supabase.rpc("my_visits").then(({ data }) => {
+        const rows = (data as { knocked_by_me: boolean; allowed: boolean }[] | null) ?? [];
+        setKnocks(rows.filter((v) => !v.knocked_by_me && !v.allowed).length);
+      });
+    count();
+    window.addEventListener("sl-knocks", count);
+    return () => window.removeEventListener("sl-knocks", count);
   }, [authed, pathname]);
 
   if (!authed) {
