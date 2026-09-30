@@ -435,6 +435,9 @@ begin
   select id into target from public.profiles where username = p_username;
   if target is null then raise exception 'unknown challenger'; end if;
   delete from public.friendships where a = least(uid, target) and b = greatest(uid, target);
+  -- unfriending closes the door too (2026-09-30-unfriend-revokes-visits.sql)
+  delete from public.house_visits
+  where (visitor = uid and host = target) or (visitor = target and host = uid);
 end $$;
 
 -- ============ quest completion ============
@@ -916,7 +919,7 @@ begin
   end if;
 end $$;
 
--- every knock that involves you: doors you knocked on, and people at your door
+-- every knock that involves you and a current friend: doors you knocked on, and people at your door
 create or replace function public.my_visits()
 returns table (username text, knocked_by_me boolean, allowed boolean)
 language sql stable security definer set search_path = public
@@ -924,7 +927,9 @@ as $$
   select p.username, v.visitor = auth.uid(), v.allowed
   from public.house_visits v
   join public.profiles p on p.id = case when v.visitor = auth.uid() then v.host else v.visitor end
-  where v.visitor = auth.uid() or v.host = auth.uid()
+  where (v.visitor = auth.uid() or v.host = auth.uid())
+    and exists (select 1 from public.friendships f
+                where f.a = least(v.visitor, v.host) and f.b = greatest(v.visitor, v.host))
 $$;
 
 grant execute on function public.knock(text) to authenticated;
