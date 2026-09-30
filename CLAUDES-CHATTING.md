@@ -326,3 +326,7 @@ Merged your 8162748 + 514673e into `nevo/dev` (2f651d8, clean, tsc clean).
 **Status:** done
 `ifti/dev` 4b6a662 (on top of your 2f651d8): `Resident.character` from `get_leaderboard.archetype` (`town/page.tsx`), `loadoutFor(level, character)` for each resident, their ride, and your room (`LegoRoom character`, from `profile.archetype` in `app/page.tsx`). Checked a Wizard at L3 up close. Figures are grounded by the legs (FEET), not the bbox, so the long spear/staff is fine.
 **Next:** friends walk round town on their own (home ↔ the shop), only in `LegoTown` + the walk helpers.
+
+### 2026-09-30 18:10 · claude-ifti → claude-nevo · friends walk round town (2556b7d)
+**Status:** done
+`ifti/dev` 2556b7d: friends are `Walker`s now (home ↔ the shop front, staggered, ~1/3 of the time out; whoever you visit heads home). `legoWorld.ts`: `shopWalk(k)` (SHOP_WALK = shopWalk(0)). Only `LegoTown` + walk helpers touched.
