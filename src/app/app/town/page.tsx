@@ -114,6 +114,7 @@ export default function TownPage() {
             onLeave={leave}
             level={residents.find((r) => r.me)?.level}
             character={residents.find((r) => r.me)?.character}
+            name={residents.find((r) => r.me)?.name}
             className="w-full h-full"
           />
         )}

@@ -936,6 +936,43 @@ export function walkFrom(pos: P3, to: P3[]): Route {
   return walkRoute(here, to);
 }
 
+// ---- people keep out of each other's way ----
+// Everyone who moves writes where they are (LDraw x, z) here every frame.
+// Walking along, people sidestep anyone in their path (an offset that pushes
+// them apart and eases back onto their path once clear); driving yourself, you
+// can't walk into people, you go round them.
+export const CROWD = new Map<string, { x: number; z: number }>();
+export const PERSON = 24; // LDU: about a minifig's width from arm to arm, halved
+export function sidestep(id: string, x: number, z: number, off: { x: number; z: number }, dt: number): [number, number] {
+  let px = 0;
+  let pz = 0;
+  for (const [k, p] of CROWD) {
+    if (k === id) continue;
+    const dx = x + off.x - p.x;
+    const dz = z + off.z - p.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.01 || d > PERSON * 2) continue;
+    const w = 1 - d / (PERSON * 2); // the closer, the harder the push
+    px += (dx / d) * w;
+    pz += (dz / d) * w;
+  }
+  const k = Math.min(1, dt * 6);
+  off.x += (px * 60 - off.x * (px || pz ? 0.2 : 1)) * k;
+  off.z += (pz * 60 - off.z * (px || pz ? 0.2 : 1)) * k;
+  const m = Math.hypot(off.x, off.z);
+  if (m > 55) [off.x, off.z] = [(off.x / m) * 55, (off.z / m) * 55];
+  return [x + off.x, z + off.z];
+}
+/** would stepping from (ox, oz) to (nx, nz) walk into someone? (moving away from them is fine) */
+export function intoSomeone(id: string, ox: number, oz: number, nx: number, nz: number) {
+  for (const [k, p] of CROWD) {
+    if (k === id) continue;
+    const dn = Math.hypot(nx - p.x, nz - p.z);
+    if (dn < PERSON * 1.7 && dn < Math.hypot(ox - p.x, oz - p.z)) return true;
+  }
+  return false;
+}
+
 /** turn round mid-walk at `pos` on segment `i` of `r` */
 export function rerouteFrom(r: Route, i: number, pos: P3, to: P3[]): Route {
   const [a, b] = [r.chains[i], r.chains[i + 1]];

@@ -100,6 +100,7 @@ export default function YouPage() {
                 onLeave={() => setInside(false)}
                 level={rank.tierIndex + 1}
                 character={profile.archetype}
+                name={profile.username}
                 className="absolute inset-0"
               />
             ) : (

@@ -1,6 +1,6 @@
 // node scripts/walk.check.mjs -- every walk between any two places (doors, insides, the shop) keeps to the streets
 import assert from "node:assert";
-import { jogAt, townBlockers, free, stepFree, nearestStreet, walkFrom, doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, shopWalk, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
+import { CROWD, PERSON, sidestep, intoSomeone, jogAt, townBlockers, free, stepFree, nearestStreet, walkFrom, doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, shopWalk, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
 
 const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
 const places = [SHOP_WALK, shopWalk(1), shopWalk(3), ...lots.flatMap((lot, i) => [doorWalk(lot, 1 + (i % 5), 40), doorWalk(lot, 1 + (i % 5), -40), insideWalk(lot, 1 + (i % 5), 40)])];
@@ -54,4 +54,23 @@ for (const p of [[100, 0, 900], [-1500, 0, 200], [30, 0, -30]]) {
   assert.deepEqual(r.pts.at(-1), places[4].at(-1));
   assert.equal(r.pts.length, r.chains.length);
 }
-console.log(`ok: ${places.length ** 2} walks, the joggers' lap, and walking where you like`);
+// people keep out of each other's way: two walking into the same spot end up apart,
+// you can't drive into someone, and stepping away from them is always allowed
+{
+  const a = { x: 0, z: 0 }, b = { x: 0, z: 0 };
+  let pa = [0, 0], pb = [0, 0];
+  for (let f = 0; f < 120; f++) {
+    pa = sidestep("a", 0, 0, a, 1 / 60);
+    CROWD.set("a", { x: pa[0], z: pa[1] });
+    pb = sidestep("b", 5, 0, b, 1 / 60);
+    CROWD.set("b", { x: pb[0], z: pb[1] });
+  }
+  assert(Math.hypot(pa[0] - pb[0], pa[1] - pb[1]) > PERSON * 1.4, `still in each other: ${pa} ${pb}`);
+  CROWD.clear();
+  CROWD.set("them", { x: 100, z: 0 });
+  assert(intoSomeone("me", 40, 0, 70, 0), "walked into someone");
+  assert(!intoSomeone("me", 80, 0, 60, 0), "couldn't step away");
+  assert(!intoSomeone("me", 0, 0, 10, 0), "blocked by someone far off");
+  CROWD.clear();
+}
+console.log(`ok: ${places.length ** 2} walks, the joggers' lap, walking where you like, and people`);

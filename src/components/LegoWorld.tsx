@@ -49,6 +49,9 @@ import {
   stepFree,
   townBlockers,
   type Blocker,
+  CROWD,
+  sidestep,
+  intoSomeone,
   type P3,
   type Route,
   modelText,
@@ -1620,11 +1623,11 @@ export function LegoTown({
         <TownSign name={residents[meIndex]?.name ?? "Your"} />
         {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
         {STROLLERS.map((p, i) => (
-          <Stroller key={i} {...p} />
+          <Stroller key={i} id={`stroller-${i}`} {...p} />
         ))}
         {!mood.night &&
           JOGGERS.slice(0, mood.name === "golden" ? 4 : 2).map((p, i) => (
-            <Jogger key={i} {...p} />
+            <Jogger key={i} id={`jogger-${i}`} {...p} />
           ))}
         {residents.map((res, i) => (
           <Ride key={res.name} ride={loadoutFor(res.level, res.character ?? undefined).ride} at={rideSpot(lots[i], res.level)} turn={turnRad(lots[i].facing)} />
@@ -1655,7 +1658,7 @@ export function LegoTown({
             }
             // you wave at the friend you've come to see, or at one who's come round to yours
             const wave = inside === null && !shop && (dest !== meIndex || visited(meIndex));
-            return <Walker key="me" wave={wave} go={goes} input={stick} jumpRef={jumps} aimRef={meAim} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
+            return <Walker key="me" id="me" wave={wave} go={goes} input={stick} jumpRef={jumps} aimRef={meAim} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
           }
           // friends: at their door, at the shop, or on a neighbour's step, turned to them
           const out = outing(i);
@@ -1663,6 +1666,7 @@ export function LegoTown({
           return (
             <Walker
               key={res.name}
+              id={res.name}
               // hello: when you come to see them, when someone's round, and to whoever they're visiting
               wave={host !== null || (!out && (dest === i || visited(i)))}
               look={loadoutFor(res.level, res.character ?? undefined)}
@@ -1975,31 +1979,6 @@ function BrickBurst({ count = 16 }: { count?: number }) {
   );
 }
 
-function TownButton({
-  children,
-  onClick,
-  disabled,
-  quiet,
-  label,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  /** the dark round arrow buttons */
-  quiet?: boolean;
-  label?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      className={`lego pointer-events-auto ${quiet ? "lego-square lego-dark" : `text-sm ${disabled ? "lego-dark" : ""}`}`}
-    >
-      {children}
-    </button>
-  );
-}
 
 // Inside the shop: the furniture for sale, what you have, what you can afford.
 function ShopSheet({
@@ -2190,13 +2169,17 @@ const JOGGERS: { look: MinifigLook; speed: number; start: number }[] = [
   { look: { skin: COL.yellow, hair: COL.darkOrange, torso: COL.pink, legs: COL.black }, speed: 310, start: 2300 },
 ];
 const MOVING = { current: true }; // always on the move
-function Jogger({ look, speed, start }: (typeof JOGGERS)[number]) {
+function Jogger({ id, look, speed, start }: (typeof JOGGERS)[number] & { id: string }) {
   const root = useRef<THREE.Group>(null);
-  useFrame(({ clock }) => {
+  const off = useMemo(() => ({ x: 0, z: 0 }), []);
+  useEffect(() => () => void CROWD.delete(id), [id]);
+  useFrame(({ clock }, dt) => {
     if (!root.current) return;
     const { at, heading } = jogAt(start + clock.elapsedTime * speed);
+    const [x, z] = sidestep(id, at[0], at[2], off, dt);
     // a little bounce in the step (LDraw is -Y up)
-    root.current.position.set(at[0], -Math.abs(Math.sin(clock.elapsedTime * 8)) * 4, at[2]);
+    root.current.position.set(x, -Math.abs(Math.sin(clock.elapsedTime * 8)) * 4, z);
+    CROWD.set(id, { x, z });
     root.current.rotation.y = heading;
   });
   return (
@@ -2215,6 +2198,7 @@ const WALK_SPEED = 180; // LDU a second: brisk, with legs that keep up (stride 1
 // camera to follow. A new `go` (the same place again included) walks you there.
 const DRIVE_SPEED = 200; // LDU a second at full stick
 function Walker({
+  id,
   look,
   to,
   turn,
@@ -2226,6 +2210,8 @@ function Walker({
   jumpRef,
   aimRef,
 }: {
+  /** who this is (for keeping out of each other's way) */
+  id: string;
   look: MinifigLook | Figure;
   to: P3[];
   turn: number;
@@ -2254,6 +2240,8 @@ function Walker({
     }
   }, [key]);
   const look3 = useMemo(() => new THREE.Vector3(), []);
+  const off = useMemo(() => ({ x: 0, z: 0 }), []); // sidestepping someone
+  useEffect(() => () => void CROWD.delete(id), [id]);
   useFrame(({ camera }, dt) => {
     const s = state.current;
     const o = root.current;
@@ -2263,7 +2251,15 @@ function Walker({
       const d = Math.atan2(Math.sin(yaw - o.rotation.y), Math.cos(yaw - o.rotation.y));
       o.rotation.y += d * Math.min(1, dt * 12);
     };
-    const report = () => where?.current.set(s.pos[0] * LDU, -s.pos[1] * LDU, -s.pos[2] * LDU);
+    // stand where the path puts you, stepped aside for anyone in the way; tell everyone
+    const report = (dodge = true) => {
+      let [x, z] = [s.pos[0], s.pos[2]];
+      if (dodge) [x, z] = sidestep(id, x, z, off, dt);
+      else [off.x, off.z] = [0, 0];
+      o.position.set(x, s.pos[1], z);
+      CROWD.set(id, { x, z });
+      where?.current.set(x * LDU, -s.pos[1] * LDU, -z * LDU);
+    };
     // behind someone heading (dx, dz) in LDraw: the camera sits the other way round (three's x, -z)
     const behind = (dx: number, dz: number) => {
       if (aimRef) aimRef.current = Math.atan2(-dx, dz);
@@ -2281,23 +2277,29 @@ function Walker({
       const m = Math.hypot(mx, mz) || 1;
       const [dx, dz] = [mx / m, -mz / m]; // LDraw: z is flipped
       const len = DRIVE_SPEED * push * Math.min(dt, 0.1);
-      const [x, z] = stepFree(s.pos[0], s.pos[2], dx * len, dz * len, blockers ?? []);
+      // start from where you're actually standing (if you'd stepped aside for someone)
+      const [ox, oz] = [s.pos[0] + off.x, s.pos[2] + off.z];
+      let [x, z] = stepFree(ox, oz, dx * len, dz * len, blockers ?? []);
+      // people: go round them (slide along), never through
+      if (intoSomeone(id, ox, oz, x, z)) {
+        if (!intoSomeone(id, ox, oz, x, oz)) z = oz;
+        else if (!intoSomeone(id, ox, oz, ox, z)) x = ox;
+        else [x, z] = [ox, oz];
+      }
       s.walk = null;
       s.from = null;
       s.pos = [x, 0, z];
       walking.current = true;
-      o.position.set(...s.pos);
       face(Math.atan2(dx, dz));
       if (stick.y > Math.abs(stick.x)) behind(dx, dz); // only when heading on away from the camera
-      report();
+      report(false);
       return;
     }
     const w = s.walk;
     walking.current = !!w;
     if (!w) {
-      o.position.set(...s.pos);
       if (s.from) face(turn); // at a place: turn to it; after driving, stay as you are
-      report();
+      report(!!s.from); // after driving you stay exactly where you stopped
       return;
     }
     let step = WALK_SPEED * Math.min(dt, 0.1);
@@ -2320,7 +2322,6 @@ function Walker({
     const len = Math.hypot(b[0] - a[0], b[2] - a[2]) || 1;
     const k = w.f / len;
     s.pos = [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
-    o.position.set(...s.pos);
     face(Math.atan2(b[0] - a[0], b[2] - a[2]));
     behind(b[0] - a[0], b[2] - a[2]);
     report();
@@ -2332,12 +2333,16 @@ function Walker({
   );
 }
 
-function Stroller({ look, r, speed, start }: (typeof STROLLERS)[number]) {
+function Stroller({ id, look, r, speed, start }: (typeof STROLLERS)[number] & { id: string }) {
   const root = useRef<THREE.Group>(null);
-  useFrame(({ clock }) => {
+  const off = useMemo(() => ({ x: 0, z: 0 }), []);
+  useEffect(() => () => void CROWD.delete(id), [id]);
+  useFrame(({ clock }, dt) => {
     if (!root.current) return;
     const a = start + clock.elapsedTime * speed;
-    root.current.position.set(FOUNTAIN[0] + Math.cos(a) * r, 0, FOUNTAIN[1] + Math.sin(a) * r);
+    const [x, z] = sidestep(id, FOUNTAIN[0] + Math.cos(a) * r, FOUNTAIN[1] + Math.sin(a) * r, off, dt);
+    root.current.position.set(x, 0, z);
+    CROWD.set(id, { x, z });
     // facing along the circle, the way they're walking (a minifig's front is +Z)
     root.current.rotation.y = Math.atan2(-Math.sin(a) * speed, Math.cos(a) * speed);
   });
@@ -2688,6 +2693,7 @@ export function LegoRoom({
   look = BASE_HUNTER,
   level,
   character,
+  name,
   className,
 }: {
   stations: Station[];
@@ -2707,13 +2713,16 @@ export function LegoRoom({
   level?: number;
   /** your character (archetype key); none: the Warrior */
   character?: string | null;
+  /** your name, for the player card */
+  name?: string;
   className?: string;
 }) {
   // roomText only reads each station's id and pillar (and what you own), so doing one doesn't rebuild the room
   const room = useModel(roomText(stations, owned), true);
   const [busy, setBusy] = useState<string | null>(null);
   const [paid, setPaid] = useState<{ id: string; xp: number } | null>(null);
-  const target = useMemo(() => new THREE.Vector3(0, 3, 3), []);
+  // aimed a little low and framed tight, so the room fills the screen (not the wall-sky above it)
+  const target = useMemo(() => new THREE.Vector3(0, 5.5, 3), []);
 
   const tap = async (st: Station) => {
     if (st.done || busy) return;
@@ -2742,7 +2751,7 @@ export function LegoRoom({
         className="absolute inset-0"
         label="Your room"
         target={target}
-        width={31}
+        width={30}
         dir={ROOM_VIEW}
         fov={58}
         sky="#f4e9d6"
@@ -2809,12 +2818,36 @@ export function LegoRoom({
           No missions yet. Add some and their stations appear here.
         </p>
       )}
-      {gold !== null && (
-        <div className="lego lego-yellow text-sm absolute top-3 left-3">{gold.toLocaleString()} gold</div>
+      {/* the same HUD as in the town: you top left, what's left to do top right, the way out bottom right */}
+      <div className="absolute top-2 left-3 pointer-events-none">
+        <div className="lego-hud">
+          <HeadIcon />
+          <div className="flex flex-col gap-0.5 min-w-0">
+            {name && <span className="text-[13px] font-extrabold leading-tight truncate max-w-[110px]">{name}</span>}
+            <div className="flex items-center gap-1">
+              {level !== undefined && <span className="lego-chip level">Lv {level}</span>}
+              {gold !== null && (
+                <span className="lego-chip gold">
+                  <span className="stud-icon" />
+                  {gold.toLocaleString()}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      {stations.length > 0 && (
+        <div className="absolute top-3 right-3 pointer-events-none">
+          {stations.every((st) => st.done) ? (
+            <span className="lego lego-sm lego-green">All done today ✓</span>
+          ) : (
+            <span className="lego lego-sm lego-white">{stations.filter((st) => !st.done).length} to do</span>
+          )}
+        </div>
       )}
       {onLeave && (
-        <div className="absolute inset-x-0 bottom-3 flex justify-center">
-          <TownButton onClick={onLeave}>Step outside</TownButton>
+        <div className="absolute bottom-3 right-3">
+          <RoundAction icon="out" text="Step outside" onClick={onLeave} />
         </div>
       )}
     </div>

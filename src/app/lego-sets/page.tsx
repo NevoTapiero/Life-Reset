@@ -132,6 +132,7 @@ export default function LegoPreview() {
               owned={owned}
               onLeave={leave}
               level={hero}
+              name="ifti"
               className="w-full h-full"
             />
           )}
