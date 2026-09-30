@@ -9,6 +9,7 @@ import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
 import MinifigPicker from "@/components/MinifigPicker";
 import FirstTips from "@/components/FirstTips";
 import TellTheJudge from "@/components/TellTheJudge";
+import StartSteps from "@/components/StartSteps";
 import BuildYourDay from "@/components/BuildYourDay";
 import { GoldBrick } from "@/components/GoldBricks";
 import { goldBricks, saveSeenGold, seenGold, type GoldBrick as GoldBrickT } from "@/lib/goldBricks";
@@ -23,6 +24,7 @@ import {
   CARD_DAYS,
   PERIODS,
   PERIOD_LABEL,
+  STREAK_BONUS_XP,
   PERIOD_UNIT,
   PILLAR_ICONS,
   Period,
@@ -162,6 +164,8 @@ export default function HomePage() {
   const tabQuests = m.inPeriod(tab);
   const daily = m.counts.daily;
   const clearedAll = daily.total > 0 && daily.done === daily.total;
+  // where today sits in the 7-day streak cycle (1..7; 0 = no streak yet)
+  const streakDay = p.streak_current <= 0 ? 0 : ((p.streak_current - 1) % 7) + 1;
   const evening = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Jerusalem" }).format(new Date())) >= 17;
   if (m.days && clearedAll !== wasCleared) {
     // cleared just now (not already cleared when the page opened): celebrate
@@ -246,9 +250,24 @@ export default function HomePage() {
             })}
           </div>
           <div className="mt-1.5 text-[12px] font-extrabold text-muted">{p.xp.toLocaleString()} XP total</div>
+          {/* the streak week: day 7 pays the bonus */}
+          <div className="mt-3 flex items-center gap-2" title={`Every 7th day in a row pays +${STREAK_BONUS_XP} XP`}>
+            <span className="text-[12.5px] font-extrabold flex items-center gap-1 w-[62px]">
+              <Icon name="flame" size={13} strokeWidth={2.4} />
+              Streak
+            </span>
+            <span className="streak-studs flex-1" aria-label={`Day ${streakDay} of 7 toward the +${STREAK_BONUS_XP} bonus`}>
+              {Array.from({ length: 7 }, (_, i) => (
+                <span key={i} className={i < streakDay ? (i === 6 ? "gold" : "on") : i === 6 ? "goal" : ""} />
+              ))}
+            </span>
+            <span className="text-[12px] font-extrabold text-muted w-[88px] text-right">
+              {streakDay === 7 ? `+${STREAK_BONUS_XP} today!` : `${7 - streakDay} to +${STREAK_BONUS_XP}`}
+            </span>
+          </div>
           {energy !== null && (
             <div className="mt-3 flex items-center gap-2" title="Energy for running in the world: sleep well and walk to fill it">
-              <span className="text-[12.5px] font-extrabold flex items-center gap-1">
+              <span className="text-[12.5px] font-extrabold flex items-center gap-1 w-[62px]">
                 <Icon name="bolt" size={13} strokeWidth={2.4} />
                 Energy
               </span>
@@ -275,6 +294,7 @@ export default function HomePage() {
       )}
 
       {p.archetype && <FirstTips />}
+      {p.archetype && <StartSteps doneCount={m.doneCount} />}
 
       {/* missions */}
       <div className="flex items-center justify-between mt-7 mb-3">
@@ -319,6 +339,10 @@ export default function HomePage() {
           );
         })}
       </div>
+
+      {tab !== "daily" && m.today && (
+        <p className="text-[13px] font-extrabold text-muted -mt-1.5 mb-3 px-1">{periodLeft(tab, m.today)}</p>
+      )}
 
       {m.error && (
         <p className="card px-4 py-3 mb-3 text-sm font-bold" style={{ color: "var(--danger)" }}>
@@ -515,4 +539,16 @@ function MissionTile({
       {xpFloat !== null && <span className="xp-float absolute right-4 -top-2 text-[15px]">+{xpFloat} XP</span>}
     </button>
   );
+}
+
+// "3 days left this week (ends Saturday)" / "12 days left this month"
+function periodLeft(period: Period, today: string): string {
+  const d = new Date(today + "T00:00:00Z");
+  if (period === "weekly") {
+    const left = 6 - d.getUTCDay(); // weeks run Sunday to Saturday
+    return left === 0 ? "Last day of the week: check your weekly missions today." : `${left + 1} days left this week (ends Saturday).`;
+  }
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  const left = last - d.getUTCDate();
+  return left === 0 ? "Last day of the month: check your monthly missions today." : `${left + 1} days left this month.`;
 }
