@@ -37,6 +37,7 @@ import {
   townText,
   plazaText,
   townDecorText,
+  PLAZA_LAMPS,
   SHOP_FRONT,
   FOUNTAIN,
   MAX_STATIONS,
@@ -272,6 +273,103 @@ export default function LegoWorld({
   );
 }
 
+// ---- time of day ----
+// The town follows your real clock: blue day, golden sunrise and sunset, a
+// dusk when the lamps come on, and night with stars and moonlight.
+// ponytail: four fixed moods; blend between them if the switch ever jars
+export type Mood = { name: string; top: string; horizon: string; sun: number; sunColor: string; ambient: number; night: boolean };
+const MOODS: Record<string, Mood> = {
+  day: { name: "day", top: "#4f9be6", horizon: "#cfe8ff", sun: 2.3, sunColor: "#fff4e2", ambient: 0.9, night: false },
+  golden: { name: "golden", top: "#6f8fd0", horizon: "#ffcf96", sun: 1.7, sunColor: "#ffb070", ambient: 0.7, night: false },
+  dusk: { name: "dusk", top: "#26356a", horizon: "#e58a6c", sun: 0.7, sunColor: "#ff9a6a", ambient: 0.45, night: true },
+  night: { name: "night", top: "#070d26", horizon: "#1d2a52", sun: 0.35, sunColor: "#9fb4ff", ambient: 0.28, night: true },
+};
+export function moodAt(hour: number): Mood {
+  if (hour >= 20.5 || hour < 5) return MOODS.night;
+  if (hour >= 19 || hour < 6) return MOODS.dusk;
+  if (hour >= 17 || hour < 8) return MOODS.golden;
+  return MOODS.day;
+}
+export const MOOD_NAMES = Object.keys(MOODS);
+export const moodNamed = (name: string) => MOODS[name] ?? MOODS.day;
+
+// A gradient dome round the whole scene, and stars when it's dark.
+function SkyDome({ mood }: { mood: Mood }) {
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: { top: { value: new THREE.Color() }, horizon: { value: new THREE.Color() } },
+        vertexShader: "varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+        fragmentShader:
+          "uniform vec3 top; uniform vec3 horizon; varying vec3 vDir;\nvoid main() {\n  float h = clamp(vDir.y * 1.8, 0.0, 1.0);\n  gl_FragColor = vec4(mix(horizon, top, pow(h, 0.7)), 1.0);\n#include <colorspace_fragment>\n}",
+        side: THREE.BackSide,
+        depthWrite: false,
+        fog: false,
+      }),
+    [],
+  );
+  useEffect(() => {
+    material.uniforms.top.value.set(mood.top);
+    material.uniforms.horizon.value.set(mood.horizon);
+  }, [material, mood]);
+  const stars = useMemo(() => {
+    const pts: number[] = [];
+    let seed = 5;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 500; i++) {
+      const a = rnd() * Math.PI * 2;
+      const y = 0.15 + rnd() * 0.85; // upper sky only
+      const r = Math.sqrt(1 - y * y);
+      pts.push(Math.cos(a) * r * 440, y * 440, Math.sin(a) * r * 440);
+    }
+    return new Float32Array(pts);
+  }, []);
+  return (
+    <>
+      <mesh material={material} scale={450} renderOrder={-1}>
+        <sphereGeometry args={[1, 32, 16]} />
+      </mesh>
+      {mood.night && (
+        <points>
+          <bufferGeometry>
+            <bufferAttribute attach="attributes-position" args={[stars, 3]} />
+          </bufferGeometry>
+          <pointsMaterial color="#ffffff" size={1.6} sizeAttenuation={false} fog={false} />
+        </points>
+      )}
+    </>
+  );
+}
+
+// Warm glows round the lamps after dark: additive sprites, no real lights.
+let glowTexture: THREE.CanvasTexture | null = null;
+function glow() {
+  if (glowTexture) return glowTexture;
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d")!;
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, "rgba(255,226,150,1)");
+  r.addColorStop(0.25, "rgba(255,200,110,0.55)");
+  r.addColorStop(1, "rgba(255,180,90,0)");
+  g.fillStyle = r;
+  g.fillRect(0, 0, 64, 64);
+  glowTexture = new THREE.CanvasTexture(c);
+  return glowTexture;
+}
+function LampGlows({ at }: { at: [number, number, number][] }) {
+  const map = useMemo(() => glow(), []);
+  return (
+    <>
+      {at.map((p, i) => (
+        <sprite key={i} position={p} scale={[130, 130, 1]}>
+          <spriteMaterial map={map} blending={THREE.AdditiveBlending} depthWrite={false} transparent fog={false} />
+        </sprite>
+      ))}
+    </>
+  );
+}
+
 export type Pin = { key: string; at: [number, number, number]; node: React.ReactNode };
 
 // Moves each pinned button to its point's place on screen, every frame.
@@ -303,6 +401,7 @@ function Stage({
   dir,
   fov = 32,
   sky = "#bfe3ff",
+  mood,
   bounds,
   onPick,
   overlay,
@@ -317,6 +416,9 @@ function Stage({
   dir?: THREE.Vector3;
   /** vertical field of view: narrow for the diorama outside, wide for being in a room */
   fov?: number;
+  /** outdoors: the time of day -- a gradient sky, the sun (or moon), stars at night.
+   *  Without it the scene sits in a plain `sky` colour (the room). */
+  mood?: Mood;
   /** the colour beyond the scene: sky outside, a warm ceiling glow inside */
   sky?: string;
   /** the camera's target stays inside this box (three's space) */
@@ -351,14 +453,16 @@ function Stage({
           gl={{ antialias: true }}
           onCreated={({ gl }) => (gl.localClippingEnabled = true)}
         >
-          <color attach="background" args={[sky]} />
-          <fog attach="fog" args={[sky, 140, 330]} />
-          <hemisphereLight args={["#fff8ef", "#5a7a4a", 0.9]} />
+          <color attach="background" args={[mood?.horizon ?? sky]} />
+          <fog attach="fog" args={[mood?.horizon ?? sky, 140, 330]} />
+          {mood && <SkyDome mood={mood} />}
+          <hemisphereLight args={["#fff8ef", "#5a7a4a", mood?.ambient ?? 0.9]} />
           <primitive object={sun} position={[target.x, 0, target.z]} />
           <directionalLight
             target={sun}
             position={[target.x + 18, 30, target.z - 14]}
-            intensity={2.3}
+            intensity={mood?.sun ?? 2.3}
+            color={mood?.sunColor ?? "#ffffff"}
             castShadow
             shadow-mapSize={[2048, 2048]}
             shadow-camera-left={-22}
@@ -369,8 +473,8 @@ function Stage({
             shadow-bias={-0.0004}
           />
           <Environment resolution={256}>
-            <Lightformer intensity={2} position={[0, 10, 10]} scale={[20, 8, 1]} />
-            <Lightformer intensity={1} position={[-10, 4, -6]} scale={[8, 8, 1]} />
+            <Lightformer intensity={2 * (mood?.ambient ?? 1)} position={[0, 10, 10]} scale={[20, 8, 1]} />
+            <Lightformer intensity={1 * (mood?.ambient ?? 1)} position={[-10, 4, -6]} scale={[8, 8, 1]} />
           </Environment>
 
           {/* LDraw is -Y up: a half-turn about X stands it upright */}
@@ -453,6 +557,7 @@ export function LegoTown({
   prices = null,
   owned = [],
   onBuy,
+  time,
   className,
 }: {
   residents: Resident[];
@@ -466,9 +571,17 @@ export function LegoTown({
   prices?: Record<string, number> | null;
   owned?: string[];
   onBuy?: (id: string) => Promise<string | null>;
+  /** force a time of day ("day", "golden", "dusk", "night"); otherwise it follows the clock */
+  time?: string;
   className?: string;
 }) {
   const residents = all.slice(0, MAX_RESIDENTS);
+  const [hour, setHour] = useState(() => new Date().getHours() + new Date().getMinutes() / 60);
+  useEffect(() => {
+    const t = setInterval(() => setHour(new Date().getHours() + new Date().getMinutes() / 60), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const mood = time ? moodNamed(time) : moodAt(hour);
   const town = useModel(
     useMemo(() => townText(residents), [residents]),
     true,
@@ -559,6 +672,7 @@ export function LegoTown({
         dir={dir}
         bounds={bounds}
         pan
+        mood={mood}
         onPick={pick}
         overlay={
           <>
@@ -598,6 +712,7 @@ export function LegoTown({
         {plaza && <primitive object={plaza} />}
         {decor && <primitive object={decor} />}
         <Traffic />
+        {mood.night && <LampGlows at={PLAZA_LAMPS} />}
         {STROLLERS.map((p, i) => (
           <Stroller key={i} {...p} />
         ))}

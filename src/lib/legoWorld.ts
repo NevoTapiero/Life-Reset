@@ -493,6 +493,9 @@ const fountain: Piece[] = [
   ["98138", COL.transClear, 0, 112, 0],
 ];
 const lamp: Piece[] = [["2039", COL.black, 0, 0, 0], ["30367c", COL.transYellow, 0, 168, 0]];
+const LAMP_SPOTS: [number, number][] = [-1, 1].flatMap((side) => [380, 60, -300].map((z) => [side * 400, z] as [number, number]));
+// where the lamps' lights are, for the glow after dark (LDU; -Y is up)
+export const PLAZA_LAMPS: [number, number, number][] = LAMP_SPOTS.map(([x, z]) => [x, -(168 + 14), z]);
 const bench: Piece[] = [
   ["3005", COL.darkGrey, -30, 0, 0],
   ["3005", COL.darkGrey, 30, 0, 0],
@@ -510,7 +513,7 @@ export function plazaText(): string {
   out.push(...place(bench, fx - 150, fz, ROT[90]), ...place(bench, fx + 150, fz, ROT[270]));
   // down both sides: lampposts and trees in planters, alternating
   for (const side of [-1, 1]) {
-    for (const z of [380, 60, -300]) out.push(...place(lamp, side * 400, z, ROT[0]));
+    for (const [x, z] of LAMP_SPOTS.filter(([x]) => Math.sign(x) === side)) out.push(...place(lamp, x, z, ROT[0]));
     for (const z of [220, -120, -440]) out.push(...place(planterTree, side * 400, z, ROT[0]));
     out.push(...place(flowerPot(side < 0 ? COL.red : COL.yellow), side * 240, 440, ROT[0]));
   }

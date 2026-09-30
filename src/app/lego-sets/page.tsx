@@ -39,6 +39,7 @@ const DEMO_TOWN = [
 
 export default function LegoPreview() {
   const [level, setLevel] = useState<number | null>(null); // null = the town
+  const [time, setTime] = useState<string | undefined>(undefined); // undefined = your clock
   // nevo already let you in, omer hasn't answered; a new knock is answered after a moment
   const [visits, setVisits] = useState<Record<string, Visit>>({ nevo: "allowed", omer: "knocked" });
   const knock = (name: string) => {
@@ -78,6 +79,11 @@ export default function LegoPreview() {
         <button onClick={() => setLevel(null)} className={button(level === null)}>
           Town (demo)
         </button>
+        {["day", "golden", "dusk", "night"].map((t) => (
+          <button key={t} onClick={() => setTime(time === t ? undefined : t)} className={button(time === t)}>
+            {t}
+          </button>
+        ))}
         {HOUSES.map((h, i) => (
           <button key={h.id} onClick={() => setLevel(i + 1)} className={button(level === i + 1)}>
             Level {i + 1}: {h.name}
@@ -105,6 +111,7 @@ export default function LegoPreview() {
           prices={DEMO_PRICES}
           owned={owned}
           onBuy={buy}
+          time={time}
           className="w-full h-[75vh] rounded overflow-hidden"
         />
       ) : (
