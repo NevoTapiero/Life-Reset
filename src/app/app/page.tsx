@@ -23,6 +23,7 @@ import {
   CARD_DAYS,
   PERIODS,
   PERIOD_LABEL,
+  STREAK_BONUS_XP,
   PERIOD_UNIT,
   PILLAR_ICONS,
   Period,
@@ -162,6 +163,8 @@ export default function HomePage() {
   const tabQuests = m.inPeriod(tab);
   const daily = m.counts.daily;
   const clearedAll = daily.total > 0 && daily.done === daily.total;
+  // where today sits in the 7-day streak cycle (1..7; 0 = no streak yet)
+  const streakDay = p.streak_current <= 0 ? 0 : ((p.streak_current - 1) % 7) + 1;
   const evening = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Jerusalem" }).format(new Date())) >= 17;
   if (m.days && clearedAll !== wasCleared) {
     // cleared just now (not already cleared when the page opened): celebrate
@@ -246,9 +249,24 @@ export default function HomePage() {
             })}
           </div>
           <div className="mt-1.5 text-[12px] font-extrabold text-muted">{p.xp.toLocaleString()} XP total</div>
+          {/* the streak week: day 7 pays the bonus */}
+          <div className="mt-3 flex items-center gap-2" title={`Every 7th day in a row pays +${STREAK_BONUS_XP} XP`}>
+            <span className="text-[12.5px] font-extrabold flex items-center gap-1 w-[62px]">
+              <Icon name="flame" size={13} strokeWidth={2.4} />
+              Streak
+            </span>
+            <span className="streak-studs flex-1" aria-label={`Day ${streakDay} of 7 toward the +${STREAK_BONUS_XP} bonus`}>
+              {Array.from({ length: 7 }, (_, i) => (
+                <span key={i} className={i < streakDay ? (i === 6 ? "gold" : "on") : i === 6 ? "goal" : ""} />
+              ))}
+            </span>
+            <span className="text-[12px] font-extrabold text-muted w-[88px] text-right">
+              {streakDay === 7 ? `+${STREAK_BONUS_XP} today!` : `${7 - streakDay} to +${STREAK_BONUS_XP}`}
+            </span>
+          </div>
           {energy !== null && (
             <div className="mt-3 flex items-center gap-2" title="Energy for running in the world: sleep well and walk to fill it">
-              <span className="text-[12.5px] font-extrabold flex items-center gap-1">
+              <span className="text-[12.5px] font-extrabold flex items-center gap-1 w-[62px]">
                 <Icon name="bolt" size={13} strokeWidth={2.4} />
                 Energy
               </span>
