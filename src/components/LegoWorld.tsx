@@ -73,7 +73,9 @@ import {
   roomText,
   roomBlockers,
   ROOM_START,
-  stationSpot,
+  stationSpots,
+  stationAt,
+  PLAZA,
   TOWN_HALF,
   PITCH,
   BLOCK,
@@ -97,7 +99,6 @@ import {
   STREET_LAMP_LIGHTS,
   SHOP_FRONT,
   FOUNTAIN,
-  MAX_STATIONS,
   type Station,
   type MinifigLook,
   type Figure,
@@ -1480,6 +1481,8 @@ export function LegoTown({
   visits = {},
   onKnock,
   room,
+  stations,
+  onTap,
   gold = null,
   prices = null,
   owned = [],
@@ -1500,6 +1503,9 @@ export function LegoTown({
   onKnock?: (name: string) => void;
   /** your own house's inside (your room); without it you get the roof-off view */
   room?: (leave: () => void, mood: Mood) => React.ReactNode;
+  /** your missions, a station each out on your plot; walk up to one and tap it to do it (resolves with the XP paid) */
+  stations?: Station[];
+  onTap?: (id: string) => Promise<number | null>;
   /** the shop: your gold, prices by item id (null: no shop yet), what you own, and buying */
   gold?: number | null;
   prices?: Record<string, number> | null;
@@ -1523,7 +1529,8 @@ export function LegoTown({
   onPlace?: (p: Placed) => Promise<string | null>;
   className?: string;
 }) {
-  const residents = all.slice(0, MAX_RESIDENTS);
+  // your stations stand on your plot (a friend's come with their resident row, when the app sends them)
+  const residents = useMemo(() => all.slice(0, MAX_RESIDENTS).map((r) => (r.me && stations ? { ...r, stations } : r)), [all, stations]);
   const [hour, setHour] = useState(() => new Date().getHours() + new Date().getMinutes() / 60);
   useEffect(() => {
     const t = setInterval(() => setHour(new Date().getHours() + new Date().getMinutes() / 60), 60_000);
@@ -1762,6 +1769,20 @@ export function LegoTown({
       node: <span className={`lego lego-sm ${res.me ? "" : "lego-white"}`}>{res.me ? "Your house" : `${res.name}'s house`}</span>,
     };
   };
+  // your stations: a button over each once you've walked up to it (tap to do the mission)
+  const stationPins = () => {
+    if (!onTap || !stations || !residents[meIndex]?.me) return [];
+    const spots = stationSpots(houseSpec(residents[meIndex].level));
+    return stations.slice(0, spots.length).map((st, i) => {
+      const [px, pz] = stationAt(spots[i]);
+      const [x, y, z] = toThree(inLot(lots[meIndex], [px, 0, pz]));
+      return {
+        key: `st-${st.id}`,
+        at: () => (Math.hypot(me3.current.x - x, me3.current.z - z) < 8 ? ([x, y + 4, z] as [number, number, number]) : null),
+        node: <StationButton st={st} onTap={onTap} gold={gold} />,
+      };
+    });
+  };
   // a friend's speech bubble, over their head wherever they walk
   const chatPin = (name: string) => {
     let h = 0;
@@ -1847,7 +1868,7 @@ export function LegoTown({
             <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.03} flat />
             <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#43474c" y={-0.015} flat />
             <StudGround at={[0, 0]} size={BLOCK} color="#a3a7ad" y={-0.008} flat />
-            <StudGround at={[0, 0]} size={PLOT} color="#a3a7ad" />
+            <StudGround at={[0, 0]} size={PLAZA} color="#a3a7ad" />
             {[...lots, ...emptyLots].map((lot, i) => (
               <group key={i}>
                 <StudGround at={[lot.x * LDU, -lot.z * LDU]} size={BLOCK} color={grass} y={-0.008} flat />
@@ -1856,7 +1877,7 @@ export function LegoTown({
             ))}
           </>
         }
-        pins={following ? [...(near === null ? [] : [nearPin(near)]), ...(talker ? [chatPin(talker)] : [])] : [
+        pins={following ? [...(near === null ? [] : [nearPin(near)]), ...(talker ? [chatPin(talker)] : []), ...stationPins()] : [
           {
             key: "shop",
             at: [0, SHOP_BUILDING.h * LDU + 3, -(SHOP_FRONT - (SHOP_BUILDING.d / 2) * 20) * LDU] as [number, number, number],
@@ -1928,6 +1949,16 @@ export function LegoTown({
         {residents.map((res, i) => (
           <Ride key={res.name} ride={loadoutFor(res.level, res.character ?? undefined).ride} at={rideSpot(lots[i], res.level)} turn={turnRad(lots[i].facing)} />
         ))}
+        {/* a spinning gold stud over every station done today, seen from the street: what you did */}
+        {residents.flatMap((r, i) => {
+          const spots = stationSpots(houseSpec(r.level));
+          return (r.stations ?? []).slice(0, spots.length).flatMap((st, k) => {
+            if (!st.done) return [];
+            const [px, pz] = stationAt(spots[k]);
+            const [x, , z] = toThree(inLot(lots[i], [px, 0, pz]));
+            return [<DoneStud key={`done-${r.name}-${st.id}`} at={[x, 3.2, z]} />];
+          });
+        })}
         {/* the garden things on your plot, and the one you're placing with its footprint */}
         {garden.map((p) => (
           <PlacedThing key={`${p.item}:${p.x}:${p.z}`} lot={lots[meIndex]} placed={p} fresh={fresh === `${p.item}:${p.x}:${p.z}`} />
@@ -2038,6 +2069,11 @@ export function LegoTown({
       )}
       {/* top right: the map (the whole town), and from it, back to playing */}
       <div className="absolute top-3 right-3 flex items-start gap-2">
+        {following && stations && stations.length > 0 && (
+          <span className={`lego lego-sm mt-1 ${stations.every((st) => st.done) ? "lego-green" : "lego-white"}`}>
+            {stations.every((st) => st.done) ? "All done today ✓" : `${stations.filter((st) => !st.done).length} to do`}
+          </span>
+        )}
         <SoundToggle />
         {inside === null &&
           !isPlacing &&
@@ -3483,11 +3519,58 @@ function Scenery({ color, season, sunAt }: { color: string; season: Season; sunA
   );
 }
 
+// A gold stud turning slowly in the air over a station that's been done today
+// (LEGO games' collectible): the neighbours see what you did.
+function DoneStud({ at }: { at: [number, number, number] }) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    if (!ref.current) return;
+    ref.current.rotation.y = clock.elapsedTime * 1.6;
+    ref.current.position.y = at[1] + Math.sin(clock.elapsedTime * 2.2) * 0.15;
+  });
+  return (
+    <mesh ref={ref} position={at} castShadow>
+      <cylinderGeometry args={[0.55, 0.55, 0.32, 20]} />
+      <meshPhysicalMaterial color="#e6b422" metalness={0.75} roughness={0.28} clearcoat={0.8} emissive="#b0801a" emissiveIntensity={0.25} />
+    </mesh>
+  );
+}
+
+// A station's button (over it, out on your plot): tap to do the mission; it pays
+// out with a brick burst and the XP floating up.
+function StationButton({ st, onTap, gold }: { st: Station; onTap: (id: string) => Promise<number | null>; gold: number | null }) {
+  const [busy, setBusy] = useState(false);
+  const [paid, setPaid] = useState<number | null>(null);
+  const tap = async () => {
+    if (st.done || busy) return;
+    sfx.click();
+    setBusy(true);
+    const xp = await onTap(st.id);
+    setBusy(false);
+    if (xp === null) return;
+    setPaid(xp);
+    setTimeout(() => setPaid(null), 1100);
+  };
+  return (
+    <button onClick={tap} disabled={busy} className={`lego lego-sm flex-col !gap-0 max-w-[76px] ${st.done ? "lego-green" : ""}`}>
+      <span className="text-[11px] font-bold">{st.done ? "✓" : `+${st.xp}`}</span>
+      <span className="w-full truncate text-center text-[9px] font-semibold opacity-90">{st.title}</span>
+      {paid !== null && <BrickBurst />}
+      {paid !== null && (
+        <span
+          className="xp-float absolute left-1/2 -top-5 w-40 -ml-20 text-center font-mono font-bold text-sm"
+          style={{ color: "#e8650c", textShadow: "0 0 3px #fff, 0 0 3px #fff, 0 1px 0 #fff" }}
+        >
+          {gold === null ? `+${paid} XP` : `+${paid} XP · +${paid} gold`}
+        </span>
+      )}
+    </button>
+  );
+}
+
 // Your room: a station for each mission. Tap one to do it -- it pays out
 // (+XP floats up) and stays lit for the day.
 export function LegoRoom({
-  stations,
-  onTap,
   chest = null,
   gold = null,
   onCollect,
@@ -3500,9 +3583,6 @@ export function LegoRoom({
   mood,
   className,
 }: {
-  stations: Station[];
-  /** do the mission; resolves with the XP it paid */
-  onTap: (id: string) => Promise<number | null>;
   /** XP waiting in the chest (null: no chest yet) */
   chest?: number | null;
   /** your gold (null: no gold yet) */
@@ -3529,25 +3609,14 @@ export function LegoRoom({
   const stick = useRef({ x: 0, y: 0 });
   const jumps = useRef(0);
   useKeysToStick(stick, jumps);
-  const blockers = useMemo(() => roomBlockers(stations, owned), [stations, owned]);
+  const blockers = useMemo(() => roomBlockers(owned), [owned]);
   const start = useMemo<P3[]>(() => [[ROOM_START[0], 0, ROOM_START[1]]], []);
-  // roomText only reads each station's id and pillar (and what you own), so doing one doesn't rebuild the room
-  const room = useModel(roomText(stations, owned), true);
+  const room = useModel(roomText(owned), true);
   const [busy, setBusy] = useState<string | null>(null);
   const [paid, setPaid] = useState<{ id: string; xp: number } | null>(null);
   // aimed a little low and framed tight, so the room fills the screen (not the sky above it)
   const target = useMemo(() => new THREE.Vector3(0, 5, 0), []);
 
-  const tap = async (st: Station) => {
-    if (st.done || busy) return;
-    sfx.click();
-    setBusy(st.id);
-    const xp = await onTap(st.id);
-    setBusy(null);
-    if (xp === null) return;
-    setPaid({ id: st.id, xp });
-    setTimeout(() => setPaid(null), 1100);
-  };
   const open = async () => {
     if (!onCollect || busy) return;
     setBusy("chest");
@@ -3573,58 +3642,30 @@ export function LegoRoom({
         sunFrom={ROOM_SUN}
         pan
         bounds={ROOM_BOUNDS}
-        pins={stations
-          .slice(0, MAX_STATIONS)
-          .map((st, i) => {
-            const [x, z] = stationSpot(i);
-            return {
-              key: st.id,
-              at: [x * LDU, 9, -z * LDU] as [number, number, number],
-              node: (
-                <button
-                  onClick={() => tap(st)}
-                  disabled={busy === st.id}
-                  className={`lego lego-sm flex-col !gap-0 max-w-[76px] ${st.done ? "lego-green" : ""}`}
-                >
-                  <span className="text-[11px] font-bold">{st.done ? "✓" : `+${st.xp}`}</span>
-                  <span className="w-full truncate text-center text-[9px] font-semibold opacity-90">{st.title}</span>
-                  {paid?.id === st.id && <BrickBurst />}
-                  {paid?.id === st.id && (
-                    <span
-                      className="xp-float absolute left-1/2 -top-5 w-40 -ml-20 text-center font-mono font-bold text-sm"
-                      style={{ color: "#e8650c", textShadow: "0 0 3px #fff, 0 0 3px #fff, 0 1px 0 #fff" }}
-                    >
-                      {payout(paid.xp)}
-                    </span>
-                  )}
-                </button>
-              ),
-            };
-          })
-          .concat(
-            chest === null
-              ? []
-              : [
-                  {
-                    key: "chest",
-                    at: [CHEST_SPOT[0] * LDU, 5, -CHEST_SPOT[1] * LDU] as [number, number, number],
-                    node: (
-                      <button onClick={open} disabled={!chest || busy === "chest"} className={`lego lego-sm ${chest ? "lego-yellow" : "lego-dark"}`}>
-                        {chest ? `Collect +${chest}` : "Chest empty"}
-                        {paid?.id === "chest" && <BrickBurst />}
-                        {paid?.id === "chest" && (
-                          <span
-                            className="xp-float absolute left-1/2 -top-6 w-44 -ml-22 text-center font-mono font-bold text-sm"
-                            style={{ color: "#e8650c", textShadow: "0 0 3px #fff, 0 0 3px #fff, 0 1px 0 #fff" }}
-                          >
-                            {payout(paid.xp)}
-                          </span>
-                        )}
-                      </button>
-                    ),
-                  },
-                ],
-          )}
+        pins={
+          chest === null
+            ? []
+            : [
+                {
+                  key: "chest",
+                  at: [CHEST_SPOT[0] * LDU, 5, -CHEST_SPOT[1] * LDU] as [number, number, number],
+                  node: (
+                    <button onClick={open} disabled={!chest || busy === "chest"} className={`lego lego-sm ${chest ? "lego-yellow" : "lego-dark"}`}>
+                      {chest ? `Collect +${chest}` : "Chest empty"}
+                      {paid?.id === "chest" && <BrickBurst />}
+                      {paid?.id === "chest" && (
+                        <span
+                          className="xp-float absolute left-1/2 -top-6 w-44 -ml-22 text-center font-mono font-bold text-sm"
+                          style={{ color: "#e8650c", textShadow: "0 0 3px #fff, 0 0 3px #fff, 0 1px 0 #fff" }}
+                        >
+                          {payout(paid.xp)}
+                        </span>
+                      )}
+                    </button>
+                  ),
+                },
+              ]
+        }
       >
         {room && <primitive object={room} />}
         {/* after dark the room's own light: a warm lamp under the ceiling */}
@@ -3633,11 +3674,6 @@ export function LegoRoom({
           <Walker id="me" look={level ? loadoutFor(level, character ?? undefined) : look} to={start} turn={-Math.PI * 0.25} input={stick} jumpRef={jumps} blockers={blockers} />
         </group>
       </Stage>
-      {stations.length === 0 && (
-        <p className="absolute inset-x-0 top-4 text-center text-sm font-semibold" style={{ color: "#3a3a3a" }}>
-          No missions yet. Add some and their stations appear here.
-        </p>
-      )}
       {/* the same HUD as in the town: you top left, what's left to do top right, the way out bottom right */}
       <div className="absolute top-2 left-3 pointer-events-none">
         <div className="lego-hud">
@@ -3659,15 +3695,6 @@ export function LegoRoom({
       <div className="absolute top-3 right-3">
         <SoundToggle />
       </div>
-      {stations.length > 0 && (
-        <div className="absolute top-3 right-20 pointer-events-none">
-          {stations.every((st) => st.done) ? (
-            <span className="lego lego-sm lego-green">All done today ✓</span>
-          ) : (
-            <span className="lego lego-sm lego-white">{stations.filter((st) => !st.done).length} to do</span>
-          )}
-        </div>
-      )}
       <div className="absolute bottom-3 left-3">
         <Joystick outRef={stick} />
       </div>

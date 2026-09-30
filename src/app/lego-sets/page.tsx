@@ -208,11 +208,11 @@ export default function LegoPreview() {
             residents={DEMO_TOWN.slice(0, friends + 1)}
             visits={visits}
             onKnock={knock}
+            stations={stations}
+            onTap={tap}
             room={(leave, mood) => (
               <LegoRoom
                 mood={mood}
-                stations={stations}
-                onTap={tap}
                 chest={chest}
                 gold={gold}
                 onCollect={collect}

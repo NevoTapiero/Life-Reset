@@ -12,7 +12,8 @@ import PROPS from "./legoProps.json" with { type: "json" };
 // The plot is a 48x48 baseplate; cell (i, j) is a stud, 0..47 on x and z.
 // The front of the house and the garden face +Z.
 
-export const PLOT = 48;
+export const PLOT = 64; // a plot's side, studs: the house at the back, the garden and your stations round it
+export const PLAZA = 48; // the plaza's paved square in the middle of its block
 const S = 20;
 const PLATE = 8;
 
@@ -129,8 +130,34 @@ export function doorCells(s: HouseSpec) {
 
 const FLOWER_COLOURS = [COL.red, COL.yellow, COL.white, COL.pink, COL.blue, COL.mediumLavender];
 
-export function buildGarden(streak: number, s: HouseSpec): string[] {
+// Your stations stand outside, round the house, where the neighbours see what
+// you're up to: down both sides of it (as many as fit, up to four a side) and
+// the two front corners, by the street. Plot frame, studs; f: which way it faces.
+export const STATION_SIZE = 6; // studs, the room a station takes
+export function stationSpots(s: HouseSpec): { x: number; z: number; f: Mat }[] {
+  const out: { x: number; z: number; f: Mat }[] = [];
+  const perSide = Math.min(4, Math.floor((s.d - 2) / STATION_SIZE));
+  for (let k = 0; k < perSide; k++) {
+    const z = s.z0 + 4 + k * STATION_SIZE;
+    out.push({ x: s.x0 / 2, z, f: ROT[270] }, { x: (s.x0 + s.w + PLOT) / 2, z, f: ROT[90] });
+  }
+  out.push({ x: 9, z: PLOT - 7, f: ROT[0] }, { x: PLOT - 11, z: PLOT - 7, f: ROT[0] });
+  return out;
+}
+/** a station's centre in the plot frame (LDU) */
+export const stationAt = ({ x, z }: { x: number; z: number }): [number, number] => [(x - PLOT / 2) * S, (z - PLOT / 2) * S];
+
+export function buildGarden(streak: number, s: HouseSpec, stations: Station[] = []): string[] {
   const out: string[] = [];
+  // a piece of furniture per mission, out in the garden
+  const spots = stationSpots(s);
+  const seen: Record<string, number> = {};
+  stations.slice(0, spots.length).forEach((st, i) => {
+    const kinds = FURNITURE[st.pillar] ?? FURNITURE.Discipline;
+    const n = (seen[st.pillar] = (seen[st.pillar] ?? -1) + 1);
+    const [x, z] = stationAt(spots[i]);
+    out.push(...place(kinds[n % kinds.length], x, z, spots[i].f, 0));
+  });
   const door = doorCells(s);
   const pathL = door[1];
   const front = s.z0 + s.d;
@@ -149,8 +176,8 @@ export function buildGarden(streak: number, s: HouseSpec): string[] {
   if (streak >= 5) for (let x = 1; x < PLOT - 1; x++) if (x < pathL - 1 || x > pathL + 2) out.push(put("3062b", COL.green, x, PLOT - 2, 0));
 
   // trees at 10 and 30 days
-  if (streak >= 10) out.push(put("3470", COL.green, 5.5, front + 3.5, 0));
-  if (streak >= 30) out.push(put("2435", COL.green, PLOT - 6, front + 4, 0));
+  if (streak >= 10) out.push(put("3470", COL.green, 3.5, front + 2.5, 0));
+  if (streak >= 30) out.push(put("2435", COL.green, PLOT - 4, front + 4, 0));
   // and a pond with a frog and ducklings at 20
   if (streak >= POND_STREAK) out.push(...place(POND, GARDEN_POND[0], GARDEN_POND[1], ROT[0], 0));
   return out;
@@ -243,7 +270,16 @@ export function modelText(lines: string[], name = "model.ldr"): string {
 // ---- the town -------------------------------------------------------------
 
 // A resident's plot: their house by level, their garden by streak.
-export type Resident = { name: string; level: number; streak: number; me?: boolean; /** their character (archetype key); none: the Warrior */ character?: string | null };
+export type Resident = {
+  name: string;
+  level: number;
+  streak: number;
+  me?: boolean;
+  /** their character (archetype key); none: the Warrior */
+  character?: string | null;
+  /** their stations (a piece of furniture per mission), out on their plot */
+  stations?: Station[];
+};
 
 // The town is a square: the shop on a plaza in the middle, up to eight houses
 // around it on 48x48 plots, every one facing the plaza. Between the plots
@@ -291,7 +327,7 @@ export function townText(residents: Resident[]): string {
   ];
   const plots = residents
     .slice(0, MAX_RESIDENTS)
-    .map((r, i) => modelText(splitInstanced(buildGarden(r.streak, houseSpec(r.level))).kept, `plot-${i}.ldr`));
+    .map((r, i) => modelText(splitInstanced(buildGarden(r.streak, houseSpec(r.level), r.stations)).kept, `plot-${i}.ldr`));
   return [modelText(main, "town.ldr"), ...plots].join("");
 }
 
@@ -300,7 +336,7 @@ export function townInstances(residents: Resident[]): Placement[] {
   const out = splitInstanced(townLand()).placed;
   residents.slice(0, MAX_RESIDENTS).forEach((r, i) => {
     const lot = lotFor(i);
-    out.push(...splitInstanced(buildGarden(r.streak, houseSpec(r.level)), { x: lot.x, z: lot.z, r: ROT[lot.facing] }).placed);
+    out.push(...splitInstanced(buildGarden(r.streak, houseSpec(r.level), r.stations), { x: lot.x, z: lot.z, r: ROT[lot.facing] }).placed);
   });
   return out;
 }
@@ -678,7 +714,7 @@ export const DECOR: Decor[] = [
 // fountain, benches facing it, lampposts and trees in planters down both
 // sides, flower pots at the front. LDU, the plaza's centre at 0; the shop's
 // front edge is at SHOP_FRONT.
-export const SHOP_FRONT = (-PLOT / 2 + 34) * S; // Market Street is 34 deep, backed onto the plaza's back edge
+export const SHOP_FRONT = (-PLAZA / 2 + 34) * S; // Market Street is 34 deep, backed onto the plaza's back edge
 export const FOUNTAIN: [number, number] = [0, 340];
 const fountain: Piece[] = [
   ["3961", COL.lightGrey, 0, 0, 0], // the basin: a big inverted dish
@@ -749,7 +785,7 @@ const POND: Piece[] = [
 ];
 // where a garden's pond goes (plot frame, LDU): right of the flower beds, clear
 // of the path, the hedge and the 30-day tree; every level's garden starts on row 36
-const GARDEN_POND: [number, number] = [220, 340];
+const GARDEN_POND: [number, number] = [(PLOT / 2 - 13) * S, (PLOT / 2 - 7) * S];
 export const POND_STREAK = 20;
 
 // ---- empty plots: a little park until a friend moves in ----
@@ -979,6 +1015,16 @@ export function townBlockers(residents: Resident[]): Blocker[] {
     const b = inLot(lot, [hx + h.w * S - 10, 0, hz - h.d * S + 10]);
     return { x0: Math.min(a[0], b[0]), z0: Math.min(a[2], b[2]), x1: Math.max(a[0], b[0]), z1: Math.max(a[2], b[2]) };
   });
+  residents.slice(0, MAX_RESIDENTS).forEach((r, i) => {
+    const lot = lotFor(i);
+    const spots = stationSpots(houseSpec(r.level));
+    (r.stations ?? []).slice(0, spots.length).forEach((_, k) => {
+      const [x, z] = stationAt(spots[k]);
+      const a = inLot(lot, [x - 55, 0, z - 55]);
+      const b = inLot(lot, [x + 55, 0, z + 55]);
+      out.push({ x0: Math.min(a[0], b[0]), z0: Math.min(a[2], b[2]), x1: Math.max(a[0], b[0]), z1: Math.max(a[2], b[2]) });
+    });
+  });
   const shop = SHOP as House;
   out.push({ x0: (-shop.w / 2) * S + 10, x1: (shop.w / 2) * S - 10, z0: SHOP_FRONT - shop.d * S, z1: SHOP_FRONT - 10 });
   out.push({ cx: FOUNTAIN[0], cz: FOUNTAIN[1], r: 95 });
@@ -1103,7 +1149,8 @@ export function gardenPropAt(p: Placed): [number, number] {
 }
 // Where you can't put things: the house (with a stud round it), the path from
 // the door to the street, the front two rows (hedge and kerb), the garden's
-// own pond, and anything already placed; and it must be on the plot.
+// own pond, every station's spot (whether a mission stands there yet or not),
+// and anything already placed; and it must be on the plot.
 type Box = { x0: number; z0: number; x1: number; z1: number };
 const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.z0 < b.z1 && b.z0 < a.z1;
 export function blockedOnPlot(level: number, streak: number, placed: Placed[], except?: Placed): Box[] {
@@ -1114,6 +1161,8 @@ export function blockedOnPlot(level: number, streak: number, placed: Placed[], e
     { x0: door[1] - 1, z0: s.z0 + s.d, x1: door[1] + 3, z1: PLOT },
     { x0: 0, z0: PLOT - 3, x1: PLOT, z1: PLOT },
   ];
+  const h = STATION_SIZE / 2;
+  for (const q of stationSpots(s)) out.push({ x0: q.x - h, z0: q.z - h, x1: q.x + h, z1: q.z + h });
   if (streak >= POND_STREAK) {
     const [px, pz] = GARDEN_POND;
     out.push({ x0: px / S + PLOT / 2 - 6, z0: pz / S + PLOT / 2 - 5, x1: px / S + PLOT / 2 + 6, z1: pz / S + PLOT / 2 + 5 });
@@ -1173,18 +1222,10 @@ export const CHEST_SPOT: [number, number] = [-130, 190];
 
 // The room is 32x32 studs with walls ten bricks high -- about two and a half
 // minifigs, a real ceiling height -- on the back and both sides; the front is
-// open to the camera. Stations stand against the walls like furniture: four
-// along the back, three down each side, the floor open in the middle.
+// open to the camera. It's your home: the chest, the starter furniture and
+// what you buy at the shop (your stations are outside, round the house).
 const ROOM = 320; // half the room, LDU
 const WALL = 240; // ten bricks
-// station i: its centre on the floor (LDU) and which way it faces
-export function stationSpot(i: number): [number, number] {
-  // the camera faces the back wall, where screen-left is +x
-  if (i < 4) return [(1.5 - i) * 140, -ROOM + 70];
-  const side = i < 7 ? -1 : 1;
-  return [side * (ROOM - 70), -150 + ((i - 4) % 3) * 150];
-}
-const stationFacing = (i: number): Mat => (i < 4 ? ROT[0] : i < 7 ? ROT[90] : ROT[270]);
 
 // the starter furniture (plot frame pieces, see place()): the rug is a 6x16 plate with
 // tan corner tiles and two cushions; the table for two has round legs, mugs and chairs
@@ -1215,9 +1256,9 @@ const SHELVES: [number, number, Mat][] = [
 // where you first stand in your room (LDU): just in from the doormat
 export const ROOM_START: [number, number] = [-40, 240];
 
-// What you can't walk through in your room: the walls, the furniture along them
-// (a station's spot), the table, the chest, the plants and what you've bought.
-export function roomBlockers(stations: Station[], owned: string[] = []): Blocker[] {
+// What you can't walk through in your room: the walls, the table, the chest, the
+// plants and what you've bought.
+export function roomBlockers(owned: string[] = []): Blocker[] {
   const big = 9999;
   const w = ROOM - 25;
   const out: Blocker[] = [
@@ -1230,16 +1271,11 @@ export function roomBlockers(stations: Station[], owned: string[] = []): Blocker
     { cx: -265, cz: 275, r: 32 },
     { cx: 265, cz: 275, r: 32 },
   ];
-  stations.slice(0, MAX_STATIONS).forEach((_, i) => {
-    const [x, z] = stationSpot(i);
-    if (i < 4) out.push({ x0: x - 70, x1: x + 70, z0: -ROOM, z1: z + 60 });
-    else out.push({ x0: x < 0 ? -ROOM : x - 60, x1: x < 0 ? x + 60 : ROOM, z0: z - 60, z1: z + 60 });
-  });
   for (const d of DECOR) if (owned.includes(d.id) && d.pieces.length) out.push({ cx: d.at[0], cz: d.at[1], r: d.id === "cat" ? 18 : 50 });
   return out;
 }
 
-export function roomText(stations: Station[], owned: string[] = []): string {
+export function roomText(owned: string[] = []): string {
   const out: string[] = [];
   // the floor: base plates, then smooth planks (2x4 tiles in staggered rows,
   // a 2x2 tile closing each row) between the walls
@@ -1301,14 +1337,5 @@ export function roomText(stations: Station[], owned: string[] = []): string {
 
   // the chest, where what your watch earned waits to be collected
   out.push(...place([["4738a", COL.reddishBrown, 0, 0, 0], ["4739a", COL.reddishBrown, 0, 32, 0]], CHEST_SPOT[0], CHEST_SPOT[1], ROT[180]));
-
-  // a piece of furniture per mission
-  const seen: Record<string, number> = {};
-  stations.slice(0, MAX_STATIONS).forEach((st, i) => {
-    const [x, z] = stationSpot(i);
-    const kinds = FURNITURE[st.pillar] ?? FURNITURE.Discipline;
-    const n = (seen[st.pillar] = (seen[st.pillar] ?? -1) + 1);
-    out.push(...place(kinds[n % kinds.length], x, z, stationFacing(i)));
-  });
   return modelText(out, "room.ldr");
 }
