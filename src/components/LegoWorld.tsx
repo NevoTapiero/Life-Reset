@@ -13,6 +13,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import {
   BASE_HUNTER,
+  COL,
   MINIFIG_PARTS,
   PLOT,
   baseplate,
@@ -597,6 +598,9 @@ export function LegoTown({
         {plaza && <primitive object={plaza} />}
         {decor && <primitive object={decor} />}
         <Traffic />
+        {STROLLERS.map((p, i) => (
+          <Stroller key={i} {...p} />
+        ))}
         {residents.map((res, i) => (
           <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
             <House level={res.level} cut={i === inside ? CUT : undefined} />
@@ -861,6 +865,30 @@ function Car({ car, start }: { car: Baked; start: number }) {
   });
   // the glb's origin is its front-left corner; centre it on the lane
   return <group ref={root}>{obj && <primitive object={obj} position={[-car.w * 10, 0, car.d * 10]} />}</group>;
+}
+
+// ---- people strolling round the fountain ----
+const STROLLERS: { look: MinifigLook; r: number; speed: number; start: number }[] = [
+  // between the fountain's rim (80) and the benches (130): spread round the circle
+  { look: { skin: COL.yellow, hair: COL.reddishBrown, torso: COL.red, legs: COL.blue }, r: 106, speed: 0.22, start: 0 },
+  { look: { skin: COL.yellow, hair: COL.black, torso: COL.white, legs: COL.darkGrey }, r: 112, speed: 0.22, start: Math.PI },
+  { look: { skin: COL.yellow, hair: COL.yellow, torso: COL.green, legs: COL.tan }, r: 104, speed: -0.17, start: Math.PI / 2 },
+  { look: { skin: COL.yellow, hair: COL.darkOrange, torso: COL.purple, legs: COL.black }, r: 110, speed: 0.15, start: (3 * Math.PI) / 2 },
+];
+function Stroller({ look, r, speed, start }: (typeof STROLLERS)[number]) {
+  const root = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    if (!root.current) return;
+    const a = start + clock.elapsedTime * speed;
+    root.current.position.set(FOUNTAIN[0] + Math.cos(a) * r, 0, FOUNTAIN[1] + Math.sin(a) * r);
+    // facing along the circle, the way they're walking (a minifig's front is +Z)
+    root.current.rotation.y = Math.atan2(-Math.sin(a) * speed, Math.cos(a) * speed);
+  });
+  return (
+    <group ref={root}>
+      <Minifig look={look} at={[0, 0, 0]} />
+    </group>
+  );
 }
 
 function Traffic() {
