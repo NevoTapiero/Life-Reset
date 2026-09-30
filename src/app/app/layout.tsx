@@ -59,7 +59,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const hideNav = inWorld || pathname.startsWith("/app/friend/");
 
   if (inWorld) {
-    return <main className="fixed inset-0 z-30 bg-[var(--bg-top)]">{children}</main>;
+    return (
+      <main className="world-play fixed inset-0 z-30 bg-[var(--bg-top)]">
+        {children}
+        {/* the way back out, under the player card (the joystick lives bottom left) */}
+        <Link href="/app/world" className="world-back" aria-label="Back to World">
+          <Icon name="chevron-left" size={17} strokeWidth={2.6} />
+          World
+        </Link>
+      </main>
+    );
   }
 
   return (

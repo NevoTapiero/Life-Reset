@@ -36,7 +36,7 @@ export default function TownArt({ residents, className }: { residents: Resident[
       </defs>
       <rect width={W} height="210" fill="url(#ta-sky)" />
       {/* sun and clouds */}
-      <circle cx={W - 52} cy="40" r="20" fill="var(--lego-yellow)" />
+      <circle cx={W - 26} cy="22" r="15" fill="var(--lego-yellow)" />
       <g fill="#fff" opacity="0.95" className="ta-cloud">
         <rect x="30" y="30" width="54" height="14" rx="7" />
         <rect x="44" y="21" width="30" height="14" rx="7" />

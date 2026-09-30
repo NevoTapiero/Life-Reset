@@ -3,9 +3,10 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import Logo from "@/components/Logo";
+import Link from "next/link";
+import BrickLogo from "@/components/BrickLogo";
+import Icon from "@/components/Icon";
 import { GoogleMark } from "@/components/Icon";
-import Backdrop from "@/components/Backdrop";
 import { resetTheme } from "@/lib/theme";
 
 function AuthForm() {
@@ -70,61 +71,59 @@ function AuthForm() {
 
   return (
     <div className="rise my-auto">
-      <div className="flex justify-center mb-6">
-        <Logo size={88} />
-      </div>
       <div className="text-center">
-        <div
-          className="display-hero text-[30px] leading-none text-accent"
-          style={{ textShadow: "0 0 26px rgb(var(--accent-rgb) / 0.5)" }}
-        >
-          SOLO LEVELING
-        </div>
-        <h1 className="display-hero text-[44px] mt-3 leading-none">
-          {mode === "signup" ? "JOIN THE HUNT" : "WELCOME BACK"}
-        </h1>
+        <BrickLogo size={0.8} />
+        <h1 className="display text-[30px] mt-6">{mode === "signup" ? "Join the town" : "Welcome back"}</h1>
+        <p className="text-[14px] font-bold text-muted mt-1">
+          {mode === "signup" ? "Make your minifig and start building." : "Your town missed you."}
+        </p>
       </div>
 
-      <button className="btn-ghost w-full py-3.5 mt-8 gap-2.5" onClick={googleSignIn}>
-        <GoogleMark />
-        Continue with Google
-      </button>
-
-      <div className="flex items-center gap-3 mt-5">
-        <div className="flex-1 h-px" style={{ background: "var(--line)" }} />
-        <span className="hud-label">or with email</span>
-        <div className="flex-1 h-px" style={{ background: "var(--line)" }} />
-      </div>
-
-      <form onSubmit={submit} className="mt-5 flex flex-col gap-3">
-        <input
-          type="email"
-          required
-          placeholder="Email"
-          value={email}
-          autoComplete="email"
-          onChange={(e) => setEmail(e.target.value)}
-          className="field px-4 py-3.5 text-[15px]"
-        />
-        <input
-          type="password"
-          required
-          minLength={6}
-          placeholder="Password (6+ characters)"
-          value={password}
-          autoComplete={mode === "signup" ? "new-password" : "current-password"}
-          onChange={(e) => setPassword(e.target.value)}
-          className="field px-4 py-3.5 text-[15px]"
-        />
-        {error && <p className="text-danger text-sm px-1">{error}</p>}
-        {notice && <p className="text-accent text-sm px-1">{notice}</p>}
-        <button type="submit" className="btn-primary py-4 mt-3" disabled={busy}>
-          {busy ? "One moment…" : mode === "signup" ? "Create account" : "Sign in"}
+      <section className="card tile-studs p-5 mt-7">
+        <button className="btn-ghost w-full py-3.5 gap-2.5" onClick={googleSignIn}>
+          <GoogleMark />
+          Continue with Google
         </button>
-      </form>
+
+        <div className="flex items-center gap-3 mt-5">
+          <span className="flex-1 h-[2px] rounded" style={{ background: "var(--line)" }} />
+          <span className="hud-label">or with email</span>
+          <span className="flex-1 h-[2px] rounded" style={{ background: "var(--line)" }} />
+        </div>
+
+        <form onSubmit={submit} className="mt-4 flex flex-col gap-3">
+          <input
+            type="email"
+            required
+            placeholder="Email"
+            aria-label="Email"
+            value={email}
+            autoComplete="email"
+            onChange={(e) => setEmail(e.target.value)}
+            className="field px-4 py-3.5 text-[16px]"
+          />
+          <input
+            type="password"
+            required
+            minLength={6}
+            placeholder="Password (6+ characters)"
+            aria-label="Password"
+            value={password}
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            onChange={(e) => setPassword(e.target.value)}
+            className="field px-4 py-3.5 text-[16px]"
+          />
+          {error && <p className="text-sm font-bold px-1" style={{ color: "var(--danger)" }}>{error}</p>}
+          {notice && <p className="chip chip-green !whitespace-normal !py-1.5">{notice}</p>}
+          <button type="submit" className="btn-primary py-4 mt-3 !text-[18px]" disabled={busy}>
+            {busy ? "One moment..." : mode === "signup" ? "Create my account" : "Sign in"}
+          </button>
+        </form>
+      </section>
 
       <button
-        className="text-muted text-sm mt-8 py-2 underline underline-offset-4 w-full text-center"
+        className="text-[14px] font-extrabold mt-6 py-2 underline underline-offset-4 w-full text-center"
+        style={{ color: "var(--lego-blue)" }}
         onClick={() => {
           setMode(mode === "signup" ? "signin" : "signup");
           setError(null);
@@ -139,11 +138,12 @@ function AuthForm() {
 export default function AuthPage() {
   return (
     <main className="flex-1 flex flex-col py-8">
-      <Backdrop>
-        <Suspense fallback={null}>
-          <AuthForm />
-        </Suspense>
-      </Backdrop>
+      <Link href="/" className="self-start icon-tile !w-10 !h-10 !bg-white" aria-label="Back">
+        <Icon name="chevron-left" size={20} strokeWidth={2.4} />
+      </Link>
+      <Suspense fallback={null}>
+        <AuthForm />
+      </Suspense>
     </main>
   );
 }
