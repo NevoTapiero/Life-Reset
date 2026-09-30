@@ -1147,6 +1147,7 @@ export function firstFreeSpot(item: string, level: number, streak: number, place
 export function itemPreviewLines(id: string): string[] | null {
   const g = gardenItem(id);
   if (g) return g.pieces ? place(g.pieces, 0, 0, ROT[0], 0) : null;
+  if (id === "indoor-trees") return place([["3941", COL.darkOrange, 0, 0, 0], ["2435", COL.green, 0, 24, 0]], 0, 0, ROT[0], 0); // the room plants them itself
   const d = DECOR.find((x) => x.id === id);
   return d ? place(d.pieces, 0, 0, ROT[0], 0) : null;
 }
