@@ -17,8 +17,10 @@ import {
   COL,
   MINIFIG_PARTS,
   PLOT,
-  baseplate,
   buildGarden,
+  splitInstanced,
+  townInstances,
+  type Placement,
   buildMinifig,
   houseAt,
   houseFor,
@@ -122,6 +124,81 @@ function useModel(text: string, merge: boolean) {
     };
   }, [text, merge]);
   return group;
+}
+
+// Trees and flowers (legoWorld INSTANCED_PARTS) repeat by the hundred: each
+// part + colour is parsed once, and every copy is one instance of it.
+const props = new Map<string, Promise<THREE.Mesh[]>>();
+function loadProp(part: string, color: number) {
+  const key = `${part}|${color}`;
+  let p = props.get(key);
+  if (!p)
+    props.set(
+      key,
+      (p = getLoader(false)
+        .then(({ loader, parts }) => parse(loader, modelText([`1 ${color} 0 0 0 1 0 0 0 1 0 0 0 1 ${part}.dat`], "prop.ldr") + parts))
+        .then((g) => {
+          const merged = LDrawUtils.mergeObject(g);
+          merged.updateMatrixWorld(true);
+          const meshes: THREE.Mesh[] = [];
+          merged.traverse((o) => {
+            if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
+          });
+          return meshes;
+        })),
+    );
+  return p;
+}
+
+// Every placement drawn with one InstancedMesh per part, colour and material.
+// Lives inside the LDraw-space group, so placements are plain LDraw matrices.
+function InstancedParts({ placements }: { placements: Placement[] }) {
+  // a stable key: the caller's array is rebuilt on every render
+  const sig = JSON.stringify(placements);
+  const [meshes, setMeshes] = useState<THREE.InstancedMesh[]>([]);
+  useEffect(() => {
+    let live = true;
+    const groups = new Map<string, Placement[]>();
+    for (const pl of JSON.parse(sig) as Placement[]) {
+      const k = `${pl.part}|${pl.color}`;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k)!.push(pl);
+    }
+    const built: THREE.InstancedMesh[] = [];
+    Promise.all(
+      [...groups].map(async ([k, list]) => {
+        const [part, color] = k.split("|");
+        for (const mesh of await loadProp(part, Number(color))) {
+          const im = new THREE.InstancedMesh(mesh.geometry, mesh.material, list.length);
+          const m = new THREE.Matrix4();
+          list.forEach((pl, i) => {
+            const [x, y, z, a, b, c, d, e, f, g, h, j] = pl.m;
+            m.set(a, b, c, x, d, e, f, y, g, h, j, z, 0, 0, 0, 1).multiply(mesh.matrixWorld);
+            im.setMatrixAt(i, m);
+          });
+          im.instanceMatrix.needsUpdate = true;
+          im.computeBoundingSphere();
+          im.castShadow = true;
+          im.receiveShadow = true;
+          built.push(im);
+        }
+      }),
+    )
+      .then(() => live && setMeshes(built))
+      .catch((e) => console.error("props:", e));
+    return () => {
+      live = false;
+      // the instance buffers are ours; geometry and materials stay cached for reuse
+      built.forEach((im) => im.dispose());
+    };
+  }, [sig]);
+  return (
+    <>
+      {meshes.map((im) => (
+        <primitive key={im.uuid} object={im} />
+      ))}
+    </>
+  );
 }
 
 // The houses are official sets baked to glb (scripts/lego/pack.mjs); each file
@@ -333,10 +410,10 @@ export default function LegoWorld({
   className?: string;
 }) {
   const spec = houseSpec(houseLevel);
-  const worldText = useMemo(
-    () => modelText([baseplate(), ...buildGarden(streak, houseSpec(houseLevel))], "plot.ldr"),
-    [houseLevel, streak],
-  );
+  // the baseplate is drawn flat (StudGround, like the town) instead of 2,304
+  // real studs, and the garden's trees and flowers are instanced
+  const garden = useMemo(() => splitInstanced(buildGarden(streak, houseSpec(houseLevel))), [houseLevel, streak]);
+  const worldText = useMemo(() => modelText(garden.kept, "plot.ldr"), [garden]);
   const world = useModel(worldText, true);
   const at = minifigSpot(spec);
   // the house centre in three's space: x as is, LDraw z flipped by the container's half-turn
@@ -347,8 +424,15 @@ export default function LegoWorld({
   }, [spec.x0, spec.w, spec.z0, spec.d]);
 
   return (
-    <Stage className={className} label="Your house and garden" target={target} width={Math.max(34, spec.w + 14)}>
+    <Stage
+      className={className}
+      label="Your house and garden"
+      target={target}
+      width={Math.max(34, spec.w + 14)}
+      overlay={<StudGround at={[0, 0]} size={PLOT} color="#4b9b3c" />}
+    >
       {world && <primitive object={world} />}
+      <InstancedParts placements={garden.placed} />
       {spin ? <SpunHouse level={houseLevel} id={house} spin={spin} /> : <House level={houseLevel} name={name} id={house} />}
       <Minifig look={look} at={at} />
     </Stage>
@@ -808,6 +892,7 @@ export function LegoTown({
         ]}
       >
         {town && <primitive object={town} />}
+        <InstancedParts placements={townInstances(residents)} />
         {/* the shop, its front to the camera's side of the plaza */}
         {/* the shop at the back of the plaza, the fountain and the rest of the square in front of it */}
         <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} lit={mood.night} />

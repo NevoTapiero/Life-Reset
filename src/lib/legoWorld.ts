@@ -240,10 +240,55 @@ export function townText(residents: Resident[]): string {
   const lots = residents.slice(0, MAX_RESIDENTS).map((_, i) => lotFor(i));
   const main = [
     ...lots.map((lot, i) => `1 16 ${n(lot.x)} 0 ${n(lot.z)} ${ROT[lot.facing].map(n).join(" ")} plot-${i}.ldr`),
-    ...townLand(),
+    ...splitInstanced(townLand()).kept, // trees are drawn instanced: townInstances()
   ];
-  const plots = residents.slice(0, MAX_RESIDENTS).map((r, i) => modelText(buildGarden(r.streak, houseSpec(r.level)), `plot-${i}.ldr`));
+  const plots = residents
+    .slice(0, MAX_RESIDENTS)
+    .map((r, i) => modelText(splitInstanced(buildGarden(r.streak, houseSpec(r.level))).kept, `plot-${i}.ldr`));
   return [modelText(main, "town.ldr"), ...plots].join("");
+}
+
+// The trees and flowers townText() leaves out, placed in the town's frame.
+export function townInstances(residents: Resident[]): Placement[] {
+  const out = splitInstanced(townLand()).placed;
+  residents.slice(0, MAX_RESIDENTS).forEach((r, i) => {
+    const lot = lotFor(i);
+    out.push(...splitInstanced(buildGarden(r.streak, houseSpec(r.level)), { x: lot.x, z: lot.z, r: ROT[lot.facing] }).placed);
+  });
+  return out;
+}
+
+// ---- instanced props --------------------------------------------------------
+// Trees and flowers repeat by the hundred (about 140 forest trees at 1.8k to
+// 3.5k triangles each, up to 12 flowers per garden at 2.5k). Parsed and merged
+// once per placement they cost most of the town's triangles, memory and load
+// time; the renderer instead parses each part + colour once and draws every
+// copy with one InstancedMesh. Same geometry, same look.
+export const INSTANCED_PARTS = new Set(["3470", "3471", "2417", "2435", "3741ac05"]);
+/** a part placed in LDraw space: m = [x, y, z, a, b, c, d, e, f, g, h, i] as in a type-1 line */
+export type Placement = { part: string; color: number; m: number[] };
+
+// Pull the instanced parts out of LDraw lines. `parent`: the transform of the
+// sub-model the lines live in (a plot on its lot), applied to each placement.
+export function splitInstanced(lines: string[], parent?: { x: number; z: number; r: Mat }) {
+  const kept: string[] = [];
+  const placed: Placement[] = [];
+  for (const l of lines) {
+    const t = l.trim().split(/\s+/);
+    const part = t[0] === "1" && t.length >= 15 ? t[14].replace(/\.dat$/i, "") : "";
+    if (!INSTANCED_PARTS.has(part)) {
+      kept.push(l);
+      continue;
+    }
+    let [x, y, z, ...m] = t.slice(2, 14).map(Number);
+    if (parent) {
+      const R = parent.r;
+      [x, y, z] = [R[0] * x + R[1] * y + R[2] * z + parent.x, R[3] * x + R[4] * y + R[5] * z, R[6] * x + R[7] * y + R[8] * z + parent.z];
+      m = turnMat(R, m as Mat);
+    }
+    placed.push({ part, color: Number(t[1]), m: [x, y, z, ...m] });
+  }
+  return { kept, placed };
 }
 
 // ---- the land around the town -------------------------------------------
