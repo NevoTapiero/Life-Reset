@@ -73,6 +73,8 @@ import {
   roomText,
   stationSpot,
   TOWN_HALF,
+  PITCH,
+  BLOCK,
   MAX_RESIDENTS,
   SHOP_BUILDING,
   lotFor,
@@ -1189,7 +1191,7 @@ function NearStuds({ follow, grass }: { follow: React.RefObject<THREE.Vector3>; 
     </instancedMesh>
   );
 }
-const PITCH_STUDS = PLOT + 16;
+const PITCH_STUDS = PITCH;
 
 // Following someone round the town, the sunlight (and its shadow area, only
 // ~44 units across) goes with them, so you and what's around you always cast shadows.
@@ -1814,7 +1816,7 @@ export function LegoTown({
               : placing
                 ? PLOT + 14
                 : focus === OVERVIEW
-                ? 230
+                ? TOWN_HALF * 2.2
                 : focus === SHOP_FOCUS
                   ? 95
                   : 62
@@ -1834,12 +1836,17 @@ export function LegoTown({
           <>
             <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} />
             {following && <NearStuds follow={me3} grass={grass} />}
-            {/* the ground: grass everywhere, the smooth grey street square, the plaza and each plot */}
+            {/* the ground: grass everywhere, the smooth grey street square, the plaza (paved out to its
+                pavement) and each plot on its lawn */}
             <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.03} flat />
             <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#43474c" y={-0.015} flat />
+            <StudGround at={[0, 0]} size={BLOCK} color="#a3a7ad" y={-0.008} flat />
             <StudGround at={[0, 0]} size={PLOT} color="#a3a7ad" />
             {[...lots, ...emptyLots].map((lot, i) => (
-              <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} />
+              <group key={i}>
+                <StudGround at={[lot.x * LDU, -lot.z * LDU]} size={BLOCK} color={grass} y={-0.008} flat />
+                <StudGround at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} />
+              </group>
             ))}
           </>
         }

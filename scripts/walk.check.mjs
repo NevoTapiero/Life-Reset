@@ -1,6 +1,6 @@
 // node scripts/walk.check.mjs -- every walk between any two places (doors, insides, the shop) keeps to the streets
 import assert from "node:assert";
-import { CROWD, PERSON, sidestep, intoSomeone, jogAt, townBlockers, free, stepFree, nearestStreet, walkFrom, doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, shopWalk, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
+import { ST, CROWD, PERSON, sidestep, intoSomeone, jogAt, townBlockers, free, stepFree, nearestStreet, walkFrom, doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, shopWalk, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
 
 const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
 const places = [SHOP_WALK, shopWalk(1), shopWalk(3), ...lots.flatMap((lot, i) => [doorWalk(lot, 1 + (i % 5), 40), doorWalk(lot, 1 + (i % 5), -40), insideWalk(lot, 1 + (i % 5), 40)])];
@@ -49,7 +49,7 @@ for (let lvl = 1; lvl <= 5; lvl++) {
 // the nearest street point is on a street, and a walk from anywhere ends where it should
 for (const p of [[100, 0, 900], [-1500, 0, 200], [30, 0, -30]]) {
   const st = nearestStreet(p);
-  assert(Math.abs(Math.abs(st[0]) - 640) < 1 || Math.abs(Math.abs(st[2]) - 640) < 1);
+  assert(Math.abs(Math.abs(st[0]) - ST) < 1 || Math.abs(Math.abs(st[2]) - ST) < 1);
   const r = walkFrom(p, places[4]);
   assert.deepEqual(r.pts.at(-1), places[4].at(-1));
   assert.equal(r.pts.length, r.chains.length);

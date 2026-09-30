@@ -135,10 +135,10 @@ export function buildGarden(streak: number, s: HouseSpec): string[] {
   const pathL = door[1];
   const front = s.z0 + s.d;
 
-  // the path from the door to the edge
+  // the path from the door to the edge, and on over the lawn to the pavement
   let z = front;
-  for (; z + 1 < PLOT; z += 2) out.push(put("3068b", COL.lightGrey, pathL + 0.5, z + 0.5, 0));
-  if (z < PLOT) out.push(put("3069b", COL.lightGrey, pathL + 0.5, z, 0));
+  for (; z + 1 < PLOT + LAWN; z += 2) out.push(put("3068b", COL.lightGrey, pathL + 0.5, z + 0.5, 0));
+  if (z < PLOT + LAWN) out.push(put("3069b", COL.lightGrey, pathL + 0.5, z, 0));
 
   // one flower per streak day, up to 12, in beds either side of the path
   const beds: [number, number][] = [];
@@ -246,10 +246,17 @@ export function modelText(lines: string[], name = "model.ldr"): string {
 export type Resident = { name: string; level: number; streak: number; me?: boolean; /** their character (archetype key); none: the Warrior */ character?: string | null };
 
 // The town is a square: the shop on a plaza in the middle, up to eight houses
-// around it on 48x48 plots, every one facing the plaza, 16-stud streets
-// between the blocks and a ring road round them, and forest beyond.
-const PITCH = PLOT + 16; // a block and the street after it, studs
-export const TOWN_HALF = 1.5 * PLOT + 2 * 16; // 104 studs: three blocks, two streets, the ring road
+// around it on 48x48 plots, every one facing the plaza. Between the plots
+// there's air: a lawn in front of every hedge, a wide pavement, then the
+// road; a ring road round it all, and forest beyond.
+export const LAWN = 8; // grass between a plot's hedge and the pavement, studs
+export const PAVE = 4; // the pavement, studs
+export const ROAD = 16; // the asphalt, studs
+export const STREET = 2 * (LAWN + PAVE) + ROAD; // hedge to hedge across a street, studs
+export const BLOCK = PLOT + 2 * LAWN; // a plot and its lawn, studs
+export const PITCH = PLOT + STREET; // a block and the street after it, studs
+export const TOWN_HALF = 1.5 * PLOT + STREET + LAWN + PAVE + ROAD; // three plots, two streets, the ring road
+const PAVE_C = PLOT / 2 + LAWN + PAVE / 2; // the pavement's centre line, studs from a block's centre
 export type Lot = { x: number; z: number; facing: 0 | 90 | 180 | 270 }; // centre (LDU) and where its front faces
 // you first, right behind the shop; then your friends around the square
 const LOTS: [number, number, Lot["facing"]][] = [
@@ -417,16 +424,16 @@ export function forestTrees(): { x: number; z: number; h: number; pine: boolean 
 export function townLand(): string[] {
   return avenueTrees();
 }
-// Leafy trees in rows along the pavements of every street (three a block
-// side, clear of the corner lamps), the plaza block excepted: it has its own.
+// Leafy trees in rows along the pavements of every street (four a block
+// side, clear of the corner lamps and of the path from each door), the plaza block excepted: it has its own.
 function avenueTrees(): string[] {
   const out: string[] = [];
-  const e = PLOT / 2 + 1; // the pavement's centre line, studs from the block's centre
+  const e = PAVE_C;
   const y = -8 - BOTTOM["2435"]; // standing on the 8-LDU pavement
   for (const gx of [-1, 0, 1])
     for (const gz of [-1, 0, 1]) {
       if (gx === 0 && gz === 0) continue;
-      for (const k of [-12, 0, 12]) {
+      for (const k of [-24, -9, 9, 24]) {
         for (const sx of [-1, 1]) out.push(line(COL.green, (gx * PITCH + sx * e) * S, y, (gz * PITCH + k) * S, ROT[0], "2435"));
         for (const sz of [-1, 1]) out.push(line(COL.green, (gx * PITCH + k) * S, y, (gz * PITCH + sz * e) * S, ROT[0], "2435"));
       }
@@ -692,7 +699,7 @@ const STREET_LAMPS: [number, number][] = [-1, 0, 1].flatMap((gx) =>
     [-1, 1]
       .flatMap((sx) => [-1, 1].map((sz) => [sx, sz]))
       .filter(([sx, sz]) => (gx === 0 || sx === -gx) && (gz === 0 || sz === -gz))
-      .map(([sx, sz]) => [(gx * PITCH + sx * (PLOT / 2 + 1)) * S, (gz * PITCH + sz * (PLOT / 2 + 1)) * S] as [number, number]),
+      .map(([sx, sz]) => [(gx * PITCH + sx * PAVE_C) * S, (gz * PITCH + sz * PAVE_C) * S] as [number, number]),
   ),
 );
 export const STREET_LAMP_LIGHTS: [number, number, number][] = STREET_LAMPS.map(([x, z]) => [x, -(168 + 14 + 8), z]); // on the pavement
@@ -778,13 +785,13 @@ export type Slab = { x: number; z: number; w: number; d: number; h: number; y?: 
 const PAVEMENT = "#a0a5a9";
 export function townFlats(): Slab[] {
   const out: Slab[] = [];
-  const streets = [-(TOWN_HALF - 8), -PITCH / 2, PITCH / 2, TOWN_HALF - 8]; // street centre lines, studs
+  const streets = [-(TOWN_HALF - ROAD / 2), -PITCH / 2, PITCH / 2, TOWN_HALF - ROAD / 2]; // street centre lines, studs
   const crossings = [-PITCH / 2, PITCH / 2]; // the streets round the plaza
   const white = "#f2f2ee";
   // dashed centre lines, leaving the junctions and the zebra crossings clear
   for (const c of streets)
     for (let t = -TOWN_HALF + 4; t <= TOWN_HALF - 4; t += 8) {
-      if (streets.some((x) => Math.abs(t - x) < 10)) continue;
+      if (streets.some((x) => Math.abs(t - x) < ROAD / 2 + 2)) continue;
       if (crossings.includes(c) && Math.abs(t) < 8) continue;
       out.push({ x: c * S, z: t * S, w: 20, d: 80, h: 2, color: white }, { x: t * S, z: c * S, w: 80, d: 20, h: 2, color: white });
     }
@@ -817,16 +824,17 @@ export function townFlats(): Slab[] {
   // the bridge: a grey deck a little above the road, white railings
   out.push({ x: 0, z: RIVER_Z * S, w: (ROAD_OUT + 2) * S, d: 2 * bank * S, h: 6, color: "#8c9196" });
   for (const side of [-1, 1]) out.push({ x: side * (ROAD_OUT / 2 + 0.5) * S, z: RIVER_Z * S, w: S, d: 2 * bank * S, h: 22, color: "#f2f2ee" });
-  // a kerbed 2-stud pavement round every block
+  // a kerbed pavement round every block, outside its lawn
   for (const bx of [-PITCH, 0, PITCH])
     for (const bz of [-PITCH, 0, PITCH]) {
-      const e = (PLOT / 2 + 1) * S;
-      const long = (PLOT + 4) * S;
+      const e = PAVE_C * S;
+      const w = PAVE * S;
+      const long = (BLOCK + 2 * PAVE) * S;
       out.push(
-        { x: bx * S, z: bz * S - e, w: long, d: 40, h: 8, color: PAVEMENT },
-        { x: bx * S, z: bz * S + e, w: long, d: 40, h: 8, color: PAVEMENT },
-        { x: bx * S - e, z: bz * S, w: 40, d: PLOT * S, h: 8, color: PAVEMENT },
-        { x: bx * S + e, z: bz * S, w: 40, d: PLOT * S, h: 8, color: PAVEMENT },
+        { x: bx * S, z: bz * S - e, w: long, d: w, h: 8, color: PAVEMENT },
+        { x: bx * S, z: bz * S + e, w: long, d: w, h: 8, color: PAVEMENT },
+        { x: bx * S - e, z: bz * S, w, d: BLOCK * S, h: 8, color: PAVEMENT },
+        { x: bx * S + e, z: bz * S, w, d: BLOCK * S, h: 8, color: PAVEMENT },
       );
     }
   return out;
@@ -871,7 +879,7 @@ export function townDecorText(): string {
 // along your chain to where it meets the new one (the street, if they share
 // nothing), along the streets if need be, and on down the new chain.
 export type P3 = [number, number, number];
-const ST = (PITCH / 2) * S;
+export const ST = (PITCH / 2) * S; // the inner streets' centre lines, LDU
 /** from the street to your spot at a lot's door; `side` steps along the door (so you stand beside its owner) */
 export function doorWalk(lot: Lot, level: number, side = 0): P3[] {
   const [u, y, w] = minifigSpot(houseSpec(level));
@@ -917,7 +925,7 @@ export function jogAt(d: number): { at: P3; heading: number } {
  *  pavement and ending beside the walk from their door (the ride runs off away from it) */
 export function rideSpot(lot: Lot, level: number): P3 {
   const [u] = minifigSpot(houseSpec(level));
-  return inLot(lot, [u - 2 * S, 0, (PLOT / 2 + 2) * S + 10]);
+  return inLot(lot, [u - 2 * S, 0, (PLOT / 2 + LAWN + PAVE + 2) * S + 10]);
 }
 /** from the street on the plaza's left, between the planters and the bench, to the shop's front;
  *  `k` of 0..3 stands further along the front (so friends shopping don't stand in each other) */
