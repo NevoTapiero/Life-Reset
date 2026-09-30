@@ -1,6 +1,6 @@
 "use client";
 
-import { MinifigHead } from "@/components/PlayerAvatar";
+import Minifig from "@/components/Minifig";
 
 // A flat LEGO picture of your town for the World screen's door: sky, clouds,
 // a green baseplate and one brick house per resident (you in the middle), each
@@ -23,7 +23,7 @@ export default function TownArt({ residents, className }: { residents: Resident[
   const ground = 168;
 
   return (
-    <svg viewBox={`0 0 ${W} 210`} className={className} role="img" aria-label="Your LEGO town">
+    <svg viewBox={`0 28 ${W} 182`} className={className} role="img" aria-label="Your LEGO town">
       <defs>
         <linearGradient id="ta-sky" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="var(--bg-top)" />
@@ -34,12 +34,12 @@ export default function TownArt({ residents, className }: { residents: Resident[
           <ellipse cx="6" cy="3.6" rx="3.6" ry="2.2" fill="var(--lego-green)" />
         </pattern>
       </defs>
-      <rect width={W} height="210" fill="url(#ta-sky)" />
+      <rect y="28" width={W} height="182" fill="url(#ta-sky)" />
       {/* sun and clouds */}
-      <circle cx={W - 26} cy="22" r="15" fill="var(--lego-yellow)" />
+      <circle cx={W - 28} cy="52" r="14" fill="var(--lego-yellow)" />
       <g fill="#fff" opacity="0.95" className="ta-cloud">
-        <rect x="30" y="30" width="54" height="14" rx="7" />
-        <rect x="44" y="21" width="30" height="14" rx="7" />
+        <rect x="30" y="50" width="54" height="14" rx="7" />
+        <rect x="44" y="41" width="30" height="14" rx="7" />
       </g>
       <g fill="#fff" opacity="0.85" className="ta-cloud ta-cloud-2">
         <rect x="170" y="52" width="46" height="12" rx="6" />
@@ -71,20 +71,6 @@ export default function TownArt({ residents, className }: { residents: Resident[
             <rect x={cx - 7} y={ground - 20} width="14" height="20" rx="2" fill="var(--lego-tan)" />
             <rect x={x + 7} y={y + 9} width="12" height="10" rx="1.5" fill="#fff" opacity="0.9" />
             {w > 55 && <rect x={x + w - 19} y={y + 9} width="12" height="10" rx="1.5" fill="#fff" opacity="0.9" />}
-            {/* the owner above the roof: their photo, or their minifig head */}
-            <g transform={`translate(${cx - (r.me ? 17 : 13)} ${y - 58 - lvl * 2})`}>
-              {r.photo ? (
-                <>
-                  <clipPath id={`ta-clip-${i}`}>
-                    <circle cx={r.me ? 17 : 13} cy={r.me ? 17 : 13} r={r.me ? 17 : 13} />
-                  </clipPath>
-                  <circle cx={r.me ? 17 : 13} cy={r.me ? 17 : 13} r={(r.me ? 17 : 13) + 2} fill="#fff" />
-                  <image href={r.photo} width={r.me ? 34 : 26} height={r.me ? 34 : 26} clipPath={`url(#ta-clip-${i})`} preserveAspectRatio="xMidYMid slice" />
-                </>
-              ) : (
-                <MinifigHead character={r.character} size={r.me ? 34 : 26} />
-              )}
-            </g>
           </g>
         );
       })}
@@ -93,6 +79,29 @@ export default function TownArt({ residents, className }: { residents: Resident[
       <rect x="0" y={ground} width={W} height={210 - ground} fill="var(--lego-green)" />
       <rect x="0" y={ground} width={W} height={210 - ground} fill="url(#ta-studs)" />
       <rect x="0" y={ground} width={W} height="4" fill="var(--lego-green-edge)" opacity="0.35" />
+
+      {/* each owner stands at their front door */}
+      {row.map((r, i) => {
+        const cx = slot * (i + 0.8);
+        const h = r.me ? 44 : 38;
+        return (
+          <g key={r.name}>
+            <g transform={`translate(${cx - (h * 120) / 170 / 2} ${ground + 16 - h})`}>
+              <Minifig character={r.character} level={Math.min(5, Math.max(1, r.level))} size={h} />
+            </g>
+            {/* their photo, as a little badge by the minifig */}
+            {r.photo && (
+              <g transform={`translate(${cx + 7} ${ground + 16 - h - 4})`}>
+                <clipPath id={`ta-clip-${i}`}>
+                  <circle cx={8} cy={8} r={8} />
+                </clipPath>
+                <circle cx={8} cy={8} r={9.5} fill="#fff" />
+                <image href={r.photo} width={16} height={16} clipPath={`url(#ta-clip-${i})`} preserveAspectRatio="xMidYMid slice" />
+              </g>
+            )}
+          </g>
+        );
+      })}
     </svg>
   );
 }
