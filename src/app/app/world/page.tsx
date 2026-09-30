@@ -10,6 +10,7 @@ import PlayerAvatar from "@/components/PlayerAvatar";
 import TownArt from "@/components/TownArt";
 import BrickWipe from "@/components/BrickWipe";
 import TownNews from "@/components/TownNews";
+import ShopWindow from "@/components/ShopWindow";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import { rankForXp } from "@/lib/game";
 
@@ -32,6 +33,7 @@ export default function WorldPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [board, setBoard] = useState<Board>("all");
   const [myCode, setMyCode] = useState<string | null>(null);
+  const [myGold, setMyGold] = useState(0);
   // friends at your door, waiting for an answer
   const [knocks, setKnocks] = useState<string[]>([]);
   const [doorMsg, setDoorMsg] = useState<string | null>(null);
@@ -60,8 +62,9 @@ export default function WorldPage() {
     );
     const uid = userData.user?.id;
     if (uid) {
-      const { data: prof } = await supabase.from("profiles").select("friend_code").eq("id", uid).single();
+      const { data: prof } = await supabase.from("profiles").select("friend_code, gold").eq("id", uid).single();
       setMyCode(prof?.friend_code ?? null);
+      setMyGold((prof as { gold?: number } | null)?.gold ?? 0);
     }
   }, []);
 
@@ -202,8 +205,12 @@ export default function WorldPage() {
 
       {doorMsg && <p className="chip chip-green mt-4">{doorMsg}</p>}
 
+      <div className="mt-6">
+        <ShopWindow gold={myGold} />
+      </div>
+
       {!alone && (
-        <div className="mt-6">
+        <div className="mt-4">
           <TownNews friends={rows.filter((r) => !r.is_me).map((r) => ({ username: r.username, archetype: r.archetype, xp: r.xp }))} />
         </div>
       )}

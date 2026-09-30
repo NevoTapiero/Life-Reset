@@ -897,6 +897,10 @@ body {
 }
 .judge-mic.on { color: #fff; background: var(--lego-red); box-shadow: inset 0 -2px 0 var(--lego-red-edge); animation: pulseGlow 1s ease-in-out infinite; }
 
+/* the town shop window */
+.shop-tile { background: var(--panel-2); box-shadow: inset 0 -3px 0 var(--line-strong); }
+.shop-tile.afford { background: color-mix(in srgb, var(--lego-yellow) 22%, #fff); box-shadow: inset 0 -3px 0 var(--lego-yellow-edge), 0 0 0 2px var(--lego-yellow); }
+
 /* the brick wipe into the 3D world */
 .brick-wipe {
   position: fixed;
