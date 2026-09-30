@@ -296,6 +296,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
   }, [loadEntries, loadAgenda, runSync, loadProviders]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loads from the server, then sets state
     refresh();
     const onVisible = () => {
       if (document.visibilityState === "visible") refresh();
@@ -369,7 +370,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
   }
 
   const today = dayOf(new Date());
-  const yesterday = dayOf(new Date(Date.now() - 86400_000));
+  const yesterday = dayOf(new Date(new Date().getTime() - 86400_000));
   const all = entries ?? [];
   const todays = all.filter((e) => dayOf(new Date(e.created_at)) === today);
   const yesterdays = all.filter((e) => dayOf(new Date(e.created_at)) === yesterday);

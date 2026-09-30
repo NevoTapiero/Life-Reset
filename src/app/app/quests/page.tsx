@@ -74,6 +74,7 @@ export default function QuestManager() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loads from the server, then sets state
     load();
   }, [load]);
 
