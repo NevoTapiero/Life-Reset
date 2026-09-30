@@ -12,6 +12,12 @@ await db.exec(`
   create table xp_ledger (id bigint generated always as identity primary key, user_id uuid, source text, ref text, xp int not null default 0, reason text, meta jsonb not null default '{}', created_at timestamptz default now(), unique (user_id, source, ref));
   create table quest_completions (id bigint generated always as identity primary key, user_id uuid, quest_id text, completed_on date, xp_awarded int not null default 0);
   insert into profiles (id, xp) values ('00000000-0000-0000-0000-000000000001', 100);
+  insert into xp_ledger (user_id, source, ref, xp) values ('00000000-0000-0000-0000-000000000001', 'seed', 'start', 100);
+  -- recalc_player's total, as in the real one (completions + ledger, floored at zero)
+  create function recalc_player(p_uid uuid) returns void language sql as $$
+    update profiles set xp = greatest(0,
+      coalesce((select sum(xp_awarded) from quest_completions where user_id = p_uid), 0)
+    + coalesce((select sum(xp) from xp_ledger where user_id = p_uid), 0)) where id = p_uid $$;
   set test.uid = '00000000-0000-0000-0000-000000000001';
 `);
 await db.exec(readFileSync(new URL("../migrations/2026-09-30-unclaimed-rewards.sql", import.meta.url), "utf8"));

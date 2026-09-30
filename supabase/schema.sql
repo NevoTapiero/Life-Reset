@@ -1020,8 +1020,12 @@ begin
     returning xp
   )
   select coalesce(sum(xp), 0) into got from paid;
-  update public.profiles set xp = xp + got, gold = gold + got where id = uid
-  returning to_jsonb(profiles.*) into prof;
+  -- recalc_player is the one source of truth for the XP total (it sums the
+  -- ledger, now including what was just collected, floored at zero)
+  update public.profiles set gold = gold + got where id = uid;
+  perform public.recalc_player(uid);
+  select to_jsonb(p.*) into prof from public.profiles p where p.id = uid;
+
   return jsonb_build_object('xp', got, 'gold', got, 'profile', prof);
 end $$;
 grant execute on function public.collect() to authenticated;

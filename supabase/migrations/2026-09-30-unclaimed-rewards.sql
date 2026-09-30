@@ -1,5 +1,6 @@
 -- ============ the chest: collect what your watch earned ============
--- Apply AFTER 2026-09-29-xp-penalties.sql and 2026-09-30-streak-cards.sql.
+-- Apply AFTER 2026-09-29-xp-penalties.sql, 2026-09-30-streak-cards.sql and
+-- 2026-09-30-recalc-floor.sql.
 --
 -- What your watch / band earns while you're away (steps, sleep, recovery,
 -- workouts) now waits in a chest in your house instead of landing straight
@@ -87,8 +88,11 @@ begin
     returning xp
   )
   select coalesce(sum(xp), 0) into got from paid;
-  update public.profiles set xp = xp + got, gold = gold + got where id = uid
-  returning to_jsonb(profiles.*) into prof;
+  -- recalc_player is the one source of truth for the XP total (it sums the
+  -- ledger, now including what was just collected, floored at zero)
+  update public.profiles set gold = gold + got where id = uid;
+  perform public.recalc_player(uid);
+  select to_jsonb(p.*) into prof from public.profiles p where p.id = uid;
   return jsonb_build_object('xp', got, 'gold', got, 'profile', prof);
 end $$;
 grant execute on function public.collect() to authenticated;
