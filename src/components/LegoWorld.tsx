@@ -55,6 +55,7 @@ import {
   gardenItem,
   gardenItemLines,
   gardenPropAt,
+  itemPreviewLines,
   footprint,
   canPlace,
   firstFreeSpot,
@@ -2353,6 +2354,84 @@ function BrickBurst({ count = 16 }: { count?: number }) {
 }
 
 
+// ---- pictures of the things for sale ----
+// Each item is rendered once, in a small hidden renderer of its own (the
+// parts are already loaded for the town), from the front and a little above,
+// on nothing; the picture is kept for the session.
+const thumbs = new Map<string, Promise<string>>();
+let thumbGl: { gl: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; stage: THREE.Group } | null = null;
+function thumbRenderer() {
+  if (thumbGl) return thumbGl;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 192;
+  const gl = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+  gl.setPixelRatio(1);
+  gl.toneMapping = THREE.NeutralToneMapping;
+  const scene = new THREE.Scene();
+  scene.add(new THREE.HemisphereLight("#fff8ef", "#6f8f55", 1.1));
+  const sun = new THREE.DirectionalLight("#fff4e2", 2.4);
+  sun.position.set(3, 6, 4);
+  scene.add(sun);
+  const stage = new THREE.Group();
+  stage.rotation.x = Math.PI; // LDraw is -Y up
+  scene.add(stage);
+  const camera = new THREE.PerspectiveCamera(30, 1, 1, 5000);
+  return (thumbGl = { gl, scene, camera, stage });
+}
+function thumbFor(id: string): Promise<string> {
+  let p = thumbs.get(id);
+  if (p) return p;
+  p = (async () => {
+    const lines = itemPreviewLines(id);
+    let obj: THREE.Object3D;
+    if (lines) {
+      const { loader, parts } = await getLoader(true);
+      obj = finish(await parse(loader, modelText(lines, "thumb.ldr") + parts));
+    } else {
+      const g = gardenItem(id);
+      if (!g?.prop) throw new Error(`no picture for ${id}`);
+      obj = (await loadHouse(houseUrl((PROPS as Baked[]).find((x) => x.id === g.prop)!))).clone();
+    }
+    const { gl, scene, camera, stage } = thumbRenderer();
+    stage.clear();
+    stage.add(obj);
+    stage.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(stage);
+    const size = box.getSize(new THREE.Vector3()).length();
+    const centre = box.getCenter(new THREE.Vector3());
+    // from the front (three's -Z after the flip) and a little above, right of centre
+    camera.position.copy(centre).add(new THREE.Vector3(0.55, 0.5, -0.8).normalize().multiplyScalar(size * 1.35));
+    camera.lookAt(centre);
+    camera.updateProjectionMatrix();
+    gl.render(scene, camera);
+    const url = gl.domElement.toDataURL("image/png");
+    stage.clear();
+    return url;
+  })();
+  thumbs.set(id, p);
+  p.catch(() => thumbs.delete(id));
+  return p;
+}
+function Thumb({ id, name }: { id: string; name: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    thumbFor(id)
+      .then((u) => live && setUrl(u))
+      .catch((e) => console.error("thumb:", e));
+    return () => {
+      live = false;
+    };
+  }, [id]);
+  return (
+    <span className="flex-none w-14 h-14 rounded-lg overflow-hidden grid place-items-center" style={{ background: "#fff", boxShadow: "inset 0 -3px 0 #d9d9d2" }}>
+      {/* a data URL made here, nothing for next/image to optimise */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {url ? <img src={url} alt={name} width={56} height={56} className="w-14 h-14 object-contain" /> : <span className="stud-icon" />}
+    </span>
+  );
+}
+
 // Inside the shop: the furniture for sale, what you have, what you can afford.
 function ShopSheet({
   gold,
@@ -2415,8 +2494,9 @@ function ShopSheet({
               const price = prices[g.id];
               const short = price - (gold ?? 0);
               return (
-                <div key={g.id} className="lego-plate flex items-center justify-between gap-3 px-3 py-2.5">
-                  <span className="font-semibold text-sm">
+                <div key={g.id} className="lego-plate flex items-center gap-3 px-2.5 py-2">
+                  <Thumb id={g.id} name={g.name} />
+                  <span className="font-semibold text-sm flex-1 min-w-0">
                     {g.name} <span className="text-xs font-normal" style={{ color: "#5d625a" }}>{g.w}×{g.d}</span>
                   </span>
                   {short > 0 ? (
@@ -2437,8 +2517,9 @@ function ShopSheet({
               const price = prices[d.id];
               const short = price - (gold ?? 0);
               return (
-                <div key={d.id} className="lego-plate flex items-center justify-between gap-3 px-3 py-2.5">
-                  <span className="font-semibold text-sm">{d.name}</span>
+                <div key={d.id} className="lego-plate flex items-center gap-3 px-2.5 py-2">
+                  <Thumb id={d.id} name={d.name} />
+                  <span className="font-semibold text-sm flex-1 min-w-0">{d.name}</span>
                   {owned.includes(d.id) ? (
                     <span className="text-xs font-semibold" style={{ color: "#256a2b" }}>
                       In your house
