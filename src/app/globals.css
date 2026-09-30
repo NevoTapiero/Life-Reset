@@ -1843,3 +1843,8 @@ body {
   background-image: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--brick) 65%, #fff) 0 2.6px, var(--brick) 3.1px 4.4px, var(--lego-black) 4.6px 6px, transparent 6.4px);
   background-size: 18px 12px; height: 11px; top: -8px;
 }
+/* studs along the top of white tiles and the bottom bar: dark rims */
+.tile-studs::before, .brick-nav::before {
+  background-image: radial-gradient(circle at 50% 45%, #ffffff 0 2.6px, #e3e9ef 3.1px 4.4px, var(--lego-black) 4.6px 6px, transparent 6.4px);
+  background-size: 18px 12px; height: 11px; top: -8px;
+}
