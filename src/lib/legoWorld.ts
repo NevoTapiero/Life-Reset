@@ -385,20 +385,71 @@ const TREES = [
 // LEGO road plates, and grass beyond); studded plates there would be about
 // 90,000 studs. Here: the forest -- a band of trees and bushes on a 16-stud
 // lattice all round the town, the edge of your world, seen but not walked into.
-const FOREST = 3; // rings of 16-stud cells
+// The land round the town: a grass verge, then a dense belt of forest (pines
+// with the odd leafy tree), cut by the two roads out of town (north and south)
+// and by a river through the north woods. Inside the ring road the only trees
+// are the avenue trees on the pavements: rows, not a scatter.
+const FOREST_CELL = 12; // studs between trees
+const VERGE = 10; // grass between the ring road and the trees, studs
+const FOREST_DEPTH = 48; // studs
+export const ROAD_OUT = 16; // the roads out of town, studs wide, at x = 0
+export const RIVER_Z = -(TOWN_HALF + VERGE + FOREST_DEPTH / 2); // through the north forest, studs
+export const RIVER_W = 16; // studs
+export const ROAD_END = TOWN_HALF + VERGE + FOREST_DEPTH + 70; // where the roads out fade into the hills
+const PINES = [TREES[0], TREES[1]];
+const BROADLEAF = [TREES[3], TREES[4]];
 export function townLand(): string[] {
   const out: string[] = [];
-  const inner = TOWN_HALF / 16 - 0.5; // the town is 13 cells across
   const rnd = seeded(7);
-  for (let i = -inner - FOREST; i <= inner + FOREST; i++)
-    for (let j = -inner - FOREST; j <= inner + FOREST; j++) {
-      if (Math.abs(i) <= inner && Math.abs(j) <= inner) continue;
-      if (rnd() < 0.4) continue; // a clearing
-      const t = TREES[Math.floor(rnd() * TREES.length)];
-      const x = Math.round(i * 16 + (rnd() - 0.5) * 12) * S;
-      const z = Math.round(j * 16 + (rnd() - 0.5) * 12) * S;
+  const from = TOWN_HALF + VERGE;
+  const to = from + FOREST_DEPTH;
+  for (let i = -to; i <= to; i += FOREST_CELL)
+    for (let j = -to; j <= to; j += FOREST_CELL) {
+      if (Math.abs(i) < from && Math.abs(j) < from) continue; // the town
+      if (Math.abs(i) < ROAD_OUT / 2 + 6) continue; // the roads out
+      if (Math.abs(j - RIVER_Z) < RIVER_W / 2 + 6) continue; // the river
+      const t = rnd() < 0.82 ? PINES[Math.floor(rnd() * 2)] : BROADLEAF[Math.floor(rnd() * 2)];
+      const x = Math.round(i + (rnd() - 0.5) * 6) * S;
+      const z = Math.round(j + (rnd() - 0.5) * 6) * S;
       out.push(line(t.color, x, -BOTTOM[t.part], z, ROT[([0, 90, 180, 270] as const)[Math.floor(rnd() * 4)]], t.part));
     }
+  return [...out, ...avenueTrees()];
+}
+// Leafy trees in rows along the pavements of every street (three a block
+// side, clear of the corner lamps), the plaza block excepted: it has its own.
+function avenueTrees(): string[] {
+  const out: string[] = [];
+  const e = PLOT / 2 + 1; // the pavement's centre line, studs from the block's centre
+  const y = -8 - BOTTOM["2435"]; // standing on the 8-LDU pavement
+  for (const gx of [-1, 0, 1])
+    for (const gz of [-1, 0, 1]) {
+      if (gx === 0 && gz === 0) continue;
+      for (const k of [-12, 0, 12]) {
+        for (const sx of [-1, 1]) out.push(line(COL.green, (gx * PITCH + sx * e) * S, y, (gz * PITCH + k) * S, ROT[0], "2435"));
+        for (const sz of [-1, 1]) out.push(line(COL.green, (gx * PITCH + k) * S, y, (gz * PITCH + sz * e) * S, ROT[0], "2435"));
+      }
+    }
+  return out;
+}
+
+// A hedge round the back and sides of every plot (the front is the garden's
+// own, by streak): dark green, just inside the edge. Plain boxes for the
+// renderer's Slabs, and blockers so nobody walks through them.
+export const HEDGE_H = 20; // LDU
+export function plotHedges(): Slab[] {
+  const out: Slab[] = [];
+  const E = (PLOT / 2 - 0.5) * S;
+  for (let i = 0; i < MAX_RESIDENTS; i++) {
+    const lot = lotFor(i);
+    const turned = lot.facing % 180 !== 0;
+    const seg = (cx: number, cz: number, w: number, d: number) => {
+      const [x, , z] = inLot(lot, [cx, 0, cz]);
+      out.push({ x, z, w: turned ? d : w, d: turned ? w : d, h: HEDGE_H, color: "#237841" });
+    };
+    seg(0, -E, (PLOT - 1) * S, S); // the back
+    seg(-E, 0, S, (PLOT - 1) * S); // the sides
+    seg(E, 0, S, (PLOT - 1) * S);
+  }
   return out;
 }
 
@@ -745,6 +796,25 @@ export function townFlats(): Slab[] {
     for (let k = -2.5; k <= 2.5; k++) {
       out.push({ x: 0, z: (c + k * 2) * S, w: 80, d: 20, h: 2, color: white }, { x: (c + k * 2) * S, z: 0, w: 20, d: 80, h: 2, color: white });
     }
+  // the roads out of town, north and south, to the hills; over the river, a bridge
+  const asphalt = "#43474c";
+  const span = (z0: number, z1: number) => out.push({ x: 0, z: ((z0 + z1) / 2) * S, w: ROAD_OUT * S, d: Math.abs(z1 - z0) * S, h: 1, color: asphalt });
+  const bank = RIVER_W / 2 + 4;
+  span(-TOWN_HALF, RIVER_Z + bank);
+  span(RIVER_Z - bank, -ROAD_END);
+  span(TOWN_HALF, ROAD_END);
+  for (const dir of [-1, 1])
+    for (let t = TOWN_HALF + 4; t < ROAD_END; t += 8) {
+      if (dir < 0 && Math.abs(-t - RIVER_Z) < bank + 2) continue; // not on the bridge
+      out.push({ x: 0, z: dir * t * S, w: 20, d: 80, h: 2, color: white });
+    }
+  // the river: water with sandy banks, right across the land
+  const wide = (2 * ROAD_END + 400) * S;
+  out.push({ x: 0, z: RIVER_Z * S, w: wide, d: RIVER_W * S, h: 1, color: "#3f8fd8" });
+  for (const side of [-1, 1]) out.push({ x: 0, z: (RIVER_Z + side * (RIVER_W / 2 + 1.5)) * S, w: wide, d: 3 * S, h: 1, color: "#d8c79c" });
+  // the bridge: a grey deck a little above the road, white railings
+  out.push({ x: 0, z: RIVER_Z * S, w: (ROAD_OUT + 2) * S, d: 2 * bank * S, h: 6, color: "#8c9196" });
+  for (const side of [-1, 1]) out.push({ x: side * (ROAD_OUT / 2 + 0.5) * S, z: RIVER_Z * S, w: S, d: 2 * bank * S, h: 22, color: "#f2f2ee" });
   // a kerbed 2-stud pavement round every block
   for (const bx of [-PITCH, 0, PITCH])
     for (const bz of [-PITCH, 0, PITCH]) {
@@ -901,6 +971,7 @@ export function townBlockers(residents: Resident[]): Blocker[] {
   const shop = SHOP as House;
   out.push({ x0: (-shop.w / 2) * S + 10, x1: (shop.w / 2) * S - 10, z0: SHOP_FRONT - shop.d * S, z1: SHOP_FRONT - 10 });
   out.push({ cx: FOUNTAIN[0], cz: FOUNTAIN[1], r: 95 });
+  for (const h of plotHedges()) out.push({ x0: h.x - h.w / 2 - 8, x1: h.x + h.w / 2 + 8, z0: h.z - h.d / 2 - 8, z1: h.z + h.d / 2 + 8 });
   return out;
 }
 const EDGE = (TOWN_HALF - 4) * S;

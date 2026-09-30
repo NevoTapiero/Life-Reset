@@ -23,6 +23,8 @@ type VisitRow = { username: string; knocked_by_me: boolean; allowed: boolean };
 // Knock on a friend's door to be let in; answer the people at yours.
 export default function TownPage() {
   const [residents, setResidents] = useState<Resident[] | null>(null);
+  // /app/town?visit=<username>: open on that friend's house
+  const [visit] = useState(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("visit")));
   const [visits, setVisits] = useState<Record<string, Visit>>({});
   const [atDoor, setAtDoor] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +125,8 @@ export default function TownPage() {
         owned={owned}
         onBuy={buy}
         onInvite={() => router.push("/app/leaderboard")}
+        visit={visit}
+        onBack={() => router.push("/app/world")}
         className="rounded-2xl overflow-hidden h-[68vh] min-h-[380px]" />
 
       {residents.length === 1 && (

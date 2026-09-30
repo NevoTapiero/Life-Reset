@@ -69,6 +69,7 @@ import {
   plazaText,
   townDecorText,
   townFlats,
+  plotHedges,
   townClouds,
   type Slab,
   emptyLotsText,
@@ -949,6 +950,7 @@ export default function LegoWorld({
   spin = 0,
   streak = 0,
   look = BASE_HUNTER,
+  character,
   className,
 }: {
   houseLevel?: number;
@@ -960,6 +962,8 @@ export default function LegoWorld({
   spin?: number;
   streak?: number;
   look?: MinifigLook;
+  /** the player's character (archetype key): they wear its loadout for houseLevel (instead of `look`) */
+  character?: string | null;
   className?: string;
 }) {
   const spec = houseSpec(houseLevel);
@@ -987,7 +991,7 @@ export default function LegoWorld({
       {world && <primitive object={world} />}
       <InstancedParts placements={garden.placed} />
       {spin ? <SpunHouse level={houseLevel} id={house} spin={spin} /> : <House level={houseLevel} name={name} id={house} />}
-      <Minifig look={look} at={at} />
+      <Minifig look={character ? loadoutFor(houseLevel, character) : look} at={at} />
     </Stage>
   );
 }
@@ -1362,6 +1366,8 @@ export function LegoTown({
   onInvite,
   time,
   season: seasonProp,
+  visit,
+  onBack,
   className,
 }: {
   residents: Resident[];
@@ -1381,6 +1387,10 @@ export function LegoTown({
   time?: string;
   /** force a season; otherwise it follows the date */
   season?: Season;
+  /** open on this friend's house (walk there) instead of your own */
+  visit?: string | null;
+  /** a way back out of the town (the app's World page) */
+  onBack?: () => void;
   className?: string;
 }) {
   const residents = all.slice(0, MAX_RESIDENTS);
@@ -1413,11 +1423,13 @@ export function LegoTown({
   // Only then does it build itself, from above, and a moment later the camera
   // glides down to your house.
   const [settled, setSettled] = useState(false);
+  const visitIndex = visit ? residents.findIndex((r) => r.name === visit) : -1;
   useEffect(() => {
     if (!settled) return;
-    const t = setTimeout(() => setFocus((f) => (f === OVERVIEW ? meIndex : f)), 3000);
+    const first = visitIndex >= 0 ? visitIndex : meIndex;
+    const t = setTimeout(() => setFocus((f) => (f === OVERVIEW ? first : f)), 3000);
     return () => clearTimeout(t);
-  }, [settled, meIndex]);
+  }, [settled, meIndex, visitIndex]);
   const [inside, setInside] = useState<number | null>(null);
   // where your minifig is walking to: the last place you looked at
   const [dest, setDest] = useState(meIndex);
@@ -1644,8 +1656,8 @@ export function LegoTown({
           <>
             <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} />
             {/* the ground: grass everywhere, the smooth grey street square, the plaza and each plot */}
-            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.03} />
-            <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#5d6166" y={-0.015} flat />
+            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.03} flat />
+            <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#43474c" y={-0.015} flat />
             <StudGround at={[0, 0]} size={PLOT} color="#a3a7ad" />
             {[...lots, ...emptyLots].map((lot, i) => (
               <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} />
@@ -1702,6 +1714,7 @@ export function LegoTown({
         {plaza && <primitive object={plaza} />}
         {decor && <primitive object={decor} />}
         <Slabs slabs={FLATS} />
+        <Slabs slabs={HEDGES} />
         <DriftingClouds />
         {parks && <primitive object={parks} />}
         <Traffic night={mood.night} />
@@ -1790,7 +1803,8 @@ export function LegoTown({
 
       {/* the HUD, LEGO-game style. Top left: you (head, name, level, gold). */}
       {me && (
-        <div className="absolute top-2 left-3 pointer-events-none">
+        <div className="absolute top-2 left-3 flex items-start gap-2 pointer-events-none">
+          {onBack && <RoundAction icon="back" text="World" tone="dark" small onClick={onBack} />}
           <div className="lego-hud">
             <HeadIcon />
             <div className="flex flex-col gap-0.5 min-w-0">
@@ -2048,6 +2062,7 @@ const ICONS: Record<string, React.ReactNode> = {
   map: <path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4Zm0 0v13.5m6-11v13.5" strokeWidth="2" />,
   play: <path d="M12 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm-4 16v-5a4 4 0 0 1 8 0v5" strokeWidth="2.4" />,
   sound: <path d="M4 10v4h4l5 4V6L8 10H4Zm12.5-1.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" strokeWidth="2.2" />,
+  back: <path d="M15 5l-7 7 7 7" strokeWidth="3" />,
   mute: <path d="M4 10v4h4l5 4V6L8 10H4Zm12 0 5 5m0-5-5 5" strokeWidth="2.2" />,
 };
 function Icon({ name }: { name: keyof typeof ICONS }) {
@@ -2285,6 +2300,7 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
   );
 }
 const FLATS = townFlats();
+const HEDGES = plotHedges();
 const CLOUDS = townClouds();
 
 // ---- traffic: official LEGO cars driving round the ring road ----
