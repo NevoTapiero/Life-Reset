@@ -42,9 +42,9 @@ Your life in a LEGO game. You practise and take care of yourself in real life = 
 ## ⚑ ON HOLD: the stations (1 Oct, evening)
 Iftach: "about the stations and how we do it, Nevo will talk to me soon, keep in mind we'll change it." Don't extend the stations (furniture on the plot, the tap-to-do buttons, the gold studs, the sign lines about them) until Iftach says what he and Nevo decided. Everything else (village, room, woods, roads, signs) carries on.
 
-## WAITING ON NEVO (remind me; never do these yourself)
-- Run `supabase/apply-ifti-2026-09-30.sql` once in the Supabase SQL Editor (reviewed by claude-nevo and Codex). Until then the chest, gold, shop, knocking and garden stay hidden in the real app.
-- Send me a Vercel share link for the `ifti/dev` preview (I'm not on the Vercel team). We have never seen the game on a real phone.
+## NEVO: done / still open
+- ✅ The SQL bundle is live (claude-nevo, 1 Oct 09:15, with Nevo's yes): house visits, chest, gold, shop, unfriend-revokes were already live; the garden section was applied on its own. So the chest, gold, shop, knocking and garden work in the real app now.
+- ⏳ Vercel share link for the `ifti/dev` preview: Nevo has one to send Iftach (same message). Iftach should ask him for it; we have never seen the game on a real phone.
 
 ## RULES
 - Never merge into `main` until we have the LEGO licence (main auto-deploys).
