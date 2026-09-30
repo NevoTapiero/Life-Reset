@@ -13,6 +13,12 @@ export function GoldBrick({ got, size = 44 }: { got: boolean; size?: number }) {
   const [body, edge, shine] = got ? ["#f2cd37", "#b88a06", "#fff3b0"] : ["#dde4eb", "#c3ced9", "#eef2f6"];
   return (
     <svg viewBox="0 0 32 26" width={size} height={(size * 26) / 32} aria-hidden style={{ display: "block" }}>
+      {/* the dark outline */}
+      <g fill="#1b2a34">
+        <rect x="4" y="0" width="11" height="6.6" rx="2.4" />
+        <rect x="17" y="0" width="11" height="6.6" rx="2.4" />
+        <rect x="0.6" y="4.1" width="30.8" height="21.7" rx="4.4" />
+      </g>
       {[9.5, 22.5].map((x) => (
         <g key={x}>
           <rect x={x - 4.6} y="1.6" width="9.2" height="4.6" rx="1.6" fill={edge} />
