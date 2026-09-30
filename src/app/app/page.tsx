@@ -174,7 +174,7 @@ export default function HomePage() {
           {energy !== null && (
             <div className="mt-3 flex items-center gap-2" title="Energy for running in the world: sleep well and walk to fill it">
               <span className="text-[12.5px] font-extrabold flex items-center gap-1">
-                <Icon name="flame" size={13} strokeWidth={2.4} />
+                <Icon name="bolt" size={13} strokeWidth={2.4} />
                 Energy
               </span>
               <span className="energy-bricks flex-1" aria-label={`Energy ${Math.round(energy)} of 100`}>
