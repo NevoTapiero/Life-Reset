@@ -871,23 +871,64 @@ function FovSync({ fov }: { fov: number }) {
 const CHASE_LIFT = new THREE.Vector3(0, 2.2, 0); // aim at the minifig's middle, not its feet
 function Chase({
   follow,
+  aim,
   controls,
   flying,
+  cut,
 }: {
   follow: React.RefObject<THREE.Vector3>;
+  /** swing round behind (an angle round the target), or null: stay */
+  aim?: React.RefObject<number | null>;
   controls: React.RefObject<OrbitControlsImpl | null>;
   flying: React.RefObject<boolean>;
+  /** the camera cut: whatever is nearer the camera than this plane isn't drawn */
+  cut: THREE.Plane;
 }) {
   const { camera } = useThree();
   const want = useMemo(() => new THREE.Vector3(), []);
+  const off = useMemo(() => new THREE.Vector3(), []);
+  const ahead = useMemo(() => new THREE.Vector3(), []);
+  // when this camera goes (the map, a house), the cut goes too
+  useEffect(() => () => void cut.set(cut.normal, 1e6), [cut]);
+  const dragging = useRef(false);
+  useEffect(() => {
+    const c = controls.current;
+    if (!c) return;
+    const on = () => (dragging.current = true);
+    const offDrag = () => (dragging.current = false);
+    c.addEventListener("start", on);
+    c.addEventListener("end", offDrag);
+    return () => {
+      c.removeEventListener("start", on);
+      c.removeEventListener("end", offDrag);
+    };
+  }, [controls]);
   useFrame((_, dt) => {
     const c = controls.current;
     if (!c || flying.current) return;
     want.copy(follow.current).add(CHASE_LIFT).sub(c.target).multiplyScalar(Math.min(1, dt * 6));
-    if (want.lengthSq() < 1e-8) return;
     c.target.add(want);
     camera.position.add(want);
+    // ease round behind you as you go (never while you're turning the view yourself)
+    const yaw = aim?.current;
+    if (yaw !== null && yaw !== undefined && !dragging.current) {
+      off.subVectors(camera.position, c.target);
+      const now = Math.atan2(off.x, off.z);
+      const d = Math.atan2(Math.sin(yaw - now), Math.cos(yaw - now));
+      off.applyAxisAngle(THREE.Object3D.DEFAULT_UP, d * Math.min(1, dt * 1.4));
+      camera.position.copy(c.target).add(off);
+    }
     c.update();
+    // cut away what stands between the camera and you (a lamp, a tree, a wall): a plane
+    // most of the way to you, but short of where the bottom of the view meets the ground,
+    // so the ground always stays
+    camera.getWorldDirection(ahead);
+    const half = THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov / 2);
+    const pitch = Math.asin(-ahead.y); // how far down it looks
+    const low = Math.sin(pitch + half); // the bottom edge's downward slope
+    const groundNear = low > 0.05 ? (camera.position.y / low) * Math.cos(half) : Infinity;
+    const reach = Math.min(camera.position.distanceTo(c.target) * 0.62, groundNear * 0.9);
+    cut.setFromNormalAndCoplanarPoint(ahead, off.copy(camera.position).addScaledVector(ahead, reach));
   });
   return null;
 }
@@ -1078,6 +1119,7 @@ function Stage({
   overlay,
   pins = [],
   follow,
+  aim,
   children,
 }: {
   className?: string;
@@ -1106,6 +1148,8 @@ function Stage({
   pins?: Pin[];
   /** follow someone (their position in three's space, kept up to date), LEGO-game style */
   follow?: React.RefObject<THREE.Vector3>;
+  /** while following: which way round to swing the camera (behind them), or null */
+  aim?: React.RefObject<number | null>;
   children: React.ReactNode;
 }) {
   const [sun] = useState(() => new THREE.Object3D());
@@ -1113,6 +1157,9 @@ function Stage({
   const [dpr, setDpr] = useState(2);
   const controls = useRef<OrbitControlsImpl>(null);
   const flying = useRef(false);
+  // one global clipping plane, always installed (so shaders never recompile when it starts
+  // or stops cutting); it clips nothing until a follow camera moves it (Chase)
+  const [cameraCut] = useState(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 1e6));
   const pinEls = useRef(new Map<string, HTMLDivElement>());
   // keep the camera over the town: pull the target back inside, camera with it
   const clamp = () => {
@@ -1133,6 +1180,7 @@ function Stage({
           gl={{ antialias: true }}
           onCreated={({ gl }) => {
             gl.localClippingEnabled = true;
+            gl.clippingPlanes.push(cameraCut);
             // LEGO colours stay LEGO colours: the neutral curve keeps hue and saturation
             // where the default filmic one washes bright plastic out
             gl.toneMapping = THREE.NeutralToneMapping;
@@ -1207,7 +1255,7 @@ function Stage({
           {/* after the controls, so it can move them */}
           <FovSync fov={fov} />
           <FitCamera target={target} width={width} dir={dir} controls={controls} follow={follow} flyingRef={flying} />
-          {follow && <Chase follow={follow} controls={controls} flying={flying} />}
+          {follow && <Chase follow={follow} aim={aim} controls={controls} flying={flying} cut={cameraCut} />}
           {/* outdoors: lamps and lit windows glowing after dark, a soft vignette. Everything
               stays sharp (no blur: it read as low quality). The effects draw off screen, so the
               neutral tone mapping moves in here. */}
@@ -1364,6 +1412,7 @@ export function LegoTown({
   const jumps = useRef(0);
   useKeysToStick(stick, jumps);
   const me3 = useRef(new THREE.Vector3());
+  const meAim = useRef<number | null>(null);
   const blockers = useMemo(() => townBlockers(residents), [residents]);
   const [goes, setGoes] = useState(0); // bumped by every "walk there", so the same place twice still walks
   const [near, setNear] = useState<number | null>(null);
@@ -1505,6 +1554,7 @@ export function LegoTown({
         bounds={bounds}
         pan={!following}
         follow={following ? me3 : undefined}
+        aim={meAim}
         fov={following ? CHASE_FOV : 32}
         mood={mood}
         onPick={following ? undefined : pick}
@@ -1605,7 +1655,7 @@ export function LegoTown({
             }
             // you wave at the friend you've come to see, or at one who's come round to yours
             const wave = inside === null && !shop && (dest !== meIndex || visited(meIndex));
-            return <Walker key="me" wave={wave} go={goes} input={stick} jumpRef={jumps} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
+            return <Walker key="me" wave={wave} go={goes} input={stick} jumpRef={jumps} aimRef={meAim} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
           }
           // friends: at their door, at the shop, or on a neighbour's step, turned to them
           const out = outing(i);
@@ -2174,6 +2224,7 @@ function Walker({
   blockers,
   where,
   jumpRef,
+  aimRef,
 }: {
   look: MinifigLook | Figure;
   to: P3[];
@@ -2181,6 +2232,8 @@ function Walker({
   wave?: boolean;
   go?: number;
   jumpRef?: React.RefObject<number>;
+  /** which way the camera should come round to (behind you, as an angle round you), or null: leave it */
+  aimRef?: React.RefObject<number | null>;
   input?: React.RefObject<{ x: number; y: number }>;
   blockers?: Blocker[];
   where?: React.RefObject<THREE.Vector3>;
@@ -2211,6 +2264,11 @@ function Walker({
       o.rotation.y += d * Math.min(1, dt * 12);
     };
     const report = () => where?.current.set(s.pos[0] * LDU, -s.pos[1] * LDU, -s.pos[2] * LDU);
+    // behind someone heading (dx, dz) in LDraw: the camera sits the other way round (three's x, -z)
+    const behind = (dx: number, dz: number) => {
+      if (aimRef) aimRef.current = Math.atan2(-dx, dz);
+    };
+    if (aimRef) aimRef.current = null;
     // driving: the stick moves you relative to the camera, sliding along walls
     const stick = input?.current;
     const push = stick ? Math.min(1, Math.hypot(stick.x, stick.y)) : 0;
@@ -2230,6 +2288,7 @@ function Walker({
       walking.current = true;
       o.position.set(...s.pos);
       face(Math.atan2(dx, dz));
+      if (stick.y > Math.abs(stick.x)) behind(dx, dz); // only when heading on away from the camera
       report();
       return;
     }
@@ -2263,6 +2322,7 @@ function Walker({
     s.pos = [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
     o.position.set(...s.pos);
     face(Math.atan2(b[0] - a[0], b[2] - a[2]));
+    behind(b[0] - a[0], b[2] - a[2]);
     report();
   });
   return (
