@@ -822,6 +822,12 @@ export function insideWalk(lot: Lot, level: number, side = 0, rooms?: Rooms): P3
     inLot(lot, [r.x, floor, r.z]),
   ];
 }
+/** where a resident's ride is parked: in the street in front of their plot, just off the
+ *  pavement and ending beside the walk from their door (the ride runs off away from it) */
+export function rideSpot(lot: Lot, level: number): P3 {
+  const [u] = minifigSpot(houseSpec(level));
+  return inLot(lot, [u - 2 * S, 0, (PLOT / 2 + 2) * S + 10]);
+}
 /** from the street on the plaza's left, between the planters and the bench, to the shop's front */
 export const SHOP_WALK: P3[] = [[-ST, 0, 290], [-150, 0, 290], [-120, 0, 250]];
 const onX = (p: P3) => Math.abs(Math.abs(p[0]) - ST) < 1; // on a street running along z

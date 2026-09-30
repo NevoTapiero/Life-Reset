@@ -35,6 +35,8 @@ import {
   minifigSpot,
   doorWalk,
   insideWalk,
+  rideSpot,
+  type Loadout,
   SHOP_WALK,
   walkRoute,
   rerouteFrom,
@@ -194,6 +196,54 @@ function loadMinifig(fig: Figure) {
         .then(async ([{ loader, parts }, figures]) => rig(finish(await parse(loader, modelText(buildMinifig(fig), "minifig.ldr") + figures + parts)), fig, loader))),
     );
   return p;
+}
+
+// The rides (skateboard, horse, motorcycle, dragon...) come with the loadouts,
+// their parts in their own pack; each ride is parsed only once someone needs it,
+// laid lengthways along x with its wheels (or feet) at 0 and its corner at the
+// origin: it runs off along -x and out along +z (from the pavement into the
+// street), so a dragon grows away from the path, not across it.
+let ridePack: Promise<string> | null = null;
+const rides = new Map<string, Promise<THREE.Object3D>>();
+function loadRide(ride: Loadout["ride"]) {
+  let p = rides.get(ride.ldr);
+  if (!p)
+    rides.set(
+      ride.ldr,
+      (p = Promise.all([
+        getLoader(true),
+        getFigurePack(),
+        (ridePack ??= fetch("/lego/rides.mpd")
+          .then((r) => r.text())
+          .then((t) => t.slice(t.indexOf("0 NOFILE") + "0 NOFILE".length))),
+      ]).then(async ([{ loader, parts }, figures, pack]) => {
+        const g = finish(await parse(loader, modelText(ride.ldr.split("\n"), "ride.ldr") + pack + figures + parts));
+        const size = new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3());
+        const turn = new THREE.Group();
+        turn.rotation.y = size.z > size.x ? Math.PI / 2 : 0; // longer front to back: turn it to run along x
+        turn.add(g);
+        turn.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(turn);
+        turn.position.set(-box.max.x, -box.max.y, -box.min.z); // LDraw is -Y up: the bottom is max y
+        const holder = new THREE.Group();
+        holder.add(turn);
+        return holder;
+      })),
+    );
+  return p;
+}
+function Ride({ ride, at, turn }: { ride: Loadout["ride"]; at: P3; turn: number }) {
+  const [model, setModel] = useState<THREE.Object3D | null>(null);
+  useEffect(() => {
+    let live = true;
+    loadRide(ride)
+      .then((o) => live && setModel(o.clone()))
+      .catch((e) => console.error("ride:", e));
+    return () => {
+      live = false;
+    };
+  }, [ride]);
+  return model && <primitive object={model} position={at} rotation={[0, turn, 0]} />;
 }
 
 // Ready a parsed figure to move: its parts named (MINIFIG_PARTS, then its
@@ -1133,6 +1183,9 @@ export function LegoTown({
         {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
         {STROLLERS.map((p, i) => (
           <Stroller key={i} {...p} />
+        ))}
+        {residents.map((res, i) => (
+          <Ride key={res.name} ride={loadoutFor(res.level).ride} at={rideSpot(lots[i], res.level)} turn={turnRad(lots[i].facing)} />
         ))}
         {residents.map((res, i) => (
           <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
