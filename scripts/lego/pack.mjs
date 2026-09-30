@@ -8,8 +8,9 @@
 // Then bakes the official houses (scripts/lego/sets/) into public/lego/houses/
 // and writes their footprints to src/lib/legoHouses.json.
 // Also packs the character loadouts (src/lib/legoLoadouts.generated.json, made
-// by scripts/lego/loadouts.mjs) into public/lego/figures.mpd and their rides
-// into public/lego/rides.mpd, loaded only when a figure / ride needs them.
+// by scripts/lego/loadouts.mjs) into public/lego/figures-<character>.mpd and
+// their rides into public/lego/rides-<character>.mpd, loaded only when a
+// figure / ride needs them.
 // PARTS_ONLY=1 stops after the part packs (no house / vehicle / prop baking).
 // The library is CC BY 2.0; see public/lego/LICENSE.txt.
 import { readFileSync, writeFileSync, existsSync, mkdirSync, mkdtempSync, statSync } from "fs";
@@ -73,23 +74,36 @@ const out = "0 FILE parts-index.ldr\n0 packed parts for the brick world\n0 NOFIL
 writeFileSync(`${OUT}parts.mpd`, out);
 
 // Every parse carries its whole pack, so the character loadouts and the rides
-// get packs of their own instead of growing parts.mpd for every model:
-// figures.mpd (printed torsos, helmets, gear) for minifig parses, rides.mpd for
-// rides. Each holds only what the packs before it don't already have.
-const figureFiles = collect(LOADOUTS.parts.map((p) => `${p}.dat`));
-for (const name of files.keys()) figureFiles.delete(name);
-const figures = "0 FILE figures-index.ldr\n0 packed parts for the character loadouts\n0 NOFILE\n" + embed(figureFiles);
-writeFileSync(`${OUT}figures.mpd`, figures);
-
-// the rides (skateboard ... dragon)
-const rideFiles = collect(LOADOUTS.rideParts.map((p) => `${p}.dat`));
-for (const name of [...files.keys(), ...figureFiles.keys()]) rideFiles.delete(name);
-const rides = "0 FILE rides-index.ldr\n0 packed parts for the rides\n0 NOFILE\n" + embed(rideFiles);
-writeFileSync(`${OUT}rides.mpd`, rides);
+// get packs of their own instead of growing parts.mpd for every model, a pair
+// per character: figures-<name>.mpd (printed torsos, helmets, gear) for its
+// minifig parses and rides-<name>.mpd for its rides, so a town of Warriors never
+// downloads the Shadow's katanas. Each holds everything its models need beyond
+// parts.mpd (a few files repeat between characters; a parse only loads the
+// packs its own parts are in). src/lib/legoPacks.json says which pack has which part.
+const rootName = (ref) => ref.toLowerCase().replace(/\\/g, "/").replace(/\.dat$/, "");
+const packs = { figures: {}, rides: {} };
+const sizes = [];
+for (const [name, ch] of Object.entries(LOADOUTS.characters)) {
+  const roots = { figures: new Set(), rides: new Set() };
+  for (const lv of ch.levels) {
+    Object.values(lv.parts).forEach((x) => roots.figures.add(rootName(x.part)));
+    lv.gear.forEach((g) => roots.figures.add(rootName(g.part)));
+    refs(lv.ride.ldr).forEach((r) => roots.rides.add(rootName(r)));
+  }
+  for (const kind of ["figures", "rides"]) {
+    const own = collect([...roots[kind]].map((r) => `${r}.dat`));
+    for (const f of files.keys()) own.delete(f);
+    const text = `0 FILE ${kind}-${name}-index.ldr\n0 packed parts: the ${name}'s ${kind}\n0 NOFILE\n` + embed(own);
+    writeFileSync(`${OUT}${kind}-${name}.mpd`, text);
+    packs[kind][name] = [...roots[kind]].filter((r) => own.has(`${r}.dat`)).sort();
+    sizes.push(`${kind}-${name} ${(text.length / 1e6).toFixed(2)} MB`);
+  }
+}
+writeFileSync(fileURLToPath(new URL("../../src/lib/legoPacks.json", import.meta.url)), JSON.stringify(packs, null, 2) + "\n");
 
 const colours = readFileSync(`${ROOT}/LDConfig.ldr`, "utf8").split(/\r?\n/).filter((l) => l.startsWith("0 !COLOUR")).join("\n");
 writeFileSync(`${OUT}LDConfig.ldr`, colours + "\n");
-console.log(`packed ${files.size} files, ${(out.length / 1e6).toFixed(2)} MB; figures ${figureFiles.size} files, ${(figures.length / 1e6).toFixed(2)} MB; rides ${rideFiles.size} files, ${(rides.length / 1e6).toFixed(2)} MB; ${colours.split("\n").length} colours`);
+console.log(`packed ${files.size} files, ${(out.length / 1e6).toFixed(2)} MB; ${sizes.join(", ")}; ${colours.split("\n").length} colours`);
 if (process.env.PARTS_ONLY) process.exit(0);
 
 // ---- the houses ----------------------------------------------------------

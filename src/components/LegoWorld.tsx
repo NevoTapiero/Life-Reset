@@ -10,6 +10,7 @@ import { LDrawConditionalLineMaterial } from "three/examples/jsm/materials/LDraw
 import { LDrawUtils } from "three/examples/jsm/utils/LDrawUtils.js";
 import VEHICLES from "@/lib/legoVehicles.json";
 import PROPS from "@/lib/legoProps.json";
+import PACKS from "@/lib/legoPacks.json";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
@@ -176,13 +177,32 @@ function loadProp(part: string, color: number) {
   return p;
 }
 
-// The loadouts' printed torsos, helmets and gear live in their own pack
-// (scripts/lego/loadouts.mjs), fetched once, only for minifigs.
-let figurePack: Promise<string> | null = null;
-const getFigurePack = () =>
-  (figurePack ??= fetch("/lego/figures.mpd")
-    .then((r) => r.text())
-    .then((t) => t.slice(t.indexOf("0 NOFILE") + "0 NOFILE".length)));
+// The loadouts' printed torsos, helmets and gear, and their rides, live in packs
+// per character (figures-<name>.mpd, rides-<name>.mpd from scripts/lego/pack.mjs),
+// each fetched once, only when a model uses a part in it: plain townsfolk fetch none.
+const packFiles = new Map<string, Promise<string>>();
+const getPack = (file: string) => {
+  let p = packFiles.get(file);
+  if (!p)
+    packFiles.set(
+      file,
+      (p = fetch(`/lego/${file}`)
+        .then((r) => r.text())
+        .then((t) => t.slice(t.indexOf("0 NOFILE") + "0 NOFILE".length))),
+    );
+  return p;
+};
+/** the packs holding these parts (the first character's pack that has each one) */
+function packsFor(kind: keyof typeof PACKS, parts: string[]) {
+  const files = new Set<string>();
+  for (const part of parts) {
+    const name = Object.keys(PACKS[kind]).find((n) => (PACKS[kind] as Record<string, string[]>)[n].includes(part.toLowerCase().replace(/\.dat$/, "")));
+    if (name) files.add(`${kind}-${name}.mpd`);
+  }
+  return Promise.all([...files].map(getPack)).then((t) => t.join(""));
+}
+const refsIn = (lines: string[]) =>
+  lines.map((l) => l.trim().split(/\s+/)).filter((a) => a[0] === "1" && a.length >= 15).map((a) => a.slice(14).join(" "));
 
 // Each figure is parsed once; every minifig wearing it is a clone (sharing its
 // geometry and materials).
@@ -193,7 +213,7 @@ function loadMinifig(fig: Figure) {
   if (!p)
     minifigs.set(
       key,
-      (p = Promise.all([getLoader(true), getFigurePack()])
+      (p = Promise.all([getLoader(true), packsFor("figures", refsIn(buildMinifig(fig)))])
         .then(async ([{ loader, parts }, figures]) => rig(finish(await parse(loader, modelText(buildMinifig(fig), "minifig.ldr") + figures + parts)), fig, loader))),
     );
   return p;
@@ -204,21 +224,14 @@ function loadMinifig(fig: Figure) {
 // laid lengthways along x with its wheels (or feet) at 0 and its corner at the
 // origin: it runs off along -x and out along +z (from the pavement into the
 // street), so a dragon grows away from the path, not across it.
-let ridePack: Promise<string> | null = null;
 const rides = new Map<string, Promise<THREE.Object3D>>();
 function loadRide(ride: Loadout["ride"]) {
   let p = rides.get(ride.ldr);
   if (!p)
     rides.set(
       ride.ldr,
-      (p = Promise.all([
-        getLoader(true),
-        getFigurePack(),
-        (ridePack ??= fetch("/lego/rides.mpd")
-          .then((r) => r.text())
-          .then((t) => t.slice(t.indexOf("0 NOFILE") + "0 NOFILE".length))),
-      ]).then(async ([{ loader, parts }, figures, pack]) => {
-        const g = finish(await parse(loader, modelText(ride.ldr.split("\n"), "ride.ldr") + pack + figures + parts));
+      (p = Promise.all([getLoader(true), packsFor("rides", refsIn(ride.ldr.split("\n")))]).then(async ([{ loader, parts }, pack]) => {
+        const g = finish(await parse(loader, modelText(ride.ldr.split("\n"), "ride.ldr") + pack + parts));
         const size = new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3());
         const turn = new THREE.Group();
         turn.rotation.y = size.z > size.x ? Math.PI / 2 : 0; // longer front to back: turn it to run along x
