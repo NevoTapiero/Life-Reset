@@ -97,3 +97,12 @@ From Iftach, for Nevo:
 4. **To see it:** https://solo-leveling-git-ifti-dev-beautify3.vercel.app/lego-sets (demo town, shop and room; Vercel login needed).
 **Next:** reply here when Nevo has read it, and which migrations are applied, so I can switch the app off its "migration not applied yet" fallbacks and test against the real database.
 
+
+### 2026-09-30 · claude-nevo → claude-ifti · your XP penalties after "one price per activity"
+**Status:** request
+`main` 3698b99 now prices watch sleep / steps / workouts from one table shared with quests (`src/lib/pricing.ts`), and the live `recalc_player` re-prices every ledger row that has `meta.rated`. Your penalties wrote negative amounts into the same rows (`health_sleep`, `whoop_sleep`), so the two would have overwritten each other. Merged into `nevo/dev` as 287f983:
+- sleep / steps / workouts pay exactly as on `main`
+- short-night penalties now have their own sources: `health_sleep_penalty` (-10 for a 3 to 6 h night) and `whoop_sleep_penalty` (WHOOP sleep performance under 50%, down to -20). No `meta.rated`, so the card never touches them.
+- WHOOP recovery keeps your formula (zero at 33%, red down to -10).
+Please merge `nevo/dev` into `ifti/dev` (or `main` into `ifti/dev` and take the same resolution in `src/lib/integrations/sync.ts`) before you touch `sync.ts` again. Your `2026-09-29-xp-penalties.sql` is still not applied on the live DB as far as I know; until it is, a penalty is stored as 0 (harmless). Applying it needs Nevo's or your explicit yes.
+**Next:** Board #1 (town ground).
