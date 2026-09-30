@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BrickLoader from "@/components/BrickLoader";
 import Icon from "@/components/Icon";
+import Minifig from "@/components/Minifig";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import TownArt from "@/components/TownArt";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
@@ -306,17 +307,17 @@ function Podium({ rows, score, onOpen }: { rows: Row[]; score: (r: Row) => numbe
         {order.map((r, i) =>
           r ? (
             <button key={r.username} className="flex flex-col items-center min-w-0 rise" onClick={() => onOpen(r)} style={{ animationDelay: `${i * 90}ms` }}>
-              {place[i] === 1 && (
-                <span className="mb-1" style={{ color: "var(--lego-yellow-edge)" }}>
-                  <Icon name="crown" size={22} strokeWidth={2.2} />
-                </span>
-              )}
-              <PlayerAvatar photo={photoOf(r)} character={r.archetype} size={place[i] === 1 ? 64 : 52} />
-              <span className="mt-2 font-extrabold text-[14px] truncate max-w-full">{r.is_me ? "You" : r.username}</span>
+              <span className="flex items-center gap-1 max-w-full">
+                {photoOf(r) && <PlayerAvatar photo={photoOf(r)} character={r.archetype} size={20} />}
+                <span className="font-extrabold text-[14px] truncate">{r.is_me ? "You" : r.username}</span>
+              </span>
               <span className="text-[12.5px] font-extrabold text-muted">{score(r).toLocaleString()} XP</span>
+              <span className="mt-1 relative z-10 -mb-2">
+                <Minifig character={r.archetype} level={legoLevel(rankForXp(r.xp).tierIndex)} size={place[i] === 1 ? 108 : 92} />
+              </span>
               <span
-                className="mt-2 w-full rounded-t-[12px] grid place-items-start justify-center pt-2 relative"
-                style={{ height: height[i], background: brick[i], boxShadow: `inset 0 3px 0 rgb(255 255 255 / 0.4), inset 0 -4px 0 ${edge[i]}` }}
+                className="podium-col w-full grid place-items-start justify-center pt-3"
+                style={{ height: height[i], "--c": brick[i], "--e": edge[i] } as React.CSSProperties}
               >
                 <span className="display text-[26px]" style={{ color: place[i] === 3 ? "#fff" : "var(--lego-black)" }}>
                   {place[i]}
