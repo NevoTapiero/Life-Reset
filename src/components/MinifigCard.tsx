@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import Icon from "@/components/Icon";
 import Minifig from "@/components/Minifig";
+import { brickSound } from "@/lib/brickSound";
 import TapFig from "@/components/TapFig";
 
 // the card behind each character, in LEGO colours: [top, bottom]
@@ -21,6 +24,7 @@ export default function MinifigCard({
   size = 250,
   showLevel = true,
   tap = false,
+  back,
 }: {
   character: string | null;
   level: number;
@@ -30,7 +34,10 @@ export default function MinifigCard({
   showLevel?: boolean;
   /** the minifig is alive and falls apart when tapped */
   tap?: boolean;
+  /** the back of the card (a flip button turns it over) */
+  back?: React.ReactNode;
 }) {
+  const [flipped, setFlipped] = useState(false);
   const [top, bottom] = CARD_COLORS[character ?? "warrior"] ?? CARD_COLORS.warrior;
   return (
     <section className="minifig-card" style={{ "--card": top, "--card-2": bottom } as React.CSSProperties}>
@@ -46,11 +53,34 @@ export default function MinifigCard({
         </span>
         )}
       </div>
-      <div className="relative flex justify-center pt-1 pb-3">
-        <span className="minifig-card-spot" aria-hidden />
-        <span className="minifig-float">
-          {tap ? <TapFig character={character} level={level} size={size} /> : <Minifig character={character} level={level} size={size} />}
-        </span>
+      <div className="card-stage relative pt-1 pb-3" data-flipped={flipped ? "true" : undefined}>
+        <div className="card-stage-inner">
+          <div className="card-stage-front" inert={flipped}>
+            <span className="minifig-card-spot" aria-hidden />
+            <span className="minifig-float">
+              {tap ? <TapFig character={character} level={level} size={size} /> : <Minifig character={character} level={level} size={size} />}
+            </span>
+          </div>
+          {back && (
+            <div className="card-stage-back" inert={!flipped}>
+              {back}
+            </div>
+          )}
+        </div>
+        {back && (
+          <button
+            type="button"
+            className="card-flip"
+            aria-label={flipped ? "Show the minifig" : "Turn the card over"}
+            aria-pressed={flipped}
+            onClick={() => {
+              brickSound.tap();
+              setFlipped((f) => !f);
+            }}
+          >
+            <Icon name="refresh" size={16} strokeWidth={2.6} />
+          </button>
+        )}
       </div>
       <div className="relative mx-3 mb-3 rounded-[16px] bg-white px-3.5 py-3 flex items-center gap-3" style={{ boxShadow: "0 4px 0 var(--lip)" }}>
         {children}
