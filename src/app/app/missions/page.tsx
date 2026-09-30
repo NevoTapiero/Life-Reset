@@ -8,23 +8,32 @@ import Icon from "@/components/Icon";
 import RankBadge from "@/components/RankBadge";
 import {
   CARD_DAYS,
+  PERIODS,
+  PERIOD_LABEL,
+  PERIOD_UNIT,
   PILLAR_ICONS,
+  Period,
   Profile,
   Quest,
   Rank,
-  cardDayOn,
+  TRACKER_NAME,
+  cardStepOn,
   cardXp,
+  doneInPeriod,
+  periodOf,
+  periodStart,
   questArt,
   rankForXp,
+  trackedBy,
 } from "@/lib/game";
 
 type UserQuestRow = { quest_id: string; added_on: string; quests: Quest };
 
 // Seven pips: the quest's 7-day card. Filled = days already banked in this
 // card; the ringed pip is the day this check counts as; the last one pays x2.5.
-function CardPips({ day, done }: { day: number; done: boolean }) {
+function CardPips({ day, done, unit = "Day" }: { day: number; done: boolean; unit?: string }) {
   return (
-    <span className="flex items-center gap-[3px] mt-1.5" aria-label={`Day ${day} of ${CARD_DAYS}`}>
+    <span className="flex items-center gap-[3px] mt-1.5" aria-label={`${unit} ${day} of ${CARD_DAYS}`}>
       {Array.from({ length: CARD_DAYS }, (_, i) => {
         const n = i + 1;
         const filled = n < day || (n === day && done);
@@ -51,10 +60,13 @@ function CardPips({ day, done }: { day: number; done: boolean }) {
 export default function MissionsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [quests, setQuests] = useState<Quest[]>([]);
-  const [doneToday, setDoneToday] = useState<Set<string>>(new Set());
-  const [doneYesterday, setDoneYesterday] = useState<Set<string>>(new Set());
-  // quest id -> every day it was done (last 90 days), for the 7-day cards
+  // quest id -> every day it was done (about 7 months back, enough for a monthly
+  // card). The single source of truth for "done": today for a daily quest, this
+  // week or this month for a weekly or monthly one.
   const [history, setHistory] = useState<Map<string, Set<string>>>(new Map());
+  const [tab, setTab] = useState<Period>("daily");
+  // connected apps that pay for some quests on their own (steps, sleep, workouts)
+  const [trackers, setTrackers] = useState<string[]>([]);
   const [yesterdayQuests, setYesterdayQuests] = useState<Quest[]>([]);
   const [days, setDays] = useState<{ today: string; yesterday: string } | null>(null);
   const [showYesterday, setShowYesterday] = useState(false);
@@ -67,16 +79,18 @@ export default function MissionsPage() {
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData.user?.id;
     if (!uid) return;
-    const [{ data: prof }, { data: uq }, { data: todayData }] = await Promise.all([
+    const [{ data: prof }, { data: uq }, { data: todayData }, { data: tr }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", uid).single(),
       supabase.from("user_quests").select("quest_id, added_on, quests(*)").eq("user_id", uid).eq("active", true),
       supabase.rpc("app_today"),
+      supabase.rpc("my_trackers"),
     ]);
+    setTrackers((tr as string[]) ?? []);
     const todayStr = String(todayData);
     const yesterdayStr = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 86400000)
       .toISOString()
       .slice(0, 10);
-    const since = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 90 * 86400000).toISOString().slice(0, 10);
+    const since = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 230 * 86400000).toISOString().slice(0, 10);
     const { data: comps } = await supabase
       .from("quest_completions")
       .select("quest_id, completed_on")
@@ -94,8 +108,6 @@ export default function MissionsPage() {
     }
     setHistory(hist);
     const yDoneIds = rows.filter((c) => c.completed_on === yesterdayStr).map((c) => c.quest_id);
-    setDoneToday(new Set(rows.filter((c) => c.completed_on === todayStr).map((c) => c.quest_id)));
-    setDoneYesterday(new Set(yDoneIds));
     setDays({ today: todayStr, yesterday: yesterdayStr });
 
     // Yesterday's list is fixed to what actually happened yesterday, independent
@@ -119,32 +131,46 @@ export default function MissionsPage() {
     load();
   }, [load]);
 
+  // Done on `on`: that very day for a daily quest, anywhere in the same week or
+  // month for a weekly or monthly one.
+  function isDoneOn(q: Quest, on: string): boolean {
+    const dates = history.get(q.id);
+    if (!dates) return false;
+    const period = periodOf(q);
+    return period === "daily" ? dates.has(on) : doneInPeriod(dates, period, on);
+  }
+
+  function setDates(id: string, dates: Set<string>) {
+    setHistory((prev) => new Map(prev).set(id, dates));
+  }
+
   async function toggle(q: Quest, day: "today" | "yesterday" = "today") {
     if (pendingId || !days) return;
-    setPendingId(q.id);
     setError(null);
-    const doneSet = day === "today" ? doneToday : doneYesterday;
-    const setDoneSet = day === "today" ? setDoneToday : setDoneYesterday;
-    const isDone = doneSet.has(q.id);
-    setDoneSet((prev) => {
-      const nextSet = new Set(prev);
-      if (isDone) nextSet.delete(q.id);
-      else nextSet.add(q.id);
-      return nextSet;
-    });
+    const watch = trackedBy(q, trackers);
+    if (watch) {
+      // the watch pays for this one; a hand check would pay twice
+      setError(`${TRACKER_NAME[watch]} tracks this and pays for it automatically.`);
+      return;
+    }
+    setPendingId(q.id);
     const on = day === "today" ? days.today : days.yesterday;
-    if (!isDone) setXpFloat({ id: q.id, amount: cardXp(q.xp, cardDayOn(history.get(q.id) ?? new Set(), on)) });
+    const period = periodOf(q);
+    const before = new Set(history.get(q.id) ?? []);
+    const isDone = isDoneOn(q, on);
+    // optimistic: unchecking a weekly/monthly quest clears the whole period
+    const after = new Set(before);
+    if (isDone) {
+      for (const d of before) if (periodStart(period, d) === periodStart(period, on)) after.delete(d);
+    } else after.add(on);
+    setDates(q.id, after);
+    if (!isDone) setXpFloat({ id: q.id, amount: cardXp(q.xp, cardStepOn(before, period, on)) });
     const { data, error: rpcError } = await supabase.rpc(
       isDone ? "uncomplete_quest_for" : "complete_quest_for",
-      { p_quest_id: q.id, p_on: day === "today" ? days.today : days.yesterday },
+      { p_quest_id: q.id, p_on: on },
     );
     if (rpcError) {
-      setDoneSet((prev) => {
-        const nextSet = new Set(prev);
-        if (isDone) nextSet.add(q.id);
-        else nextSet.delete(q.id);
-        return nextSet;
-      });
+      setDates(q.id, before);
       if (rpcError.message.includes("only log today") || rpcError.message.includes("only change today")) {
         // the day rolled over while the page was open: refresh dates silently
         load();
@@ -152,14 +178,6 @@ export default function MissionsPage() {
         setError(rpcError.message);
       }
     } else if (data) {
-      setHistory((prev) => {
-        const next = new Map(prev);
-        const dates = new Set(next.get(q.id) ?? []);
-        if (isDone) dates.delete(on);
-        else dates.add(on);
-        next.set(q.id, dates);
-        return next;
-      });
       const updated = data as Profile;
       if (!isDone && profile) {
         const before = rankForXp(profile.xp);
@@ -179,8 +197,26 @@ export default function MissionsPage() {
     return <div className="hud-label pulse-glow text-center py-20">Syncing quests…</div>;
   }
 
-  const clearedAll = quests.length > 0 && quests.every((q) => doneToday.has(q.id));
-  const clearedCount = quests.filter((q) => doneToday.has(q.id)).length;
+  const today = days?.today ?? "";
+  // quests a connected watch pays for can't be checked, so they don't count here
+  const checkable = (qs: Quest[]) => qs.filter((q) => !trackedBy(q, trackers));
+  const inTab = (p: Period) => quests.filter((q) => periodOf(q) === p);
+  const tabQuests = inTab(tab);
+  const tabCounts = Object.fromEntries(
+    PERIODS.map((p) => {
+      const qs = checkable(inTab(p));
+      return [p, { done: qs.filter((q) => isDoneOn(q, today)).length, total: qs.length }];
+    }),
+  ) as Record<Period, { done: number; total: number }>;
+  const clearedAll = tabCounts.daily.total > 0 && tabCounts.daily.done === tabCounts.daily.total;
+  // Yesterday: daily quests, plus a weekly/monthly one only when its week or
+  // month ended yesterday unchecked (the grace day, at a period's edge).
+  const yesterdayList = yesterdayQuests.filter((q) => {
+    const period = periodOf(q);
+    if (trackedBy(q, trackers)) return false;
+    if (period === "daily") return true;
+    return !!days && periodStart(period, days.yesterday) !== periodStart(period, days.today);
+  });
 
   return (
     <div className="slide-in">
@@ -206,7 +242,7 @@ export default function MissionsPage() {
         <h1 className="display text-[19px]">Missions</h1>
         <div className="flex items-center gap-3">
           <span className="display text-[15px] text-muted">
-            {clearedCount}/{quests.length}
+            {tabCounts[tab].done}/{tabCounts[tab].total}
           </span>
           <Link href="/app/quests" aria-label="Manage quests" className="icon-tile !w-9 !h-9 !rounded-[10px] active:scale-95 transition-transform">
             <Icon name="sliders" size={17} />
@@ -214,12 +250,37 @@ export default function MissionsPage() {
         </div>
       </div>
 
+      {/* daily / weekly / monthly */}
+      <div className="grid grid-cols-3 gap-1.5 mb-3.5">
+        {PERIODS.map((p) => {
+          const on = tab === p;
+          const c = tabCounts[p];
+          return (
+            <button
+              key={p}
+              onClick={() => setTab(p)}
+              className={`py-2 rounded-[11px] hud-label flex items-center justify-center gap-1.5 transition-colors ${on ? "" : "text-muted"}`}
+              style={
+                on
+                  ? { background: "rgb(var(--accent-rgb) / 0.14)", border: "1px solid rgb(var(--accent-rgb) / 0.45)", color: "var(--accent)" }
+                  : { border: "1px solid var(--line)" }
+              }
+            >
+              {PERIOD_LABEL[p]}
+              {c.total > 0 && <span className="opacity-80">{c.done}/{c.total}</span>}
+            </button>
+          );
+        })}
+      </div>
+
       {error && <p className="text-danger text-sm mb-3">{error}</p>}
 
       <div className="flex flex-col gap-3 stagger">
-        {quests.map((q) => {
-          const done = doneToday.has(q.id);
-          const cardDay = days ? cardDayOn(history.get(q.id) ?? new Set(), days.today) : 1;
+        {tabQuests.map((q) => {
+          const period = periodOf(q);
+          const watch = trackedBy(q, trackers);
+          const done = isDoneOn(q, today);
+          const cardDay = days ? cardStepOn(history.get(q.id) ?? new Set(), period, days.today) : 1;
           return (
             <button
               key={q.id}
@@ -230,6 +291,7 @@ export default function MissionsPage() {
                 border: done ? "1px solid rgb(var(--accent-rgb) / 0.75)" : "1px solid var(--line)",
                 boxShadow: done ? "0 0 22px rgb(var(--accent-rgb) / 0.16)" : "none",
                 minHeight: 96,
+                opacity: watch ? 0.7 : 1,
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -266,23 +328,37 @@ export default function MissionsPage() {
                   >
                     {q.title}
                   </span>
-                  <span className="hud-label mt-1.5 !text-[10px]" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>
-                    {q.pillar} · Day {cardDay}/{CARD_DAYS} · +{cardXp(q.xp, cardDay)} XP
+                  {watch ? (
+                    <span className="hud-label mt-1.5 !text-[10px] block" style={{ color: "var(--accent)", textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>
+                      Paid by {TRACKER_NAME[watch]}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="hud-label mt-1.5 !text-[10px]" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>
+                        {q.pillar} · {PERIOD_UNIT[period]} {cardDay}/{CARD_DAYS} · +{cardXp(q.xp, cardDay)} XP
+                      </span>
+                      <CardPips day={cardDay} done={done} unit={PERIOD_UNIT[period]} />
+                    </>
+                  )}
+                </span>
+                {watch ? (
+                  <span className="icon-tile !w-8 !h-8 !rounded-[10px] flex-none" aria-hidden style={{ color: "var(--accent)" }}>
+                    <Icon name="sparkle" size={14} />
                   </span>
-                  <CardPips day={cardDay} done={done} />
-                </span>
-                <span
-                  key={done ? "done" : "todo"}
-                  className={`w-8 h-8 rounded-[10px] border flex items-center justify-center flex-none transition-colors duration-150 ${done ? "check-pop" : ""}`}
-                  style={
-                    done
-                      ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 16px rgb(var(--accent-rgb) / 0.6)" }
-                      : { borderColor: "rgba(255,255,255,0.4)", background: "rgba(0,0,0,0.3)", color: "transparent", backdropFilter: "blur(4px)" }
-                  }
-                  aria-hidden
-                >
-                  <Icon name="check" size={15} strokeWidth={2.6} />
-                </span>
+                ) : (
+                  <span
+                    key={done ? "done" : "todo"}
+                    className={`w-8 h-8 rounded-[10px] border flex items-center justify-center flex-none transition-colors duration-150 ${done ? "check-pop" : ""}`}
+                    style={
+                      done
+                        ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 16px rgb(var(--accent-rgb) / 0.6)" }
+                        : { borderColor: "rgba(255,255,255,0.4)", background: "rgba(0,0,0,0.3)", color: "transparent", backdropFilter: "blur(4px)" }
+                    }
+                    aria-hidden
+                  >
+                    <Icon name="check" size={15} strokeWidth={2.6} />
+                  </span>
+                )}
                 {xpFloat?.id === q.id && (
                   <span className="xp-float absolute right-4 top-1 font-mono font-bold text-sm">
                     +{xpFloat.amount} XP
@@ -292,15 +368,17 @@ export default function MissionsPage() {
             </button>
           );
         })}
-        {quests.length === 0 && (
-          <div className="card p-6 text-center text-muted text-sm">
-            No active quests. Open the quest manager to build your loadout.
-          </div>
+        {tabQuests.length === 0 && (
+          <Link href="/app/quests" className="card p-6 text-center text-muted text-sm block">
+            {tab === "daily"
+              ? "No active quests. Open the quest manager to build your loadout."
+              : `No ${tab} quests yet. Forge one in the Armory and check it once a ${tab === "weekly" ? "week" : "month"}.`}
+          </Link>
         )}
       </div>
 
       {/* yesterday: one day of grace to log what you forgot */}
-      {yesterdayQuests.length > 0 && (
+      {yesterdayList.length > 0 && (
         <div className="mt-5">
           <button
             className="card w-full px-4 py-3.5 flex items-center gap-3 active:scale-[0.99] transition-transform"
@@ -312,9 +390,9 @@ export default function MissionsPage() {
             <span className="flex-1 text-left">
               <span className="display block text-[14px]">Yesterday</span>
               <span className="hud-label mt-0.5">
-                {yesterdayQuests.filter((q) => !doneYesterday.has(q.id)).length === 0
+                {yesterdayList.filter((q) => !isDoneOn(q, days!.yesterday)).length === 0
                   ? "All cleared"
-                  : `${yesterdayQuests.filter((q) => !doneYesterday.has(q.id)).length} open`}
+                  : `${yesterdayList.filter((q) => !isDoneOn(q, days!.yesterday)).length} open`}
               </span>
             </span>
             <span
@@ -327,8 +405,8 @@ export default function MissionsPage() {
 
           {showYesterday && (
             <div className="flex flex-col gap-2.5 mt-2.5 stagger">
-              {yesterdayQuests.map((q) => {
-                const done = doneYesterday.has(q.id);
+              {yesterdayList.map((q) => {
+                const done = days ? isDoneOn(q, days.yesterday) : false;
                 return (
                   <button
                     key={q.id}
@@ -377,7 +455,7 @@ export default function MissionsPage() {
                           {q.title}
                         </span>
                         <span className="hud-label mt-1 !text-[10px]" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>
-                          Yesterday · +{cardXp(q.xp, days ? cardDayOn(history.get(q.id) ?? new Set(), days.yesterday) : 1)} XP
+                          {periodOf(q) === "daily" ? "Yesterday" : `Last ${periodOf(q) === "weekly" ? "week" : "month"}`} · +{cardXp(q.xp, days ? cardStepOn(history.get(q.id) ?? new Set(), periodOf(q), days.yesterday) : 1)} XP
                         </span>
                       </span>
                       <span

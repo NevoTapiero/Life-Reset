@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { cardDayOn, cardXp, type Quest } from "@/lib/game";
+import { cardStepOn, cardXp, doneInPeriod, periodOf, trackedBy, type Quest } from "@/lib/game";
 import type { Station } from "@/lib/legoWorld";
 
 // Your active missions as room stations: today's pay (with the 7-day card
 // multiplier) and whether it's done today. complete() does one, the same as
 // checking it on Missions.
+// Weekly and monthly missions count once per week / month; missions a
+// connected watch pays for (steps, sleep, workouts) are not stations at all.
 // ponytail: today only; yesterday and un-checking stay on the Missions page
 export function useStations() {
   const [stations, setStations] = useState<Station[] | null>(null);
@@ -18,10 +20,12 @@ export function useStations() {
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id;
       if (!uid) return;
-      const [{ data: uq }, { data: day }] = await Promise.all([
+      const [{ data: uq }, { data: day }, { data: prov }] = await Promise.all([
         supabase.from("user_quests").select("quests(*)").eq("user_id", uid).eq("active", true),
         supabase.rpc("app_today"),
+        supabase.rpc("my_trackers"),
       ]);
+      const providers = (prov as string[] | null) ?? [];
       const todayStr = String(day);
       const since = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 90 * 86400000).toISOString().slice(0, 10);
       const { data: comps } = await supabase
@@ -36,13 +40,20 @@ export function useStations() {
       }
       const quests = ((uq ?? []) as unknown as { quests: Quest | null }[])
         .map((r) => r.quests)
-        .filter((q): q is Quest => !!q)
+        .filter((q): q is Quest => !!q && !trackedBy(q, providers))
         .sort((a, b) => a.sort - b.sort);
       setToday(todayStr);
       setStations(
         quests.map((q) => {
           const done = history.get(q.id) ?? new Set<string>();
-          return { id: q.id, title: q.title, pillar: q.pillar, xp: cardXp(q.xp, cardDayOn(done, todayStr)), done: done.has(todayStr) };
+          const period = periodOf(q);
+          return {
+            id: q.id,
+            title: q.title,
+            pillar: q.pillar,
+            xp: cardXp(q.xp, cardStepOn(done, period, todayStr)),
+            done: doneInPeriod(done, period, todayStr),
+          };
         }),
       );
     })();
