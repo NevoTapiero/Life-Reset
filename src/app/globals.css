@@ -767,6 +767,13 @@ body {
   background-repeat: space no-repeat;
 }
 
+/* energy: ten little bricks, green / amber / red */
+.energy-bricks { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; }
+.energy-bricks span { height: 9px; border-radius: 2px; background: #fff; box-shadow: inset 0 -1.5px 0 var(--line-strong); }
+.energy-bricks span.g { background: var(--lego-green); box-shadow: inset 0 -1.5px 0 var(--lego-green-edge); }
+.energy-bricks span.a { background: var(--lego-orange); box-shadow: inset 0 -1.5px 0 var(--lego-orange-edge); }
+.energy-bricks span.r { background: var(--lego-red); box-shadow: inset 0 -1.5px 0 var(--lego-red-edge); }
+
 /* the record page's brick towers */
 .brick-tower { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; }
 .tower-brick {

@@ -11,6 +11,8 @@ import FirstTips from "@/components/FirstTips";
 import Minifig from "@/components/Minifig";
 import RankUp, { BrickBurst } from "@/components/RankUp";
 import { brickSound } from "@/lib/brickSound";
+import { energyFrom, todayKey, type LedgerMeta } from "@/lib/energy";
+import { supabase } from "@/lib/supabase";
 import { useMissions } from "@/lib/useMissions";
 import { greeting, legoLevel, levelTitle } from "@/lib/brick";
 import {
@@ -64,6 +66,22 @@ export default function HomePage() {
   useEffect(() => {
     if (justCleared) brickSound.levelUp(false);
   }, [justCleared]);
+  // energy for running in the town, from last night's sleep and today's steps
+  // (the same rule as the town: src/lib/energy.ts)
+  const [energy, setEnergy] = useState<number | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id;
+      if (!uid) return;
+      const since = new Date(new Date().getTime() - 36 * 3600 * 1000).toISOString();
+      supabase
+        .from("xp_ledger")
+        .select("meta")
+        .eq("user_id", uid)
+        .gte("created_at", since)
+        .then(({ data: rows }) => setEnergy(energyFrom((rows ?? []).map((r) => r.meta as LedgerMeta), todayKey())));
+    });
+  }, []);
 
   if (!m.profile) {
     return (
@@ -153,6 +171,20 @@ export default function HomePage() {
             })}
           </div>
           <div className="mt-1.5 text-[12px] font-extrabold text-muted">{p.xp.toLocaleString()} XP total</div>
+          {energy !== null && (
+            <div className="mt-3 flex items-center gap-2" title="Energy for running in the world: sleep well and walk to fill it">
+              <span className="text-[12.5px] font-extrabold flex items-center gap-1">
+                <Icon name="flame" size={13} strokeWidth={2.4} />
+                Energy
+              </span>
+              <span className="energy-bricks flex-1" aria-label={`Energy ${Math.round(energy)} of 100`}>
+                {Array.from({ length: 10 }, (_, i) => (
+                  <span key={i} className={i < Math.round(energy / 10) ? (energy >= 60 ? "g" : energy >= 30 ? "a" : "r") : ""} />
+                ))}
+              </span>
+              <span className="text-[12px] font-extrabold text-muted w-[88px] text-right">{energy >= 60 ? "Ready to run" : energy >= 30 ? "Sleep, walk" : "Tired"}</span>
+            </div>
+          )}
         </div>
       </section>
 
