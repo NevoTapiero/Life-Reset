@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import BrickLogo from "@/components/BrickLogo";
+import Minifig from "@/components/Minifig";
 import Icon from "@/components/Icon";
 import { GoogleMark } from "@/components/Icon";
 import { resetTheme } from "@/lib/theme";
@@ -79,7 +80,10 @@ function AuthForm() {
         </p>
       </div>
 
-      <section className="card tile-studs p-5 mt-7">
+      <div className="flex justify-end pr-6 -mb-[14px] mt-4 relative z-10" aria-hidden>
+        <Minifig character={mode === "signup" ? "wizard" : "warrior"} level={3} size={96} />
+      </div>
+      <section className="card tile-studs p-5">
         <button className="btn-ghost w-full py-3.5 gap-2.5" onClick={googleSignIn}>
           <GoogleMark />
           Continue with Google
