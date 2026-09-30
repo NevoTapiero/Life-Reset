@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BrickLoader from "@/components/BrickLoader";
@@ -9,6 +10,9 @@ import Icon from "@/components/Icon";
 import PlayerAvatar, { MinifigHead } from "@/components/PlayerAvatar";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import { CHARACTERS, CHARACTER_KEYS, CharacterKey, Profile, rankForXp } from "@/lib/game";
+
+// three.js touches window: the 3D plot loads on the client, and only when asked
+const LegoWorld = dynamic(() => import("@/components/LegoWorld"), { ssr: false });
 
 // Profile: the plain facts. Your picture, name, email, level, streak and XP,
 // which character you play, the apps you connected, privacy, sign out.
@@ -20,6 +24,7 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [show3d, setShow3d] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
@@ -190,6 +195,29 @@ export default function ProfilePage() {
           <span className="font-extrabold">{levelTitle(profile.archetype, rank.tierIndex)}</span>
         </div>
         {msg && <p className="text-sm font-bold mt-3" style={{ color: "var(--danger)" }}>{msg}</p>}
+      </section>
+
+      {/* your plot in 3D: the house grows with your level, the garden with your streak */}
+      <section className="scene mt-4 overflow-hidden">
+        {show3d ? (
+          <div className="relative" style={{ height: 320 }}>
+            <LegoWorld houseLevel={level} name={profile.username} streak={profile.streak_current} className="absolute inset-0" />
+            <button className="absolute right-3 top-3 icon-tile !w-9 !h-9 !bg-white" aria-label="Close the 3D view" onClick={() => setShow3d(false)}>
+              <Icon name="x" size={16} strokeWidth={2.4} />
+            </button>
+          </div>
+        ) : (
+          <button className="w-full px-4 py-4 flex items-center gap-3 text-left" onClick={() => setShow3d(true)}>
+            <span className="grid place-items-center rounded-[12px] flex-none text-white" style={{ width: 46, height: 46, background: "var(--lego-orange)", boxShadow: "inset 0 -3px 0 var(--lego-orange-edge)" }}>
+              <Icon name="home" size={22} strokeWidth={2.4} />
+            </span>
+            <span className="flex-1">
+              <span className="display block text-[18px] text-white" style={{ textShadow: "0 2px 0 rgb(0 0 0 / 0.15)" }}>My house in 3D</span>
+              <span className="block text-[13px] font-extrabold text-white/90">Level {level} house, {profile.streak_current} day garden</span>
+            </span>
+            <span className="chip">Show</span>
+          </button>
+        )}
       </section>
 
       {/* the numbers */}
