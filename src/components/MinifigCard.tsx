@@ -18,11 +18,14 @@ export default function MinifigCard({
   level,
   children,
   size = 250,
+  showLevel = true,
 }: {
   character: string | null;
   level: number;
   children: React.ReactNode;
   size?: number;
+  /** hide the level badge (previews, like the first-run picker) */
+  showLevel?: boolean;
 }) {
   const [top, bottom] = CARD_COLORS[character ?? "warrior"] ?? CARD_COLORS.warrior;
   return (
@@ -32,10 +35,12 @@ export default function MinifigCard({
           SOLO LEVELING
           <b>MINIFIGURES</b>
         </span>
+        {showLevel && (
         <span className="minifig-card-level" aria-label={`Level ${level}`}>
           <small>LV</small>
           {level}
         </span>
+        )}
       </div>
       <div className="relative flex justify-center pt-1 pb-3">
         <span className="minifig-card-spot" aria-hidden />

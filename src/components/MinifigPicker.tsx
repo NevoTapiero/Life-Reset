@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
-import { MinifigHead } from "@/components/PlayerAvatar";
+import Minifig from "@/components/Minifig";
+import MinifigCard from "@/components/MinifigCard";
 import { CHARACTERS, CHARACTER_KEYS, CharacterKey, Profile } from "@/lib/game";
 
 // First run: pick the minifig you'll be in the LEGO world. Shown on Home while
@@ -33,17 +34,17 @@ export default function MinifigPicker({ onPicked }: { onPicked: (p: Profile) => 
             This is you in the LEGO world. Every mission you do dresses them up and builds their house.
           </p>
 
-          <div className="flex justify-center mt-5">
-            <span className="rounded-full overflow-hidden bounce-in" key={pick} style={{ boxShadow: "0 0 0 5px #fff, 0 9px 0 5px var(--lip)" }}>
-              <MinifigHead character={pick} size={120} />
-            </span>
-          </div>
-          <div className="text-center mt-4">
-            <div className="display text-[22px]">{c.name}</div>
-            <div className="text-[13.5px] font-bold text-muted">{c.focus}</div>
+          <div className="mt-4">
+            <MinifigCard character={pick} level={2} size={190} showLevel={false}>
+              <span className="flex-1 min-w-0">
+                <span className="display block text-[21px]">{c.name}</span>
+                <span className="block text-[13px] font-bold text-muted">{c.focus}</span>
+              </span>
+              <span className="chip chip-blue">{c.stat}</span>
+            </MinifigCard>
           </div>
 
-          <div className="grid grid-cols-5 gap-2 mt-5">
+          <div className="grid grid-cols-5 gap-2 mt-4">
             {CHARACTER_KEYS.map((key) => (
               <button
                 key={key}
@@ -52,9 +53,7 @@ export default function MinifigPicker({ onPicked }: { onPicked: (p: Profile) => 
                 aria-label={CHARACTERS[key].name}
                 className={`option-row !p-1.5 flex flex-col items-center gap-1 ${pick === key ? "selected" : ""}`}
               >
-                <span className="rounded-full overflow-hidden">
-                  <MinifigHead character={key} size={46} />
-                </span>
+                <Minifig character={key} level={2} size={64} />
                 <span className="text-[10px] font-extrabold leading-tight">{CHARACTERS[key].name.replace("The ", "")}</span>
               </button>
             ))}
