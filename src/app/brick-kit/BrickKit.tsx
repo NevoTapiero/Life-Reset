@@ -4,6 +4,9 @@ import LegoIcon, { BrickColor } from "@/components/LegoIcon";
 import { MinifigHead } from "@/components/PlayerAvatar";
 import Minifig from "@/components/Minifig";
 import TownArt from "@/components/TownArt";
+import RankUp from "@/components/RankUp";
+import { useState } from "react";
+import { rankForXp } from "@/lib/game";
 
 // The brick theme's parts on one page (like /lego-sets for the 3D world), to
 // look at every piece side by side while designing. Not linked from the app.
@@ -13,9 +16,15 @@ const COLORS: BrickColor[] = ["red", "blue", "yellow", "green", "orange", "azure
 const CHARS = ["warrior", "mentalist", "wizard", "guardian", "shadow"];
 
 export default function BrickKit() {
+  const [demo, setDemo] = useState<"level" | "rank" | null>(null);
   return (
     <main className="py-8 flex flex-col gap-6">
       <h1 className="display text-[28px]">Brick kit</h1>
+      <div className="flex gap-2">
+        <button className="btn-primary brick-yellow px-4 py-2" onClick={() => setDemo("level")}>Show level up</button>
+        <button className="btn-ghost px-4 py-2" onClick={() => setDemo("rank")}>Show rank up</button>
+      </div>
+      {demo && <RankUp rank={rankForXp(demo === "level" ? 1500 : 700)} previousTier={demo === "level" ? 1 : 1} character="warrior" onClose={() => setDemo(null)} />}
 
       <section className="card p-4">
         <h2 className="section-title mb-3">Icons</h2>

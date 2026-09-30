@@ -210,7 +210,7 @@ export default function HomePage() {
           </span>
           <span className="text-left">
             <span className="block text-[11px] font-black tracking-wider uppercase opacity-80">Gold brick</span>
-            <span className="display block text-[18px] leading-tight">{newGold.name}</span>
+            <span className="display tt-text block text-[20px] leading-tight">{newGold.name}</span>
           </span>
         </button>
       )}
