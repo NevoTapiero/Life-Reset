@@ -111,16 +111,21 @@ function useModel(text: string, merge: boolean) {
   const [group, setGroup] = useState<THREE.Object3D | null>(null);
   useEffect(() => {
     let live = true;
+    let made: THREE.Object3D | null = null;
     // merged models are the ground (plots, gardens, streets): no smoothing
     getLoader(!merge)
       .then(({ loader, parts }) => parse(loader, text + parts))
       .then((g) => {
         if (!live) return;
-        setGroup(finish(merge ? LDrawUtils.mergeObject(g) : g));
+        made = finish(merge ? LDrawUtils.mergeObject(g) : g);
+        setGroup(made);
       })
       .catch((e) => console.error("brick world:", e));
     return () => {
       live = false;
+      // a merged model's geometry is its own (a plain parse shares the loader's
+      // cached parts, and the materials are the loader's): free it with the model
+      if (merge) made?.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
     };
   }, [text, merge]);
   return group;
@@ -146,6 +151,22 @@ function loadProp(part: string, color: number) {
           });
           return meshes;
         })),
+    );
+  return p;
+}
+
+// Each minifig look is parsed once; every figure wearing it is a clone
+// (sharing its geometry and materials).
+const minifigs = new Map<string, Promise<THREE.Object3D>>();
+function loadMinifig(look: MinifigLook) {
+  const key = `${look.skin}/${look.hair}/${look.torso}/${look.legs}`;
+  let p = minifigs.get(key);
+  if (!p)
+    minifigs.set(
+      key,
+      (p = getLoader(true)
+        .then(({ loader, parts }) => parse(loader, modelText(buildMinifig(look), "minifig.ldr") + parts))
+        .then(finish)),
     );
   return p;
 }
@@ -222,19 +243,26 @@ function Building({ url, at, cut, lit = false }: { url: string; at: [number, num
   } | null>(null);
   useEffect(() => {
     let live = true;
+    let own: THREE.Material[] = [];
     loadHouse(url)
       .then((o) => {
+        if (!live) return;
         const obj = o.clone();
         // its own materials, so cutting this house leaves the others whole
         obj.traverse((m) => {
           const mesh = m as THREE.Mesh;
-          if (mesh.isMesh) mesh.material = (mesh.material as THREE.Material).clone();
+          if (!mesh.isMesh) return;
+          mesh.material = (mesh.material as THREE.Material).clone();
+          own.push(mesh.material);
         });
-        if (live) setModel({ url, obj });
+        setModel({ url, obj });
       })
       .catch((e) => console.error("house:", e));
     return () => {
       live = false;
+      // the geometry is the shared cache's; the cloned materials are this house's
+      own.forEach((m) => m.dispose());
+      own = [];
     };
   }, [url]);
   useEffect(() => {
@@ -284,10 +312,16 @@ function House({ level, name, id, cut, lit }: { level: number; name?: string; id
 
 // `turn`: which way the figure faces (radians about the vertical, LDraw frame)
 function Minifig({ look, at, turn = 0 }: { look: MinifigLook; at: [number, number, number]; turn?: number }) {
-  const model = useModel(
-    useMemo(() => modelText(buildMinifig(look), "minifig.ldr"), [look]),
-    false,
-  );
+  const [model, setModel] = useState<THREE.Object3D | null>(null);
+  useEffect(() => {
+    let live = true;
+    loadMinifig(look)
+      .then((o) => live && setModel(o.clone()))
+      .catch((e) => console.error("minifig:", e));
+    return () => {
+      live = false;
+    };
+  }, [look]);
   const root = useRef<THREE.Group>(null);
   const taps = useRef(0); // bumped by a tap
   const seen = useRef(0);
@@ -614,7 +648,7 @@ function Stage({
       <div className="relative w-full h-full">
         <Canvas
           shadows
-          dpr={[1, 2]}
+          dpr={[1, 1.5]}
           camera={{ fov, near: 1, far: 500 }}
           gl={{ antialias: true }}
           onCreated={({ gl }) => (gl.localClippingEnabled = true)}

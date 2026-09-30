@@ -28,7 +28,7 @@ insert into public.shop_items (id, name, price, sort) values
   ('tv',           'TV',           200, 6),
   ('aquarium',     'Aquarium',     250, 7),
   ('trophy',       'Trophy',       300, 8)
-on conflict (id) do update set name = excluded.name, price = excluded.price, sort = excluded.sort;
+on conflict (id) do nothing; -- re-running never resets prices that were tuned since
 
 create table if not exists public.owned_items (
   user_id uuid not null references public.profiles(id) on delete cascade,
