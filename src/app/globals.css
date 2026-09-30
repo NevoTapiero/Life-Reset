@@ -1604,3 +1604,8 @@ body {
 .mf-break .mf-calm { animation: mfFaceCalm 1.1s steps(1, end) 1 forwards; }
 @keyframes mfFaceShock { 0% { opacity: 0; } 8% { opacity: 1; } 80% { opacity: 0; } 100% { opacity: 0; } }
 @keyframes mfFaceCalm { 0% { opacity: 1; } 8% { opacity: 0; } 80% { opacity: 1; } 100% { opacity: 1; } }
+
+/* a friend knocking: the door brick shakes now and then */
+.door-knock { display: inline-block; animation: doorKnock 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+@keyframes doorKnock { 0%, 60%, 100% { transform: none; } 64% { transform: rotate(-12deg); } 68% { transform: rotate(10deg); } 72% { transform: rotate(-8deg); } 76% { transform: rotate(5deg); } 80% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .door-knock { animation: none; } }

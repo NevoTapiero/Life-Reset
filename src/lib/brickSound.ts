@@ -218,6 +218,20 @@ export const brickSound = {
     bell(a, out, t + 0.27, 1568, 0.11, 0.5);
     bell(a, out, t + 0.33, 2093, 0.07, 0.45);
   },
+  /** a friend at your door: knock, knock (a wooden thud and its knuckle) */
+  knock() {
+    const s = audio();
+    if (!s || throttled("knock", 1500)) return;
+    const { a, out } = s;
+    const t = a.currentTime + 0.05;
+    [0, 0.17, 0.52, 0.69].forEach((d, i) => {
+      const g = i % 2 ? 0.8 : 1;
+      burst(a, out, t + d, "lowpass", 900, 1.2, 0.5 * g, 0.05);
+      burst(a, out, t + d, "bandpass", 1900, 5, 0.12 * g, 0.02);
+      tone(a, out, t + d, 170, 120, 0.3 * g, 0.09, "sine", 0.002);
+    });
+    buzz([20, 150, 20, 330, 20, 150, 20]);
+  },
   /** something went wrong: two low plonks */
   error() {
     const s = audio();
