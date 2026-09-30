@@ -110,7 +110,7 @@ function AuthForm() {
         </p>
       </div>
 
-      <div className="flex justify-end pr-6 -mb-[14px] mt-4 relative z-10" aria-hidden>
+      <div className="flex justify-end pr-6 -mb-[14px] mt-4 relative z-10">
         <TapFig character={mode === "signup" ? "wizard" : "warrior"} level={3} size={96} />
       </div>
       <section className="card tile-studs p-5">

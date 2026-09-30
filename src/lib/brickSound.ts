@@ -13,6 +13,10 @@ let noise: AudioBuffer | null = null;
 
 function audio(): { a: AudioContext; out: AudioNode } | null {
   if (typeof window === "undefined" || !soundOn()) return null;
+  // before the first tap the browser keeps audio paused, and anything played
+  // now would wait and go off on that tap: stay quiet instead
+  const ua = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
+  if (ua && !ua.hasBeenActive) return null;
   if (!ctx) {
     try {
       ctx = new AudioContext();
@@ -182,7 +186,7 @@ export const brickSound = {
    *  each bounce quicker and quieter, like the LEGO games */
   scatter() {
     const s = audio();
-    if (!s || throttled("scatter", 400)) return;
+    if (!s || throttled("scatter", 150)) return;
     const { a, out } = s;
     const t = a.currentTime;
     buzz([18, 60, 10, 40, 8]);
@@ -207,7 +211,7 @@ export const brickSound = {
   /** ...and it builds itself back: quick snaps climbing, a bright finish */
   rebuild() {
     const s = audio();
-    if (!s || throttled("rebuild", 400)) return;
+    if (!s || throttled("rebuild", 150)) return;
     const { a, out } = s;
     const t = a.currentTime;
     [0, 0.075, 0.14, 0.195].forEach((d, i) => {

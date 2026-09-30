@@ -33,7 +33,6 @@ export function levelTitle(character: string | null | undefined, tierIndex: numb
   return titles[legoLevel(tierIndex) - 1];
 }
 
-// "Good morning" by the hour of the app day
 // The saved streak is the run ending on the last day something was checked:
 // it only still counts if that day was today or yesterday (the server's day).
 export function liveStreak(p: { streak_current: number; last_completed_on: string | null }, today: string | null): number {
@@ -48,6 +47,7 @@ export function sleepyHour(d = new Date()): boolean {
   return h >= 23 || h < 5;
 }
 
+// "Good morning" by the hour of the app day
 export function greeting(d = new Date()): string {
   const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Jerusalem" }).format(d));
   if (h < 5) return "Still up";

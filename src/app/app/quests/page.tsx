@@ -79,10 +79,13 @@ export default function QuestManager() {
     load();
   }, [load]);
 
+  // the idea just added (only that one snaps down, not the ones already on)
+  const [snapId, setSnapId] = useState<string | null>(null);
   async function toggleActive(q: Quest) {
     const on = activeIds.has(q.id);
     if (on) brickSound.unsnap();
     else brickSound.snap();
+    setSnapId(on ? null : q.id);
     setActiveIds((prev) => {
       const next = new Set(prev);
       if (on) next.delete(q.id);
@@ -423,7 +426,7 @@ export default function QuestManager() {
               onClick={() => toggleActive(q)}
             >
               {/* added: the brick takes its colour and snaps down */}
-              <span key={on ? "on" : "off"} className={on ? "brick-snap" : ""}>
+              <span key={on ? "on" : "off"} className={on && snapId === q.id ? "brick-snap" : ""}>
                 <LegoIcon name={PILLAR_ICONS[q.pillar]} color={on ? PILLAR_BRICK_COLOR[q.pillar] : "grey"} size={42} />
               </span>
               <span className="flex-1 text-left min-w-0">
