@@ -9,7 +9,8 @@ export default function ButtonSounds() {
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
       const el = (e.target as Element | null)?.closest?.(".btn-primary, .btn-ghost, .brick-tab, .option-row, .brick-nav a, .switch");
-      if (!el || (el as HTMLButtonElement).disabled) return;
+      // buttons that play their own sound opt out
+      if (!el || (el as HTMLButtonElement).disabled || el.hasAttribute("data-own-sound")) return;
       if (el.matches(".switch")) brickSound.snap();
       else if (el.matches(".brick-tab, .brick-nav a")) brickSound.tap();
       else brickSound.press();

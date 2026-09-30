@@ -6,6 +6,7 @@ import Link from "next/link";
 import BrickLoader from "@/components/BrickLoader";
 import Icon from "@/components/Icon";
 import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
+import { brickSound } from "@/lib/brickSound";
 import {
   PERIODS,
   PERIOD_LABEL,
@@ -80,6 +81,8 @@ export default function QuestManager() {
 
   async function toggleActive(q: Quest) {
     const on = activeIds.has(q.id);
+    if (on) brickSound.unsnap();
+    else brickSound.snap();
     setActiveIds((prev) => {
       const next = new Set(prev);
       if (on) next.delete(q.id);
@@ -416,9 +419,13 @@ export default function QuestManager() {
             <button
               key={q.id}
               className={`option-row px-4 py-3.5 flex items-center gap-3 ${on ? "selected" : ""}`}
+              data-own-sound
               onClick={() => toggleActive(q)}
             >
-              <LegoIcon name={PILLAR_ICONS[q.pillar]} color={on ? PILLAR_BRICK_COLOR[q.pillar] : "grey"} size={42} />
+              {/* added: the brick takes its colour and snaps down */}
+              <span key={on ? "on" : "off"} className={on ? "brick-snap" : ""}>
+                <LegoIcon name={PILLAR_ICONS[q.pillar]} color={on ? PILLAR_BRICK_COLOR[q.pillar] : "grey"} size={42} />
+              </span>
               <span className="flex-1 text-left min-w-0">
                 <span className={`block text-[15px] font-extrabold truncate ${on ? "" : "text-muted"}`}>{q.title}</span>
                 <span className="text-[12.5px] font-bold text-muted">{q.pillar} · +{questBase(q.xp)} XP</span>
