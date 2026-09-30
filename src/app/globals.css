@@ -209,7 +209,7 @@ body {
   background: var(--panel);
   border: 2px solid var(--accent);
   border-radius: 18px;
-  box-shadow: 0 4px 0 var(--lego-blue-edge);
+  box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 5px 0 var(--ol) var(--ol-c);
 }
 
 /* ---- buttons are bricks: studs on top, a lip underneath to press into ---- */
@@ -333,7 +333,7 @@ body {
   box-shadow: inset 0 3px 0 var(--panel-2);
   transition: box-shadow 140ms ease;
 }
-.field:focus { box-shadow: inset 0 3px 0 var(--panel-2), 0 0 0 3px var(--lego-yellow); }
+.field:focus { box-shadow: inset 0 3px 0 var(--panel-2), 0 0 0 3px var(--lego-yellow), 0 0 0 5px var(--lego-black); }
 .field::placeholder { color: var(--muted); font-weight: 600; }
 
 .track {
@@ -607,7 +607,7 @@ body {
   border-radius: 999px;
   padding: 5px 12px;
   background: var(--panel);
-  box-shadow: 0 2px 0 var(--lip);
+  box-shadow: 0 0 0 1.5px var(--lego-black), 0 2px 0 1.5px var(--lego-black);
   font-weight: 800;
   font-size: 11px;
   letter-spacing: 0.06em;
@@ -663,7 +663,7 @@ body {
   background:
     radial-gradient(circle, rgb(255 255 255 / 0.1) 0 3px, transparent 3.5px) 0 0 / 14px 14px,
     var(--lego-blue-edge);
-  box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.25), 0 3px 0 var(--lego-black);
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.25), 0 0 0 var(--ol) var(--ol-c), 0 3px 0 var(--ol) var(--ol-c);
 }
 .brick-tab {
   padding: 8px 6px;
@@ -796,7 +796,7 @@ body {
   background:
     repeating-linear-gradient(180deg, transparent 0 21px, rgb(0 0 0 / 0.14) 21px 23px),
     var(--c);
-  box-shadow: inset 0 3px 0 rgb(255 255 255 / 0.35), inset -6px 0 0 rgb(0 0 0 / 0.08);
+  box-shadow: inset 0 3px 0 rgb(255 255 255 / 0.35), inset -6px 0 0 rgb(0 0 0 / 0.08), 0 0 0 2.5px var(--lego-black);
 }
 .podium-col::before {
   content: "";
@@ -913,7 +913,7 @@ body {
   border: 2px solid transparent;
   transition: border-color 150ms ease;
 }
-.judge-bar:focus-within { border-color: var(--lego-yellow); }
+.judge-bar:focus-within { box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 0 0 5.5px var(--lego-yellow), 0 0 0 7.5px var(--lego-black), 0 5px 0 var(--ol) var(--ol-c); }
 .judge-mic {
   width: 38px;
   height: 38px;
@@ -1178,7 +1178,7 @@ body {
   font-weight: 700;
   font-size: 26px;
   line-height: 0.9;
-  box-shadow: 0 4px 0 var(--lip), inset 0 0 0 3px var(--lego-yellow);
+  box-shadow: inset 0 0 0 3px var(--lego-yellow), 0 0 0 var(--ol) var(--ol-c), 0 4px 0 var(--ol) var(--ol-c);
 }
 .minifig-card-level small { font-size: 9px; letter-spacing: 0.1em; color: var(--muted); }
 .minifig-card-spot {
@@ -1678,13 +1678,13 @@ body {
   position: absolute; right: 14px; bottom: 16px; z-index: 5;
   width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
   background: #fff; color: var(--lego-black);
-  box-shadow: 0 3px 0 var(--lip), 0 4px 10px rgb(27 42 52 / 0.2);
+  box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 3px 0 var(--ol) var(--ol-c);
 }
-.card-flip:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--lip); }
+.card-flip:active { transform: translateY(2px); box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 1px 0 var(--ol) var(--ol-c); }
 .card-file {
   flex: 1; border-radius: 16px; padding: 12px 14px 10px; text-align: left; overflow: hidden;
   background: #fffdf5; color: var(--ink);
-  box-shadow: 0 4px 0 var(--lip), inset 0 0 0 2px var(--lego-tan);
+  box-shadow: inset 0 0 0 2px var(--lego-tan), 0 0 0 var(--ol) var(--ol-c), 0 4px 0 var(--ol) var(--ol-c);
   display: flex; flex-direction: column;
 }
 .card-file-head { font-family: var(--font-brick); font-weight: 700; font-size: 11px; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; }
@@ -1815,13 +1815,36 @@ body {
 .xp-stud[data-kind="blue"] i { background: radial-gradient(circle at 42% 38%, #d8ebff 0 18%, var(--lego-azure) 45%, var(--lego-blue-edge) 100%); }
 
 /* chips inside outlined titles keep their own dark text */
-.section-title .chip, .tt-text .chip { color: var(--ink); text-shadow: none; }
+.section-title .chip, .tt-text .chip { text-shadow: none; }
 /* white icon tiles (back, close, app logos) get the panel outline */
 .icon-tile[class*="!bg-white"] { box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 4px 0 var(--ol) var(--ol-c); }
-.icon-tile[class*="!bg-white"]:active { transform: translateY(2px); box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 2px 0 var(--ol) var(--ol-c); }
+:is(a, button).icon-tile[class*="!bg-white"]:active { transform: translateY(2px); box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 2px 0 var(--ol) var(--ol-c); }
 
 /* shop tiles: garden things stand on grass, furniture on a wooden floor */
 .shop-tile.garden { background: color-mix(in srgb, var(--lego-green) 14%, #fff); }
 .shop-tile.room { background: color-mix(in srgb, var(--lego-tan) 38%, #fff); }
 .shop-tile { box-shadow: 0 0 0 2px var(--lego-black), 0 3px 0 2px var(--lego-black) !important; }
 .shop-tile.afford { box-shadow: 0 0 0 3px var(--lego-yellow), 0 0 0 5px var(--lego-black), 0 3px 0 5px var(--lego-black) !important; }
+
+/* the HUD's bricks and studs get the outline too */
+.xp-bricks span, .streak-studs span, .true-meter-bar, .true-meter-medal, .true-meter-label { outline: 1.5px solid var(--lego-black); outline-offset: 0; }
+/* chips outlined like the rest of the kit */
+.chip { outline: 1.5px solid var(--lego-black); outline-offset: 0; }
+
+/* the affordable tint wins over the garden/room floors */
+.shop-tile.afford.garden, .shop-tile.afford.room { background: color-mix(in srgb, var(--lego-yellow) 22%, #fff); }
+/* every tappable icon tile (edit, delete, remove, close) is outlined */
+:is(a, button).icon-tile { box-shadow: 0 0 0 2px var(--ol-c), 0 3px 0 2px var(--ol-c); }
+:is(a, button).icon-tile:active { transform: translateY(2px); box-shadow: 0 0 0 2px var(--ol-c), 0 1px 0 2px var(--ol-c); }
+/* tappable cards press down like buttons: the lip shrinks */
+:is(a, button).card:active { box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 2px 0 var(--ol) var(--ol-c); }
+/* studs on top of buttons and bars get a dark rim */
+.btn-primary::before, .btn-ghost::before {
+  background-image: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--brick) 65%, #fff) 0 2.6px, var(--brick) 3.1px 4.4px, var(--lego-black) 4.6px 6px, transparent 6.4px);
+  background-size: 18px 12px; height: 11px; top: -8px;
+}
+/* studs along the top of white tiles and the bottom bar: dark rims */
+.tile-studs::before, .brick-nav::before {
+  background-image: radial-gradient(circle at 50% 45%, #ffffff 0 2.6px, #e3e9ef 3.1px 4.4px, var(--lego-black) 4.6px 6px, transparent 6.4px);
+  background-size: 18px 12px; height: 11px; top: -8px;
+}

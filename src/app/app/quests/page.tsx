@@ -225,7 +225,7 @@ export default function QuestManager() {
         </Link>
         <div>
           <h1 className="display tt-text text-[28px]">Your missions</h1>
-          <p className="text-[13px] font-bold text-muted">Tap one to put it on Home, tap again to take it off.</p>
+          <p className="text-[13px] font-bold text-[var(--ink)]">Tap one to put it on Home, tap again to take it off.</p>
         </div>
       </div>
 

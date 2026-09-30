@@ -395,7 +395,7 @@ export default function HomePage() {
       })()}
 
       {tab !== "daily" && m.today && (
-        <p className="text-[13px] font-extrabold text-muted -mt-1.5 mb-3 px-1">{periodLeft(tab, m.today)}</p>
+        <p className="text-[13px] font-extrabold text-[var(--ink)] -mt-1.5 mb-3 px-1">{periodLeft(tab, m.today)}</p>
       )}
 
       {m.error && (

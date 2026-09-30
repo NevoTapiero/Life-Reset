@@ -82,7 +82,7 @@ export default function MinifigCard({
           </button>
         )}
       </div>
-      <div className="relative mx-3 mb-3 rounded-[16px] bg-white px-3.5 py-3 flex items-center gap-3" style={{ boxShadow: "0 4px 0 var(--lip)" }}>
+      <div className="relative mx-3 mb-3 rounded-[16px] bg-white px-3.5 py-3 flex items-center gap-3" style={{ boxShadow: "0 0 0 var(--ol) var(--ol-c), 0 4px 0 var(--ol) var(--ol-c)" }}>
         {children}
       </div>
     </section>

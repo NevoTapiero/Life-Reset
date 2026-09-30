@@ -484,7 +484,7 @@ export default function AppActivity({ onXp, onSynced }: { onXp?: () => void; onS
             {google === null && <div className="hud-label pulse-glow py-4 text-center">Reading your calendar…</div>}
 
             {problem && (
-              <div className="card px-3.5 py-3 flex items-start gap-3" style={{ borderColor: "var(--danger)" }}>
+              <div className="card px-3.5 py-3 flex items-start gap-3">
                 <LegoIcon name="x" color="red" size={36} />
                 <span className="flex-1 text-[13px] leading-snug">{problem}</span>
               </div>

@@ -348,7 +348,7 @@ export default function ProfilePage() {
       <h2 className="section-title mt-8 mb-1" style={{ "--brick": "var(--lego-orange)" } as React.CSSProperties}>
         Your minifig
       </h2>
-      <p className="text-[13px] font-bold text-muted mb-3">Who you are in the LEGO world. Each one dresses up as you level.</p>
+      <p className="text-[13px] font-bold text-[var(--ink)] mb-3">Who you are in the LEGO world. Each one dresses up as you level.</p>
       <div className="grid grid-cols-5 gap-2.5 pt-1">
         {CHARACTER_KEYS.map((key) => (
           <CharTile key={key} character={key} level={level} on={(profile.archetype ?? "warrior") === key} onPick={() => chooseCharacter(key)} />
@@ -404,7 +404,7 @@ export default function ProfilePage() {
       <h2 id="apps" className="section-title mt-8 mb-1 scroll-mt-4" style={{ "--brick": "var(--lego-green)" } as React.CSSProperties}>
         Your apps
       </h2>
-      <p className="text-[13px] font-bold text-muted mb-3">Connected apps count your tasks, sleep, steps and workouts and pay XP on their own.</p>
+      <p className="text-[13px] font-bold text-[var(--ink)] mb-3">Connected apps count your tasks, sleep, steps and workouts and pay XP on their own.</p>
       <Connections onXp={reload} />
 
       <button className="btn-ghost w-full py-3.5 mt-8" onClick={signOut}>
