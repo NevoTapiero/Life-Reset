@@ -1351,7 +1351,7 @@ function Stage({
           {/* the haze scales with how much is in view: a house, the shop, or the whole town */}
           {/* the air: distance turns the sky's colour. Playing, the woods fade at their far edge; from the
               map, the hills and mountains sit in haze (the look of a city seen from high up) */}
-          <fog attach="fog" args={[mood?.horizon ?? sky, mood ? camDist * 1.05 + 40 : 200, mood ? camDist + Math.max(440, width * 1.4) : 520]} />
+          <fog attach="fog" args={[mood?.horizon ?? sky, mood ? camDist * 1.05 + 40 : 200, mood ? camDist + Math.max(440, width * 1.4) * (mood.night ? 2 : 1) : 520]} />
           {mood && <SkyDome mood={mood} />}
           <hemisphereLight args={[mood?.skyLight ?? "#fff8ef", "#7a9a5a", (mood?.ambient ?? 0.9) * 1.15]} />
           <primitive object={sun} position={[target.x, 0, target.z]} />

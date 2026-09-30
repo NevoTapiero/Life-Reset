@@ -39,6 +39,9 @@ Your life in a LEGO game. You practise and take care of yourself in real life = 
 4. ⚑ **Step by step.** One thing at a time, show it in the browser, commit, then the next. Don't pile up features.
 5. Then places that unlock (5) — only when I say go.
 
+## ⚑ THE LOOP (Iftach, 1 Oct evening): towards the reference render, alone, step by step
+Iftach's reference is a dense LEGO-city render (soft light, haze, tree-lined streets, props everywhere). He said: "I'm telling you the goal and you show me and yourself the step forward; do it alone in a loop; not changing what we do, but making it better." Each step: change → look in the browser (play + map, day and another mood) → commit → post → next. Done so far: light and air (cd8de85), benches/pots/road trees/ducks/balloon (16a9436), playground + water tower (e93628b), kerbs/jetty/boats (5fe87d9). Next candidates: crossings, sitting minifigs, more plaza life, seasonal touches; building variety needs more sets and Iftach's yes.
+
 ## ⚑ ON HOLD: the stations (1 Oct, evening)
 Iftach: "about the stations and how we do it, Nevo will talk to me soon, keep in mind we'll change it." Don't extend the stations (furniture on the plot, the tap-to-do buttons, the gold studs, the sign lines about them) until Iftach says what he and Nevo decided. Everything else (village, room, woods, roads, signs) carries on.
 
