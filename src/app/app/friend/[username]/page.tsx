@@ -6,7 +6,8 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import BrickLoader from "@/components/BrickLoader";
 import Icon from "@/components/Icon";
-import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
+import LegoIcon, { BrickColor, PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
+import MinifigCard from "@/components/MinifigCard";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import { CharacterKey, PERIOD_LABEL, PILLAR_ICONS, Period, STAT_ICONS, STAT_KEYS, Stats, formatDate, questBase, rankForXp } from "@/lib/game";
@@ -90,36 +91,35 @@ export default function FriendProfilePage() {
         <span className="display text-[17px]">Back</span>
       </button>
 
-      <section className="card tile-studs px-5 pt-6 pb-5 mt-4 text-center">
-        <div className="flex justify-center">
-          <PlayerAvatar photo={photoOf(file)} character={file.archetype} size={100} />
-        </div>
-        <div className="display text-[26px] mt-3">{file.username}</div>
-        <div className="flex items-center justify-center gap-2 mt-1.5">
-          <span className="chip chip-blue">Level {legoLevel(rank.tierIndex)}</span>
-          <span className="font-extrabold">{levelTitle(file.archetype, rank.tierIndex)}</span>
-          <span className="text-muted font-bold">· {rank.label}</span>
-        </div>
-        <p className="text-[12.5px] font-bold text-muted mt-2">Playing since {formatDate(new Date(file.member_since))}</p>
-        <Link href={`/app/town?visit=${encodeURIComponent(file.username)}`} className="btn-primary brick-yellow w-full py-3 mt-4">
-          <Icon name="home" size={17} strokeWidth={2.4} />
-          Visit their house
-        </Link>
-      </section>
+      <div className="mt-4">
+        <MinifigCard character={file.archetype} level={legoLevel(rank.tierIndex)} size={230}>
+          <PlayerAvatar photo={photoOf(file)} character={file.archetype} size={54} />
+          <span className="flex-1 min-w-0">
+            <span className="display block text-[24px] truncate">{file.username}</span>
+            <span className="block text-[13px] font-extrabold text-muted truncate">
+              {levelTitle(file.archetype, rank.tierIndex)} · {rank.label} · since {formatDate(new Date(file.member_since))}
+            </span>
+          </span>
+        </MinifigCard>
+      </div>
+      <Link href={`/app/town?visit=${encodeURIComponent(file.username)}`} className="btn-primary brick-yellow w-full py-3.5 mt-4 !text-[17px]">
+        <Icon name="home" size={18} strokeWidth={2.4} />
+        Visit their house
+      </Link>
 
       <div className="grid grid-cols-2 gap-3 mt-4">
-        <Tile label="Last 7 days" value={`${file.weekly_xp.toLocaleString()} XP`} brick="var(--lego-green)" />
-        <Tile label="All time" value={`${file.xp.toLocaleString()} XP`} brick="var(--lego-blue)" />
-        <Tile label="Streak" value={`${file.streak_current} ${file.streak_current === 1 ? "day" : "days"}`} brick="var(--lego-orange)" />
-        <Tile label="Best streak" value={`${file.streak_best} ${file.streak_best === 1 ? "day" : "days"}`} brick="var(--lego-red)" />
+        <Tile label="Last 7 days" value={`${file.weekly_xp.toLocaleString()} XP`} color="green" icon="star" />
+        <Tile label="All time" value={`${file.xp.toLocaleString()} XP`} color="blue" icon="chart" />
+        <Tile label="Streak" value={`${file.streak_current} ${file.streak_current === 1 ? "day" : "days"}`} color="orange" icon="flame" />
+        <Tile label="Best streak" value={`${file.streak_best} ${file.streak_best === 1 ? "day" : "days"}`} color="red" icon="trophy" />
       </div>
 
       {/* the five stats */}
       <div className="card p-4 mt-3 grid grid-cols-5">
         {STAT_KEYS.map((k) => (
           <div key={k} className="text-center">
-            <div className="flex justify-center text-muted mb-1">
-              <Icon name={STAT_ICONS[k]} size={18} strokeWidth={2} />
+            <div className="flex justify-center mb-1">
+              <LegoIcon name={STAT_ICONS[k]} color={(["green", "azure", "blue", "red", "orange"] as BrickColor[])[STAT_KEYS.indexOf(k)]} size={30} />
             </div>
             <div className="display text-[19px]">{file.stats[k] ?? 0}</div>
             <div className="hud-label mt-0.5">{k}</div>
@@ -178,13 +178,13 @@ export default function FriendProfilePage() {
   );
 }
 
-function Tile({ label, value, brick }: { label: string; value: string; brick: string }) {
+function Tile({ label, value, color, icon }: { label: string; value: string; color: BrickColor; icon: string }) {
   return (
-    <div className="card px-3.5 py-3 flex items-center gap-3 min-w-0">
-      <span className="w-2.5 self-stretch rounded-md flex-none" style={{ background: brick, boxShadow: "inset 0 -3px 0 rgb(0 0 0 / 0.2)" }} />
+    <div className="card px-3 py-3 flex items-center gap-2.5 min-w-0">
+      <LegoIcon name={icon} color={color} size={36} />
       <span className="min-w-0">
         <span className="block text-[12px] font-extrabold text-muted">{label}</span>
-        <span className="display block text-[18px] truncate">{value}</span>
+        <span className="display block text-[17px] truncate">{value}</span>
       </span>
     </div>
   );

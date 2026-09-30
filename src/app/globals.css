@@ -88,8 +88,9 @@ html, body {
   overflow-x: clip;
 }
 
+/* no body background: html paints the colour and the fixed baseplate
+   (.glow-scene, z-index -1) sits above that, which a body background would hide */
 body {
-  background: var(--bg);
   color: var(--ink);
   font-family: var(--font-body), system-ui, sans-serif;
   font-size: 15.5px;
@@ -104,7 +105,10 @@ body {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.55) 0 3.2px, var(--plate) 3.8px 5.6px, transparent 6.2px) 0 0 / 22px 22px,
+    /* each stud: a light top with a highlight, over a soft shadow */
+    radial-gradient(circle at 44% 40%, rgb(255 255 255 / 0.75) 0 1.6px, transparent 2.2px) 0 0 / 24px 24px,
+    radial-gradient(circle at 50% 50%, #c4dcf4 0 5.4px, transparent 6px) 0 0 / 24px 24px,
+    radial-gradient(circle at 54% 57%, #93b9e0 0 6px, transparent 6.6px) 0 0 / 24px 24px,
     linear-gradient(180deg, var(--bg-top) 0%, var(--bg) 38%, var(--bg) 100%);
 }
 .glow-scene::after {
