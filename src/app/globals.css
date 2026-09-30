@@ -1665,3 +1665,8 @@ body {
 .card-file dd { font-weight: 800; text-align: right; }
 .card-file-bio { margin-top: auto; padding-top: 8px; padding-right: 36px; border-top: 2px dashed var(--lego-tan); font-size: 13px; font-weight: 700; color: var(--muted); line-height: 1.45; }
 @media (prefers-reduced-motion: reduce) { .card-stage-inner { transition: none; } }
+
+/* a chest with loot in it can't sit still */
+.chest-wobble { display: inline-block; transform-origin: 50% 100%; animation: chestWobble 2.8s ease-in-out infinite; }
+@keyframes chestWobble { 0%, 70%, 100% { transform: none; } 74% { transform: rotate(-7deg) translateY(-2px); } 78% { transform: rotate(6deg) translateY(-3px); } 82% { transform: rotate(-4deg); } 86% { transform: rotate(2deg); } 90% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .chest-wobble { animation: none; } }

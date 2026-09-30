@@ -75,6 +75,13 @@ const PRINTS: Record<string, React.ReactNode> = {
     </>
   ),
   star: <path d="m12 4.8 2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5-3.6-3.5 5-.7Z" />,
+  chest: (
+    <>
+      <path d="M5 11.5h14v6.5H5Z" />
+      <path d="M5 11.5c0-3.4 2.6-5.5 7-5.5s7 2.1 7 5.5" />
+      <path d="M10.4 10.2h3.2v3.4h-3.2Z" fill="currentColor" />
+    </>
+  ),
   tasks: <path d="M6 7.5l1.5 1.5L10 6.5M12.5 8h6M6 12.5 7.5 14 10 11.5M12.5 13h6M6.5 17.5h3M12.5 17.5h6" />,
   moon: <path d="M18.5 14.5A7 7 0 0 1 9.5 5.5a7.2 7.2 0 1 0 9 9Z" />,
   dumbbell: <path d="M7 8v8M4.5 9.8v4.4M17 8v8M19.5 9.8v4.4M7 12h10" />,
