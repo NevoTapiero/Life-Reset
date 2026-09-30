@@ -63,17 +63,21 @@ export default function ProfilePage() {
   }
   const fileRef = useRef<HTMLInputElement>(null);
   const [today, setToday] = useState<string | null>(null);
+  // every mission ever checked is a brick in your build
+  const [bricks, setBricks] = useState<number | null>(null);
 
   const reload = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData.user?.id;
     if (!uid) return;
     setEmail(userData.user?.email ?? null);
-    const [{ data: prof }, { data: day }] = await Promise.all([
+    const [{ data: prof }, { data: day }, { count }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", uid).single(),
       supabase.rpc("app_today"),
+      supabase.from("quest_completions").select("quest_id", { count: "exact", head: true }).eq("user_id", uid),
     ]);
     setToday(day ? String(day) : null);
+    setBricks(count ?? null);
     setProfile(prof as Profile);
     setNameDraft((prof as Profile)?.username ?? "");
   }, []);
@@ -198,9 +202,9 @@ export default function ProfilePage() {
             character={profile.archetype}
             level={level}
             title={levelTitle(profile.archetype, rank.tierIndex)}
-            rank={rank.label}
             stats={profile.stats}
             bestStreak={best}
+            bricks={bricks}
             since={profile.created_at}
           />
         }
@@ -292,7 +296,8 @@ export default function ProfilePage() {
         <Stat label="Streak" value={`${streak} ${streak === 1 ? "day" : "days"}`} color="orange" icon="flame" />
         <Stat label="Best streak" value={`${best} ${best === 1 ? "day" : "days"}`} color="red" icon="trophy" />
         <Stat label="Gold" value={(profile.gold ?? 0).toLocaleString()} color="yellow" icon="stud" />
-        <Stat label="Playing since" value={new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(profile.created_at)).replace(" 20", " ")} color="azure" icon="calendar" />
+        {bricks !== null && <Stat label="Bricks built" value={bricks.toLocaleString()} color="green" icon="check" />}
+        <Stat label="Playing since" value={new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(profile.created_at)).replace(" 20", " ")} color="azure" icon="calendar" wide={bricks !== null} />
       </section>
 
       <div className="mt-4">
@@ -418,9 +423,9 @@ export default function ProfilePage() {
   );
 }
 
-function Stat({ label, value, color, icon }: { label: string; value: string; color: BrickColor; icon: string }) {
+function Stat({ label, value, color, icon, wide }: { label: string; value: string; color: BrickColor; icon: string; wide?: boolean }) {
   return (
-    <div className="card px-3 py-3 flex items-center gap-2.5 min-w-0">
+    <div className={`card px-3 py-3 flex items-center gap-2.5 min-w-0 ${wide ? "col-span-2" : ""}`}>
       <LegoIcon name={icon} color={color} size={36} />
       <span className="min-w-0">
         <span className="block text-[12px] font-extrabold text-muted">{label}</span>
