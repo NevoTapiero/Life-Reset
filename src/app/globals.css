@@ -1670,3 +1670,7 @@ body {
 .chest-wobble { display: inline-block; transform-origin: 50% 100%; animation: chestWobble 2.8s ease-in-out infinite; }
 @keyframes chestWobble { 0%, 70%, 100% { transform: none; } 74% { transform: rotate(-7deg) translateY(-2px); } 78% { transform: rotate(6deg) translateY(-3px); } 82% { transform: rotate(-4deg); } 86% { transform: rotate(2deg); } 90% { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .chest-wobble { animation: none; } }
+
+/* the stud counter while it rolls up */
+.stud-rolling { display: inline-block; color: var(--lego-yellow); animation: studRoll 180ms ease-in-out infinite alternate; }
+@keyframes studRoll { from { transform: scale(1); } to { transform: scale(1.12); } }

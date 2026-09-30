@@ -14,6 +14,7 @@ import BuildYourDay from "@/components/BuildYourDay";
 import { GoldBrick } from "@/components/GoldBricks";
 import { goldBricks, saveSeenGold, seenGold, type GoldBrick as GoldBrickT } from "@/lib/goldBricks";
 import Minifig from "@/components/Minifig";
+import StudCount from "@/components/StudCount";
 import RankUp, { BrickBurst } from "@/components/RankUp";
 import { brickSound } from "@/lib/brickSound";
 import { energyFrom, todayKey, type LedgerMeta } from "@/lib/energy";
@@ -238,7 +239,7 @@ export default function HomePage() {
               <div className="hud-label">{greeting()}</div>
               <Link href="/app/town" aria-label={`${(p.gold ?? 0).toLocaleString()} gold studs: spend them in your world`} className="stud-counter" title="Gold studs: spend them in your world">
                 <span className="stud-spin" aria-hidden />
-                {(p.gold ?? 0).toLocaleString()}
+                <StudCount value={p.gold ?? 0} storeKey={`sl-studs-seen-${p.id}`} />
               </Link>
             </div>
             <div className="display text-[25px] truncate leading-tight mt-0.5">{p.username}</div>
