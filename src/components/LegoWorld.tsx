@@ -682,10 +682,15 @@ function Minifig({
   const hopAt = useRef(-10); // frame-clock time the current hop started
   const base = useRef<THREE.Quaternion[]>([]);
   const limbs = useRef<THREE.Quaternion[]>([]);
+  const gait = useRef({ blend: 0, phase: 0 }); // 0 standing .. 1 walking; where it is in the step
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime;
     if (!model || !root.current) return;
+    // ease into and out of the walk (no snapping between standing and striding)
+    const g = gait.current;
+    g.blend += ((walking?.current ? 1 : 0) - g.blend) * Math.min(1, dt * 10);
+    g.phase += dt * stride * (0.4 + 0.6 * g.blend);
     // the head and hair turn together, glancing around
     const head = model.getObjectByName("head");
     const hair = model.getObjectByName("hair");
@@ -695,13 +700,16 @@ function Minifig({
       head.quaternion.copy(base.current[0]).premultiply(yaw);
       hair.quaternion.copy(base.current[1]).premultiply(yaw);
     }
-    // walking: legs and arms (with hands and whatever they hold) swing, opposite each other
+    // the LEGO-game walk: stiff legs swinging from the hips, arms (with hands and whatever
+    // they hold) swinging the other way, shorter strides when strolling, longer when running
     const parts = ["legL", "legR", "swingL", "swingR"].map((n) => model.getObjectByName(n));
+    const reach = Math.min(0.95, 0.3 + stride * 0.032) * g.blend;
+    const s = Math.sin(g.phase);
     if (parts.every(Boolean)) {
       if (!limbs.current.length) limbs.current = parts.map((p) => p!.quaternion.clone());
-      const swing = walking?.current ? Math.sin(t * stride) * (stride > 12 ? 0.9 : 0.6) : 0;
+      const swing = [s * reach, -s * reach, -s * reach * 0.8, s * reach * 0.8]; // legL legR armL armR
       parts.forEach((p, k) =>
-        p!.quaternion.copy(limbs.current[k]).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), k % 2 ? swing : -swing)),
+        p!.quaternion.copy(limbs.current[k]).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), swing[k])),
       );
       // waving: one arm up (about the shoulder), rocking side to side; a few seconds, then a rest
       if (wave && !walking?.current && t % 5 < 3) {
@@ -716,8 +724,11 @@ function Minifig({
       hopAt.current = t;
     }
     const h = t - hopAt.current;
-    root.current.position.y = at[1] - (h < 0.45 ? Math.sin((h / 0.45) * Math.PI) * 14 : 0);
-    root.current.rotation.y = turn + (walking?.current ? 0 : Math.sin(t * 0.3) * 0.25);
+    // a bounce on every step and a waddle from foot to foot (LDraw is -Y up)
+    const bounce = Math.abs(s) * (1.5 + stride * 0.15) * g.blend;
+    root.current.position.y = at[1] - bounce - (h < 0.45 ? Math.sin((h / 0.45) * Math.PI) * 14 : 0);
+    root.current.rotation.z = s * 0.075 * g.blend;
+    root.current.rotation.y = turn + Math.sin(t * 0.3) * 0.25 * (1 - g.blend);
   });
 
   if (!model) return null;
@@ -1372,7 +1383,6 @@ export function LegoTown({
         {town && <primitive object={town} />}
         {built && !settled && <Settle onSettled={() => setSettled(true)} />}
         <InstancedParts placements={placementsIn(townInstances(residents), season)} />
-        <Falling season={season} />
         {/* the shop, its front to the camera's side of the plaza */}
         {/* the shop at the back of the plaza, the fountain and the rest of the square in front of it */}
         <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} lit={mood.night} build={settled ? 0.1 : null} />
@@ -1783,11 +1793,12 @@ function Car({ car, start, night }: { car: Baked; start: number; night: boolean 
 
 // ---- people strolling round the fountain ----
 const STROLLERS: { look: MinifigLook; r: number; speed: number; start: number }[] = [
-  // between the fountain's rim (80) and the benches (130): spread round the circle
-  { look: { skin: COL.yellow, hair: COL.reddishBrown, torso: COL.red, legs: COL.blue }, r: 106, speed: 0.22, start: 0 },
-  { look: { skin: COL.yellow, hair: COL.black, torso: COL.white, legs: COL.darkGrey }, r: 112, speed: 0.22, start: Math.PI },
-  { look: { skin: COL.yellow, hair: COL.yellow, torso: COL.green, legs: COL.tan }, r: 104, speed: -0.17, start: Math.PI / 2 },
-  { look: { skin: COL.yellow, hair: COL.darkOrange, torso: COL.purple, legs: COL.black }, r: 110, speed: 0.15, start: (3 * Math.PI) / 2 },
+  // between the fountain's rim (80) and the benches (130), a quarter apart, all the same way at
+  // the same pace, so they never walk into each other
+  { look: { skin: COL.yellow, hair: COL.reddishBrown, torso: COL.red, legs: COL.blue }, r: 108, speed: 0.3, start: 0 },
+  { look: { skin: COL.yellow, hair: COL.black, torso: COL.white, legs: COL.darkGrey }, r: 108, speed: 0.3, start: Math.PI },
+  { look: { skin: COL.yellow, hair: COL.yellow, torso: COL.green, legs: COL.tan }, r: 108, speed: 0.3, start: Math.PI / 2 },
+  { look: { skin: COL.yellow, hair: COL.darkOrange, torso: COL.purple, legs: COL.black }, r: 108, speed: 0.3, start: (3 * Math.PI) / 2 },
 ];
 // Joggers doing laps of the streets round the plaza (it's a fitness town): a
 // few by day, more in the morning and evening, all home after dark.
@@ -1797,7 +1808,7 @@ const JOGGERS: { look: MinifigLook; speed: number; start: number }[] = [
   { look: { skin: COL.yellow, hair: COL.yellow, torso: COL.brightGreen, legs: COL.darkGrey }, speed: 360, start: 3100 },
   { look: { skin: COL.yellow, hair: COL.darkOrange, torso: COL.pink, legs: COL.black }, speed: 310, start: 2300 },
 ];
-const RUNNING = { current: true };
+const MOVING = { current: true }; // always on the move
 function Jogger({ look, speed, start }: (typeof JOGGERS)[number]) {
   const root = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
@@ -1809,14 +1820,14 @@ function Jogger({ look, speed, start }: (typeof JOGGERS)[number]) {
   });
   return (
     <group ref={root}>
-      <Minifig look={look} at={[0, 0, 0]} walking={RUNNING} stride={16} />
+      <Minifig look={look} at={[0, 0, 0]} walking={MOVING} stride={24} />
     </group>
   );
 }
 
 // You, walking round town to wherever you look: your door, a friend's door
 // (beside them), the shop. Change your mind mid-walk and you turn round there.
-const WALK_SPEED = 260; // LDU a second
+const WALK_SPEED = 180; // LDU a second: brisk, with legs that keep up (stride 16)
 function Walker({ look, to, turn, wave = false }: { look: MinifigLook | Figure; to: P3[]; turn: number; wave?: boolean }) {
   const root = useRef<THREE.Group>(null);
   const walking = useRef(false);
@@ -1838,9 +1849,14 @@ function Walker({ look, to, turn, wave = false }: { look: MinifigLook | Figure; 
     if (!s || !o) return;
     const w = s.walk;
     walking.current = !!w;
+    // turn quickly but smoothly (never snap round a corner), the short way round
+    const face = (yaw: number) => {
+      const d = Math.atan2(Math.sin(yaw - o.rotation.y), Math.cos(yaw - o.rotation.y));
+      o.rotation.y += d * Math.min(1, dt * 12);
+    };
     if (!w) {
       o.position.set(...s.pos);
-      o.rotation.y = turn;
+      face(turn);
       return;
     }
     let step = WALK_SPEED * Math.min(dt, 0.1);
@@ -1863,11 +1879,11 @@ function Walker({ look, to, turn, wave = false }: { look: MinifigLook | Figure; 
     const k = w.f / len;
     s.pos = [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
     o.position.set(...s.pos);
-    o.rotation.y = Math.atan2(b[0] - a[0], b[2] - a[2]);
+    face(Math.atan2(b[0] - a[0], b[2] - a[2]));
   });
   return (
     <group ref={root}>
-      <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} />
+      <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} stride={16} />
     </group>
   );
 }
@@ -1883,7 +1899,7 @@ function Stroller({ look, r, speed, start }: (typeof STROLLERS)[number]) {
   });
   return (
     <group ref={root}>
-      <Minifig look={look} at={[0, 0, 0]} />
+      <Minifig look={look} at={[0, 0, 0]} walking={MOVING} stride={7} />
     </group>
   );
 }
@@ -2084,58 +2100,6 @@ function StudGround({
 
 // The grass by season: fresh in spring, LEGO green in summer, olive in autumn, snow in winter.
 const GRASS: Record<Season, string> = { spring: "#58ab41", summer: "#4b9f4a", autumn: "#80a83e", winter: "#eef2f6" };
-
-// What drifts down over the town: blossom in spring, leaves in autumn, snow in
-// winter (summer is clear). Small flat tiles tumbling and swaying as they fall,
-// wrapping back to the top; LDraw space, so -y is up.
-const FALLING = 900;
-const FALL: Record<Season, { colors: string[]; size: number; speed: number } | null> = {
-  spring: { colors: ["#ffc0dc", "#ffffff"], size: 5, speed: 18 },
-  summer: null,
-  autumn: { colors: ["#e8742a", "#f3b23a", "#b8401f", "#d2912c"], size: 7, speed: 26 },
-  winter: { colors: ["#ffffff"], size: 5, speed: 22 },
-};
-let flakeSeed = 11;
-const flakeRnd = () => (flakeSeed = (flakeSeed * 16807) % 2147483647) / 2147483647;
-const FLAKES = Array.from({ length: FALLING }, () => ({
-  x: (flakeRnd() * 2 - 1) * TOWN_HALF * 20,
-  z: (flakeRnd() * 2 - 1) * TOWN_HALF * 20,
-  y: flakeRnd(),
-  sway: flakeRnd() * 6,
-  spin: 0.5 + flakeRnd() * 2,
-}));
-function Falling({ season }: { season: Season }) {
-  const fall = FALL[season];
-  const mesh = useRef<THREE.InstancedMesh>(null);
-  const flakes = FLAKES;
-  useEffect(() => {
-    if (!mesh.current || !fall) return;
-    const c = new THREE.Color();
-    flakes.forEach((_, i) => mesh.current!.setColorAt(i, c.set(fall.colors[i % fall.colors.length])));
-    mesh.current.instanceColor!.needsUpdate = true;
-  }, [fall, flakes]);
-  const o = useMemo(() => new THREE.Object3D(), []);
-  useFrame(({ clock }) => {
-    if (!mesh.current || !fall) return;
-    const t = clock.elapsedTime;
-    const top = 700; // LDU above the ground
-    flakes.forEach((f, i) => {
-      const h = top - ((f.y * top + t * fall.speed * (0.7 + f.spin * 0.2)) % top);
-      o.position.set(f.x + Math.sin(t * 0.8 + f.sway) * 18, -h, f.z + Math.cos(t * 0.6 + f.sway) * 12);
-      o.rotation.set(t * f.spin, t * f.spin * 0.7, f.sway);
-      o.updateMatrix();
-      mesh.current!.setMatrixAt(i, o.matrix);
-    });
-    mesh.current.instanceMatrix.needsUpdate = true;
-  });
-  if (!fall) return null;
-  return (
-    <instancedMesh key={season} ref={mesh} args={[undefined, undefined, FALLING]} frustumCulled={false}>
-      <boxGeometry args={[fall.size, fall.size * 0.2, fall.size]} />
-      <meshStandardMaterial roughness={0.8} side={THREE.DoubleSide} />
-    </instancedMesh>
-  );
-}
 
 // Hills beyond the forest, built the LEGO way: terraces of stacked layers,
 // each a little smaller than the one below (like plates stepped up into a

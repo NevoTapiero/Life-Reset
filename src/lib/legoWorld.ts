@@ -849,7 +849,7 @@ export function rideSpot(lot: Lot, level: number): P3 {
 }
 /** from the street on the plaza's left, between the planters and the bench, to the shop's front;
  *  `k` of 0..3 stands further along the front (so friends shopping don't stand in each other) */
-export const shopWalk = (k = 0): P3[] => [[-ST, 0, 290], [-150, 0, 290], [-120 + 45 * k, 0, 250]];
+export const shopWalk = (k = 0): P3[] => [[-ST, 0, 290], [-150, 0, 290], [-120 + 45 * k, 0, 222]]; // outside the strollers' circle
 export const SHOP_WALK = shopWalk(0);
 const onX = (p: P3) => Math.abs(Math.abs(p[0]) - ST) < 1; // on a street running along z
 const onZ = (p: P3) => Math.abs(Math.abs(p[2]) - ST) < 1;
