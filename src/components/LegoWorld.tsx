@@ -3,8 +3,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { ContactShadows, Environment, Lightformer, OrbitControls } from "@react-three/drei";
-import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, TiltShift2, ToneMapping, Vignette } from "@react-three/postprocessing";
+import { ContactShadows, Environment, Lightformer, OrbitControls, PerformanceMonitor } from "@react-three/drei";
+import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import * as THREE from "three";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
@@ -429,10 +429,13 @@ function measureRooms(scene: THREE.Object3D) {
 // which it is clipped away -- the roof comes off and you look down into the
 // rooms, dollhouse style.
 // `lit`: after dark the window glass glows warm -- somebody's home.
-// `build`: it builds itself (after this many seconds): it rises from the
-// ground up while bricks shower down onto it -- when the town opens, and
-// again whenever the house changes (a level up).
-const BUILD_TIME = 2.2;
+// `build`: it builds itself (after this many seconds; null: not yet, keep it
+// hidden): it goes up a row of bricks at a time while bricks shower down onto
+// each new row -- when the town opens, and again whenever the house changes
+// (a level up).
+const BUILD_TIME = 2.4;
+const ROW = 24; // LDU: one brick
+const OPEN = 1e5; // a clipping plane that clips nothing
 function Building({
   url,
   at,
@@ -444,7 +447,7 @@ function Building({
   at: [number, number, number];
   cut?: number;
   lit?: boolean;
-  build?: number;
+  build?: number | null;
 }) {
   const [model, setModel] = useState<{
     url: string;
@@ -455,7 +458,11 @@ function Building({
   // the house that has finished building (none yet: this one still has to go up)
   const [built, setBuilt] = useState<string | null>(build === undefined ? url : null);
   const building = build !== undefined && built !== url;
+  // Both clipping planes are always on every material (clipping nothing when not
+  // in use): switching planes on and off recompiles the shaders, which is what
+  // made the town hitch as each house started and finished building.
   const rise = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), -1), []);
+  const lid = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), OPEN), []);
   const progress = useRef(0);
   const started = useRef<number | null>(null);
   useEffect(() => {
@@ -484,24 +491,36 @@ function Building({
   }, [url]);
   useEffect(() => {
     if (!model) return;
-    const planes = [...(cut === undefined ? [] : [new THREE.Plane(new THREE.Vector3(0, -1, 0), cut)]), ...(building ? [rise] : [])];
     model.obj.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       const m = mesh.material as THREE.Material;
-      m.clippingPlanes = planes;
+      m.clippingPlanes = [lid, rise];
       m.clipShadows = true;
       m.needsUpdate = true;
     });
-  }, [model, cut, building, rise]);
+  }, [model, lid, rise]);
+  // the roof off (you're inside): just move the lid
+  useEffect(() => void lid.set(lid.normal, cut ?? OPEN), [lid, cut]);
   // going up: everything below the rising plane is there (three's y; the LDraw
   // group is scaled by LDU and -Y up, so the model's top is -box.min.y * LDU)
   useFrame(({ clock }) => {
-    if (!building || !model || model.url !== url) return;
-    started.current ??= clock.elapsedTime + (build ?? 0);
+    if (!model || model.url !== url) return;
+    if (!building) {
+      if (rise.constant !== OPEN) rise.set(rise.normal, OPEN);
+      return;
+    }
+    if (typeof build !== "number") {
+      rise.set(rise.normal, -1); // waiting its turn: nothing shows yet
+      return;
+    }
+    started.current ??= clock.elapsedTime + build;
     const k = Math.min(1, Math.max(0, (clock.elapsedTime - started.current) / BUILD_TIME));
     progress.current = k;
-    rise.set(rise.normal, k === 0 ? -1 : k * (-model.box.min.y * LDU + 0.5));
+    // a whole row of bricks at a time, the way LEGO goes up
+    const rows = Math.ceil(-model.box.min.y / ROW);
+    const row = k === 0 ? 0 : Math.min(rows, Math.floor(k * rows) + 1);
+    rise.set(rise.normal, row === 0 ? -1 : row * ROW * LDU + 0.02);
     if (k === 1) {
       started.current = null;
       setBuilt(url);
@@ -562,11 +581,14 @@ function BrickShower({ box, progress }: { box: THREE.Box3; progress: React.RefOb
     if (!mesh.current) return;
     const k = progress.current ?? 0;
     const top = -box.min.y;
+    const rows = Math.ceil(top / ROW);
     bricks.forEach((b, i) => {
       const fall = 0.12; // share of the build a brick spends falling
       const f = (k - (b.at - fall)) / fall; // 0 when it starts falling, 1 when it lands
       const on = k > 0 && f > 0 && f < 1;
-      o.position.set(b.x, on ? -(b.at * top + (1 - f * f) * 500) : 1e5, b.z);
+      // it lands on the row that goes up when it does
+      const land = Math.min(rows, Math.floor(b.at * rows) + 1) * ROW;
+      o.position.set(b.x, on ? -(land + (1 - f * f) * 500) : 1e5, b.z);
       o.rotation.set(0, b.turn + f * 2, 0);
       o.updateMatrix();
       mesh.current!.setMatrixAt(i, o.matrix);
@@ -596,7 +618,7 @@ function SpunHouse({ level, id, spin }: { level: number; id?: string; spin: numb
 }
 
 // A player's house on their plot: which of the level's houses is theirs comes from their name.
-function House({ level, name, id, cut, lit, build }: { level: number; name?: string; id?: string; cut?: number; lit?: boolean; build?: number }) {
+function House({ level, name, id, cut, lit, build }: { level: number; name?: string; id?: string; cut?: number; lit?: boolean; build?: number | null }) {
   const house = (id && houseById(id)) || houseFor(level, name);
   return <Building url={houseUrl(house)} at={houseAt(houseSpec(level), house)} cut={cut} lit={lit} build={build} />;
 }
@@ -963,6 +985,8 @@ function Stage({
   children: React.ReactNode;
 }) {
   const [sun] = useState(() => new THREE.Object3D());
+  // full sharpness (up to 2x) while the device keeps up; a step down if it can't
+  const [dpr, setDpr] = useState(2);
   const controls = useRef<OrbitControlsImpl>(null);
   const pinEls = useRef(new Map<string, HTMLDivElement>());
   // keep the camera over the town: pull the target back inside, camera with it
@@ -979,7 +1003,7 @@ function Stage({
       <div className="relative w-full h-full">
         <Canvas
           shadows
-          dpr={[1, 1.5]}
+          dpr={[1, dpr]}
           camera={{ fov, near: 1, far: far }}
           gl={{ antialias: true }}
           onCreated={({ gl }) => {
@@ -990,6 +1014,7 @@ function Stage({
             gl.toneMappingExposure = 1.05;
           }}
         >
+          <PerformanceMonitor onDecline={() => setDpr(1.25)} onIncline={() => setDpr(2)} />
           <color attach="background" args={[mood?.horizon ?? sky]} />
           {/* the haze scales with how much is in view: a house, the shop, or the whole town */}
           <fog attach="fog" args={[mood?.horizon ?? sky, Math.max(200, width * 3.2), Math.max(520, width * 8)]} />
@@ -1056,12 +1081,11 @@ function Stage({
           />
           {/* after the controls, so it can move them */}
           <FitCamera target={target} width={width} dir={dir} controls={controls} />
-          {/* outdoors, a toy on the table: tilt-shift blur above and below the middle band,
-              lamps and lit windows glowing after dark, a soft vignette. (The effects draw off
-              screen, so the neutral tone mapping moves in here.) */}
+          {/* outdoors: lamps and lit windows glowing after dark, a soft vignette. Everything
+              stays sharp (no blur: it read as low quality). The effects draw off screen, so the
+              neutral tone mapping moves in here. */}
           {mood && (
             <EffectComposer multisampling={4}>
-              <TiltShift2 blur={0.12} taper={0.55} start={[0, 0.5]} end={[1, 0.5]} samples={8} />
               <Bloom luminanceThreshold={0.85} luminanceSmoothing={0.2} intensity={mood.night ? 1.1 : 0.25} mipmapBlur />
               <Vignette offset={0.35} darkness={0.28} />
               <ToneMapping mode={ToneMappingMode.NEUTRAL} />
@@ -1163,11 +1187,15 @@ export function LegoTown({
   // the town opens on the whole square, then (once it's built) glides down to your house
   const [focus, setFocus] = useState(OVERVIEW);
   const built = !!town;
+  // "settled": the town has loaded and frames come smoothly (parsing is done).
+  // Only then does it build itself, from above, and a moment later the camera
+  // glides down to your house.
+  const [settled, setSettled] = useState(false);
   useEffect(() => {
-    if (!built) return;
-    const t = setTimeout(() => setFocus((f) => (f === OVERVIEW ? meIndex : f)), 1800);
+    if (!settled) return;
+    const t = setTimeout(() => setFocus((f) => (f === OVERVIEW ? meIndex : f)), 3000);
     return () => clearTimeout(t);
-  }, [built, meIndex]);
+  }, [settled, meIndex]);
   const [inside, setInside] = useState<number | null>(null);
   // where your minifig is walking to: the last place you looked at
   const [dest, setDest] = useState(meIndex);
@@ -1320,11 +1348,12 @@ export function LegoTown({
         ]}
       >
         {town && <primitive object={town} />}
+        {built && !settled && <Settle onSettled={() => setSettled(true)} />}
         <InstancedParts placements={placementsIn(townInstances(residents), season)} />
         <Falling season={season} />
         {/* the shop, its front to the camera's side of the plaza */}
         {/* the shop at the back of the plaza, the fountain and the rest of the square in front of it */}
-        <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} lit={mood.night} build={0.3} />
+        <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} lit={mood.night} build={settled ? 0.1 : null} />
         {plaza && <primitive object={plaza} />}
         {decor && <primitive object={decor} />}
         <Slabs slabs={FLATS} />
@@ -1351,8 +1380,9 @@ export function LegoTown({
         ))}
         {residents.map((res, i) => (
           <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
-            {/* the town builds itself as it opens: the shop, then each house in turn */}
-            <House level={res.level} name={res.name} cut={i === inside ? CUT : undefined} lit={mood.night} build={0.9 + i * 0.45} />
+            {/* the town builds itself once it's loaded (not while it's still loading, which made
+                it stutter): the shop, then each house in turn */}
+            <House level={res.level} name={res.name} cut={i === inside ? CUT : undefined} lit={mood.night} build={settled ? 0.5 + i * 0.35 : null} />
           </group>
         ))}
         {residents.map((res, i) => {
@@ -1469,6 +1499,25 @@ const ROOM_VIEW = new THREE.Vector3(0, 0.62, -1).normalize();
 const ROOM_BOUNDS = new THREE.Box3(new THREE.Vector3(-8, 0, -8), new THREE.Vector3(8, 6, 8));
 // how high (three units, about four bricks) the walls stay when you're inside
 const CUT = 4.6;
+
+// Calls back once frames have come smoothly for a while (nothing heavy is
+// being parsed any more): the moment to start animations that must not stutter.
+function Settle({ onSettled }: { onSettled: () => void }) {
+  const smooth = useRef(0);
+  const waited = useRef(0);
+  const done = useRef(false);
+  useFrame((_, dt) => {
+    if (done.current) return;
+    smooth.current = dt < 1 / 30 ? smooth.current + 1 : 0;
+    waited.current += dt;
+    // a slow phone may never get that smooth: go anyway after 4 s
+    if (smooth.current >= 20 || waited.current > 4) {
+      done.current = true;
+      onSettled();
+    }
+  });
+  return null;
+}
 
 // A handful of little LEGO bricks bursting out of the middle of whatever it's
 // inside (a button, the screen) and tumbling down: something good happened.
@@ -1940,26 +1989,32 @@ let studs: THREE.CanvasTexture | null = null;
 function studTexture() {
   if (studs) return studs;
   const c = document.createElement("canvas");
-  c.width = c.height = 64;
+  // drawn at 128 px a stud and scaled, so studs stay crisp close up
+  c.width = c.height = 128;
   const g = c.getContext("2d")!;
+  g.scale(2, 2);
   g.fillStyle = "#ffffff";
   g.fillRect(0, 0, 64, 64);
-  // the stud's shadow, then its top, lit from the top left
+  // the stud's shadow, then its side ring, then its top, lit from the top left
   g.fillStyle = "rgba(0,0,0,0.22)";
   g.beginPath();
   g.arc(35, 35, 19, 0, Math.PI * 2);
   g.fill();
-  const top = g.createRadialGradient(26, 26, 2, 32, 32, 19);
+  g.fillStyle = "#cfcfcf";
+  g.beginPath();
+  g.arc(32, 33, 18.5, 0, Math.PI * 2);
+  g.fill();
+  const top = g.createRadialGradient(26, 26, 2, 32, 32, 18);
   top.addColorStop(0, "#ffffff");
-  top.addColorStop(1, "#dcdcdc");
+  top.addColorStop(1, "#e2e2e2");
   g.fillStyle = top;
   g.beginPath();
-  g.arc(32, 32, 18, 0, Math.PI * 2);
+  g.arc(32, 31.5, 17, 0, Math.PI * 2);
   g.fill();
   studs = new THREE.CanvasTexture(c);
   studs.colorSpace = THREE.SRGBColorSpace;
   studs.wrapS = studs.wrapT = THREE.RepeatWrapping;
-  studs.anisotropy = 8;
+  studs.anisotropy = 16; // sharp at a glancing angle, not smeared (clamped to what the GPU has)
   return studs;
 }
 function StudGround({
