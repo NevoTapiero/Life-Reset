@@ -1861,12 +1861,12 @@ export function LegoTown({
         onPick={placing || following ? undefined : pick}
         overlay={
           <>
-            <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} />
+            <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} shadows={following} />
             {following && <NearStuds follow={me3} grass={grass} lots={[...lots, ...emptyLots]} />}
             {/* the ground: grass everywhere (the road, ring and paths are Slabs on it), the paved
                 plaza, and each plot turned its own way. Layers sit 0.1 apart (two LDU): the map
                 camera's depth buffer can't tell closer ones apart. */}
-            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.3} flat />
+            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.3} />
             <StudGround at={[0, 0]} size={PLAZA} color="#a3a7ad" radius={8} />
             {[...lots, ...emptyLots].map((lot, i) => (
               <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} yaw={-lot.yaw} />
@@ -2741,17 +2741,30 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
         if (b.yaw) g.rotateY(b.yaw);
         g.translate(b.x, -(b.y ?? 0) - b.h / 2, b.z);
       }
-      if (!byColor.has(b.color)) byColor.set(b.color, []);
-      byColor.get(b.color)!.push(g.index ? g.toNonIndexed() : g); // extruded shapes have no index; a merge needs all alike
+      if (b.studs) {
+        // studs a stud apart: a shape's UVs are its LDU coordinates, a box's run 0..1 over each face
+        const uv = g.attributes.uv as THREE.BufferAttribute;
+        const [su, sv] = b.radius ? [1 / 20, 1 / 20] : [b.w / 20, b.d / 20];
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
+      }
+      const key = `${b.color}|${b.studs ? "studs" : "smooth"}`;
+      if (!byColor.has(key)) byColor.set(key, []);
+      byColor.get(key)!.push(g.index ? g.toNonIndexed() : g); // extruded shapes have no index; a merge needs all alike
     }
-    return [...byColor].map(([color, gs]) => ({ color, geometry: mergeGeometries(gs) }));
+    return [...byColor].map(([key, gs]) => ({ key, color: key.split("|")[0], studs: key.endsWith("studs"), geometry: mergeGeometries(gs) }));
   }, [slabs]);
   useEffect(() => () => meshes.forEach((m) => m.geometry.dispose()), [meshes]);
+  const studMap = useMemo(() => {
+    const t = studTexture().clone();
+    t.repeat.set(1, 1);
+    t.needsUpdate = true;
+    return t;
+  }, []);
   return (
     <>
       {meshes.map((m) => (
-        <mesh key={m.color} geometry={m.geometry} castShadow={shadows} receiveShadow={shadows}>
-          <meshStandardMaterial color={m.color} roughness={0.7} />
+        <mesh key={m.key} geometry={m.geometry} castShadow={shadows} receiveShadow={shadows}>
+          <meshStandardMaterial color={m.color} map={m.studs ? studMap : null} roughness={m.color === "#3f8fd8" ? 0.25 : 0.7} />
         </mesh>
       ))}
     </>
@@ -3387,11 +3400,36 @@ const GRASS: Record<Season, string> = { spring: "#58ab41", summer: "#4b9f4a", au
 // The forest belt as three instanced meshes (trunks, pine cones, leafy balls):
 // a few hundred trees for three draw calls. Three's space (LDraw z flipped).
 const FOREST = forestTrees();
-function ForestBelt({ season }: { season: Season }) {
+// brick-built trees, a unit tall from the trunk's top: a pine as four stepped tiers (the
+// 3471's stacked layers), a round tree as stacked round bricks with a stud on top
+function brickPine(): THREE.BufferGeometry {
+  const tiers: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 4; k++) {
+    const r = 1 - k * 0.22;
+    const g = new THREE.CylinderGeometry(r * 0.5, r, 0.25, 8);
+    g.translate(0, k * 0.25 + 0.125, 0);
+    tiers.push(g);
+  }
+  return mergeGeometries(tiers.map((g) => g.toNonIndexed()));
+}
+function brickRound(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  [[0.78, 0.3], [1, 0.3], [0.72, 0.28]].forEach(([r, h], k) => {
+    const g = new THREE.CylinderGeometry(r, r, h, 10);
+    g.translate(0, [0.15, 0.45, 0.74][k], 0);
+    parts.push(g);
+  });
+  const stud = new THREE.CylinderGeometry(0.2, 0.2, 0.12, 8);
+  stud.translate(0, 0.94, 0);
+  parts.push(stud);
+  return mergeGeometries(parts.map((g) => g.toNonIndexed()));
+}
+function ForestBelt({ season, shadows = true }: { season: Season; shadows?: boolean }) {
   const trunks = useRef<THREE.InstancedMesh>(null);
   const pines = useRef<THREE.InstancedMesh>(null);
-  const tops = useRef<THREE.InstancedMesh>(null);
   const leafy = useRef<THREE.InstancedMesh>(null);
+  const pineGeo = useMemo(() => brickPine(), []);
+  const roundGeo = useMemo(() => brickRound(), []);
   const nPine = FOREST.filter((t) => t.pine).length;
   const leafColour = season === "winter" ? "#eef2f6" : season === "autumn" ? "#e8742a" : season === "spring" ? "#7bc043" : "#4b9f4a";
   const pineColour = season === "winter" ? "#dfe6ea" : "#237841";
@@ -3410,27 +3448,22 @@ function ForestBelt({ season }: { season: Season }) {
       o.updateMatrix();
       trunks.current?.setMatrixAt(i, o.matrix);
       if (t.pine) {
-        o.position.set(x, h * 0.55, z);
-        o.scale.set(h * 0.4, h * 0.62, h * 0.4);
+        o.position.set(x, h * 0.24, z);
+        o.scale.set(h * 0.4, h * 0.76, h * 0.4);
         o.updateMatrix();
         pines.current?.setMatrixAt(p, o.matrix);
         pines.current?.setColorAt(p, c.set(pineColour).multiplyScalar(t.shade));
-        o.position.set(x, h * 0.86, z);
-        o.scale.set(h * 0.26, h * 0.42, h * 0.26);
-        o.updateMatrix();
-        tops.current?.setMatrixAt(p, o.matrix);
-        tops.current?.setColorAt(p, c.set(pineColour).multiplyScalar(t.shade * 1.08));
         p++;
       } else {
-        o.position.set(x, h * 0.6, z);
-        o.scale.set(h * 0.46, h * 0.4, h * 0.46);
+        o.position.set(x, h * 0.3, z);
+        o.scale.set(h * 0.46, h * 0.6, h * 0.46);
         o.updateMatrix();
         leafy.current?.setMatrixAt(l, o.matrix);
         leafy.current?.setColorAt(l, c.set(leafColour).multiplyScalar(t.shade));
         l++;
       }
     });
-    for (const m of [trunks, pines, tops, leafy])
+    for (const m of [trunks, pines, leafy])
       if (m.current) {
         m.current.instanceMatrix.needsUpdate = true;
         if (m.current.instanceColor) m.current.instanceColor.needsUpdate = true;
@@ -3438,21 +3471,15 @@ function ForestBelt({ season }: { season: Season }) {
   }, [leafColour, pineColour]);
   return (
     <>
-      <instancedMesh ref={trunks} args={[undefined, undefined, FOREST.length]} castShadow>
+      <instancedMesh ref={trunks} args={[undefined, undefined, FOREST.length]} castShadow={shadows}>
         <cylinderGeometry args={[1, 1, 1, 6]} />
-        <meshStandardMaterial color="#582a12" roughness={0.8} />
+        <meshStandardMaterial color="#582a12" roughness={0.8} flatShading />
       </instancedMesh>
-      <instancedMesh ref={pines} args={[undefined, undefined, nPine]} castShadow>
-        <coneGeometry args={[1, 1, 8]} />
-        <meshStandardMaterial roughness={0.55} />
+      <instancedMesh ref={pines} args={[undefined, undefined, nPine]} geometry={pineGeo} castShadow={shadows}>
+        <meshStandardMaterial roughness={0.5} flatShading />
       </instancedMesh>
-      <instancedMesh ref={tops} args={[undefined, undefined, nPine]} castShadow>
-        <coneGeometry args={[1, 1, 8]} />
-        <meshStandardMaterial roughness={0.55} />
-      </instancedMesh>
-      <instancedMesh ref={leafy} args={[undefined, undefined, FOREST.length - nPine]} castShadow>
-        <sphereGeometry args={[1, 10, 8]} />
-        <meshStandardMaterial roughness={0.55} />
+      <instancedMesh ref={leafy} args={[undefined, undefined, FOREST.length - nPine]} geometry={roundGeo} castShadow={shadows}>
+        <meshStandardMaterial roughness={0.5} flatShading />
       </instancedMesh>
     </>
   );
@@ -3463,7 +3490,7 @@ function ForestBelt({ season }: { season: Season }) {
 // LEGO trees on top; beyond them a ring of stepped grey mountains with white
 // snow caps (deeper in winter); and a round LEGO sun in the sky. All plain
 // shapes: from this far off they read as bricks without costing any.
-function Scenery({ color, season, sunAt }: { color: string; season: Season; sunAt?: THREE.Vector3 }) {
+function Scenery({ color, season, sunAt, shadows = true }: { color: string; season: Season; sunAt?: THREE.Vector3; shadows?: boolean }) {
   const { hills, peaks, trees } = useMemo(() => {
     let seed = 3;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -3524,8 +3551,8 @@ function Scenery({ color, season, sunAt }: { color: string; season: Season; sunA
           })}
         </group>
       ))}
-      {/* the forest belt round the town: cone pines and ball-topped leafy trees on brown trunks */}
-      <ForestBelt season={season} />
+      {/* the woods round the village: brick-built pines and round trees on brown trunks */}
+      <ForestBelt season={season} shadows={shadows} />
       {/* LEGO pine trees on the hilltops (a plain cone reads as the 3471 from here) */}
       <instancedMesh ref={treeMesh} args={[undefined, undefined, trees.length]}>
         <coneGeometry args={[1, 1, 8]} />

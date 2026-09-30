@@ -552,8 +552,8 @@ export function forestTrees(): { x: number; z: number; h: number; pine: boolean;
   const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
   const paths = lots.map((lot) => lotPath(lot, 3));
   const bridge = crossing(ROADS[1], RIVER);
-  for (let i = -WOODS_TO; i <= WOODS_TO; i += 7)
-    for (let j = -WOODS_TO; j <= WOODS_TO; j += 7) {
+  for (let i = -WOODS_TO; i <= WOODS_TO; i += 9)
+    for (let j = -WOODS_TO; j <= WOODS_TO; j += 9) {
       const x = (i + (rnd() - 0.5) * 6) * S;
       const z = (j + (rnd() - 0.5) * 6) * S;
       const r = Math.hypot(x, z) / S;
@@ -631,7 +631,7 @@ export function plotHedges(): Slab[] {
     const lot = lotFor(i);
     const seg = (cx: number, cz: number, w: number, d: number, turn = 0) => {
       const [x, , z] = inLot(lot, [cx, 0, cz]);
-      out.push({ x, z, w, d, h: HEDGE_H, color: "#237841", yaw: lot.yaw + turn });
+      out.push({ x, z, w, d, h: HEDGE_H, color: "#237841", yaw: lot.yaw + turn, studs: true });
     };
     seg(0, -E, (PLOT - 1) * S - 2 * C, S); // the back
     seg(-E, C / 2, S, (PLOT - 1) * S - C); // the sides
@@ -961,7 +961,7 @@ export function emptyLotsText(first: number): string {
 // on the pavement corners are real LDraw (townDecorText).
 // LDU; y = bottom height; r: a round slab; yaw: a box turned about Y; radius (+ border): a
 // rounded rectangle (a ring `border` wide when set) instead of a box
-export type Slab = { x: number; z: number; w: number; d: number; h: number; y?: number; r?: number; yaw?: number; radius?: number; border?: number; color: string };
+export type Slab = { x: number; z: number; w: number; d: number; h: number; y?: number; r?: number; yaw?: number; radius?: number; border?: number; color: string; /** studs on top, a stud a stud */ studs?: boolean };
 const GRAVEL = "#c9b48a";
 
 export function townFlats(): Slab[] {
@@ -970,11 +970,11 @@ export function townFlats(): Slab[] {
   const asphalt = "#43474c";
   const GRAVEL_W = PATH_W * S;
   // a road or path along a polyline: a turned box per leg (they overlap at the bends), its top at ground level
-  const along = (pts: P3[], w: number, color: string, h = 2) => {
+  const along = (pts: P3[], w: number, color: string, h = 2, studs = true) => {
     for (let k = 0; k + 1 < pts.length; k++) {
       const [a, b] = [pts[k], pts[k + 1]];
       const [dx, dz] = [b[0] - a[0], b[2] - a[2]];
-      out.push({ x: (a[0] + b[0]) / 2, z: (a[2] + b[2]) / 2, w: Math.hypot(dx, dz) + w, d: w, h, y: -h, color, yaw: Math.atan2(-dz, dx) });
+      out.push({ x: (a[0] + b[0]) / 2, z: (a[2] + b[2]) / 2, w: Math.hypot(dx, dz) + w, d: w, h, y: -h, color, yaw: Math.atan2(-dz, dx), studs });
     }
   };
   // a point `d` LDU along a polyline, and the leg's yaw
@@ -990,7 +990,7 @@ export function townFlats(): Slab[] {
   // the two roads out of the village, dashed down their middles, from the roundabout
   const bridge = crossing(ROADS[1], RIVER);
   for (const road of ROADS) {
-    along(road, ROAD_OUT * S, asphalt);
+    along(road, ROAD_OUT * S, asphalt, 2, false); // road plates are smooth
     for (let d = 14 * S; ; d += 8 * S) {
       const p = at(road, d);
       if (!p) break;
@@ -1014,10 +1014,12 @@ export function townFlats(): Slab[] {
       out.push({ x: bridge.p[0] + nx * s * (ROAD_OUT / 2 + 0.5) * S, z: bridge.p[2] + nz * s * (ROAD_OUT / 2 + 0.5) * S, w: deck, d: S, h: 22, color: white, yaw: bridge.yaw });
   }
   // the lake in the woods, sand round it, and the dirt track out to it
-  out.push({ x: LAKE.x, z: LAKE.z, r: LAKE.r + 3 * S, w: 0, d: 0, h: 1, y: -1, color: "#d8c79c" }, { x: LAKE.x, z: LAKE.z, r: LAKE.r, w: 0, d: 0, h: 2, y: -2, color: "#3f8fd8" });
+  const lake = (r: number, h: number, color: string) => out.push({ x: LAKE.x, z: LAKE.z, w: 2 * r, d: 2 * r, radius: r, h, y: -h, color, studs: true });
+  lake(LAKE.r + 3 * S, 1, "#d8c79c");
+  lake(LAKE.r, 2, "#3f8fd8");
   along(TRACK, GRAVEL_W, GRAVEL);
   // the gravel ring round the plaza, and a winding gravel path in from every house's gate
-  out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -2, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL });
+  out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -2, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL, studs: true });
   for (let i = 0; i < MAX_RESIDENTS; i++) {
     const path = lotPath(lotFor(i), 3);
     for (let k = 0; k + 1 < path.length; k++) {
