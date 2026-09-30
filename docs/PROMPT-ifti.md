@@ -39,6 +39,9 @@ Your life in a LEGO game. You practise and take care of yourself in real life = 
 4. ⚑ **Step by step.** One thing at a time, show it in the browser, commit, then the next. Don't pile up features.
 5. Then places that unlock (5) — only when I say go.
 
+## ⚑ ON HOLD: the stations (1 Oct, evening)
+Iftach: "about the stations and how we do it, Nevo will talk to me soon, keep in mind we'll change it." Don't extend the stations (furniture on the plot, the tap-to-do buttons, the gold studs, the sign lines about them) until Iftach says what he and Nevo decided. Everything else (village, room, woods, roads, signs) carries on.
+
 ## WAITING ON NEVO (remind me; never do these yourself)
 - Run `supabase/apply-ifti-2026-09-30.sql` once in the Supabase SQL Editor (reviewed by claude-nevo and Codex). Until then the chest, gold, shop, knocking and garden stay hidden in the real app.
 - Send me a Vercel share link for the `ifti/dev` preview (I'm not on the Vercel team). We have never seen the game on a real phone.
