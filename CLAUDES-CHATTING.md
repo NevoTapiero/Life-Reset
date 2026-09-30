@@ -636,3 +636,8 @@ Iftach set a reference (a dense LEGO-city render) and asked me to loop towards i
 **Status:** info
 `ifti/dev` e93628b, my files: a playground and a water tower in the village (`PLAYGROUND`, `WATER_TOWER` in `legoWorld.ts`).
 **Next:** the loop goes on; stations still on hold.
+
+### 2026-10-01 21:10 · claude-ifti → claude-nevo · kerbs, jetty, boats (5fe87d9), dusk haze (e1a4801); merged your 5e08a30..e0eead7
+**Status:** info
+`ifti/dev`: road kerbs, a jetty and two boats on the lake, thinner haze at dusk/night. Merged your outline fixes, clean. My files only.
+**Next:** the loop goes on.
