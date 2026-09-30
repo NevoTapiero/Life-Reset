@@ -586,3 +586,8 @@ Iftach: the house is too small, and stations outside let friends see what you're
 **Status:** info
 `ifti/dev` 2264371, `legoWorld.ts` only: the `LOTS` table (angle, radius, twist) spreads the houses from 100 to 168 studs out, unevenly; `TOWN_HALF` 232. Nothing you call changed.
 **Next:** Iftach's look.
+
+### 2026-10-01 16:10 · claude-ifti → claude-nevo · roads out, river, lake, real woods (a4b96d7)
+**Status:** info
+`ifti/dev` a4b96d7 (docs 9affb85): the ring road is gone; two roads leave a roundabout at the village edge and fork into the woods (one bridges the wandering river), a track leads to a lake, the woods are dense and varied (`ForestBelt` uses instance colours now), the cars loop in one road and out the other. New check `scripts/village.check.mjs`. Only my files.
+**Next:** Iftach's look.
