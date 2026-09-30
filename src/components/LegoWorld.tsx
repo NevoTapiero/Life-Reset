@@ -51,6 +51,15 @@ import {
   stepFree,
   townBlockers,
   type Blocker,
+  GARDEN,
+  gardenItem,
+  gardenItemLines,
+  gardenPropAt,
+  footprint,
+  canPlace,
+  firstFreeSpot,
+  fromLot,
+  type Placed,
   CROWD,
   sidestep,
   intoSomeone,
@@ -277,7 +286,7 @@ function Ride({ ride, at, turn }: { ride: Loadout["ride"]; at: P3; turn: number 
       // each wingbeat lifts it a little
       const a = t * 0.2 + at[0] * 0.001;
       const r = 420 + 140 * Math.sin(t * 0.13);
-      return new THREE.Vector3(at[0] + Math.cos(a) * r, -700 - Math.sin(t * 1.5) * 26 - Math.sin(t * 0.3) * 80, at[2] + Math.sin(a) * r);
+      return new THREE.Vector3(at[0] + Math.cos(a) * r, -900 - Math.sin(t * 1.5) * 26 - Math.sin(t * 0.3) * 80, at[2] + Math.sin(a) * r);
     },
     [at],
   );
@@ -1370,6 +1379,8 @@ export function LegoTown({
   visit,
   onBack,
   energy = null,
+  garden = [],
+  onPlace,
   className,
 }: {
   residents: Resident[];
@@ -1395,6 +1406,10 @@ export function LegoTown({
   onBack?: () => void;
   /** your energy today (0..100, from sleep and steps); null: no energy yet, no limits */
   energy?: number | null;
+  /** the garden things on your plot */
+  garden?: Placed[];
+  /** put a garden thing you've bought on your plot; resolves with an error message, or null when it's there */
+  onPlace?: (p: Placed) => Promise<string | null>;
   className?: string;
 }) {
   const residents = all.slice(0, MAX_RESIDENTS);
@@ -1458,6 +1473,42 @@ export function LegoTown({
   if (focus !== OVERVIEW && focus !== dest) setDest(focus);
   const [shopOpen, setShopOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // placing a garden thing you've just bought: where it's hovering on your plot, and whether it fits there
+  const [placing, setPlacing] = useState<Placed | null>(null);
+  const [fresh, setFresh] = useState<string | null>(null); // the thing just placed, still building
+  const [watching, setWatching] = useState(false); // the camera stays over the plot while it builds
+  const meRes = residents[meIndex];
+  const placeOk = placing ? canPlace(placing, meRes.level, meRes.streak, garden) : false;
+  const startPlacing = (item: string) => {
+    setShopOpen(false);
+    setInside(null);
+    setFocus(meIndex);
+    setPlacing(firstFreeSpot(item, meRes.level, meRes.streak, garden) ?? { item, x: 2, z: 2, turn: 0 });
+  };
+  // the pointer over the plot: the thing follows it, snapped to two studs, its footprint kept on the plot
+  const hoverTo = (p: THREE.Vector3) => {
+    if (!placing) return;
+    const g = gardenItem(placing.item)!;
+    const { w, d } = footprint(g, placing.turn);
+    const [px, pz] = fromLot(lots[meIndex], [p.x / LDU, -p.z / LDU]);
+    const snap = (v: number, size: number) => Math.max(1, Math.min(PLOT - 1 - size, Math.round((v / 20 + PLOT / 2 - size / 2) / 2) * 2));
+    const x = snap(px, w);
+    const z = snap(pz, d);
+    if (x !== placing.x || z !== placing.z) setPlacing({ ...placing, x, z });
+  };
+  const placeIt = async () => {
+    if (!placing || !placeOk) return;
+    const err = onPlace ? await onPlace(placing) : null;
+    if (err) {
+      setNote(err);
+      setTimeout(() => setNote(null), 2500);
+      return;
+    }
+    setFresh(`${placing.item}:${placing.x}:${placing.z}`);
+    setPlacing(null);
+    setWatching(true);
+    setTimeout(() => setWatching(false), BUILD_TIME * 1000 + 800);
+  };
   // the brick wipe, for switching between the town and your room
   const [wipe, setWipe] = useState<"in" | "out" | null>(null);
   const wipeTo = (swap: () => void) => {
@@ -1471,7 +1522,8 @@ export function LegoTown({
 
   // playing: outside, the camera follows you and you walk where you like (stick or keys);
   // the whole-town view and being inside a house frame the scene instead
-  const following = focus !== OVERVIEW && inside === null;
+  const isPlacing = placing !== null || watching; // over your plot: placing, or watching it build
+  const following = focus !== OVERVIEW && inside === null && !isPlacing;
   const stick = useRef({ x: 0, y: 0 });
   const jumps = useRef(0);
   // energy: the walker drains it as you run; a jump takes a bite; the bar reads it
@@ -1512,21 +1564,26 @@ export function LegoTown({
 
   const target = useMemo(() => {
     if (following) return STILL; // the camera follows you instead
+    if (isPlacing) {
+      const [x, , z] = toThree([lots[meIndex].x, 0, lots[meIndex].z]);
+      return new THREE.Vector3(x, 1, z);
+    }
     // the shop and the fountain in front of it, looking up at the building
     if (focus === OVERVIEW) return new THREE.Vector3(0, 0, 0);
     if (focus === SHOP_FOCUS) return new THREE.Vector3(0, 10, -((SHOP_FRONT + FOUNTAIN[1]) / 2) * LDU);
     const [x, , z] = toThree(houseCentre(focus));
     return new THREE.Vector3(x, inside === null ? 3 : 2, z);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focus, inside, lots, following]);
+  }, [focus, inside, lots, following, isPlacing, meIndex]);
   // look at a house from its front: turn the view with the lot
   const dir = useMemo(() => {
     if (following) return CHASE_DIR;
+    if (isPlacing) return LOOK_DOWN.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -turnRad(lots[meIndex].facing));
     const base = inside === null ? FRONT_RIGHT : LOOK_IN;
     if (focus === OVERVIEW) return LOOK_DOWN;
     if (focus === SHOP_FOCUS) return base;
     return base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -turnRad(lots[focus].facing));
-  }, [focus, inside, lots, following]);
+  }, [focus, inside, lots, following, isPlacing, meIndex]);
   const bounds = useMemo(() => {
     const h = (TOWN_HALF - 8) * 20 * LDU;
     return new THREE.Box3(new THREE.Vector3(-h, 0, -h), new THREE.Vector3(h, 12, h));
@@ -1651,7 +1708,9 @@ export function LegoTown({
             ? houseFor(residents[inside].level, residents[inside].name).w + 10
             : following
               ? CHASE_WIDTH
-              : focus === OVERVIEW
+              : placing
+                ? PLOT + 14
+                : focus === OVERVIEW
                 ? 230
                 : focus === SHOP_FOCUS
                   ? 95
@@ -1667,7 +1726,7 @@ export function LegoTown({
         aim={meAim}
         fov={following ? CHASE_FOV : 32}
         mood={mood}
-        onPick={following ? undefined : pick}
+        onPick={placing || following ? undefined : pick}
         overlay={
           <>
             <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} />
@@ -1752,6 +1811,27 @@ export function LegoTown({
         {residents.map((res, i) => (
           <Ride key={res.name} ride={loadoutFor(res.level, res.character ?? undefined).ride} at={rideSpot(lots[i], res.level)} turn={turnRad(lots[i].facing)} />
         ))}
+        {/* the garden things on your plot, and the one you're placing with its footprint */}
+        {garden.map((p) => (
+          <PlacedThing key={`${p.item}:${p.x}:${p.z}`} lot={lots[meIndex]} placed={p} fresh={fresh === `${p.item}:${p.x}:${p.z}`} />
+        ))}
+        {placing && (
+          <>
+            <PlacedThing key={`ghost-${placing.item}`} lot={lots[meIndex]} placed={placing} />
+            <Footprint lot={lots[meIndex]} placed={placing} ok={placeOk} />
+            {/* an unseen plate over the whole plot that the pointer can land on (the lawn itself is
+                drawn outside this group), so the thing follows the finger anywhere on the plot */}
+            <mesh
+              position={[lots[meIndex].x, -0.5, lots[meIndex].z]}
+              rotation={[Math.PI / 2, 0, 0]}
+              onPointerMove={(e) => hoverTo(e.point)}
+              onClick={(e) => hoverTo(e.point)}
+            >
+              <planeGeometry args={[PLOT * 20, PLOT * 20]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
+            </mesh>
+          </>
+        )}
         {residents.map((res, i) => (
           <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
             {/* the town builds itself once it's loaded (not while it's still loading, which made
@@ -1843,6 +1923,7 @@ export function LegoTown({
       <div className="absolute top-3 right-3 flex items-start gap-2">
         <SoundToggle />
         {inside === null &&
+          !isPlacing &&
           (following ? (
             <RoundAction icon="map" text="Map" tone="dark" small onClick={() => go(OVERVIEW)} />
           ) : (
@@ -1862,13 +1943,27 @@ export function LegoTown({
           where you're standing (the big round button) and Jump */}
       <div className="absolute inset-x-0 bottom-3 flex items-end justify-between gap-2 px-3 pointer-events-none">
         <div className="flex-none">{following && <Joystick outRef={stick} />}</div>
+        {placing && (
+          <div className="flex items-end gap-3 mx-auto">
+            <RoundAction icon="x" text="Cancel" tone="dark" small onClick={() => setPlacing(null)} />
+            <RoundAction icon="rotate" text="Turn" tone="dark" small onClick={() => setPlacing({ ...placing, turn: (placing.turn + 1) % 4 })} />
+            <RoundAction icon="check" text={placeOk ? "Place it" : "Not here"} tone="green" onClick={placeIt} disabled={!placeOk} />
+          </div>
+        )}
+        {placing && (
+          <span className="lego lego-sm lego-white absolute left-1/2 -translate-x-1/2 -top-10" data-at={`${placing.x},${placing.z},${placing.turn}`} data-ok={placeOk}>
+            Drag it where you want it
+          </span>
+        )}
         {focus === OVERVIEW && (
           <span className="lego lego-sm lego-white mb-2 self-center">Tap a place to walk there</span>
         )}
-        <div className="flex items-end gap-3">
-          {following && <RoundAction icon="jump" text="Jump" tone="dark" small onClick={jump} disabled={energy !== null && energyNow < JUMP_COST} />}
-          {action && <RoundAction icon={action.icon} text={action.text} onClick={action.onClick} disabled={!action.onClick} tone={action.tone} />}
-        </div>
+        {!isPlacing && (
+          <div className="flex items-end gap-3">
+            {following && <RoundAction icon="jump" text="Jump" tone="dark" small onClick={jump} disabled={energy !== null && energyNow < JUMP_COST} />}
+            {action && <RoundAction icon={action.icon} text={action.text} onClick={action.onClick} disabled={!action.onClick} tone={action.tone} />}
+          </div>
+        )}
       </div>
 
       {shopOpen && prices && onBuy && (
@@ -1877,8 +1972,9 @@ export function LegoTown({
           prices={prices}
           owned={owned}
           onBuy={onBuy}
-          onClose={(bought) => {
+          onClose={(bought, gardenId) => {
             setShopOpen(false);
+            if (gardenId) return startPlacing(gardenId);
             if (!bought) return;
             setNote(`${bought} is waiting in your house`);
             setTimeout(() => setNote(null), 2500);
@@ -2074,6 +2170,9 @@ const ICONS: Record<string, React.ReactNode> = {
   play: <path d="M12 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm-4 16v-5a4 4 0 0 1 8 0v5" strokeWidth="2.4" />,
   sound: <path d="M4 10v4h4l5 4V6L8 10H4Zm12.5-1.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" strokeWidth="2.2" />,
   back: <path d="M15 5l-7 7 7 7" strokeWidth="3" />,
+  rotate: <path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5" strokeWidth="2.6" />,
+  check: <path d="M5 12.5 10 17.5 19 7" strokeWidth="3.2" />,
+  x: <path d="M6 6l12 12M18 6 6 18" strokeWidth="3" />,
   mute: <path d="M4 10v4h4l5 4V6L8 10H4Zm12 0 5 5m0-5-5 5" strokeWidth="2.2" />,
 };
 function Icon({ name }: { name: keyof typeof ICONS }) {
@@ -2250,19 +2349,21 @@ function ShopSheet({
   prices: Record<string, number>;
   owned: string[];
   onBuy: (id: string) => Promise<string | null>;
-  /** closed, with the name of what was just bought (if anything) */
-  onClose: (bought?: string) => void;
+  /** closed, with the name of what was just bought (if anything); a garden thing also gives its id, to place */
+  onClose: (bought?: string, gardenId?: string) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const buy = async (id: string, name: string) => {
+  const gardenSold = GARDEN.filter((g) => prices[g.id] !== undefined);
+  const [tab, setTab] = useState<"garden" | "home">(gardenSold.length ? "garden" : "home");
+  const buy = async (id: string, name: string, garden = false) => {
     if (busy) return;
     sfx.click();
     setBusy(id);
     const err = await onBuy(id);
     setBusy(null);
     if (err) return setError(err);
-    onClose(name);
+    onClose(name, garden ? id : undefined);
   };
   return (
     <div className="absolute inset-0 flex items-end" style={{ background: "rgba(0,0,0,0.35)" }} onClick={() => onClose()}>
@@ -2274,8 +2375,18 @@ function ShopSheet({
           <span className="display text-[17px]">Market Street</span>
           <span className="lego lego-sm lego-yellow">{(gold ?? 0).toLocaleString()} gold</span>
         </div>
+        {gardenSold.length > 0 && (
+          <div className="flex gap-2 mb-2">
+            <button onClick={() => setTab("garden")} className={`lego lego-sm ${tab === "garden" ? "lego-green" : "lego-white"}`}>
+              Garden
+            </button>
+            <button onClick={() => setTab("home")} className={`lego lego-sm ${tab === "home" ? "lego-green" : "lego-white"}`}>
+              Home
+            </button>
+          </div>
+        )}
         <p className="text-xs mb-3" style={{ color: "#5d625a" }}>
-          Furniture for your house. It&apos;s there when you get home.
+          {tab === "garden" ? "Things for your plot. Buy one, put it where you like, and watch it build." : "Furniture for your house. It's there when you get home."}
         </p>
         {error && (
           <p className="text-sm mb-2 font-semibold" style={{ color: "#b3140f" }}>
@@ -2283,7 +2394,28 @@ function ShopSheet({
           </p>
         )}
         <div className="flex flex-col gap-2">
-          {DECOR.filter((d) => prices[d.id] !== undefined)
+          {tab === "garden" &&
+            gardenSold.map((g) => {
+              const price = prices[g.id];
+              const short = price - (gold ?? 0);
+              return (
+                <div key={g.id} className="lego-plate flex items-center justify-between gap-3 px-3 py-2.5">
+                  <span className="font-semibold text-sm">
+                    {g.name} <span className="text-xs font-normal" style={{ color: "#5d625a" }}>{g.w}×{g.d}</span>
+                  </span>
+                  {short > 0 ? (
+                    <span className="text-xs" style={{ color: "#5d625a" }}>
+                      {price} gold · need {short} more
+                    </span>
+                  ) : (
+                    <button onClick={() => buy(g.id, g.name, true)} disabled={busy === g.id} className="lego lego-sm lego-yellow">
+                      Buy · {price} gold
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          {tab === "home" && DECOR.filter((d) => prices[d.id] !== undefined)
             .sort((a, b) => prices[a.id] - prices[b.id])
             .map((d) => {
               const price = prices[d.id];
@@ -2636,14 +2768,93 @@ function Stroller({ id, look, r, speed, start }: (typeof STROLLERS)[number] & { 
 
 // ---- props: small official sets (the ice cream cart, the parks' burger stands) ----
 // Placed by their centre (LDraw frame) and quarter turns; the glb's origin is its front-left corner.
-function Prop({ id, at, turn, lot }: { id: string; at: [number, number]; turn: number; lot?: Lot }) {
+function Prop({ id, at, turn, lot, build }: { id: string; at: [number, number]; turn: number; lot?: Lot; build?: number | null }) {
   const prop = (PROPS as Baked[]).find((p) => p.id === id);
   if (!prop) return null;
   const [x, , z] = lot ? inLot(lot, [at[0], 0, at[1]]) : [at[0], 0, at[1]];
   const facing = (lot ? turnRad(lot.facing) : 0) + (turn * Math.PI) / 2;
   return (
     <group position={[x, 0, z]} rotation={[0, facing, 0]}>
-      <Building url={houseUrl(prop)} at={[-prop.w * 10, 0, prop.d * 10]} />
+      <Building url={houseUrl(prop)} at={[-prop.w * 10, 0, prop.d * 10]} build={build} />
+    </group>
+  );
+}
+
+// ---- garden things: bought at the shop, put where you like on your plot, built brick by brick ----
+// One placed thing on a lot: an official set (a prop) or LDraw pieces. `fresh`:
+// it has just been placed, so it goes up a row at a time under a brick shower.
+function PlacedThing({ lot, placed, fresh = false }: { lot: Lot; placed: Placed; fresh?: boolean }) {
+  const g = gardenItem(placed.item);
+  if (!g) return null;
+  return (
+    <group position={[lot.x, 0, lot.z]} rotation={[0, turnRad(lot.facing), 0]}>
+      {g.prop ? (
+        <Prop id={g.prop} at={gardenPropAt(placed)} turn={placed.turn} build={fresh ? 0 : undefined} />
+      ) : (
+        <PiecesThing text={modelText(gardenItemLines(placed), "thing.ldr")} fresh={fresh} />
+      )}
+    </group>
+  );
+}
+function PiecesThing({ text, fresh }: { text: string; fresh: boolean }) {
+  const model = useModel(text, true);
+  const box = useMemo(() => (model ? new THREE.Box3().setFromObject(model) : null), [model]);
+  const rise = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), fresh ? -1 : OPEN), [fresh]);
+  const [building, setBuilding] = useState(fresh);
+  const progress = useRef(0);
+  const started = useRef<number | null>(null);
+  const lastRow = useRef(0);
+  // its own materials (the merged model's are the loader's, shared with the town), clipped by the rising plane
+  useEffect(() => {
+    if (!model) return;
+    const own: THREE.Material[] = [];
+    model.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const m = (mesh.material as THREE.Material).clone();
+      m.clippingPlanes = [rise];
+      m.clipShadows = true;
+      mesh.material = m;
+      own.push(m);
+    });
+    return () => own.forEach((m) => m.dispose());
+  }, [model, rise]);
+  useFrame(({ clock }) => {
+    if (!model || !box) return;
+    if (!building) {
+      if (rise.constant !== OPEN) rise.set(rise.normal, OPEN);
+      return;
+    }
+    started.current ??= clock.elapsedTime;
+    const k = Math.min(1, (clock.elapsedTime - started.current) / BUILD_TIME);
+    progress.current = k;
+    const rows = Math.max(1, Math.ceil(-box.min.y / ROW));
+    const row = Math.min(rows, Math.floor(k * rows) + 1);
+    if (row !== lastRow.current) {
+      lastRow.current = row;
+      sfx.snap();
+    }
+    rise.set(rise.normal, row * ROW * LDU + 0.02);
+    if (k === 1) setBuilding(false);
+  });
+  return (
+    <>
+      {model && <primitive object={model} />}
+      {building && box && <BrickShower box={box} progress={progress} />}
+    </>
+  );
+}
+// The footprint under the thing you're placing: green where it can go, red where it can't.
+function Footprint({ lot, placed, ok }: { lot: Lot; placed: Placed; ok: boolean }) {
+  const g = gardenItem(placed.item);
+  if (!g) return null;
+  const { w, d } = footprint(g, placed.turn);
+  return (
+    <group position={[lot.x, 0, lot.z]} rotation={[0, turnRad(lot.facing), 0]}>
+      <mesh position={[(placed.x + w / 2 - PLOT / 2) * 20, -1.5, (placed.z + d / 2 - PLOT / 2) * 20]}>
+        <boxGeometry args={[w * 20, 3, d * 20]} />
+        <meshStandardMaterial color={ok ? "#4b9f4a" : "#d01012"} transparent opacity={0.55} />
+      </mesh>
     </group>
   );
 }

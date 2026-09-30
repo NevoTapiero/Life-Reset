@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { cardStepOn, cardXp, doneInPeriod, periodOf, trackedBy, type Profile, type Quest } from "@/lib/game";
-import type { Station } from "@/lib/legoWorld";
+import type { Placed, Station } from "@/lib/legoWorld";
 
 // Everything your room needs: your active missions as stations (today's pay
 // with the 7-day card multiplier, done or not), the chest (what your watch
@@ -20,6 +20,8 @@ export function useStations() {
   // the shop: prices by item id (null until the shop migration), and what you own
   const [prices, setPrices] = useState<Record<string, number> | null>(null);
   const [owned, setOwned] = useState<string[]>([]);
+  // garden things you've placed on your plot (the garden migration), and how many bought but not placed
+  const [garden, setGarden] = useState<Placed[]>([]);
 
   useEffect(() => {
     const loadChest = async (uid: string) => {
@@ -75,11 +77,14 @@ export function useStations() {
 
       const [{ data: items, error: shopError }, { data: mine }] = await Promise.all([
         supabase.from("shop_items").select("id, price"),
-        supabase.from("owned_items").select("item_id").eq("user_id", uid),
+        supabase.from("owned_items").select("*").eq("user_id", uid),
       ]);
       if (!shopError) {
         setPrices(Object.fromEntries(((items ?? []) as { id: string; price: number }[]).map((i) => [i.id, i.price])));
-        setOwned(((mine ?? []) as { item_id: string }[]).map((o) => o.item_id));
+        const rows = (mine ?? []) as { item_id: string; x?: number | null; z?: number | null; turn?: number }[];
+        setOwned(rows.map((o) => o.item_id));
+        // placed garden things (the columns exist once the garden migration is in)
+        setGarden(rows.filter((o) => o.x !== null && o.x !== undefined).map((o) => ({ item: o.item_id, x: o.x!, z: o.z!, turn: o.turn ?? 0 })));
       }
 
       // what's already waiting, then ask the watch for anything new (safe to repeat)
@@ -126,5 +131,13 @@ export function useStations() {
     return null;
   }
 
-  return { stations, complete, chest, gold, collect, prices, owned, buy };
+  // put a garden thing you've bought on your plot (or move one: `from` is where it was)
+  async function place(p: Placed, from?: Placed): Promise<string | null> {
+    const { error } = await supabase.rpc("place_item", { p_item: p.item, p_x: p.x, p_z: p.z, p_turn: p.turn, p_from_x: from?.x ?? null, p_from_z: from?.z ?? null });
+    if (error) return error.message;
+    setGarden((g) => [...g.filter((q) => !(from && q.item === from.item && q.x === from.x && q.z === from.z)), p]);
+    return null;
+  }
+
+  return { stations, complete, chest, gold, collect, prices, owned, buy, garden, place };
 }

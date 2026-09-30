@@ -1,6 +1,7 @@
 import HOUSES from "./legoHouses.json" with { type: "json" };
 import SHOP from "./legoShop.json" with { type: "json" };
 import LOADOUTS from "./legoLoadouts.generated.json" with { type: "json" };
+import PROPS from "./legoProps.json" with { type: "json" };
 
 // The plot, built from real LDraw parts (the community library that models
 // every LEGO element). This file only writes LDraw text: which part, which
@@ -259,6 +260,12 @@ export function lotFor(i: number): Lot {
   const [gx, gz, facing] = LOTS[i];
   return { x: gx * PITCH * S, z: gz * PITCH * S, facing };
 }
+// a point in the town's frame back into a lot's own frame
+export function fromLot(lot: Lot, [x, z]: [number, number]): [number, number] {
+  const m = ROT[lot.facing];
+  const [rx, rz] = [x - lot.x, z - lot.z];
+  return [m[0] * rx + m[6] * rz, m[2] * rx + m[8] * rz];
+}
 // a point in a lot's own frame (its front is +Z) in the town's frame
 export function inLot(lot: Lot, [x, y, z]: [number, number, number]): [number, number, number] {
   const m = ROT[lot.facing];
@@ -477,7 +484,7 @@ const HEIGHT: Record<string, number> = {
   "3068b": 8, "87079": 8, "2431": 8, "14769p0f": 8, "4079": 8, "3741ac05": 12,
   "29592": 11, "62698-f2": 1, "33051": 0, "1": 96, "4738a": 32, "4739a": 25,
   "3009": 24, "2435": 8, "11602": 0, "89801": 0, "30224": 8,
-  "3470": 8, "3832": 8, "3034": 8, "4032a": 8, "2423": 8, "33320": 0, "49661": 0,
+  "3470": 8, "3471": 8, "3832": 8, "3034": 8, "4032a": 8, "2423": 8, "33320": 0, "49661": 0,
   "3961": 24, "3960": 16, "60474": 8, "11213": 8, "87081": 24, "6141": 8, "98138": 8, "2039": 168, "30367c": 24,
 };
 type Piece = [part: string, color: number, dx: number, h: number, dz: number, m?: Mat];
@@ -1050,6 +1057,94 @@ export function rerouteFrom(r: Route, i: number, pos: P3, to: P3[]): Route {
   // on the street, or somewhere down the chain nearer the street
   const here = a.length === 1 && b.length === 1 ? [pos] : [...(a.length < b.length ? a : b), pos];
   return walkRoute(here, to);
+}
+
+// ---- the garden shop: buy a thing, put it where you like on your plot, watch it build ----
+// Each item is a footprint in studs and either LDraw pieces (its own frame,
+// centred, +z its front) or an official set baked as a prop. Prices are the
+// server's (shop_items); these are the defaults the migration seeds.
+export type GardenItem = { id: string; name: string; price: number; w: number; d: number; pieces?: Piece[]; prop?: string };
+const propSize = (id: string) => (PROPS as { id: string; w: number; d: number }[]).find((p) => p.id === id) ?? { w: 6, d: 6 };
+export const GARDEN: GardenItem[] = [
+  { id: "g-pot", name: "Flower pot", price: 30, w: 2, d: 2, pieces: flowerPot(COL.red) },
+  { id: "g-flowers", name: "Flower bed", price: 40, w: 4, d: 2, pieces: [-30, -10, 10, 30].map((dx, k) => ["3741ac05", [COL.red, COL.yellow, COL.pink, COL.white][k], dx, 0, 0] as Piece) },
+  { id: "g-pine", name: "Pine tree", price: 60, w: 2, d: 2, pieces: [["3471", COL.darkGreen, 0, 0, 0]] },
+  { id: "g-bench", name: "Bench", price: 60, w: 4, d: 2, pieces: bench },
+  { id: "g-planter", name: "Planter", price: 70, w: 2, d: 2, pieces: planterTree },
+  { id: "g-tree", name: "Apple tree", price: 80, w: 2, d: 2, pieces: [["2435", COL.green, 0, 0, 0]] },
+  { id: "g-lamp", name: "Lamp post", price: 120, w: 2, d: 2, pieces: lamp },
+  { id: "g-pond", name: "Pond", price: 250, w: 10, d: 8, pieces: POND },
+  { id: "g-cart", name: "Ice cream cart", price: 300, ...propSize("6601-1"), prop: "6601-1" },
+  { id: "g-burger", name: "Burger stand", price: 400, ...propSize("6683-1"), prop: "6683-1" },
+];
+export const gardenItem = (id: string) => GARDEN.find((g) => g.id === id);
+/** something placed on a plot: the item, its footprint's near-left cell (studs, 0..47) and quarter turns */
+export type Placed = { item: string; x: number; z: number; turn: number };
+/** the footprint's size once turned */
+export const footprint = (g: GardenItem, turn: number) => (turn % 2 ? { w: g.d, d: g.w } : { w: g.w, d: g.d });
+/** the item's LDraw lines in the plot's frame (its centre on the footprint's centre, on the ground) */
+export function gardenItemLines(p: Placed): string[] {
+  const g = gardenItem(p.item);
+  if (!g?.pieces) return [];
+  const { w, d } = footprint(g, p.turn);
+  const x = (p.x + w / 2 - PLOT / 2) * S;
+  const z = (p.z + d / 2 - PLOT / 2) * S;
+  return place(g.pieces, x, z, ROT[([0, 90, 180, 270] as const)[p.turn % 4]], 0);
+}
+/** where a placed prop's centre is in the plot frame (LDU) */
+export function gardenPropAt(p: Placed): [number, number] {
+  const g = gardenItem(p.item)!;
+  const { w, d } = footprint(g, p.turn);
+  return [(p.x + w / 2 - PLOT / 2) * S, (p.z + d / 2 - PLOT / 2) * S];
+}
+// Where you can't put things: the house (with a stud round it), the path from
+// the door to the street, the front two rows (hedge and kerb), the garden's
+// own pond, and anything already placed; and it must be on the plot.
+type Box = { x0: number; z0: number; x1: number; z1: number };
+const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.z0 < b.z1 && b.z0 < a.z1;
+export function blockedOnPlot(level: number, streak: number, placed: Placed[], except?: Placed): Box[] {
+  const s = houseSpec(level);
+  const door = doorCells(s);
+  const out: Box[] = [
+    { x0: s.x0 - 1, z0: s.z0 - 1, x1: s.x0 + s.w + 1, z1: s.z0 + s.d + 1 },
+    { x0: door[1] - 1, z0: s.z0 + s.d, x1: door[1] + 3, z1: PLOT },
+    { x0: 0, z0: PLOT - 3, x1: PLOT, z1: PLOT },
+  ];
+  if (streak >= POND_STREAK) {
+    const [px, pz] = GARDEN_POND;
+    out.push({ x0: px / S + PLOT / 2 - 6, z0: pz / S + PLOT / 2 - 5, x1: px / S + PLOT / 2 + 6, z1: pz / S + PLOT / 2 + 5 });
+  }
+  for (const q of placed) {
+    if (q === except) continue;
+    const g = gardenItem(q.item);
+    if (!g) continue;
+    const { w, d } = footprint(g, q.turn);
+    out.push({ x0: q.x, z0: q.z, x1: q.x + w, z1: q.z + d });
+  }
+  return out;
+}
+/** `moving`: the placed thing being moved, which doesn't block itself */
+export function canPlace(p: Placed, level: number, streak: number, placed: Placed[], moving?: Placed): boolean {
+  const g = gardenItem(p.item);
+  if (!g) return false;
+  const { w, d } = footprint(g, p.turn);
+  const box: Box = { x0: p.x, z0: p.z, x1: p.x + w, z1: p.z + d };
+  if (box.x0 < 1 || box.z0 < 1 || box.x1 > PLOT - 1 || box.z1 > PLOT - 1) return false;
+  return !blockedOnPlot(level, streak, placed, moving).some((b) => overlaps(b, box));
+}
+/** a free spot to start placing from: the first that fits (either way round), scanning from the
+ *  front of the garden; null when nothing fits (a big thing on a full plot) */
+export function firstFreeSpot(item: string, level: number, streak: number, placed: Placed[]): Placed | null {
+  const g = gardenItem(item)!;
+  for (const turn of [0, 1]) {
+    const { w, d } = footprint(g, turn);
+    for (let z = PLOT - 4 - d; z >= 1; z -= 2)
+      for (let x = 1; x + w <= PLOT - 1; x += 2) {
+        const p = { item, x, z, turn };
+        if (canPlace(p, level, streak, placed)) return p;
+      }
+  }
+  return null;
 }
 
 // Small official sets placed as props (baked glbs, see PROPS in pack.mjs):
