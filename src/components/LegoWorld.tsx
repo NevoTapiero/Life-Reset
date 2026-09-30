@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { ContactShadows, Environment, Lightformer, OrbitControls, PerformanceMonitor } from "@react-three/drei";
-import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, ToneMapping, Vignette } from "@react-three/postprocessing";
+import { ContactShadows, Environment, Lightformer, OrbitControls, PerformanceMonitor, Sky } from "@react-three/drei";
+import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, N8AO, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import { sfx, setSound, soundOn } from "@/lib/sfx";
 import { CAN_RUN_AT, ENERGY_MAX, JUMP_COST, RUN_COST, TRICKLE } from "@/lib/energy";
@@ -137,6 +137,29 @@ function getLoader(smooth: boolean) {
     );
   return setup;
 }
+// LEGO ABS: a glossy clear coat over a slightly rough colour, so bricks catch the
+// sky and the sun the way real ones do. Metals and glass keep what the loader gave them.
+// Every model passes through finish(), which swaps each mesh's material for its plastic
+// twin -- one twin per material, so models keep sharing what they shared.
+const PLASTIC = new Map<THREE.Material, THREE.Material>();
+function plasticOf(m: THREE.Material): THREE.Material {
+  if (!(m as THREE.MeshStandardMaterial).isMeshStandardMaterial || (m as THREE.MeshPhysicalMaterial).isMeshPhysicalMaterial) return m;
+  let p = PLASTIC.get(m);
+  if (!p) PLASTIC.set(m, (p = asPlastic(m as THREE.MeshStandardMaterial)));
+  return p;
+}
+function asPlastic(m: THREE.MeshStandardMaterial): THREE.MeshPhysicalMaterial {
+  const p = new THREE.MeshPhysicalMaterial();
+  // the standard fields only: the physical copy() expects a physical source
+  THREE.MeshStandardMaterial.prototype.copy.call(p, m);
+  p.userData = m.userData; // the loader keeps the edge material and colour code here
+  if (m.metalness < 0.5) {
+    p.roughness = m.transparent ? 0.15 : 0.42;
+    p.clearcoat = m.transparent ? 0.9 : 0.6;
+    p.clearcoatRoughness = 0.3;
+  }
+  return p;
+}
 function parse(loader: LDrawLoader, text: string): Promise<THREE.Group> {
   return new Promise((resolve, reject) => loader.parse(text, resolve, reject));
 }
@@ -149,6 +172,7 @@ function finish(group: THREE.Object3D): THREE.Object3D {
     if (mesh.isMesh) {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(plasticOf) : plasticOf(mesh.material);
     }
   });
   return group;
@@ -453,7 +477,7 @@ function loadHouse(url: string) {
       url,
       (p = gltf.loadAsync(url).then((g) => {
         rooms.set(url, measureRooms(g.scene));
-        return finish(g.scene);
+        return finish(g.scene); // (plastic too, like everything finish() touches)
       })),
     );
   return p;
@@ -1120,6 +1144,53 @@ function LampGlows({ at }: { at: [number, number, number][] }) {
 /** `at`: a point in three's space, or a function giving it each frame (for someone walking about) */
 export type Pin = { key: string; at: [number, number, number] | (() => [number, number, number] | null); node: React.ReactNode };
 
+// Real studs on the ground round you: a stud a stud, on the plots and the plaza
+// (the painted studs stay underneath, and take over further off). Instanced
+// low-poly cylinders, laid out again whenever you've moved a few studs.
+const STUD_REACH = 16; // studs from you
+const STUD_MAX = (2 * STUD_REACH + 1) ** 2;
+function NearStuds({ follow, grass }: { follow: React.RefObject<THREE.Vector3>; grass: string }) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const laid = useRef({ x: 1e9, z: 1e9 });
+  const o = useMemo(() => new THREE.Object3D(), []);
+  const green = useMemo(() => new THREE.Color(grass), [grass]);
+  const grey = useMemo(() => new THREE.Color("#a3a7ad"), []);
+  useFrame(() => {
+    const m = mesh.current;
+    if (!m) return;
+    const px = Math.round(follow.current.x);
+    const pz = Math.round(follow.current.z);
+    if (Math.abs(px - laid.current.x) < 3 && Math.abs(pz - laid.current.z) < 3) return;
+    laid.current = { x: px, z: pz };
+    let n = 0;
+    for (let x = px - STUD_REACH; x <= px + STUD_REACH; x++)
+      for (let z = pz - STUD_REACH; z <= pz + STUD_REACH; z++) {
+        // three's z is -LDraw z; the blocks are PITCH studs apart, PLOT wide
+        const bx = Math.round(x / PITCH_STUDS);
+        const bz = Math.round(-z / PITCH_STUDS);
+        if (Math.abs(bx) > 1 || Math.abs(bz) > 1) continue;
+        const dx = x - bx * PITCH_STUDS;
+        const dz = -z - bz * PITCH_STUDS;
+        if (Math.abs(dx) >= PLOT / 2 || Math.abs(dz) >= PLOT / 2) continue; // the street
+        o.position.set(x + 0.5, 0.085, z + 0.5);
+        o.updateMatrix();
+        m.setMatrixAt(n, o.matrix);
+        m.setColorAt(n, bx === 0 && bz === 0 ? grey : green);
+        n++;
+      }
+    m.count = n;
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, STUD_MAX]} frustumCulled={false} receiveShadow>
+      <cylinderGeometry args={[0.3, 0.3, 0.17, 12]} />
+      <meshPhysicalMaterial roughness={0.42} clearcoat={0.6} clearcoatRoughness={0.3} />
+    </instancedMesh>
+  );
+}
+const PITCH_STUDS = PLOT + 16;
+
 // Following someone round the town, the sunlight (and its shadow area, only
 // ~44 units across) goes with them, so you and what's around you always cast shadows.
 function SunFollows({
@@ -1220,6 +1291,7 @@ function Stage({
   // and never more pixels than a phone screen at 2x (PixelBudget)
   const [box, setBox] = useState({ w: 400, h: 700 });
   const sized = useCallback((w: number, h: number) => setBox({ w, h }), []);
+  const near = !!follow || !mood; // a close view (playing, or a room) rather than the whole town
   const budget = Math.max(1, Math.min(dpr, Math.sqrt(PIXEL_BUDGET / (box.w * box.h))));
   const controls = useRef<OrbitControlsImpl>(null);
   const light = useRef<THREE.DirectionalLight>(null);
@@ -1278,8 +1350,17 @@ function Stage({
             shadow-camera-far={90}
             shadow-bias={-0.0004}
           />
-          <Environment resolution={256}>
-            {/* soft studio panels: the glossy highlights that make it read as plastic */}
+          <Environment resolution={256} frames={1} environmentIntensity={mood ? 0.5 : 0.7}>
+            {/* what the plastic reflects: outdoors the sky and the sun; indoors a warm room.
+                Plus soft panels for the glossy highlights that make it read as plastic. */}
+            {mood ? (
+              <Sky sunPosition={mood.night ? [0, -1, 0] : [18, 30, -14]} turbidity={6} rayleigh={mood.name === "day" ? 1.2 : 2.5} />
+            ) : (
+              <mesh scale={100}>
+                <sphereGeometry args={[1, 16, 8]} />
+                <meshBasicMaterial color="#f4e9d6" side={THREE.BackSide} />
+              </mesh>
+            )}
             <Lightformer intensity={2.6 * (mood?.ambient ?? 1)} position={[0, 10, 10]} scale={[20, 8, 1]} />
             <Lightformer intensity={1.4 * (mood?.ambient ?? 1)} position={[-10, 4, -6]} scale={[8, 8, 1]} />
             <Lightformer intensity={1.2 * (mood?.ambient ?? 1)} position={[10, 6, -8]} scale={[10, 6, 1]} />
@@ -1329,16 +1410,20 @@ function Stage({
           {/* outdoors: lamps and lit windows glowing after dark, a soft vignette. Everything
               stays sharp (no blur: it read as low quality). The effects draw off screen, so the
               neutral tone mapping moves in here. */}
-          {mood && (
-            <EffectComposer multisampling={2}>
-              <Bloom luminanceThreshold={0.85} luminanceSmoothing={0.2} intensity={mood.night ? 1.1 : 0.25} mipmapBlur />
-              <Vignette offset={0.35} darkness={0.28} />
-              <ToneMapping mode={ToneMappingMode.NEUTRAL} />
-              {/* toy-box colour: a touch more saturation and contrast than life */}
-              <HueSaturation saturation={0.05} />
-              <BrightnessContrast contrast={0.06} />
-            </EffectComposer>
-          )}
+          {/* keyed: the close views and the whole-town view get their own composer (changing a
+              live composer's passes breaks its render) */}
+          <EffectComposer key={near ? "near" : "far"} multisampling={2}>
+            {/* ambient occlusion: the soft dark in the gaps between bricks and round every stud,
+                the thing that makes LEGO renders look like LEGO (a stud is one unit here). Close
+                views only: from above it barely shows and it draws the whole town a second time. */}
+            {near ? <N8AO aoRadius={1.3} distanceFalloff={0.8} intensity={1.7} quality="medium" halfRes /> : null}
+            {mood ? <Bloom luminanceThreshold={0.85} luminanceSmoothing={0.2} intensity={mood.night ? 1.1 : 0.25} mipmapBlur /> : null}
+            {mood ? <Vignette offset={0.35} darkness={0.28} /> : null}
+            <ToneMapping mode={ToneMappingMode.NEUTRAL} />
+            {/* toy-box colour: a touch more saturation and contrast than life */}
+            <HueSaturation saturation={0.05} />
+            <BrightnessContrast contrast={0.06} />
+          </EffectComposer>
         </Canvas>
         {/* pinned buttons: plain DOM over the canvas, moved every frame by PinTracker */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -1748,6 +1833,7 @@ export function LegoTown({
         overlay={
           <>
             <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} />
+            {following && <NearStuds follow={me3} grass={grass} />}
             {/* the ground: grass everywhere, the smooth grey street square, the plaza and each plot */}
             <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.03} flat />
             <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#43474c" y={-0.015} flat />
