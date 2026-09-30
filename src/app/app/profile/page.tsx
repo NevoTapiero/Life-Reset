@@ -34,6 +34,7 @@ export default function ProfilePage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [show3d, setShow3d] = useState(false);
+  const [ptab, setPtab] = useState<"progress" | "collection" | "account">("progress");
   const [sound, setSoundState] = useState(true);
   const [sharing, setSharing] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -82,7 +83,9 @@ export default function ProfilePage() {
     if (!profile || jumped.current) return;
     jumped.current = true;
     if (window.location.hash === "#apps") {
-      document.getElementById("apps")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- follows the #apps link once
+      setPtab("account");
+      setTimeout(() => document.getElementById("apps")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
       history.replaceState(null, "", window.location.pathname);
     }
   }, [profile]);
@@ -241,6 +244,34 @@ export default function ProfilePage() {
       )}
       {msg && <p className="text-sm font-bold mt-3 text-center" style={{ color: "var(--danger)" }}>{msg}</p>}
 
+      {/* three tabs under the card: progress, collection, account */}
+      <div className="brick-tabs grid-cols-3 mt-5" role="tablist">
+        {(["progress", "collection", "account"] as const).map((t) => (
+          <button key={t} role="tab" aria-selected={ptab === t} className={`brick-tab ${ptab === t ? "on" : ""}`} onClick={() => setPtab(t)}>
+            {t === "progress" ? "Progress" : t === "collection" ? "Collection" : "Account"}
+          </button>
+        ))}
+      </div>
+
+      {ptab === "progress" && (
+        <div className="slide-in">
+      {/* the numbers */}
+      <section className="grid grid-cols-2 gap-3 mt-4">
+        <Stat label="Total XP" value={profile.xp.toLocaleString()} color="green" icon="star" />
+        <Stat label="Rank" value={rank.label} color="blue" icon="chart" />
+        <Stat label="Streak" value={`${profile.streak_current} ${profile.streak_current === 1 ? "day" : "days"}`} color="orange" icon="flame" />
+        <Stat label="Best streak" value={`${profile.streak_best} ${profile.streak_best === 1 ? "day" : "days"}`} color="red" icon="trophy" />
+        <Stat label="Gold" value={(profile.gold ?? 0).toLocaleString()} color="yellow" icon="stud" />
+        <Stat label="Playing since" value={new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(profile.created_at)).replace(" 20", " ")} color="azure" icon="calendar" />
+      </section>
+
+      <div className="mt-4">
+        <LevelRoad character={profile.archetype} xp={profile.xp} />
+      </div>
+      <div className="mt-4">
+        <MonthMosaic uid={profile.id} />
+      </div>
+
       {/* your plot in 3D: the house grows with your level, the garden with your streak */}
       <section className="scene mt-4 overflow-hidden">
         {show3d ? (
@@ -262,26 +293,42 @@ export default function ProfilePage() {
         )}
       </section>
 
-      {/* the numbers */}
-      <section className="grid grid-cols-2 gap-3 mt-4">
-        <Stat label="Total XP" value={profile.xp.toLocaleString()} color="green" icon="star" />
-        <Stat label="Rank" value={rank.label} color="blue" icon="chart" />
-        <Stat label="Streak" value={`${profile.streak_current} ${profile.streak_current === 1 ? "day" : "days"}`} color="orange" icon="flame" />
-        <Stat label="Best streak" value={`${profile.streak_best} ${profile.streak_best === 1 ? "day" : "days"}`} color="red" icon="trophy" />
-        <Stat label="Gold" value={(profile.gold ?? 0).toLocaleString()} color="yellow" icon="stud" />
-        <Stat label="Playing since" value={new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(profile.created_at)).replace(" 20", " ")} color="azure" icon="calendar" />
-      </section>
+        </div>
+      )}
 
-      <div className="mt-4">
-        <LevelRoad character={profile.archetype} xp={profile.xp} />
-      </div>
+      {ptab === "collection" && (
+        <div className="slide-in">
       <div className="mt-4">
         <GoldBricks profile={profile} />
       </div>
-      <div className="mt-4">
-        <MonthMosaic uid={profile.id} />
+      {/* character */}
+      <h2 className="section-title mt-8 mb-1" style={{ "--brick": "var(--lego-orange)" } as React.CSSProperties}>
+        Your minifig
+      </h2>
+      <p className="text-[13px] font-bold text-muted mb-3">Who you are in the LEGO world. Each one dresses up as you level.</p>
+      <div className="grid grid-cols-5 gap-2">
+        {CHARACTER_KEYS.map((key) => {
+          const on = (profile.archetype ?? "warrior") === key;
+          return (
+            <button
+              key={key}
+              className={`option-row !p-1.5 flex flex-col items-center gap-1 ${on ? "selected" : ""}`}
+              onClick={() => chooseCharacter(key)}
+              aria-pressed={on}
+              aria-label={CHARACTERS[key].name}
+            >
+              <Minifig character={key} level={level} size={78} />
+              <span className="text-[10px] font-extrabold leading-tight">{CHARACTERS[key].name.replace("The ", "")}</span>
+            </button>
+          );
+        })}
       </div>
 
+        </div>
+      )}
+
+      {ptab === "account" && (
+        <div className="slide-in">
       {/* account */}
       <h2 className="section-title mt-8 mb-3" style={{ "--brick": "var(--lego-blue)" } as React.CSSProperties}>
         Account
@@ -322,29 +369,6 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      {/* character */}
-      <h2 className="section-title mt-8 mb-1" style={{ "--brick": "var(--lego-orange)" } as React.CSSProperties}>
-        Your minifig
-      </h2>
-      <p className="text-[13px] font-bold text-muted mb-3">Who you are in the LEGO world. Each one dresses up as you level.</p>
-      <div className="grid grid-cols-5 gap-2">
-        {CHARACTER_KEYS.map((key) => {
-          const on = (profile.archetype ?? "warrior") === key;
-          return (
-            <button
-              key={key}
-              className={`option-row !p-1.5 flex flex-col items-center gap-1 ${on ? "selected" : ""}`}
-              onClick={() => chooseCharacter(key)}
-              aria-pressed={on}
-              aria-label={CHARACTERS[key].name}
-            >
-              <Minifig character={key} level={level} size={78} />
-              <span className="text-[10px] font-extrabold leading-tight">{CHARACTERS[key].name.replace("The ", "")}</span>
-            </button>
-          );
-        })}
-      </div>
-
       {/* connected apps */}
       <h2 id="apps" className="section-title mt-8 mb-1 scroll-mt-4" style={{ "--brick": "var(--lego-green)" } as React.CSSProperties}>
         Your apps
@@ -356,6 +380,9 @@ export default function ProfilePage() {
         <Icon name="logout" size={17} strokeWidth={2.2} />
         Sign out
       </button>
+        </div>
+      )}
+
       <p className="text-center hud-label mt-5">Solo Leveling</p>
     </div>
   );
