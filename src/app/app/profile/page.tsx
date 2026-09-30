@@ -9,6 +9,7 @@ import Connections from "@/components/Connections";
 import Icon from "@/components/Icon";
 import LegoIcon, { BrickColor } from "@/components/LegoIcon";
 import Minifig from "@/components/Minifig";
+import MinifigCard from "@/components/MinifigCard";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import { setSound, soundOn } from "@/lib/sfx";
@@ -16,15 +17,6 @@ import { CHARACTERS, CHARACTER_KEYS, CharacterKey, Profile, rankForXp } from "@/
 
 // three.js touches window: the 3D plot loads on the client, and only when asked
 const LegoWorld = dynamic(() => import("@/components/LegoWorld"), { ssr: false });
-
-// the card behind each character, in LEGO colours: [top, bottom]
-const CARD_COLORS: Record<string, [string, string]> = {
-  warrior: ["#fe8a18", "#c91a09"],
-  mentalist: ["#b791d1", "#5d3a78"],
-  wizard: ["#3c86e0", "#0a3463"],
-  guardian: ["#7cc57b", "#237841"],
-  shadow: ["#3d4e5a", "#05131d"],
-};
 
 // Profile: the plain facts. Your picture, name, email, level, streak and XP,
 // which character you play, the apps you connected, privacy, sign out.
@@ -155,26 +147,7 @@ export default function ProfilePage() {
   return (
     <div className="slide-in">
       {/* the collectible minifigure card: your minifig on its stand, your level as the series number */}
-      <section className="minifig-card" style={{ "--card": CARD_COLORS[profile.archetype ?? "warrior"]?.[0], "--card-2": CARD_COLORS[profile.archetype ?? "warrior"]?.[1] } as React.CSSProperties}>
-        <div className="relative flex items-start justify-between px-4 pt-4">
-          <span className="minifig-card-brand">
-            SOLO LEVELING
-            <b>MINIFIGURES</b>
-          </span>
-          <span className="minifig-card-level" aria-label={`Level ${level}`}>
-            <small>LV</small>
-            {level}
-          </span>
-        </div>
-        <div className="relative flex justify-center pt-1 pb-3">
-          <span className="minifig-card-spot" aria-hidden />
-          <span className="minifig-float">
-            <Minifig character={profile.archetype} level={level} size={250} />
-          </span>
-        </div>
-
-        {/* the nameplate */}
-        <div className="relative mx-3 mb-3 rounded-[16px] bg-white px-3.5 py-3 flex items-center gap-3" style={{ boxShadow: "0 4px 0 var(--lip)" }}>
+      <MinifigCard character={profile.archetype} level={level}>
           <div className="relative flex-none">
             <PlayerAvatar photo={photo} character={profile.archetype} size={54} />
             <button
@@ -227,8 +200,7 @@ export default function ProfilePage() {
               </button>
             </div>
           )}
-        </div>
-      </section>
+      </MinifigCard>
       {photo && (
         <div className="text-center">
           <button className="text-[12.5px] font-extrabold text-muted underline underline-offset-4 mt-2" disabled={uploading} onClick={useMinifig}>
