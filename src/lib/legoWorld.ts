@@ -454,36 +454,120 @@ function seeded(seed: number) {
 }
 
 
-// The ground itself is drawn flat by the renderer (smooth grey streets, like
-// LEGO road plates, and grass beyond); studded plates there would be about
-// 90,000 studs. Here: the forest -- a band of trees and bushes on a 16-stud
-// lattice all round the town, the edge of your world, seen but not walked into.
-// The land round the town: a grass verge, then a dense belt of forest (pines
-// with the odd leafy tree), cut by the two roads out of town (north and south)
-// and by a river through the north woods. Inside the ring road the only trees
-// are the avenue trees on the pavements: rows, not a scatter.
-const FOREST_CELL = 12; // studs between trees
-const VERGE = 10; // grass between the ring road and the trees, studs
-const FOREST_DEPTH = 48; // studs
-export const ROAD_OUT = 16; // the roads out of town, studs wide, at x = 0
-export const RIVER_Z = -(TOWN_HALF + VERGE + FOREST_DEPTH / 2); // through the north forest, studs
+// ---- the land round the village: two roads out, a river, a lake, the woods ----
+// The roads leave the village together, at a little roundabout on its south-east
+// edge, and fork: each winds off its own way into the woods until it fades into the
+// hills. One crosses the river on a bridge. A dirt track leads from the ring to a
+// lake in the woods. The woods start at the village's edge and thicken outwards.
+export const ROAD_OUT = 16; // the roads out, studs wide
+export const ROAD_END = TOWN_HALF + 130; // where the roads out fade into the hills, studs from the centre
 export const RIVER_W = 16; // studs
-export const ROAD_END = TOWN_HALF + VERGE + FOREST_DEPTH + 70; // where the roads out fade into the hills
-/** the forest belt: where each tree stands (LDU), how tall (LDU), and whether it's a pine.
- *  Drawn as plain cones and balls by the renderer (Scenery): from the town they read as
- *  LEGO trees, and the real 3,500-triangle pine part times 300 was what made the map view crawl. */
-export function forestTrees(): { x: number; z: number; h: number; pine: boolean }[] {
-  const out: { x: number; z: number; h: number; pine: boolean }[] = [];
+export const RIVER_Z = -(TOWN_HALF + 40); // the river's mean line, studs (it wanders)
+const ENTRANCE = { a: (248 * Math.PI) / 180, r: 175, round: 9 }; // the roundabout: where it stands (a gap between houses, at the woods' edge), its radius (studs)
+export const ROUNDABOUT: [number, number] = [Math.sin(ENTRANCE.a) * ENTRANCE.r * S, Math.cos(ENTRANCE.a) * ENTRANCE.r * S];
+export const ROUND_R = ENTRANCE.round * S;
+/** a road out into the woods from the roundabout's rim, winding (LDU) */
+function roadOut(heading: number, seed: number): P3[] {
+  const rnd = seeded(seed);
+  const pts: P3[] = [];
+  let [x, z] = [ROUNDABOUT[0] + Math.sin(heading) * ROUND_R, ROUNDABOUT[1] + Math.cos(heading) * ROUND_R];
+  let h = heading;
+  pts.push([x, 0, z]);
+  const step = 26 * S;
+  for (let k = 0; k < 16 && Math.hypot(x, z) < ROAD_END * S; k++) {
+    h += (rnd() - 0.5) * 0.6 + (heading - h) * 0.3; // wanders, but keeps heading out
+    x += Math.sin(h) * step;
+    z += Math.cos(h) * step;
+    pts.push([x, 0, z]);
+  }
+  return pts;
+}
+export const ROADS: P3[][] = [roadOut((275 * Math.PI) / 180, 41), roadOut((190 * Math.PI) / 180, 42)];
+/** the river, west to east across the north woods, wandering (LDU) */
+export const RIVER: P3[] = Array.from({ length: 27 }, (_, k) => {
+  const x = -780 + k * 60;
+  return [x * S, 0, (RIVER_Z + 26 * Math.sin(x / 90) + 14 * Math.sin(x / 37 + 1)) * S] as P3;
+});
+/** the lake in the woods, and the dirt track to it from the ring (LDU) */
+export const LAKE = { x: Math.sin((66 * Math.PI) / 180) * (TOWN_HALF + 18) * S, z: Math.cos((66 * Math.PI) / 180) * (TOWN_HALF + 18) * S, r: 22 * S };
+export const TRACK: P3[] = (() => {
+  const rim: P3 = [LAKE.x * (1 - (LAKE.r + 2 * S) / Math.hypot(LAKE.x, LAKE.z)), 0, LAKE.z * (1 - (LAKE.r + 2 * S) / Math.hypot(LAKE.x, LAKE.z))];
+  const start = nearestStreet(rim);
+  const [dx, dz] = [rim[0] - start[0], rim[2] - start[2]];
+  const len = Math.hypot(dx, dz) || 1;
+  const [nx, nz] = [-dz / len, dx / len];
+  return [0, 0.25, 0.5, 0.75, 1].map((t, k) => {
+    const w = [0, 6, -5, 6, 0][k] * S;
+    return [start[0] + dx * t + nx * w, 0, start[2] + dz * t + nz * w] as P3;
+  });
+})();
+/** where a road crosses the river: the point and the road's heading there (as a slab yaw), or null */
+export function crossing(road: P3[], river: P3[]): { p: P3; yaw: number; dir: [number, number] } | null {
+  for (let i = 0; i + 1 < road.length; i++)
+    for (let j = 0; j + 1 < river.length; j++) {
+      const [a, b, c, d] = [road[i], road[i + 1], river[j], river[j + 1]];
+      const [r1x, r1z, r2x, r2z] = [b[0] - a[0], b[2] - a[2], d[0] - c[0], d[2] - c[2]];
+      const den = r1x * r2z - r1z * r2x;
+      if (Math.abs(den) < 1e-6) continue;
+      const t = ((c[0] - a[0]) * r2z - (c[2] - a[2]) * r2x) / den;
+      const u = ((c[0] - a[0]) * r1z - (c[2] - a[2]) * r1x) / den;
+      if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+      const len = Math.hypot(r1x, r1z) || 1;
+      return { p: [a[0] + r1x * t, 0, a[2] + r1z * t], yaw: Math.atan2(-r1z, r1x), dir: [r1x / len, r1z / len] };
+    }
+  return null;
+}
+/** the cars' loop: in along one road, round the roundabout, out along the other, and back
+ *  unseen through the hills (LDU) */
+export function carLoop(): [number, number][] {
+  const [a, b] = ROADS;
+  const pts: [number, number][] = a.slice().reverse().map((p) => [p[0], p[2]]);
+  const angle = (p: P3) => Math.atan2(p[0] - ROUNDABOUT[0], p[2] - ROUNDABOUT[1]);
+  const [a0, a1] = [angle(a[0]), angle(b[0])];
+  for (let k = 1; k < 8; k++) {
+    const t = a0 + ((a1 - a0) * k) / 8;
+    pts.push([ROUNDABOUT[0] + Math.sin(t) * ROUND_R, ROUNDABOUT[1] + Math.cos(t) * ROUND_R]);
+  }
+  pts.push(...b.map((p) => [p[0], p[2]] as [number, number]));
+  // home through the hills: an arc well beyond where the roads fade, out of sight
+  const far = (ROAD_END + 40) * S;
+  const [e0, e1] = [Math.atan2(b[b.length - 1][0], b[b.length - 1][2]), Math.atan2(a[a.length - 1][0], a[a.length - 1][2])];
+  let d = e1 - e0;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  for (let k = 0; k <= 10; k++) {
+    const t = e0 + (d * k) / 10;
+    pts.push([Math.sin(t) * far, Math.cos(t) * far]);
+  }
+  return pts;
+}
+const WOODS_FROM = TOWN_HALF - 30; // the woods begin here (thin), studs from the centre
+const WOODS_TO = TOWN_HALF + 120; // and run out to the hills
+/** the woods: where each tree stands (LDU), how tall (LDU), a pine or leafy, and a shade of
+ *  its green (0.8..1.2). Drawn instanced by the renderer (ForestBelt). Never on a plot, a
+ *  path, a road, the river, the lake or the roundabout; thin at the village's edge, thick beyond. */
+export function forestTrees(): { x: number; z: number; h: number; pine: boolean; shade: number }[] {
+  const out: { x: number; z: number; h: number; pine: boolean; shade: number }[] = [];
   const rnd = seeded(7);
-  const from = TOWN_HALF + VERGE;
-  const to = from + FOREST_DEPTH;
-  for (let i = -to; i <= to; i += FOREST_CELL)
-    for (let j = -to; j <= to; j += FOREST_CELL) {
-      if (Math.hypot(i, j) < from || Math.hypot(i, j) > to) continue; // the town (round), and a round edge
-      if (Math.abs(i) < ROAD_OUT / 2 + 6) continue; // the roads out
-      if (Math.abs(j - RIVER_Z) < RIVER_W / 2 + 6) continue; // the river
-      const pine = rnd() < 0.82;
-      out.push({ x: Math.round(i + (rnd() - 0.5) * 6) * S, z: Math.round(j + (rnd() - 0.5) * 6) * S, h: (pine ? 110 : 80) + rnd() * 50, pine });
+  const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
+  const paths = lots.map((lot) => lotPath(lot, 3));
+  const bridge = crossing(ROADS[1], RIVER);
+  for (let i = -WOODS_TO; i <= WOODS_TO; i += 7)
+    for (let j = -WOODS_TO; j <= WOODS_TO; j += 7) {
+      const x = (i + (rnd() - 0.5) * 6) * S;
+      const z = (j + (rnd() - 0.5) * 6) * S;
+      const r = Math.hypot(x, z) / S;
+      if (r < WOODS_FROM || r > WOODS_TO) continue;
+      if (rnd() > 0.3 + (r - WOODS_FROM) / 45) continue; // thin at the edge of the village
+      if (lots.some((lot) => nearLot(x, z, lot, 6 * S))) continue;
+      if (paths.some((p) => toPath(x, z, p) < 8 * S)) continue;
+      if (ROADS.some((p) => toPath(x, z, p) < (ROAD_OUT / 2 + 5) * S)) continue;
+      if (toPath(x, z, RIVER) < (RIVER_W / 2 + 5) * S || toPath(x, z, TRACK) < 6 * S) continue;
+      if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 5 * S) continue;
+      if (Math.hypot(x - ROUNDABOUT[0], z - ROUNDABOUT[1]) < ROUND_R + (ROAD_OUT + 4) * S) continue;
+      if (bridge && Math.hypot(x - bridge.p[0], z - bridge.p[2]) < 24 * S) continue;
+      const pine = rnd() < 0.7;
+      out.push({ x, z, h: (pine ? 130 : 95) + rnd() * 70, pine, shade: 0.8 + rnd() * 0.4 });
     }
   return out;
 }
@@ -515,12 +599,16 @@ function villageTrees(): string[] {
   const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
   const paths = lots.map((lot) => lotPath(lot, 3)); // level 3's door is about where every level's is
   const taken: [number, number][] = [];
+  // the tree on the roundabout
+  out.push(line(COL.green, Math.round(ROUNDABOUT[0] / S) * S, -BOTTOM["2435"], Math.round(ROUNDABOUT[1] / S) * S, ROT[0], "2435"));
   for (let tries = 0; tries < 900 && out.length < 90; tries++) {
     const a = rnd() * Math.PI * 2;
-    const r = (RING + 14 + rnd() * (TOWN_HALF - ROAD - 8 - RING - 14)) * S;
+    const r = (RING + 14 + rnd() * (WOODS_FROM - RING - 14)) * S;
     const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
     if (lots.some((lot) => nearLot(x, z, lot, 6 * S))) continue;
     if (paths.some((path) => toPath(x, z, path) < 7 * S)) continue;
+    if (ROADS.some((p) => toPath(x, z, p) < (ROAD_OUT / 2 + 5) * S) || toPath(x, z, TRACK) < 6 * S) continue;
+    if (Math.hypot(x - ROUNDABOUT[0], z - ROUNDABOUT[1]) < ROUND_R + (ROAD_OUT + 4) * S) continue;
     if (taken.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 11 * S)) continue;
     taken.push([x, z]);
     const part = rnd() < 0.72 ? "2435" : rnd() < 0.5 ? "3471" : "3470";
@@ -880,16 +968,54 @@ export function townFlats(): Slab[] {
   const out: Slab[] = [];
   const white = "#f2f2ee";
   const asphalt = "#43474c";
-  // the road round the village: a ring, its top at ground level, dashes round its middle
-  const road = (TOWN_HALF - ROAD / 2) * S;
-  out.push({ x: 0, z: 0, w: 2 * TOWN_HALF * S, d: 2 * TOWN_HALF * S, h: 2, y: -2, radius: TOWN_HALF * S, border: ROAD * S, color: asphalt });
-  const dashes = Math.round((2 * Math.PI * road) / (8 * S));
-  for (let k = 0; k < dashes; k++) {
-    const a = (k / dashes) * Math.PI * 2;
-    const [x, z] = [Math.sin(a) * road, Math.cos(a) * road];
-    if (Math.abs(x) < (ROAD_OUT / 2 + 4) * S && Math.abs(z) > road - S) continue; // the roads out join here
-    out.push({ x, z, w: 80, d: 20, h: 2, color: white, yaw: Math.atan2(-Math.cos(a), Math.sin(a)) + Math.PI / 2 });
+  const GRAVEL_W = PATH_W * S;
+  // a road or path along a polyline: a turned box per leg (they overlap at the bends), its top at ground level
+  const along = (pts: P3[], w: number, color: string, h = 2) => {
+    for (let k = 0; k + 1 < pts.length; k++) {
+      const [a, b] = [pts[k], pts[k + 1]];
+      const [dx, dz] = [b[0] - a[0], b[2] - a[2]];
+      out.push({ x: (a[0] + b[0]) / 2, z: (a[2] + b[2]) / 2, w: Math.hypot(dx, dz) + w, d: w, h, y: -h, color, yaw: Math.atan2(-dz, dx) });
+    }
+  };
+  // a point `d` LDU along a polyline, and the leg's yaw
+  const at = (pts: P3[], d: number): { x: number; z: number; yaw: number } | null => {
+    for (let k = 0; k + 1 < pts.length; k++) {
+      const [a, b] = [pts[k], pts[k + 1]];
+      const len = Math.hypot(b[0] - a[0], b[2] - a[2]);
+      if (d <= len) return { x: a[0] + ((b[0] - a[0]) * d) / len, z: a[2] + ((b[2] - a[2]) * d) / len, yaw: Math.atan2(-(b[2] - a[2]), b[0] - a[0]) };
+      d -= len;
+    }
+    return null;
+  };
+  // the two roads out of the village, dashed down their middles, from the roundabout
+  const bridge = crossing(ROADS[1], RIVER);
+  for (const road of ROADS) {
+    along(road, ROAD_OUT * S, asphalt);
+    for (let d = 14 * S; ; d += 8 * S) {
+      const p = at(road, d);
+      if (!p) break;
+      if (bridge && Math.hypot(p.x - bridge.p[0], p.z - bridge.p[2]) < (RIVER_W / 2 + 8) * S) continue;
+      out.push({ x: p.x, z: p.z, w: 80, d: 20, h: 2, color: white, yaw: p.yaw });
+    }
   }
+  // the roundabout: an asphalt ring round a grassy island with its tree, and a gravel spur to it from the ring
+  const side = 2 * (ROUND_R + ROAD_OUT * S);
+  out.push({ x: ROUNDABOUT[0], z: ROUNDABOUT[1], w: side, d: side, h: 2, y: -2, radius: side / 2, border: ROAD_OUT * S, color: asphalt });
+  const spurStart = nearestStreet([ROUNDABOUT[0], 0, ROUNDABOUT[1]]);
+  along([spurStart, [ROUNDABOUT[0], 0, ROUNDABOUT[1]]], GRAVEL_W, GRAVEL);
+  // the river: sandy banks under a band of water, wandering across the north woods; a bridge where the road crosses it
+  along(RIVER, (RIVER_W + 6) * S, "#d8c79c", 1);
+  along(RIVER, RIVER_W * S, "#3f8fd8", 2);
+  if (bridge) {
+    const [nx, nz] = [-bridge.dir[1], bridge.dir[0]];
+    const deck = (RIVER_W + 14) * S;
+    out.push({ x: bridge.p[0], z: bridge.p[2], w: deck, d: (ROAD_OUT + 2) * S, h: 6, color: "#8c9196", yaw: bridge.yaw });
+    for (const s of [-1, 1])
+      out.push({ x: bridge.p[0] + nx * s * (ROAD_OUT / 2 + 0.5) * S, z: bridge.p[2] + nz * s * (ROAD_OUT / 2 + 0.5) * S, w: deck, d: S, h: 22, color: white, yaw: bridge.yaw });
+  }
+  // the lake in the woods, sand round it, and the dirt track out to it
+  out.push({ x: LAKE.x, z: LAKE.z, r: LAKE.r + 3 * S, w: 0, d: 0, h: 1, y: -1, color: "#d8c79c" }, { x: LAKE.x, z: LAKE.z, r: LAKE.r, w: 0, d: 0, h: 2, y: -2, color: "#3f8fd8" });
+  along(TRACK, GRAVEL_W, GRAVEL);
   // the gravel ring round the plaza, and a winding gravel path in from every house's gate
   out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -2, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL });
   for (let i = 0; i < MAX_RESIDENTS; i++) {
@@ -905,24 +1031,6 @@ export function townFlats(): Slab[] {
     { x: FOUNTAIN[0], z: FOUNTAIN[1], r: 150, w: 0, d: 0, h: 1, color: "#8b7a5c" },
     { x: FOUNTAIN[0], z: FOUNTAIN[1], r: 138, w: 0, d: 0, h: 2, color: "#d8c79c" },
   );
-  // the roads out of town, north and south, to the hills; over the river, a bridge
-  const span = (z0: number, z1: number) => out.push({ x: 0, z: ((z0 + z1) / 2) * S, w: ROAD_OUT * S, d: Math.abs(z1 - z0) * S, h: 1, color: asphalt });
-  const bank = RIVER_W / 2 + 4;
-  span(-TOWN_HALF + 1, RIVER_Z + bank);
-  span(RIVER_Z - bank, -ROAD_END);
-  span(TOWN_HALF - 1, ROAD_END);
-  for (const dir of [-1, 1])
-    for (let t = TOWN_HALF + 4; t < ROAD_END; t += 8) {
-      if (dir < 0 && Math.abs(-t - RIVER_Z) < bank + 2) continue; // not on the bridge
-      out.push({ x: 0, z: dir * t * S, w: 20, d: 80, h: 2, color: white });
-    }
-  // the river: water with sandy banks, right across the land
-  const wide = (2 * ROAD_END + 400) * S;
-  out.push({ x: 0, z: RIVER_Z * S, w: wide, d: RIVER_W * S, h: 1, color: "#3f8fd8" });
-  for (const side of [-1, 1]) out.push({ x: 0, z: (RIVER_Z + side * (RIVER_W / 2 + 1.5)) * S, w: wide, d: 3 * S, h: 1, color: "#d8c79c" });
-  // the bridge: a grey deck a little above the road, white railings
-  out.push({ x: 0, z: RIVER_Z * S, w: (ROAD_OUT + 2) * S, d: 2 * bank * S, h: 6, color: "#8c9196" });
-  for (const side of [-1, 1]) out.push({ x: side * (ROAD_OUT / 2 + 0.5) * S, z: RIVER_Z * S, w: S, d: 2 * bank * S, h: 22, color: "#f2f2ee" });
   return out;
 }
 

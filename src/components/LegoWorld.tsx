@@ -87,6 +87,7 @@ import {
   townFlats,
   plotHedges,
   forestTrees,
+  carLoop,
   townClouds,
   type Slab,
   emptyLotsText,
@@ -2775,23 +2776,11 @@ const FLATS = townFlats();
 const HEDGES = plotHedges();
 const CLOUDS = townClouds();
 
-// ---- traffic: official LEGO cars driving round the ring road ----
-// The loop is a rounded square down the ring road's outer lane (LDraw frame),
-// sampled once into points with their distance along it.
-const LANE = (TOWN_HALF - 4) * 20; // the ring road's outer lane, LDU from the centre
-const CORNER = LANE; // corner radius, LDU: the whole loop is one circle, the road round the village
+// ---- traffic: official LEGO cars driving in on one road, round the roundabout, out the other ----
+// The loop (LDraw frame) comes from the roads, closed unseen through the hills; sampled
+// once into points with their distance along it.
 const LOOP = (() => {
-  const pts: { x: number; z: number; d: number }[] = [];
-  const s = LANE - CORNER;
-  // corners at (+,+), (-,+), (-,-), (+,-), turning the same way round
-  const centres: [number, number][] = [[s, s], [-s, s], [-s, -s], [s, -s]];
-  centres.forEach(([cx, cz], k) => {
-    const a0 = (k * Math.PI) / 2;
-    for (let j = 0; j <= 8; j++) {
-      const a = a0 + (j / 8) * (Math.PI / 2);
-      pts.push({ x: cx + Math.cos(a) * CORNER, z: cz + Math.sin(a) * CORNER, d: 0 });
-    }
-  });
+  const pts = carLoop().map(([x, z]) => ({ x, z, d: 0 }));
   pts.push({ ...pts[0] });
   for (let i = 1; i < pts.length; i++) pts[i].d = pts[i - 1].d + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
   return pts;
@@ -3401,35 +3390,52 @@ const FOREST = forestTrees();
 function ForestBelt({ season }: { season: Season }) {
   const trunks = useRef<THREE.InstancedMesh>(null);
   const pines = useRef<THREE.InstancedMesh>(null);
+  const tops = useRef<THREE.InstancedMesh>(null);
   const leafy = useRef<THREE.InstancedMesh>(null);
   const nPine = FOREST.filter((t) => t.pine).length;
+  const leafColour = season === "winter" ? "#eef2f6" : season === "autumn" ? "#e8742a" : season === "spring" ? "#7bc043" : "#4b9f4a";
+  const pineColour = season === "winter" ? "#dfe6ea" : "#237841";
   useLayoutEffect(() => {
     const o = new THREE.Object3D();
+    const c = new THREE.Color();
     let p = 0;
     let l = 0;
+    // wide, overlapping canopies in their own shades of green: a wood, not a row of dots
     FOREST.forEach((t, i) => {
       const x = t.x * LDU;
       const z = -t.z * LDU;
       const h = t.h * LDU;
       o.position.set(x, h * 0.18, z);
-      o.scale.set(0.5, h * 0.36, 0.5);
+      o.scale.set(0.55, h * 0.36, 0.55);
       o.updateMatrix();
       trunks.current?.setMatrixAt(i, o.matrix);
       if (t.pine) {
-        o.position.set(x, h * 0.65, z);
-        o.scale.set(h * 0.26, h * 0.7, h * 0.26);
+        o.position.set(x, h * 0.55, z);
+        o.scale.set(h * 0.4, h * 0.62, h * 0.4);
         o.updateMatrix();
-        pines.current?.setMatrixAt(p++, o.matrix);
+        pines.current?.setMatrixAt(p, o.matrix);
+        pines.current?.setColorAt(p, c.set(pineColour).multiplyScalar(t.shade));
+        o.position.set(x, h * 0.86, z);
+        o.scale.set(h * 0.26, h * 0.42, h * 0.26);
+        o.updateMatrix();
+        tops.current?.setMatrixAt(p, o.matrix);
+        tops.current?.setColorAt(p, c.set(pineColour).multiplyScalar(t.shade * 1.08));
+        p++;
       } else {
-        o.position.set(x, h * 0.62, z);
-        o.scale.set(h * 0.32, h * 0.3, h * 0.32);
+        o.position.set(x, h * 0.6, z);
+        o.scale.set(h * 0.46, h * 0.4, h * 0.46);
         o.updateMatrix();
-        leafy.current?.setMatrixAt(l++, o.matrix);
+        leafy.current?.setMatrixAt(l, o.matrix);
+        leafy.current?.setColorAt(l, c.set(leafColour).multiplyScalar(t.shade));
+        l++;
       }
     });
-    for (const m of [trunks, pines, leafy]) if (m.current) m.current.instanceMatrix.needsUpdate = true;
-  }, []);
-  const leafColour = season === "winter" ? "#eef2f6" : season === "autumn" ? "#e8742a" : season === "spring" ? "#7bc043" : "#4b9f4a";
+    for (const m of [trunks, pines, tops, leafy])
+      if (m.current) {
+        m.current.instanceMatrix.needsUpdate = true;
+        if (m.current.instanceColor) m.current.instanceColor.needsUpdate = true;
+      }
+  }, [leafColour, pineColour]);
   return (
     <>
       <instancedMesh ref={trunks} args={[undefined, undefined, FOREST.length]} castShadow>
@@ -3438,11 +3444,15 @@ function ForestBelt({ season }: { season: Season }) {
       </instancedMesh>
       <instancedMesh ref={pines} args={[undefined, undefined, nPine]} castShadow>
         <coneGeometry args={[1, 1, 8]} />
-        <meshStandardMaterial color={season === "winter" ? "#dfe6ea" : "#237841"} roughness={0.55} />
+        <meshStandardMaterial roughness={0.55} />
+      </instancedMesh>
+      <instancedMesh ref={tops} args={[undefined, undefined, nPine]} castShadow>
+        <coneGeometry args={[1, 1, 8]} />
+        <meshStandardMaterial roughness={0.55} />
       </instancedMesh>
       <instancedMesh ref={leafy} args={[undefined, undefined, FOREST.length - nPine]} castShadow>
         <sphereGeometry args={[1, 10, 8]} />
-        <meshStandardMaterial color={leafColour} roughness={0.55} />
+        <meshStandardMaterial roughness={0.55} />
       </instancedMesh>
     </>
   );
