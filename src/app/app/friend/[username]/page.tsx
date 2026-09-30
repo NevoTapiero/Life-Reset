@@ -10,7 +10,7 @@ import LegoIcon, { BrickColor, PILLAR_BRICK_COLOR } from "@/components/LegoIcon"
 import MinifigCard from "@/components/MinifigCard";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
-import { CharacterKey, PERIOD_LABEL, PILLAR_ICONS, Period, STAT_ICONS, STAT_KEYS, Stats, formatDate, questBase, rankForXp } from "@/lib/game";
+import { CharacterKey, PERIOD_LABEL, PILLAR_ICONS, Period, STAT_ICONS, STAT_KEYS, Stats, questBase, rankForXp } from "@/lib/game";
 
 type FriendQuest = {
   id: string;
@@ -81,6 +81,8 @@ export default function FriendProfilePage() {
 
   const rank = rankForXp(file.xp);
   const cleared = file.quests.filter((q) => q.done_today).length;
+  // the best streak is never below the one running now
+  const best = Math.max(file.streak_best, file.streak_current);
 
   return (
     <div className="slide-in">
@@ -92,12 +94,12 @@ export default function FriendProfilePage() {
       </button>
 
       <div className="mt-4">
-        <MinifigCard character={file.archetype} level={legoLevel(rank.tierIndex)} size={230}>
+        <MinifigCard character={file.archetype} level={legoLevel(rank.tierIndex)} size={230} tap>
           <PlayerAvatar photo={photoOf(file)} character={file.archetype} size={54} />
           <span className="flex-1 min-w-0">
             <span className="display block text-[24px] truncate">{file.username}</span>
             <span className="block text-[13px] font-extrabold text-muted truncate">
-              {levelTitle(file.archetype, rank.tierIndex)} · {rank.label} · since {formatDate(new Date(file.member_since))}
+              {levelTitle(file.archetype, rank.tierIndex)} · {rank.label} · since {new Date(file.member_since).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
             </span>
           </span>
         </MinifigCard>
@@ -111,7 +113,7 @@ export default function FriendProfilePage() {
         <Tile label="Last 7 days" value={`${file.weekly_xp.toLocaleString()} XP`} color="green" icon="star" />
         <Tile label="All time" value={`${file.xp.toLocaleString()} XP`} color="blue" icon="chart" />
         <Tile label="Streak" value={`${file.streak_current} ${file.streak_current === 1 ? "day" : "days"}`} color="orange" icon="flame" />
-        <Tile label="Best streak" value={`${file.streak_best} ${file.streak_best === 1 ? "day" : "days"}`} color="red" icon="trophy" />
+        <Tile label="Best streak" value={`${best} ${best === 1 ? "day" : "days"}`} color="red" icon="trophy" />
       </div>
 
       {/* the five stats */}
@@ -147,7 +149,7 @@ export default function FriendProfilePage() {
                   {q.pillar} · +{questBase(q.xp)} XP
                 </span>
               </span>
-              <span className={`stud-check !w-8 !h-8 ${q.done_today ? "on" : ""}`} aria-label={q.done_today ? "Done" : "Not yet"}>
+              <span className={`stud-check !w-8 !h-8 ${q.done_today ? "on" : "opacity-40 scale-75"}`} aria-label={q.done_today ? "Done" : "Not yet"}>
                 <Icon name="check" size={15} strokeWidth={3} />
               </span>
             </div>

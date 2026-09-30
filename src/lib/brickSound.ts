@@ -91,6 +91,13 @@ function bell(a: AudioContext, dest: AudioNode, at: number, freq: number, gain: 
   ].forEach(([m, g]) => tone(a, dest, at, freq * m, freq * m, gain * g, len / m + 0.08));
 }
 
+// a tiny buzz with the sound, on phones that can (Android; iOS has no web vibration)
+function buzz(pattern: number | number[]) {
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {}
+}
+
 const last = new Map<string, number>();
 function throttled(name: string, gapMs: number) {
   const now = performance.now();
@@ -132,6 +139,7 @@ export const brickSound = {
     burst(a, out, t + 0.03, "bandpass", 2300, 8, 0.36, 0.014);
     tone(a, out, t + 0.02, 470, 400, 0.14, 0.07, "triangle", 0.002);
     tone(a, out, t + 0.02, 150, 110, 0.12, 0.08, "sine", 0.002);
+    buzz(12);
   },
   /** pulling a brick off: a pop */
   unsnap() {
@@ -160,6 +168,7 @@ export const brickSound = {
     const { a, out } = s;
     const t = a.currentTime;
     const notes = big ? [523, 659, 784, 1047, 1319] : [659, 784, 1047];
+    buzz(big ? [30, 70, 30, 70, 60] : [25, 60, 40]);
     notes.forEach((n, i) => {
       tone(a, out, t + i * 0.09, n, n, 0.1, 0.22, "square", 0.004);
       tone(a, out, t + i * 0.09, n, n, 0.12, 0.3, "triangle");
@@ -168,6 +177,60 @@ export const brickSound = {
     [1047, 1319, 1568].forEach((n) => tone(a, out, end, n, n, big ? 0.09 : 0.06, big ? 1.1 : 0.6, "triangle", 0.01));
     for (let i = 0; i < (big ? 9 : 5); i++) bell(a, out, end + 0.05 + i * 0.07, STUD_NOTES[(i * 3) % STUD_NOTES.length] * 1.0, 0.06, 0.3);
     for (let i = 0; i < 10; i++) burst(a, out, end + i * 0.03 + Math.random() * 0.02, "bandpass", 1800 + Math.random() * 2600, 3, 0.1, 0.04);
+  },
+  /** a minifig knocked apart: pieces pop off and clatter on the table,
+   *  each bounce quicker and quieter, like the LEGO games */
+  scatter() {
+    const s = audio();
+    if (!s || throttled("scatter", 400)) return;
+    const { a, out } = s;
+    const t = a.currentTime;
+    buzz([18, 60, 10, 40, 8]);
+    // the pop as the parts come off
+    tone(a, out, t, 300, 720, 0.16, 0.09, "sine", 0.002);
+    burst(a, out, t, "bandpass", 2600, 4, 0.3, 0.03);
+    // five pieces, each bouncing three times
+    for (let p = 0; p < 5; p++) {
+      let at = t + 0.16 + p * 0.045 + Math.random() * 0.03;
+      let gap = 0.12 + Math.random() * 0.05;
+      let g = 0.26 - p * 0.02;
+      const f = 1900 + Math.random() * 2400;
+      for (let b = 0; b < 3; b++) {
+        burst(a, out, at, "bandpass", f, 7, g, 0.014);
+        tone(a, out, at, f / 5, f / 6, g * 0.35, 0.04, "triangle", 0.001);
+        at += gap;
+        gap *= 0.55;
+        g *= 0.5;
+      }
+    }
+  },
+  /** ...and it builds itself back: quick snaps climbing, a bright finish */
+  rebuild() {
+    const s = audio();
+    if (!s || throttled("rebuild", 400)) return;
+    const { a, out } = s;
+    const t = a.currentTime;
+    [0, 0.075, 0.14, 0.195].forEach((d, i) => {
+      burst(a, out, t + d, "bandpass", 3000 + i * 350, 9, 0.34, 0.012);
+      tone(a, out, t + d, 380 + i * 70, 330 + i * 70, 0.11, 0.06, "triangle", 0.002);
+    });
+    buzz([8, 60, 8, 50, 8, 40, 14]);
+    bell(a, out, t + 0.27, 1568, 0.11, 0.5);
+    bell(a, out, t + 0.33, 2093, 0.07, 0.45);
+  },
+  /** a friend at your door: knock, knock (a wooden thud and its knuckle) */
+  knock() {
+    const s = audio();
+    if (!s || throttled("knock", 1500)) return;
+    const { a, out } = s;
+    const t = a.currentTime + 0.05;
+    [0, 0.17, 0.52, 0.69].forEach((d, i) => {
+      const g = i % 2 ? 0.8 : 1;
+      burst(a, out, t + d, "lowpass", 900, 1.2, 0.5 * g, 0.05);
+      burst(a, out, t + d, "bandpass", 1900, 5, 0.12 * g, 0.02);
+      tone(a, out, t + d, 170, 120, 0.3 * g, 0.09, "sine", 0.002);
+    });
+    buzz([20, 150, 20, 330, 20, 150, 20]);
   },
   /** something went wrong: two low plonks */
   error() {

@@ -38,18 +38,24 @@ export default function Minifig({
   level = 1,
   size = 180,
   className,
+  alive = false,
+  sleepy = false,
 }: {
   character?: string | null;
   level?: number;
   /** height in px */
   size?: number;
   className?: string;
+  /** idle life: blinks, breathes, the item arm sways */
+  alive?: boolean;
+  /** eyes shut and z's floating up (bedtime) */
+  sleepy?: boolean;
 }) {
   const o = OUTFITS[character ?? "warrior"] ?? OUTFITS.warrior;
   const id = useId().replace(/:/g, "");
   const shade = `url(#${id}-shade)`;
   return (
-    <svg viewBox="0 0 120 170" height={size} width={(size * 120) / 170} className={className} aria-hidden style={{ display: "block", overflow: "visible" }}>
+    <svg viewBox="0 0 120 170" height={size} width={(size * 120) / 170} className={[className, alive ? "mf-alive" : ""].filter(Boolean).join(" ") || undefined} aria-hidden style={{ display: "block", overflow: "visible" }}>
       <defs>
         {/* one cylinder shade for every part: lit left, darker right */}
         <linearGradient id={`${id}-shade`} x1="0" x2="1" y1="0" y2="0">
@@ -72,6 +78,8 @@ export default function Minifig({
       <rect x="22" y="153" width="76" height="9" rx="2.5" fill="#1b2a34" />
       <rect x="22" y="153" width="76" height="3" rx="1.5" fill="#3d4e5a" />
 
+      {/* each part is its own group, so it can fall off and snap back */}
+      <g className="mf-legs">
       {/* legs */}
       <rect x="36" y="112" width="23" height="36" rx="2" fill={o.legs} />
       <rect x="61" y="112" width="23" height="36" rx="2" fill={o.legs} />
@@ -81,7 +89,11 @@ export default function Minifig({
       {/* hips */}
       <rect x="35" y="103" width="50" height="11" rx="2" fill={o.hips} />
       <rect x="57" y="106" width="6" height="8" rx="1" fill="#000" opacity="0.25" />
+      </g>
 
+      <g className="mf-torso">
+      {/* neck */}
+      <rect x="52" y="52" width="16" height="8" rx="2" fill={SKIN_SHADE} />
       {/* torso: a trapezoid, wider at the hips */}
       <path d="M44 58h32l10 46H34Z" fill={o.torso} />
       <path d="M44 58h32l10 46H34Z" fill={shade} />
@@ -96,39 +108,115 @@ export default function Minifig({
           <rect x="56.5" y="95" width="7" height="7" rx="1.5" fill="#b88a06" />
         </>
       )}
+      </g>
 
-      {/* arms: from the shoulders, angled out */}
-      <path d="M44 60c-6 1-9 4-11 10l-5 20 9 3 5-18c1-5 2-9 2-15Z" fill={o.torso} />
-      <path d="M76 60c6 1 9 4 11 10l5 20-9 3-5-18c-1-5-2-9-2-15Z" fill={o.torso} />
-      <path d="M44 60c-6 1-9 4-11 10l-5 20 9 3 5-18c1-5 2-9 2-15Z" fill="#fff" opacity="0.14" />
-      <path d="M76 60c6 1 9 4 11 10l5 20-9 3-5-18c-1-5-2-9-2-15Z" fill="#000" opacity="0.14" />
-      {/* hands: yellow C-clips */}
-      <Hand x={31} y={96} />
-      <Hand x={89} y={96} flip />
+      {/* arms: from the shoulders, angled out, yellow C-clip hands; the
+          right hand (the viewer's left) holds the item from level 2 */}
+      <g className="mf-arm-l">
+        <path d="M44 60c-6 1-9 4-11 10l-5 20 9 3 5-18c1-5 2-9 2-15Z" fill={o.torso} />
+        <path d="M44 60c-6 1-9 4-11 10l-5 20 9 3 5-18c1-5 2-9 2-15Z" fill="#fff" opacity="0.14" />
+        <Hand x={31} y={96} />
+        {level >= 2 && <Item kind={o.item} extra={o.extra} blade={`url(#${id}-blade)`} />}
+      </g>
+      <g className="mf-arm-r">
+        <path d="M76 60c6 1 9 4 11 10l5 20-9 3-5-18c-1-5-2-9-2-15Z" fill={o.torso} />
+        <path d="M76 60c6 1 9 4 11 10l5 20-9 3-5-18c-1-5-2-9-2-15Z" fill="#000" opacity="0.14" />
+        <Hand x={89} y={96} flip />
+      </g>
 
-      {/* the item in the right hand (level 2+) */}
-      {level >= 2 && <Item kind={o.item} extra={o.extra} blade={`url(#${id}-blade)`} />}
-
-      {/* neck */}
-      <rect x="52" y="52" width="16" height="8" rx="2" fill={SKIN_SHADE} />
+      <g className="mf-head">
       {/* head: stud + rounded cylinder */}
       <rect x="51" y="8" width="18" height="8" rx="2.5" fill={SKIN_SHADE} />
       <rect x="41" y="14" width="38" height="40" rx="11" fill={SKIN} />
       <rect x="41" y="14" width="38" height="40" rx="11" fill={shade} />
-      {/* face */}
-      <ellipse cx="53" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
-      <ellipse cx="67" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
-      <circle cx="54" cy="30.8" r="1" fill="#fff" />
-      <circle cx="68" cy="30.8" r="1" fill="#fff" />
-      <path d="M51.5 40c5 4.6 12 4.6 17 0" fill="none" stroke="#1b2a34" strokeWidth="2.6" strokeLinecap="round" />
+      {/* face: a two-sided head, like real minifigs. The calm side shows;
+          the shocked side flashes while the minifig falls apart. */}
+      <g className="mf-calm">
+        {sleepy ? (
+          <path d="M49.5 31.5c2 2.2 5 2.2 7 0M63.5 31.5c2 2.2 5 2.2 7 0" fill="none" stroke="#1b2a34" strokeWidth="2.2" strokeLinecap="round" />
+        ) : (
+          <g className="mf-eyes">
+            <ellipse cx="53" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
+            <ellipse cx="67" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
+            <circle cx="54" cy="30.8" r="1" fill="#fff" />
+            <circle cx="68" cy="30.8" r="1" fill="#fff" />
+          </g>
+        )}
+        <FacePrint character={character} />
+      </g>
+      <g className="mf-shock" style={{ display: "none" }}>
+        <circle cx="53" cy="31" r="4.4" fill="#fff" stroke="#1b2a34" strokeWidth="1.6" />
+        <circle cx="67" cy="31" r="4.4" fill="#fff" stroke="#1b2a34" strokeWidth="1.6" />
+        <circle cx="53" cy="31.5" r="1.7" fill="#1b2a34" />
+        <circle cx="67" cy="31.5" r="1.7" fill="#1b2a34" />
+        <path d="M49 24.5l6-2M71 24.5l-6-2" stroke="#1b2a34" strokeWidth="1.8" strokeLinecap="round" />
+        <ellipse cx="60" cy="43" rx="4" ry="4.6" fill="#1b2a34" />
+        <ellipse cx="60" cy="44.6" rx="2.4" ry="2" fill="#c91a09" />
+      </g>
       <HeadGear o={o} />
 
       {/* gold crown (level 5) */}
       {level >= 5 && (
         <path d="M44 6l5 7 5-9 6 9 6-9 5 9 5-7-2 12H46Z" fill={GOLD} stroke="#b88a06" strokeWidth="1.2" strokeLinejoin="round" transform={o.head === "hat" ? "translate(0 -10)" : o.head === "spikes" ? "translate(0 -6)" : undefined} />
       )}
+      </g>
+      {sleepy && (
+        <g className="mf-zzz" fill="#0055bf" stroke="#fff" strokeWidth="3" paintOrder="stroke" fontFamily="var(--font-brick), sans-serif" fontWeight="700">
+          <text x="80" y="38" fontSize="26">z</text>
+          <text x="96" y="20" fontSize="20">z</text>
+          <text x="108" y="6" fontSize="15">z</text>
+        </g>
+      )}
     </svg>
   );
+}
+
+// each character's printed face: brows, lashes, a beard, and the mouth
+export function FacePrint({ character }: { character?: string | null }) {
+  const ink = { fill: "none", stroke: "#1b2a34", strokeLinecap: "round" as const };
+  switch (character ?? "warrior") {
+    case "wizard":
+      // a white beard hides the mouth; bushy brows
+      return (
+        <>
+          <path d="M48.5 26.5c2.5-1.6 5-1.8 7.5-.8M71.5 26.5c-2.5-1.6-5-1.8-7.5-.8" {...ink} strokeWidth="2.2" />
+          <path d="M45 37c4 2.6 9 3.2 15 3.2s11-.6 15-3.2c1.5 11-3.5 23-15 29-11.5-6-16.5-18-15-29Z" fill="#f4f4f0" />
+          <path d="M60 44v18M54 43.5c.5 6 2 11 4 15M66 43.5c-.5 6-2 11-4 15" stroke="#d6d6cf" strokeWidth="1.1" fill="none" strokeLinecap="round" />
+          <path d="M50.5 38.5c3.2-1.8 6.4-1.6 9.5.6 3.1-2.2 6.3-2.4 9.5-.6-2 3-6 3.6-9.5 1.4-3.5 2.2-7.5 1.6-9.5-1.4Z" fill="#e0e0da" />
+        </>
+      );
+    case "mentalist":
+      // lashes and a calm smile
+      return (
+        <>
+          <path d="M49.5 29.5l-2-1.6M50.8 28.4l-1-2M70.5 29.5l2-1.6M69.2 28.4l1-2" {...ink} strokeWidth="1.2" />
+          <path d="M53 40.5c4.4 3.2 9.6 3.2 14 0" {...ink} strokeWidth="2.3" />
+          <circle cx="49" cy="37.5" r="2.2" fill="#ff9e8a" opacity="0.55" />
+          <circle cx="71" cy="37.5" r="2.2" fill="#ff9e8a" opacity="0.55" />
+        </>
+      );
+    case "guardian":
+      // thick level brows, a small scar, a firm half smile
+      return (
+        <>
+          <path d="M49 26.5h7.5M63.5 26.5H71" {...ink} strokeWidth="2.6" />
+          <path d="M71.5 33l2.5 5" stroke="#c99a06" strokeWidth="1.3" strokeLinecap="round" />
+          <path d="M53 41c3.6 1.8 9 1.8 13-1.6" {...ink} strokeWidth="2.5" />
+        </>
+      );
+    case "shadow":
+      // under the mask: just the grin
+      return <path d="M51.5 40c5 4.6 12 4.6 17 0" {...ink} strokeWidth="2.6" />;
+    default:
+      // warrior: brows angled in, determined grin with teeth
+      return (
+        <>
+          <path d="M48.5 25.5l7.5 2.2M71.5 25.5 64 27.7" {...ink} strokeWidth="2.4" />
+          <path d="M51 39.5c5.5 5.5 12.5 5.5 18 0Z" fill="#1b2a34" stroke="#1b2a34" strokeWidth="1.6" strokeLinejoin="round" />
+          <path d="M53 40.4c4.5 1.6 9.5 1.6 14 0" stroke="#fff" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+        </>
+      );
+  }
 }
 
 function Hand({ x, y, flip }: { x: number; y: number; flip?: boolean }) {

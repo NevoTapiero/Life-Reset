@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BrickLoader from "@/components/BrickLoader";
@@ -12,6 +12,8 @@ import BrickWipe from "@/components/BrickWipe";
 import TownNews from "@/components/TownNews";
 import ShopWindow from "@/components/ShopWindow";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
+import { brickSound } from "@/lib/brickSound";
+import LegoIcon from "@/components/LegoIcon";
 import { rankForXp } from "@/lib/game";
 
 type Row = {
@@ -47,6 +49,7 @@ export default function WorldPage() {
   const [jumping, setJumping] = useState(false);
   const jump = useCallback(() => router.push("/app/town"), [router]);
 
+  const knockHeard = useRef(false);
   const load = useCallback(async () => {
     const [{ data, error }, { data: userData }, { data: visits }] = await Promise.all([
       supabase.rpc("get_leaderboard"),
@@ -55,11 +58,14 @@ export default function WorldPage() {
     ]);
     if (error) setError(error.message);
     else setRows((data as Row[]) ?? []);
-    setKnocks(
-      ((visits as { username: string; knocked_by_me: boolean; allowed: boolean }[] | null) ?? [])
-        .filter((v) => !v.knocked_by_me && !v.allowed)
-        .map((v) => v.username),
-    );
+    const atDoor = ((visits as { username: string; knocked_by_me: boolean; allowed: boolean }[] | null) ?? [])
+      .filter((v) => !v.knocked_by_me && !v.allowed)
+      .map((v) => v.username);
+    setKnocks(atDoor);
+    if (atDoor.length > 0 && !knockHeard.current) {
+      knockHeard.current = true;
+      brickSound.knock();
+    }
     const uid = userData.user?.id;
     if (uid) {
       const { data: prof } = await supabase.from("profiles").select("friend_code, gold").eq("id", uid).single();
@@ -91,6 +97,7 @@ export default function WorldPage() {
     const { error } = await supabase.rpc("answer_knock", { p_visitor: name, p_allow: allow });
     if (error) return setError(error.message);
     setKnocks((k) => k.filter((n) => n !== name));
+    if (allow) brickSound.stud(4);
     window.dispatchEvent(new Event("sl-knocks"));
     setDoorMsg(allow ? `${name} can come into your house now.` : `You told ${name} not now.`);
   }
@@ -185,7 +192,12 @@ export default function WorldPage() {
         return (
           <div key={name} className="card mt-4 p-3.5 rise">
             <div className="flex items-center gap-3">
-              <PlayerAvatar photo={r ? photoOf(r) : null} character={r?.archetype} size={44} />
+              <span className="relative flex-none">
+                <PlayerAvatar photo={r ? photoOf(r) : null} character={r?.archetype} size={44} />
+                <span className="door-knock absolute -right-2 -bottom-1" aria-hidden>
+                  <LegoIcon name="home" color="orange" size={24} />
+                </span>
+              </span>
               <span className="flex-1 min-w-0">
                 <span className="block font-extrabold text-[15px] truncate">{name} is at your door</span>
                 <span className="block text-[12.5px] font-bold text-muted">Let them into your house?</span>

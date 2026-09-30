@@ -14,7 +14,7 @@ import GoldBricks from "@/components/GoldBricks";
 import LevelRoad from "@/components/LevelRoad";
 import MonthMosaic from "@/components/MonthMosaic";
 import PlayerAvatar from "@/components/PlayerAvatar";
-import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
+import { legoLevel, levelTitle, photoOf, liveStreak } from "@/lib/brick";
 import { setSound, soundOn } from "@/lib/sfx";
 import { brickSound } from "@/lib/brickSound";
 import { shareCard } from "@/lib/shareCard";
@@ -44,24 +44,34 @@ export default function ProfilePage() {
     if (!svg || !profile) return;
     setSharing(true);
     const r = rankForXp(profile.xp);
-    const res = await shareCard({
-      character: profile.archetype,
-      level: legoLevel(r.tierIndex),
-      name: profile.username,
-      title: `${levelTitle(profile.archetype, r.tierIndex)} · ${r.label}`,
-      svg,
-    });
-    setSharing(false);
-    if (res === "failed") setMsg("Couldn't make the picture on this device.");
+    try {
+      const res = await shareCard({
+        character: profile.archetype,
+        level: legoLevel(r.tierIndex),
+        name: profile.username,
+        title: `${levelTitle(profile.archetype, r.tierIndex)} · ${r.label}`,
+        svg,
+      });
+      if (res === "failed") setMsg("Couldn't make the picture on this device.");
+    } catch {
+      setMsg("Couldn't make the picture on this device.");
+    } finally {
+      setSharing(false);
+    }
   }
   const fileRef = useRef<HTMLInputElement>(null);
+  const [today, setToday] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData.user?.id;
     if (!uid) return;
     setEmail(userData.user?.email ?? null);
-    const { data: prof } = await supabase.from("profiles").select("*").eq("id", uid).single();
+    const [{ data: prof }, { data: day }] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", uid).single(),
+      supabase.rpc("app_today"),
+    ]);
+    setToday(day ? String(day) : null);
     setProfile(prof as Profile);
     setNameDraft((prof as Profile)?.username ?? "");
   }, []);
@@ -167,6 +177,8 @@ export default function ProfilePage() {
   }
 
   const rank = rankForXp(profile.xp);
+  const streak = liveStreak(profile, today);
+  const best = Math.max(profile.streak_best, streak);
   const photo = photoOf(profile);
   const level = legoLevel(rank.tierIndex);
 
@@ -174,7 +186,7 @@ export default function ProfilePage() {
     <div className="slide-in">
       {/* the collectible minifigure card: your minifig on its stand, your level as the series number */}
       <div ref={cardRef}>
-      <MinifigCard character={profile.archetype} level={level}>
+      <MinifigCard character={profile.archetype} level={level} tap>
           <div className="relative flex-none">
             <PlayerAvatar photo={photo} character={profile.archetype} size={54} />
             <button
@@ -259,8 +271,8 @@ export default function ProfilePage() {
       <section className="grid grid-cols-2 gap-3 mt-4">
         <Stat label="Total XP" value={profile.xp.toLocaleString()} color="green" icon="star" />
         <Stat label="Rank" value={rank.label} color="blue" icon="chart" />
-        <Stat label="Streak" value={`${profile.streak_current} ${profile.streak_current === 1 ? "day" : "days"}`} color="orange" icon="flame" />
-        <Stat label="Best streak" value={`${profile.streak_best} ${profile.streak_best === 1 ? "day" : "days"}`} color="red" icon="trophy" />
+        <Stat label="Streak" value={`${streak} ${streak === 1 ? "day" : "days"}`} color="orange" icon="flame" />
+        <Stat label="Best streak" value={`${best} ${best === 1 ? "day" : "days"}`} color="red" icon="trophy" />
         <Stat label="Gold" value={(profile.gold ?? 0).toLocaleString()} color="yellow" icon="stud" />
         <Stat label="Playing since" value={new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(profile.created_at)).replace(" 20", " ")} color="azure" icon="calendar" />
       </section>

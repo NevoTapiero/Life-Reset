@@ -24,16 +24,20 @@ async function svgImage(svg: SVGSVGElement, height: number): Promise<HTMLImageEl
   clone.setAttribute("width", String((height * vb.width) / vb.height));
   const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], { type: "image/svg+xml" }));
   try {
+    // onload rather than decode(): decode() on SVG is flaky in some browsers
     const img = new Image();
-    img.src = url;
-    await img.decode();
+    await new Promise<void>((ok, fail) => {
+      img.onload = () => ok();
+      img.onerror = () => fail(new Error("minifig image"));
+      img.src = url;
+    });
     return img;
   } finally {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 }
 
-export async function shareCard(info: CardInfo): Promise<"shared" | "downloaded" | "failed"> {
+export async function shareCard(info: CardInfo): Promise<"shared" | "downloaded" | "cancelled" | "failed"> {
   const W = 1080;
   const H = 1350;
   const canvas = document.createElement("canvas");
@@ -128,8 +132,10 @@ export async function shareCard(info: CardInfo): Promise<"shared" | "downloaded"
     try {
       await navigator.share({ files: [file], title: "My LEGO minifig", text: `${info.name}, ${info.title}` });
       return "shared";
-    } catch {
-      return "failed";
+    } catch (e) {
+      // closed the share sheet: nothing to say
+      if (e instanceof DOMException && e.name === "AbortError") return "cancelled";
+      // anything else (iOS drops the tap after the slow drawing): save it instead
     }
   }
   const a = document.createElement("a");

@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import Radar from "@/components/Radar";
 import Icon from "@/components/Icon";
 import Link from "next/link";
 import BrickLoader from "@/components/BrickLoader";
-import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
+import LegoIcon, { PILLAR_BRICK_COLOR, type BrickColor } from "@/components/LegoIcon";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { PILLAR_BRICK, photoOf } from "@/lib/brick";
 import {
@@ -20,6 +19,15 @@ import {
   STAT_KEYS,
   characterOf,
 } from "@/lib/game";
+
+// each stat's brick colour and printed icon, like the friend page
+const STAT_BRICK: Record<string, { color: BrickColor; css: string }> = {
+  CON: { color: "green", css: "var(--lego-green)" },
+  FOC: { color: "azure", css: "var(--lego-azure)" },
+  DIS: { color: "blue", css: "var(--lego-blue)" },
+  STR: { color: "red", css: "var(--lego-red)" },
+  WIS: { color: "orange", css: "var(--lego-orange)" },
+};
 
 export default function StatsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -61,9 +69,9 @@ export default function StatsPage() {
   const character = characterOf(profile.archetype);
   const maxPillar = Math.max(1, ...Object.values(pillarCounts));
   const values = STAT_KEYS.map((k) => profile.stats[k] ?? 0);
-  // normalize to the strongest stat: the shape shows where you focus,
+  // studs are scaled to the strongest stat: the sheet shows where you focus,
   // not how big the numbers are
-  const radarMax = Math.max(1, ...values) * 1.25;
+  const statMax = Math.max(1, ...values);
 
   return (
     <div className="slide-in">
@@ -87,58 +95,40 @@ export default function StatsPage() {
         </div>
       </div>
 
-      <div className="bezel mt-5">
-        <div className="bezel-core py-2">
-          <div className="flex justify-center">
-            <Radar
-              labels={[...STAT_KEYS]}
-              size={264}
-              max={radarMax}
-              series={[
-                {
-                  values,
-                  stroke: "var(--lego-blue)",
-                  fill: "rgb(0 85 191 / 0.22)",
-                  dots: true,
-                },
-              ]}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2 mt-5 stagger">
+      {/* the character sheet, like a LEGO game's: a printed brick per stat and
+          a row of ten studs that fill in its colour */}
+      <section className="card mt-5 divide-y-2 divide-[var(--line)] overflow-hidden">
         {STAT_KEYS.map((k) => {
           const value = profile.stats[k] ?? 0;
           const open = openStat === k;
+          const brick = STAT_BRICK[k] ?? STAT_BRICK.DIS;
+          const on = value === 0 ? 0 : Math.max(1, Math.round((value / statMax) * 10));
           return (
-            <button
-              key={k}
-              className={`option-row px-4 py-3 text-left ${open ? "selected" : ""}`}
-              onClick={() => setOpenStat(open ? null : k)}
-            >
+            <button key={k} className="w-full px-4 py-3 text-left block" onClick={() => setOpenStat(open ? null : k)} aria-expanded={open}>
               <span className="flex items-center gap-3">
-                <span className="chip chip-blue w-12 justify-center">{k}</span>
+                <LegoIcon name={`stat-${k.toLowerCase()}`} color={brick.color} size={36} />
                 <span className="flex-1 min-w-0">
-                  <span className="block text-[15px] font-extrabold">{STAT_INFO[k].name}</span>
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="text-[15px] font-extrabold">
+                      {STAT_INFO[k].name} <span className="text-muted text-[12px]">{k}</span>
+                    </span>
+                    <span className="display text-[18px]">{value}</span>
+                  </span>
+                  <span className="stat-studs mt-1.5" style={{ "--c": brick.css } as React.CSSProperties} aria-hidden>
+                    {Array.from({ length: 10 }, (_, i) => (
+                      <span key={i} className={i < on ? "on" : ""} style={{ animationDelay: `${i * 35}ms` }} />
+                    ))}
+                  </span>
                 </span>
-                <span className="display text-[17px]">{value}</span>
-                <span
-                  className="text-muted transition-transform duration-300 flex-none"
-                  style={{ transform: open ? "rotate(180deg)" : "none" }}
-                >
+                <span className="text-muted transition-transform duration-300 flex-none" style={{ transform: open ? "rotate(180deg)" : "none" }}>
                   <Icon name="chevron-down" size={14} />
                 </span>
               </span>
-              {open && (
-                <span className="block text-[13px] text-muted leading-relaxed mt-2.5 pl-12 pr-1 rise">
-                  {STAT_INFO[k].lore}
-                </span>
-              )}
+              {open && <span className="block text-[13px] text-muted leading-relaxed mt-2.5 pl-12 pr-1 rise">{STAT_INFO[k].lore}</span>}
             </button>
           );
         })}
-      </div>
+      </section>
 
       <div className="grid grid-cols-2 gap-2.5 mt-5">
         <div className="card p-4 text-center">

@@ -1,6 +1,7 @@
 "use client";
 
 import Minifig from "@/components/Minifig";
+import TapFig from "@/components/TapFig";
 
 // the card behind each character, in LEGO colours: [top, bottom]
 export const CARD_COLORS: Record<string, [string, string]> = {
@@ -19,6 +20,7 @@ export default function MinifigCard({
   children,
   size = 250,
   showLevel = true,
+  tap = false,
 }: {
   character: string | null;
   level: number;
@@ -26,6 +28,8 @@ export default function MinifigCard({
   size?: number;
   /** hide the level badge (previews, like the first-run picker) */
   showLevel?: boolean;
+  /** the minifig is alive and falls apart when tapped */
+  tap?: boolean;
 }) {
   const [top, bottom] = CARD_COLORS[character ?? "warrior"] ?? CARD_COLORS.warrior;
   return (
@@ -45,7 +49,7 @@ export default function MinifigCard({
       <div className="relative flex justify-center pt-1 pb-3">
         <span className="minifig-card-spot" aria-hidden />
         <span className="minifig-float">
-          <Minifig character={character} level={level} size={size} />
+          {tap ? <TapFig character={character} level={level} size={size} /> : <Minifig character={character} level={level} size={size} />}
         </span>
       </div>
       <div className="relative mx-3 mb-3 rounded-[16px] bg-white px-3.5 py-3 flex items-center gap-3" style={{ boxShadow: "0 4px 0 var(--lip)" }}>
