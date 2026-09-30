@@ -101,6 +101,11 @@ const VEHICLES = [
   { id: "car-2", name: "Car", turn: 0, set: "1472-1", model: "1472 - car 2.ldr" },
 ];
 // people, animals and vehicles in a set's main model (not its buildings; "Car port" stays)
+// small official sets that liven up the plaza; `keep` keeps their minifigs (the vendors)
+const PROPS = [
+  { id: "6601-1", name: "Ice Cream Cart", turn: 0, keep: true },
+  { id: "6683-1", name: "Burger Stand", turn: 0, keep: true },
+];
 const EXTRAS = /minifig|\bcar( \d)?\.ldr|smallcar|trailer|boat|quad|moose|bird|turtle|jetski|female|male|girl|guy|90397|4719c01|anna|olivia|peter/i;
 
 // GLTFExporter reads its Blobs with the browser's FileReader; Node only has Blob
@@ -125,7 +130,7 @@ const HOUSE_OUT = `${OUT}houses/`;
 mkdirSync(HOUSE_OUT, { recursive: true });
 const tmp = mkdtempSync(join(tmpdir(), "lego-"));
 const manifest = [];
-for (const { id, name, turn, set, model: sub } of [...HOUSES, SHOP, ...VEHICLES]) {
+for (const { id, name, turn, set, model: sub, keep } of [...HOUSES, SHOP, ...VEHICLES, ...PROPS]) {
   // (some sets end lines with spaces: "0 FILE x.ldr " would never match a reference to x.ldr)
   let text = readFileSync(`${SETS}${set ?? id}.mpd`, "utf8").replace(/\r/g, "").replace(/[ \t]+$/gm, "");
   if (sub) {
@@ -136,7 +141,7 @@ for (const { id, name, turn, set, model: sub } of [...HOUSES, SHOP, ...VEHICLES]
     text = [files[i], ...files.filter((_, k) => k !== i)].join("\n");
   }
   const end = text.indexOf("\n0 FILE ", 1); // the main model is the first file
-  const main = text.slice(0, end).split("\n").filter((l) => !(l.startsWith("1 ") && EXTRAS.test(l))).join("\n");
+  const main = text.slice(0, end).split("\n").filter((l) => keep || !(l.startsWith("1 ") && EXTRAS.test(l))).join("\n");
   // a set's own sub-parts are named "s\\..."; the loader looks them up as "parts/s/..."
   const model = (main + text.slice(end)).replace(/^0 FILE s\\/gim, "0 FILE parts/s/");
   const own = new Set([...model.matchAll(/^0 FILE (.+)$/gm)].map((m) => m[1].trim().toLowerCase()));
@@ -179,4 +184,5 @@ for (const { id, name, turn, set, model: sub } of [...HOUSES, SHOP, ...VEHICLES]
 const isHouse = (m) => HOUSES.some((h) => h.id === m.id);
 writeFileSync(fileURLToPath(new URL("../../src/lib/legoHouses.json", import.meta.url)), JSON.stringify(manifest.filter(isHouse), null, 2) + "\n");
 writeFileSync(fileURLToPath(new URL("../../src/lib/legoVehicles.json", import.meta.url)), JSON.stringify(manifest.filter((m) => VEHICLES.some((v) => v.id === m.id)), null, 2) + "\n");
+writeFileSync(fileURLToPath(new URL("../../src/lib/legoProps.json", import.meta.url)), JSON.stringify(manifest.filter((m) => PROPS.some((v) => v.id === m.id)), null, 2) + "\n");
 writeFileSync(fileURLToPath(new URL("../../src/lib/legoShop.json", import.meta.url)), JSON.stringify(manifest.find((m) => m.id === SHOP.id), null, 2) + "\n");

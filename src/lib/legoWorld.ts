@@ -591,7 +591,8 @@ export function plazaText(): string {
   // down both sides: lampposts and trees in planters, alternating
   for (const side of [-1, 1]) {
     for (const [x, z] of LAMP_SPOTS.filter(([x]) => Math.sign(x) === side)) out.push(...place(lamp, x, z, ROT[0], 0));
-    for (const z of [220, -120, -440]) out.push(...place(planterTree, side * 400, z, ROT[0], 0));
+    // (the right side's front planter makes way for the ice cream cart, ICE_CREAM_CART)
+    for (const z of side > 0 ? [-120, -440] : [220, -120, -440]) out.push(...place(planterTree, side * 400, z, ROT[0], 0));
     out.push(...place(flowerPot(side < 0 ? COL.red : COL.yellow), side * 240, 440, ROT[0], 0));
   }
   return modelText(out, "plaza.ldr");
@@ -626,7 +627,7 @@ export const POND_STREAK = 20;
 export function emptyLotsText(first: number): string {
   const park: Piece[] = [
     ["3470", COL.green, -360, 0, -360],
-    ["3470", COL.green, 360, 0, -360],
+    // (the back-right corner holds the burger stand, PARK_BURGER_STAND)
     ["2435", COL.darkGreen, -380, 0, 120],
     ["2435", COL.darkGreen, 380, 0, 120],
     ...[-160, -120, 120, 160].flatMap((x) => [-80, 0, 80].map((z, k) => ["3741ac05", [COL.red, COL.yellow, COL.pink][k], x, 0, z] as Piece)),
@@ -720,6 +721,13 @@ export function townDecorText(): string {
   for (const [x, z] of STREET_LAMPS) out.push(...place(lamp, x, z, ROT[0], -8)); // on the pavement
   return modelText(out, "town-decor.ldr");
 }
+
+// Small official sets placed as props (baked glbs, see PROPS in pack.mjs):
+// where they stand (LDU, centre) and their quarter turns. The ice cream cart
+// is on the plaza, by the shop; a burger stand is in every empty-plot park
+// (plot frame), where the back-right tree would be.
+export const ICE_CREAM_CART = { id: "6601-1", at: [330, 250] as [number, number], turn: 0 };
+export const PARK_BURGER_STAND = { id: "6683-1", at: [250, -300] as [number, number], turn: 0 };
 
 // the chest's spot on the floor (LDU): front left of the rug, facing you
 export const CHEST_SPOT: [number, number] = [-130, 190];

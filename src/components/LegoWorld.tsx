@@ -9,6 +9,7 @@ import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
 import { LDrawConditionalLineMaterial } from "three/examples/jsm/materials/LDrawConditionalLineMaterial.js";
 import { LDrawUtils } from "three/examples/jsm/utils/LDrawUtils.js";
 import VEHICLES from "@/lib/legoVehicles.json";
+import PROPS from "@/lib/legoProps.json";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
@@ -45,6 +46,9 @@ import {
   townClouds,
   type Slab,
   emptyLotsText,
+  ICE_CREAM_CART,
+  PARK_BURGER_STAND,
+  type Lot,
   PLAZA_LAMPS,
   STREET_LAMP_LIGHTS,
   SHOP_FRONT,
@@ -902,7 +906,8 @@ export function LegoTown({
                 : 62
         }
         far={1500}
-        maxDistance={600}
+        // the house and shop framings rely on the usual 110 limit; only the overview pulls further out
+        maxDistance={focus === OVERVIEW ? 600 : 110}
         dir={dir}
         bounds={bounds}
         pan
@@ -965,6 +970,10 @@ export function LegoTown({
         {parks && <primitive object={parks} />}
         <Traffic night={mood.night} />
         <Seagulls />
+        <Prop {...ICE_CREAM_CART} />
+        {emptyLots.map((lot, k) => (
+          <Prop key={k} {...PARK_BURGER_STAND} lot={lot} />
+        ))}
         <FountainSpray />
         <TownSign name={residents[meIndex]?.name ?? "Your"} />
         {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
@@ -1305,6 +1314,20 @@ function Stroller({ look, r, speed, start }: (typeof STROLLERS)[number]) {
   return (
     <group ref={root}>
       <Minifig look={look} at={[0, 0, 0]} />
+    </group>
+  );
+}
+
+// ---- props: small official sets (the ice cream cart, the parks' burger stands) ----
+// Placed by their centre (LDraw frame) and quarter turns; the glb's origin is its front-left corner.
+function Prop({ id, at, turn, lot }: { id: string; at: [number, number]; turn: number; lot?: Lot }) {
+  const prop = (PROPS as Baked[]).find((p) => p.id === id);
+  if (!prop) return null;
+  const [x, , z] = lot ? inLot(lot, [at[0], 0, at[1]]) : [at[0], 0, at[1]];
+  const facing = (lot ? turnRad(lot.facing) : 0) + (turn * Math.PI) / 2;
+  return (
+    <group position={[x, 0, z]} rotation={[0, facing, 0]}>
+      <Building url={houseUrl(prop)} at={[-prop.w * 10, 0, prop.d * 10]} />
     </group>
   );
 }
