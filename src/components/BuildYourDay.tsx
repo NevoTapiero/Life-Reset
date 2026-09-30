@@ -67,7 +67,7 @@ export default function BuildYourDay({
         <div className="flex items-center justify-between">
           <div>
             <div className="hud-label !text-white/80">Evening check</div>
-            <h2 className="display text-[28px] text-white" style={{ textShadow: "0 2px 0 rgb(0 0 0 / 0.15)" }}>
+            <h2 className="display tt-text text-[30px]">
               Build your day
             </h2>
           </div>
