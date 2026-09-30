@@ -939,7 +939,8 @@ grant execute on function public.my_visits() to authenticated;
 -- on your XP. It sits in the ledger as pending_xp with xp = 0, so every
 -- existing sum (recalc_player, the profile total) ignores it until you tap
 -- the chest: collect() moves it into xp and pays the same in gold.
--- Penalties (a short night, a red recovery) still land at once.
+-- XP never goes down: what used to be a penalty (a short night, a red
+-- recovery) now simply earns 0.
 -- Missions pay gold too: gold follows each completion's xp_awarded.
 -- ponytail: 1 gold per XP everywhere; tune when the shop exists
 
@@ -957,8 +958,8 @@ create or replace function public.award_external_xp(p_user uuid, p_source text, 
 returns boolean language plpgsql security definer set search_path=public as $fn$
 declare
   inserted boolean := false;
-  -- negative amounts are penalties (short night, red recovery); total never goes below zero
-  amt int := greatest(-200, least(coalesce(p_xp,0), 200));
+  -- XP never goes down: a bad night or a red recovery earns nothing, it doesn't take away
+  amt int := greatest(0, least(coalesce(p_xp,0), 200));
   chest boolean := amt > 0 and public.waits_in_chest(p_source);
 begin
   begin
@@ -969,8 +970,8 @@ begin
     inserted := true;
   exception when unique_violation then inserted := false;
   end;
-  if inserted and amt <> 0 and not chest then
-    update public.profiles set xp = greatest(0, xp + amt) where id = p_user;
+  if inserted and amt > 0 and not chest then
+    update public.profiles set xp = xp + amt where id = p_user;
   end if;
   return inserted;
 end
