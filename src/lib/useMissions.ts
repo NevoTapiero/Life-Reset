@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { brickSound } from "@/lib/brickSound";
 import {
@@ -39,6 +39,11 @@ export function useMissions() {
   const [xpFloat, setXpFloat] = useState<{ id: string; amount: number } | null>(null);
   const [rankUp, setRankUp] = useState<{ rank: Rank; previousTier: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // the latest profile, for checks run back to back (Tell the Judge checks several)
+  const profileRef = useRef<Profile | null>(null);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   // the first load failed (offline, server down): Home shows a retry
   const [loadFailed, setLoadFailed] = useState(false);
@@ -160,14 +165,16 @@ export function useMissions() {
       }
     } else if (data) {
       const updated = data as Profile;
-      if (!isDone && profile) {
-        const was = rankForXp(profile.xp);
+      const prev = profileRef.current;
+      if (!isDone && prev) {
+        const was = rankForXp(prev.xp);
         const now = rankForXp(updated.xp);
         if (now.label !== was.label) {
           setRankUp({ rank: now, previousTier: was.tierIndex });
           setTimeout(() => setRankUp(null), now.tierIndex > was.tierIndex ? 5000 : 3000);
         }
       }
+      profileRef.current = updated;
       setProfile(updated);
     }
     setPendingId(null);

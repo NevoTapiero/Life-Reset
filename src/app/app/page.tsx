@@ -8,6 +8,7 @@ import Icon from "@/components/Icon";
 import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
 import MinifigPicker from "@/components/MinifigPicker";
 import FirstTips from "@/components/FirstTips";
+import TellTheJudge from "@/components/TellTheJudge";
 import Minifig from "@/components/Minifig";
 import RankUp, { BrickBurst } from "@/components/RankUp";
 import { brickSound } from "@/lib/brickSound";
@@ -199,6 +200,23 @@ export default function HomePage() {
         </Link>
       </div>
 
+      <TellTheJudge
+        missions={m.inPeriod(tab).filter((q) => !m.isDoneOn(q, m.today) && !trackedBy(q, m.trackers)).map((q) => ({ id: q.id, title: q.title }))}
+        onMatched={async (ids) => {
+          for (const id of ids) {
+            const q = m.quests.find((x) => x.id === id);
+            if (!q || m.isDoneOn(q, m.today)) continue;
+            const el = document.querySelector(`[data-quest="${CSS.escape(id)}"]`);
+            if (el) {
+              el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+              flyStuds(el.getBoundingClientRect());
+            }
+            await m.toggle(q);
+            await new Promise((r) => setTimeout(r, 450));
+          }
+        }}
+      />
+
       <div className="brick-tabs grid-cols-3 mb-3.5" role="tablist">
         {PERIODS.map((per) => {
           const c = m.counts[per];
@@ -369,6 +387,7 @@ function MissionTile({
       onClick={(e) => onToggle(e.currentTarget.getBoundingClientRect())}
       disabled={pending}
       aria-pressed={done}
+      data-quest={q.id}
       className={`card relative w-full text-left flex items-center gap-3 ${small ? "px-3 py-2.5" : "px-3 py-3"} transition-transform duration-100 active:translate-y-[2px]`}
       style={{ opacity: paidBy ? 0.8 : 1 }}
     >
