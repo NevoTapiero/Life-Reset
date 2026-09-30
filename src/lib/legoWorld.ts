@@ -292,7 +292,7 @@ const HEIGHT: Record<string, number> = {
   "3068b": 8, "87079": 8, "2431": 8, "14769p0f": 8, "4079": 8, "3741ac05": 12,
   "29592": 11, "62698-f2": 1, "33051": 0, "1": 96, "4738a": 32, "4739a": 25,
   "3009": 24, "2435": 8, "11602": 0, "89801": 0, "30224": 8,
-  "3961": 24, "3960": 16, "60474": 8, "11213": 8, "87081": 24, "6141": 8, "98138": 8, "2039": 168, "30367c": 24,
+  "3470": 8, "3961": 24, "3960": 16, "60474": 8, "11213": 8, "87081": 24, "6141": 8, "98138": 8, "2039": 168, "30367c": 24,
 };
 type Piece = [part: string, color: number, dx: number, h: number, dz: number, m?: Mat];
 const FLOOR = -8; // top of the planks
@@ -518,6 +518,29 @@ export function plazaText(): string {
     out.push(...place(flowerPot(side < 0 ? COL.red : COL.yellow), side * 240, 440, ROT[0]));
   }
   return modelText(out, "plaza.ldr");
+}
+
+// ---- empty plots: a little park until a friend moves in ----
+// Trees in the corners, flower beds either side of a path, a bench -- in the
+// plot's own frame (front +Z), turned with the lot like a house would be.
+export function emptyLotsText(first: number): string {
+  const park: Piece[] = [
+    ["3470", COL.green, -360, 0, -360],
+    ["3470", COL.green, 360, 0, -360],
+    ["2435", COL.darkGreen, -380, 0, 120],
+    ["2435", COL.darkGreen, 380, 0, 120],
+    ...[-160, -120, 120, 160].flatMap((x) => [-80, 0, 80].map((z, k) => ["3741ac05", [COL.red, COL.yellow, COL.pink][k], x, 0, z] as Piece)),
+    ...bench.map(([p, c, dx, h, dz, m]) => [p, c, dx, h, dz - 200, m] as Piece),
+    ...Array.from({ length: 12 }, (_, k) => ["3068b", COL.tan, 0, 0, -200 + k * 40 + 20] as Piece), // the path
+  ];
+  const out: string[] = [];
+  for (let i = first; i < MAX_RESIDENTS; i++) {
+    const lot = lotFor(i);
+    const f = ROT[lot.facing];
+    for (const [part, color, dx, h, dz, m] of park)
+      out.push(line(color, lot.x + f[0] * dx + f[2] * dz, -h - HEIGHT[part], lot.z + f[6] * dx + f[8] * dz, turnMat(f, m ?? ROT[0]), part));
+  }
+  return modelText(out, "parks.ldr");
 }
 
 // ---- the town's roads and sky ----

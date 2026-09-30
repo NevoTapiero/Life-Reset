@@ -35,11 +35,14 @@ const DEMO_TOWN = [
   { name: "omer", level: 2, streak: 0 },
   { name: "maya", level: 4, streak: 30 },
   { name: "tal", level: 1, streak: 9 },
+  { name: "noa", level: 2, streak: 4 },
+  { name: "ben", level: 3, streak: 1 },
 ];
 
 export default function LegoPreview() {
   const [level, setLevel] = useState<number | null>(null); // null = the town
   const [time, setTime] = useState<string | undefined>(undefined); // undefined = your clock
+  const [friends, setFriends] = useState(5); // how many friends live in the demo town
   // nevo already let you in, omer hasn't answered; a new knock is answered after a moment
   const [visits, setVisits] = useState<Record<string, Visit>>({ nevo: "allowed", omer: "knocked" });
   const knock = (name: string) => {
@@ -79,6 +82,11 @@ export default function LegoPreview() {
         <button onClick={() => setLevel(null)} className={button(level === null)}>
           Town (demo)
         </button>
+        {[0, 2, 5, 7].map((n) => (
+          <button key={n} onClick={() => setFriends(n)} className={button(friends === n)}>
+            {n} friends
+          </button>
+        ))}
         {["day", "golden", "dusk", "night"].map((t) => (
           <button key={t} onClick={() => setTime(time === t ? undefined : t)} className={button(time === t)}>
             {t}
@@ -92,7 +100,7 @@ export default function LegoPreview() {
       </div>
       {level === null ? (
         <LegoTown
-          residents={DEMO_TOWN}
+          residents={DEMO_TOWN.slice(0, friends + 1)}
           visits={visits}
           onKnock={knock}
           room={(leave) => (

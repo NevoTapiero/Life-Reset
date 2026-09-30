@@ -37,6 +37,7 @@ import {
   townText,
   plazaText,
   townDecorText,
+  emptyLotsText,
   PLAZA_LAMPS,
   SHOP_FRONT,
   FOUNTAIN,
@@ -568,6 +569,7 @@ export function LegoTown({
   prices = null,
   owned = [],
   onBuy,
+  onInvite,
   time,
   className,
 }: {
@@ -582,6 +584,8 @@ export function LegoTown({
   prices?: Record<string, number> | null;
   owned?: string[];
   onBuy?: (id: string) => Promise<string | null>;
+  /** an empty plot's "invite a friend" button */
+  onInvite?: () => void;
   /** force a time of day ("day", "golden", "dusk", "night"); otherwise it follows the clock */
   time?: string;
   className?: string;
@@ -599,6 +603,9 @@ export function LegoTown({
   );
   const plaza = useModel(useMemo(() => plazaText(), []), true);
   const decor = useModel(useMemo(() => townDecorText(), []), true);
+  // plots nobody lives on yet are little parks
+  const parks = useModel(useMemo(() => emptyLotsText(residents.length), [residents.length]), true);
+  const emptyLots = useMemo(() => Array.from({ length: MAX_RESIDENTS - residents.length }, (_, k) => lotFor(residents.length + k)), [residents.length]);
   const lots = useMemo(() => residents.map((_, i) => lotFor(i)), [residents]);
   const meIndex = Math.max(
     0,
@@ -692,7 +699,7 @@ export function LegoTown({
             <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color="#4b9b3c" y={-0.03} />
             <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#5d6166" y={-0.015} flat />
             <StudGround at={[0, 0]} size={PLOT} color="#a3a7ad" />
-            {lots.map((lot, i) => (
+            {[...lots, ...emptyLots].map((lot, i) => (
               <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color="#4b9b3c" />
             ))}
           </>
@@ -703,6 +710,20 @@ export function LegoTown({
             at: [0, SHOP_BUILDING.h * LDU + 3, -(SHOP_FRONT - (SHOP_BUILDING.d / 2) * 20) * LDU] as [number, number, number],
             node: label("Shop", false, () => go(SHOP_FOCUS)),
           },
+          ...emptyLots.map((lot, k) => ({
+            key: `empty-${k}`,
+            at: [lot.x * LDU, 6, -lot.z * LDU] as [number, number, number],
+            node: (
+              <button
+                onClick={onInvite}
+                disabled={!onInvite}
+                className="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
+                style={{ background: "rgba(255,255,255,0.85)", color: "#2a5a1f" }}
+              >
+                {onInvite ? "Free plot · invite a friend" : "Free plot"}
+              </button>
+            ),
+          })),
           ...residents.flatMap((res, i) => {
             if (i === inside) return [];
             const [x, , z] = toThree(houseCentre(i));
@@ -722,6 +743,7 @@ export function LegoTown({
         <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} lit={mood.night} />
         {plaza && <primitive object={plaza} />}
         {decor && <primitive object={decor} />}
+        {parks && <primitive object={parks} />}
         <Traffic />
         {mood.night && <LampGlows at={PLAZA_LAMPS} />}
         {STROLLERS.map((p, i) => (

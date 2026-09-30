@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { rankForXp } from "@/lib/game";
 import type { Resident } from "@/lib/legoWorld";
@@ -26,6 +27,7 @@ export default function TownPage() {
   const [atDoor, setAtDoor] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { stations, complete, chest, gold, collect, prices, owned, buy } = useStations();
+  const router = useRouter();
 
   useEffect(() => {
     supabase.rpc("get_leaderboard").then(({ data, error }) => {
@@ -116,6 +118,7 @@ export default function TownPage() {
         prices={prices}
         owned={owned}
         onBuy={buy}
+        onInvite={() => router.push("/app/leaderboard")}
         className="rounded-2xl overflow-hidden h-[68vh] min-h-[380px]" />
 
       {residents.length === 1 && (
