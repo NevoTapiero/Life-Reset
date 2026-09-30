@@ -10,6 +10,7 @@ import Icon from "@/components/Icon";
 import LegoIcon, { BrickColor } from "@/components/LegoIcon";
 import Minifig from "@/components/Minifig";
 import MinifigCard from "@/components/MinifigCard";
+import GoldBricks from "@/components/GoldBricks";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import { setSound, soundOn } from "@/lib/sfx";
@@ -240,6 +241,10 @@ export default function ProfilePage() {
         <Stat label="Gold" value={(profile.gold ?? 0).toLocaleString()} color="yellow" icon="stud" />
         <Stat label="Playing since" value={new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(profile.created_at)).replace(" 20", " ")} color="azure" icon="calendar" />
       </section>
+
+      <div className="mt-4">
+        <GoldBricks profile={profile} />
+      </div>
 
       {/* account */}
       <h2 className="section-title mt-8 mb-3" style={{ "--brick": "var(--lego-blue)" } as React.CSSProperties}>
