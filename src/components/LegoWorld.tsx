@@ -1083,7 +1083,27 @@ function LampGlows({ at }: { at: [number, number, number][] }) {
   );
 }
 
-export type Pin = { key: string; at: [number, number, number]; node: React.ReactNode };
+/** `at`: a point in three's space, or a function giving it each frame (for someone walking about) */
+export type Pin = { key: string; at: [number, number, number] | (() => [number, number, number] | null); node: React.ReactNode };
+
+// Following someone round the town, the sunlight (and its shadow area, only
+// ~44 units across) goes with them, so you and what's around you always cast shadows.
+function SunFollows({
+  follow,
+  sun,
+  light,
+}: {
+  follow: React.RefObject<THREE.Vector3>;
+  sun: THREE.Object3D;
+  light: React.RefObject<THREE.DirectionalLight | null>;
+}) {
+  useFrame(() => {
+    const p = follow.current;
+    sun.position.set(p.x, 0, p.z);
+    light.current?.position.set(p.x + 18, 30, p.z - 14);
+  });
+  return null;
+}
 
 // Moves each pinned button to its point's place on screen, every frame.
 // (drei's Html gives each label its own React root, and under React 19 the
@@ -1094,7 +1114,12 @@ function PinTracker({ pins, els }: { pins: Pin[]; els: React.RefObject<Map<strin
     for (const p of pins) {
       const el = els.current.get(p.key);
       if (!el) continue;
-      v.set(...p.at).project(camera);
+      const at = typeof p.at === "function" ? p.at() : p.at;
+      if (!at) {
+        el.style.transform = "translate(-9999px, 0)";
+        continue;
+      }
+      v.set(...at).project(camera);
       const x = ((v.x + 1) / 2) * size.width;
       const y = ((1 - v.y) / 2) * size.height;
       el.style.transform = v.z > 1 ? "translate(-9999px, 0)" : `translate(${x}px, ${y}px) translate(-50%, -50%)`;
@@ -1159,6 +1184,7 @@ function Stage({
   // full sharpness (up to 2x) while the device keeps up; a step down if it can't
   const [dpr, setDpr] = useState(2);
   const controls = useRef<OrbitControlsImpl>(null);
+  const light = useRef<THREE.DirectionalLight>(null);
   const flying = useRef(false);
   // one global clipping plane, always installed (so shaders never recompile when it starts
   // or stops cutting); it clips nothing until a follow camera moves it (Chase)
@@ -1197,7 +1223,9 @@ function Stage({
           {mood && <SkyDome mood={mood} />}
           <hemisphereLight args={["#fff8ef", "#6f8f55", mood?.ambient ?? 0.9]} />
           <primitive object={sun} position={[target.x, 0, target.z]} />
+          {follow && <SunFollows follow={follow} sun={sun} light={light} />}
           <directionalLight
+            ref={light}
             target={sun}
             position={[target.x + 18, 30, target.z - 14]}
             intensity={mood?.sun ?? 2.3}
@@ -1407,6 +1435,16 @@ export function LegoTown({
   if (focus !== OVERVIEW && focus !== dest) setDest(focus);
   const [shopOpen, setShopOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // the brick wipe, for switching between the town and your room
+  const [wipe, setWipe] = useState<"in" | "out" | null>(null);
+  const wipeTo = (swap: () => void) => {
+    setWipe("in");
+    setTimeout(() => {
+      swap();
+      setWipe("out");
+      setTimeout(() => setWipe(null), WIPE_OUT);
+    }, WIPE_IN);
+  };
 
   // playing: outside, the camera follows you and you walk where you like (stick or keys);
   // the whole-town view and being inside a house frame the scene instead
@@ -1419,6 +1457,9 @@ export function LegoTown({
   const blockers = useMemo(() => townBlockers(residents), [residents]);
   const [goes, setGoes] = useState(0); // bumped by every "walk there", so the same place twice still walks
   const [near, setNear] = useState<number | null>(null);
+  // who you've walked up to (they say something), and a new line each time you meet
+  const [talker, setTalker] = useState<string | null>(null);
+  const [meetings, setMeetings] = useState(0);
   const places = useMemo(
     () => [
       { id: SHOP_FOCUS, at: SHOP_WALK[SHOP_WALK.length - 1] },
@@ -1479,7 +1520,13 @@ export function LegoTown({
     go(best);
   };
 
-  if (room && inside === meIndex) return <div className={className}>{room(() => setInside(null))}</div>;
+  if (room && inside === meIndex)
+    return (
+      <div className={`relative ${className ?? ""}`}>
+        {room(() => wipeTo(() => setInside(null)))}
+        {wipe && <BrickWipe phase={wipe} />}
+      </div>
+    );
 
   // the action button is about where you're standing (following) or what you're looking at
   const here = following ? near : focus;
@@ -1506,6 +1553,20 @@ export function LegoTown({
       node: <span className={`lego lego-sm ${res.me ? "" : "lego-white"}`}>{res.me ? "Your house" : `${res.name}'s house`}</span>,
     };
   };
+  // a friend's speech bubble, over their head wherever they walk
+  const chatPin = (name: string) => {
+    let h = 0;
+    for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) | 0;
+    const line = CHATTER[Math.abs(h + meetings) % CHATTER.length](residents[meIndex]?.name ?? "friend");
+    return {
+      key: `chat-${name}-${meetings}`,
+      at: () => {
+        const p = CROWD.get(name);
+        return p ? ([p.x * LDU, 6.4, -p.z * LDU] as [number, number, number]) : null;
+      },
+      node: <span className="lego-bubble">{line}</span>,
+    };
+  };
   // what the big round button does where you are
   const action: { icon: keyof typeof ICONS; text: string; onClick?: () => void; tone?: "" | "dark" | "yellow" | "green" } | null =
     here === null || here === OVERVIEW
@@ -1521,8 +1582,13 @@ export function LegoTown({
                 icon: "door",
                 text: r!.me ? "Go inside" : `Visit ${r!.name}`,
                 onClick: () => {
-                  setFocus(here);
-                  setInside(here);
+                  const go = () => {
+                    setFocus(here);
+                    setInside(here);
+                  };
+                  // your own room is a new scene: brick-wipe into it
+                  if (room && here === meIndex) wipeTo(go);
+                  else go();
                 },
                 tone: "green",
               }
@@ -1573,7 +1639,7 @@ export function LegoTown({
             ))}
           </>
         }
-        pins={following ? (near === null ? [] : [nearPin(near)]) : [
+        pins={following ? [...(near === null ? [] : [nearPin(near)]), ...(talker ? [chatPin(talker)] : [])] : [
           {
             key: "shop",
             at: [0, SHOP_BUILDING.h * LDU + 3, -(SHOP_FRONT - (SHOP_BUILDING.d / 2) * 20) * LDU] as [number, number, number],
@@ -1604,6 +1670,16 @@ export function LegoTown({
         {town && <primitive object={town} />}
         {built && !settled && <Settle onSettled={() => setSettled(true)} />}
         {following && <Near where={me3} places={places} onNear={setNear} />}
+        {following && (
+          <Chatter
+            where={me3}
+            friends={residents.filter((res) => !res.me).map((res) => res.name)}
+            onTalk={(name) => {
+              setTalker(name);
+              if (name) setMeetings((n) => n + 1);
+            }}
+          />
+        )}
         <InstancedParts placements={placementsIn(townInstances(residents), season)} />
         {/* the shop, its front to the camera's side of the plaza */}
         {/* the shop at the back of the plaza, the fountain and the rest of the square in front of it */}
@@ -1611,7 +1687,7 @@ export function LegoTown({
         {plaza && <primitive object={plaza} />}
         {decor && <primitive object={decor} />}
         <Slabs slabs={FLATS} />
-        <Slabs slabs={CLOUDS} shadows={false} />
+        <DriftingClouds />
         {parks && <primitive object={parks} />}
         <Traffic night={mood.night} />
         <Seagulls />
@@ -1763,6 +1839,7 @@ export function LegoTown({
           }}
         />
       )}
+      {wipe && <BrickWipe phase={wipe} />}
     </div>
   );
 }
@@ -1862,6 +1939,46 @@ function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>, jumpR
   }, [outRef, jumpRef]);
 }
 
+// Walk up to a friend and they say something (LEGO games' chatter): whoever
+// is nearest within a few steps, reported only when it changes.
+const CHATTER = [
+  (me: string) => `Hi ${me}!`,
+  () => "Did your workout today?",
+  () => "Race you to the shop!",
+  () => "Nice house!",
+  () => "Drunk your water yet?",
+  () => "See you at the fountain!",
+  () => "Streak still going?",
+  (me: string) => `Looking strong, ${me}!`,
+];
+function Chatter({
+  where,
+  friends,
+  onTalk,
+}: {
+  where: React.RefObject<THREE.Vector3>;
+  friends: string[];
+  onTalk: (name: string | null) => void;
+}) {
+  const last = useRef<string | null | undefined>(undefined);
+  useFrame(() => {
+    const [x, z] = [where.current.x / LDU, -where.current.z / LDU];
+    let best: string | null = null;
+    let bestD = 130; // LDU: close enough to chat
+    for (const name of friends) {
+      const p = CROWD.get(name);
+      if (!p) continue;
+      const d = Math.hypot(p.x - x, p.z - z);
+      if (d < bestD) [best, bestD] = [name, d];
+    }
+    if (best !== last.current) {
+      last.current = best;
+      onTalk(best);
+    }
+  });
+  return null;
+}
+
 // Which place you're standing at (a door, the shop), for the action button:
 // checked every frame, reported only when it changes.
 function Near({
@@ -1949,6 +2066,36 @@ function HeadIcon() {
     </svg>
   );
 }
+
+// The brick wipe: a wall of LEGO bricks tumbles in, row by row from the
+// bottom, to cover the screen; then falls away (going into / out of a room).
+const WIPE_COLOURS = ["#d01012", "#0055bf", "#f5cd2f", "#4b9f4a", "#fe8a18", "#ffffff", "#a0a5a9", "#582a12"];
+function BrickWipe({ phase }: { phase: "in" | "out" }) {
+  const rows = 12;
+  const cols = 6;
+  return (
+    <div className={`brick-wipe ${phase} ${phase === "in" ? "covering" : ""}`} aria-hidden>
+      {Array.from({ length: rows * cols }, (_, i) => {
+        const row = Math.floor(i / cols);
+        return (
+          <span
+            key={i}
+            className="wipe-brick"
+            style={
+              {
+                "--c": WIPE_COLOURS[Math.floor(hash(i + 7) * WIPE_COLOURS.length)],
+                // in: the bottom rows land first (a wall building up); out: the top rows go first
+                animationDelay: `${(phase === "in" ? (rows - 1 - row) * 14 : row * 12) + hash(i) * 40}ms`,
+              } as React.CSSProperties
+            }
+          />
+        );
+      })}
+    </div>
+  );
+}
+const WIPE_IN = 360 + 11 * 14 + 40; // ms until the wall is complete
+const WIPE_OUT = 460 + 11 * 12 + 40;
 
 // A handful of little LEGO bricks bursting out of the middle of whatever it's
 // inside (a button, the screen) and tumbling down: something good happened.
@@ -2401,6 +2548,17 @@ const GULLS = [
   { r: 800, y: 580, speed: -0.1, start: 5 },
 ];
 const BEAK_BACK = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI); // its beak is -Z
+// The clouds drift slowly round the sky (a turn about every half hour).
+function DriftingClouds() {
+  const g = useRef<THREE.Group>(null);
+  useFrame((_, dt) => void g.current?.rotateY(dt * 0.0035));
+  return (
+    <group ref={g}>
+      <Slabs slabs={CLOUDS} shadows={false} />
+    </group>
+  );
+}
+
 function Seagulls() {
   const gull = useModel(useMemo(() => modelText(["1 15 0 0 0 1 0 0 0 1 0 0 0 1 12891p01.dat"], "gull.ldr"), []), true);
   const flock = useMemo(() => (gull ? GULLS.map(() => gull.clone()) : []), [gull]);
