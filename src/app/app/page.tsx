@@ -5,12 +5,13 @@ import Link from "next/link";
 import AppActivity from "@/components/AppActivity";
 import BrickLoader from "@/components/BrickLoader";
 import Icon from "@/components/Icon";
+import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
 import MinifigPicker from "@/components/MinifigPicker";
 import FirstTips from "@/components/FirstTips";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import RankUp from "@/components/RankUp";
 import { useMissions } from "@/lib/useMissions";
-import { PILLAR_BRICK, greeting, legoLevel, levelTitle, photoOf } from "@/lib/brick";
+import { greeting, legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import {
   CARD_DAYS,
   PERIODS,
@@ -282,7 +283,6 @@ function MissionTile({
   label?: string;
 }) {
   const period = periodOf(q);
-  const brick = PILLAR_BRICK[q.pillar] ?? "var(--lego-blue)";
   return (
     <button
       onClick={onToggle}
@@ -291,18 +291,7 @@ function MissionTile({
       className={`card relative w-full text-left flex items-center gap-3 ${small ? "px-3 py-2.5" : "px-3 py-3"} transition-transform duration-100 active:translate-y-[2px]`}
       style={{ opacity: paidBy ? 0.8 : 1 }}
     >
-      <span className="pillar-strip" style={{ "--strip": brick } as React.CSSProperties} />
-      <span
-        className="grid place-items-center rounded-[12px] flex-none"
-        style={{
-          width: small ? 38 : 44,
-          height: small ? 38 : 44,
-          background: `color-mix(in srgb, ${brick} 16%, var(--panel))`,
-          color: brick,
-        }}
-      >
-        <Icon name={PILLAR_ICONS[q.pillar as keyof typeof PILLAR_ICONS] ?? "custom"} size={small ? 19 : 22} strokeWidth={2} />
-      </span>
+      <LegoIcon name={PILLAR_ICONS[q.pillar as keyof typeof PILLAR_ICONS] ?? "sparkle"} color={PILLAR_BRICK_COLOR[q.pillar] ?? "blue"} size={small ? 38 : 44} />
       <span className="flex-1 min-w-0">
         <span className={`block font-extrabold ${small ? "text-[15px]" : "text-[16px]"} truncate ${done ? "line-through text-muted" : ""}`}>{q.title}</span>
         {paidBy ? (
@@ -317,9 +306,7 @@ function MissionTile({
         )}
       </span>
       {paidBy ? (
-        <span className="icon-tile !w-9 !h-9" style={{ color: "var(--lego-blue)" }} aria-hidden>
-          <Icon name="sparkle" size={16} strokeWidth={2} />
-        </span>
+        <LegoIcon name="sparkle" color="azure" size={36} studs={1} />
       ) : (
         <span key={done ? "done" : "todo"} className={`stud-check ${done ? "on check-pop" : ""}`} aria-hidden>
           <Icon name="check" size={18} strokeWidth={3} />

@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import BrickLoader from "@/components/BrickLoader";
 import Icon from "@/components/Icon";
-import { PILLAR_BRICK } from "@/lib/brick";
+import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
 import {
   PERIODS,
   PERIOD_LABEL,
@@ -366,8 +366,8 @@ export default function QuestManager() {
           const on = activeIds.has(q.id);
           return (
             <div key={q.id} className={`option-row px-4 py-3.5 flex items-center gap-3 ${on ? "selected" : ""}`}>
-              <button className="icon-tile active:scale-95 transition-transform" onClick={() => toggleActive(q)} aria-label={on ? "Deactivate" : "Activate"}>
-                <Icon name={on ? "check" : PILLAR_ICONS[q.pillar]} size={21} strokeWidth={2.2} className={on ? "text-good" : undefined} />
+              <button className="active:scale-95 transition-transform flex-none" onClick={() => toggleActive(q)} aria-label={on ? "Deactivate" : "Activate"}>
+                <LegoIcon name={on ? "check" : PILLAR_ICONS[q.pillar]} color={on ? "green" : "grey"} size={42} />
               </button>
               <button className="flex-1 text-left min-w-0" onClick={() => toggleActive(q)}>
                 <span className={`block text-[15px] font-extrabold truncate ${on ? "" : "text-muted"}`}>{q.title}</span>
@@ -418,9 +418,7 @@ export default function QuestManager() {
               className={`option-row px-4 py-3.5 flex items-center gap-3 ${on ? "selected" : ""}`}
               onClick={() => toggleActive(q)}
             >
-              <span className="icon-tile" style={{ color: PILLAR_BRICK[q.pillar] }}>
-                <Icon name={PILLAR_ICONS[q.pillar]} size={22} strokeWidth={2} />
-              </span>
+              <LegoIcon name={PILLAR_ICONS[q.pillar]} color={on ? PILLAR_BRICK_COLOR[q.pillar] : "grey"} size={42} />
               <span className="flex-1 text-left min-w-0">
                 <span className={`block text-[15px] font-extrabold truncate ${on ? "" : "text-muted"}`}>{q.title}</span>
                 <span className="text-[12.5px] font-bold text-muted">{q.pillar} · +{questBase(q.xp)} XP</span>

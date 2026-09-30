@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
+import LegoIcon from "@/components/LegoIcon";
 
 const KEY = "sl-tips-v1";
 
@@ -26,9 +27,9 @@ export default function FirstTips() {
   }
 
   const tips = [
-    { icon: "check", brick: "var(--lego-green)", text: "Tap a mission when you do it. Doing it days in a row pays more." },
-    { icon: "home", brick: "var(--lego-orange)", text: "XP levels up your minifig and builds your house in the world." },
-    { icon: "plug", brick: "var(--lego-blue)", text: "Connect your apps on Profile: sleep, steps, workouts and tasks pay on their own." },
+    { icon: "check", color: "green" as const, text: "Tap a mission when you do it. Doing it days in a row pays more." },
+    { icon: "home", color: "orange" as const, text: "XP levels up your minifig and builds your house in the world." },
+    { icon: "plug", color: "blue" as const, text: "Connect your apps on Profile: sleep, steps, workouts and tasks pay on their own." },
   ];
 
   return (
@@ -42,9 +43,7 @@ export default function FirstTips() {
       <ul className="mt-2.5 flex flex-col gap-2.5">
         {tips.map((t) => (
           <li key={t.icon} className="flex items-center gap-3">
-            <span className="grid place-items-center rounded-[10px] flex-none text-white" style={{ width: 32, height: 32, background: t.brick, boxShadow: "inset 0 -2px 0 rgb(0 0 0 / 0.2)" }}>
-              <Icon name={t.icon} size={16} strokeWidth={2.6} />
-            </span>
+            <LegoIcon name={t.icon} color={t.color} size={34} />
             <span className="text-[13.5px] font-bold leading-snug">{t.text}</span>
           </li>
         ))}
