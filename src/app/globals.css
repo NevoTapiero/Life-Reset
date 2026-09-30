@@ -682,3 +682,31 @@ body {
   .brick-bit { display: none; }
   .lego { transition: none; }
 }
+
+/* the town's loading card: three bricks stacking up, over and over */
+@keyframes brickStack {
+  0% { transform: translateY(-26px); opacity: 0; }
+  30%, 80% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(0); opacity: 0; }
+}
+.stack-brick {
+  width: 34px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--c);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.45), inset 0 -2px 0 rgba(0, 0, 0, 0.22);
+  position: relative;
+  animation: brickStack 1.5s cubic-bezier(0.3, 1.4, 0.5, 1) infinite backwards;
+}
+.stack-brick::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: -4px;
+  height: 4px;
+  background: radial-gradient(circle at 50% 100%, var(--c) 0 3.4px, transparent 3.8px) 0 0 / 25% 4px repeat-x;
+}
+@keyframes fadeAway { to { opacity: 0; visibility: hidden; } }
+.fade-away { animation: fadeAway 450ms ease-out forwards; }
+@media (prefers-reduced-motion: reduce) { .stack-brick { animation: none; } }

@@ -244,13 +244,28 @@ function loadRide(ride: Loadout["ride"]) {
         turn.position.set(-box.max.x, -box.max.y, -box.min.z); // LDraw is -Y up: the bottom is max y
         const holder = new THREE.Group();
         holder.add(turn);
+        holder.userData.length = Math.max(size.x, size.z); // LDU
         return holder;
       })),
     );
   return p;
 }
+// Anything longer than this (the dragon) doesn't park: it flies slow circles
+// above its owner's street, wings and all.
+const PARKS_UP_TO = 260; // LDU, 13 studs
 function Ride({ ride, at, turn }: { ride: Loadout["ride"]; at: P3; turn: number }) {
   const [model, setModel] = useState<THREE.Object3D | null>(null);
+  const flier = useRef<THREE.Group>(null);
+  const flies = (model?.userData.length ?? 0) > PARKS_UP_TO;
+  useFrame(({ clock }) => {
+    if (!flies || !flier.current) return;
+    const a = clock.elapsedTime * 0.25 + at[0] * 0.001;
+    const r = 320;
+    // round the spot, high over the rooftops (LDraw: -Y up), bobbing as it beats its wings
+    flier.current.position.set(at[0] + Math.cos(a) * r, -620 - Math.sin(clock.elapsedTime * 1.6) * 18, at[2] + Math.sin(a) * r);
+    // nose along the circle (the model runs along x), banking into the turn
+    flier.current.rotation.set(0, -a - Math.PI, 0.25);
+  });
   useEffect(() => {
     let live = true;
     loadRide(ride)
@@ -260,7 +275,14 @@ function Ride({ ride, at, turn }: { ride: Loadout["ride"]; at: P3; turn: number 
       live = false;
     };
   }, [ride]);
-  return model && <primitive object={model} position={at} rotation={[0, turn, 0]} />;
+  if (!model) return null;
+  if (flies)
+    return (
+      <group ref={flier}>
+        <primitive object={model} />
+      </group>
+    );
+  return <primitive object={model} position={at} rotation={[0, turn, 0]} />;
 }
 
 // Ready a parsed figure to move: its parts named (MINIFIG_PARTS, then its
@@ -1427,6 +1449,20 @@ export function LegoTown({
           );
         })}
       </Stage>
+
+      {/* while the town loads (it stutters then), a LEGO loading card; it fades as the town builds itself */}
+      <div
+        className={`absolute inset-0 flex flex-col items-center justify-center gap-4 pointer-events-none ${settled ? "fade-away" : ""}`}
+        style={{ background: "linear-gradient(180deg, #8fd0ff 0%, #d9efff 60%, #7cc36a 60%, #58ab41 100%)" }}
+        aria-hidden={settled}
+      >
+        <div className="flex flex-col-reverse items-center gap-[3px]">
+          {["#d01012", "#f5cd2f", "#0055bf"].map((c, i) => (
+            <span key={c} className="stack-brick" style={{ "--c": c, animationDelay: `${i * 0.18}s` } as React.CSSProperties} />
+          ))}
+        </div>
+        <span className="lego lego-white text-sm">Building your town…</span>
+      </div>
 
       {focus !== OVERVIEW && inside === null && (
         <button onClick={() => go(OVERVIEW)} className="lego lego-sm lego-dark absolute top-3 right-3">
