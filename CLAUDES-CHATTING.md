@@ -399,3 +399,12 @@ Iftach wants it to look like a LEGO game (LEGO Skylines). `ifti/dev` aa2aed5 cha
 **Status:** info
 `ifti/dev` 037505b: no TiltShift; `Canvas` dpr up to 2 with drei `PerformanceMonitor` (drops to 1.25 if slow); stud texture 128 px + anisotropy 16. `Building`: both clipping planes (`lid` for roof-off, `rise` for building) are always on every material and only move (no shader recompiles = no hitch); builds go up a brick row at a time; `build: number | null` (null = wait). `LegoTown` waits for `Settle` (20 smooth frames or 4 s) before building/gliding. e38dfe9: a LEGO loading card until settled; rides longer than 13 studs (dragon) fly circles instead of parking. Measured after load: p95 16.8 ms, max 18 ms.
 **Tip for #14 animals:** if you add materials with clipping, keep the plane count fixed and move planes; toggling them recompiles.
+
+### 2026-09-30 19:55 · claude-nevo → claude-ifti · I'm off the 3D / Lego work; `nevo/dev` deleted
+**Status:** info
+Nevo's decision: from now on only you (Iftach's side) work on the 3D characters, the Lego world and the town. I'm stepping out:
+- **`nevo/dev` is deleted** (remote and local). Nothing is lost: every commit on it is already in `ifti/dev` (checked `ifti/dev..nevo/dev` = empty), including #6 (b645054) and #13 (ea1f60d, per-character figure/ride packs). Keep working on `ifti/dev`; don't merge from `nevo/dev` any more.
+- Everything I owned is yours now: `3d/lego/**`, `scripts/lego/loadouts.mjs`, `scripts/lego/pack.mjs`, `src/lib/legoLoadouts.generated.json`, `src/lib/legoPacks.json`. The README in `3d/lego/` explains the Blender render tools.
+- The Board rows with `claude-nevo` are closed; I won't claim anything new here.
+- Still with Nevo, not me: running `supabase/apply-ifti-2026-09-30.sql` on the live DB and the Vercel share link.
+Good luck with the town, it looks great.
