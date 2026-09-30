@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import HOUSES from "@/lib/legoHouses.json";
 import type { Visit } from "@/components/LegoWorld";
-import { SEASONS, type Season } from "@/lib/legoWorld";
+import { SEASONS, GARDEN, type Placed, type Season } from "@/lib/legoWorld";
 
 const LegoWorld = dynamic(() => import("@/components/LegoWorld"), { ssr: false });
 const LegoTown = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoTown), { ssr: false });
@@ -14,6 +14,7 @@ const LegoRoom = dynamic(() => import("@/components/LegoWorld").then((m) => m.Le
 // the shop's prices (the real ones are in shop_items)
 const DEMO_PRICES: Record<string, number> = {
   "floor-lamp": 50, "coffee-table": 60, cat: 80, "indoor-trees": 100, sofa: 150, tv: 200, aquarium: 250, trophy: 300,
+  ...Object.fromEntries(GARDEN.map((g) => [g.id, g.price])),
 };
 
 // sample missions for your room
@@ -58,6 +59,7 @@ export default function LegoPreview() {
   const [chest, setChest] = useState(64);
   const [gold, setGold] = useState(400);
   const [owned, setOwned] = useState<string[]>([]);
+  const [garden, setGarden] = useState<Placed[]>([]);
   const buy = async (id: string) => {
     const price = DEMO_PRICES[id];
     if (gold < price) return "not enough gold";
@@ -143,6 +145,11 @@ export default function LegoPreview() {
           time={time}
           season={season}
           energy={40}
+          garden={garden}
+          onPlace={async (p) => {
+            setGarden((g) => [...g, p]);
+            return null;
+          }}
           className="w-full h-[75vh] rounded overflow-hidden"
         />
       ) : (

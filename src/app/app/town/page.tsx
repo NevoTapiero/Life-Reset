@@ -44,7 +44,7 @@ export default function TownPage() {
   const [visits, setVisits] = useState<Record<string, Visit>>({});
   const [atDoor, setAtDoor] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const { stations, complete, chest, gold, collect, prices, owned, buy } = useStations();
+  const { stations, complete, chest, gold, collect, prices, owned, buy, garden, place } = useStations();
   const router = useRouter();
 
   useEffect(() => {
@@ -143,6 +143,8 @@ export default function TownPage() {
         onInvite={() => router.push("/app/leaderboard")}
         visit={visit}
         energy={energy}
+        garden={garden}
+        onPlace={place}
         onBack={() => router.push("/app/world")}
         className="rounded-2xl overflow-hidden h-[68vh] min-h-[380px]" />
 
