@@ -1,0 +1,587 @@
+{
+  "_generated": "by scripts/lego/loadouts.mjs from 3d/lego/ -- do not edit by hand",
+  "slots": [
+    {
+      "id": "head",
+      "name": "Head",
+      "what": "Face print (expression, scars, war paint)"
+    },
+    {
+      "id": "hair",
+      "name": "Hair / Helmet",
+      "what": "Hairpiece, hat, helmet or crown (sits on the head)"
+    },
+    {
+      "id": "torso",
+      "name": "Torso",
+      "what": "Printed torso with arms and hands (clothes, armor)"
+    },
+    {
+      "id": "legs",
+      "name": "Legs",
+      "what": "Hips and legs (trousers, armor)"
+    },
+    {
+      "id": "shoes",
+      "name": "Shoes",
+      "what": "Colour/material of the feet (boots, steel, gold). Painted onto the foot area of the legs"
+    },
+    {
+      "id": "gear",
+      "name": "Gear",
+      "what": "Right-hand weapon, left-hand shield/tool, neck piece (shoulder armor or cape)"
+    },
+    {
+      "id": "ride",
+      "name": "Ride / Companion",
+      "what": "Vehicle or creature next to the character (skateboard up to dragon / spaceship)"
+    }
+  ],
+  "characters": {
+    "warrior": {
+      "stat": "STR",
+      "identity": "Scarred face, copper hair, blue/orange palette, sword fighter",
+      "levels": [
+        {
+          "level": 1,
+          "title": "Recruit",
+          "parts": {
+            "torso": {
+              "part": "973",
+              "color": 70
+            },
+            "armL": {
+              "part": "3818",
+              "color": 70
+            },
+            "armR": {
+              "part": "3819",
+              "color": 70
+            },
+            "handL": {
+              "part": "3820",
+              "color": 14
+            },
+            "handR": {
+              "part": "3820",
+              "color": 14
+            },
+            "hips": {
+              "part": "3815",
+              "color": 19
+            },
+            "legR": {
+              "part": "3816",
+              "color": 19
+            },
+            "legL": {
+              "part": "3817",
+              "color": 19
+            },
+            "head": {
+              "part": "3626bps6",
+              "color": 14
+            },
+            "hair": {
+              "part": "20597",
+              "color": 484
+            }
+          },
+          "shoes": {
+            "color": 70,
+            "finish": "leather"
+          },
+          "gear": [
+            {
+              "slot": "right_hand",
+              "name": "Wooden training sword",
+              "part": "18787",
+              "color": 70,
+              "attach": "handL",
+              "at": [
+                -24.89,
+                33.73,
+                -9.898
+              ],
+              "m": [
+                0.985,
+                -0.12,
+                0.12,
+                0.17,
+                0.696,
+                -0.696,
+                0,
+                0.707,
+                0.707
+              ]
+            }
+          ],
+          "ride": {
+            "name": "Skateboard",
+            "file": "skateboard.ldr",
+            "turn": -70,
+            "ldr": "0 Ride - Skateboard\n1 484 0 0 0 1 0 0 0 1 0 0 0 1 42511c01.dat\n"
+          }
+        },
+        {
+          "level": 2,
+          "title": "Fighter",
+          "parts": {
+            "torso": {
+              "part": "973p45",
+              "color": 484
+            },
+            "armL": {
+              "part": "3818",
+              "color": 484
+            },
+            "armR": {
+              "part": "3819",
+              "color": 484
+            },
+            "handL": {
+              "part": "3820",
+              "color": 14
+            },
+            "handR": {
+              "part": "3820",
+              "color": 14
+            },
+            "hips": {
+              "part": "3815",
+              "color": 308
+            },
+            "legR": {
+              "part": "3816",
+              "color": 308
+            },
+            "legL": {
+              "part": "3817",
+              "color": 308
+            },
+            "head": {
+              "part": "3626bps6",
+              "color": 14
+            },
+            "hair": {
+              "part": "20597",
+              "color": 484
+            }
+          },
+          "shoes": {
+            "color": 0,
+            "finish": "leather"
+          },
+          "gear": [
+            {
+              "slot": "right_hand",
+              "name": "Gladius",
+              "part": "18034",
+              "color": 179,
+              "attach": "handL",
+              "at": [
+                -24.89,
+                33.73,
+                -9.898
+              ],
+              "m": [
+                0.985,
+                -0.12,
+                0.12,
+                0.17,
+                0.696,
+                -0.696,
+                0,
+                0.707,
+                0.707
+              ]
+            },
+            {
+              "slot": "left_hand",
+              "name": "Wooden round shield",
+              "part": "2586",
+              "color": 70,
+              "attach": "handR",
+              "at": [
+                24.89,
+                33.73,
+                -9.898
+              ],
+              "m": [
+                0.985,
+                0.12,
+                -0.12,
+                -0.17,
+                0.696,
+                -0.696,
+                0,
+                0.707,
+                0.707
+              ]
+            }
+          ],
+          "ride": {
+            "name": "Brown horse",
+            "file": "horse_brown.ldr",
+            "turn": -70,
+            "ldr": "0 Ride - Brown horse\n1 70 0 0 0 1 0 0 0 1 0 0 0 1 4493c01.dat\n"
+          }
+        },
+        {
+          "level": 3,
+          "title": "Warrior",
+          "parts": {
+            "torso": {
+              "part": "973p2p",
+              "color": 272
+            },
+            "armL": {
+              "part": "3818",
+              "color": 0
+            },
+            "armR": {
+              "part": "3819",
+              "color": 0
+            },
+            "handL": {
+              "part": "3820",
+              "color": 14
+            },
+            "handR": {
+              "part": "3820",
+              "color": 14
+            },
+            "hips": {
+              "part": "3815",
+              "color": 0
+            },
+            "legR": {
+              "part": "3816",
+              "color": 0
+            },
+            "legL": {
+              "part": "3817",
+              "color": 0
+            },
+            "head": {
+              "part": "3626bps6",
+              "color": 14
+            },
+            "hair": {
+              "part": "20597",
+              "color": 484
+            }
+          },
+          "shoes": {
+            "color": 72,
+            "finish": "iron"
+          },
+          "gear": [
+            {
+              "slot": "right_hand",
+              "name": "Greatsword",
+              "part": "59",
+              "color": 179,
+              "attach": "handL",
+              "at": [
+                -24.89,
+                33.73,
+                -9.898
+              ],
+              "m": [
+                0.985,
+                -0.12,
+                0.12,
+                0.17,
+                0.696,
+                -0.696,
+                0,
+                0.707,
+                0.707
+              ]
+            },
+            {
+              "slot": "neck",
+              "name": "Shoulder armor",
+              "part": "11097",
+              "color": 148,
+              "attach": "torso",
+              "at": [
+                0,
+                0,
+                0
+              ],
+              "m": [
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          ],
+          "ride": {
+            "name": "Racing motorcycle",
+            "file": "motorcycle.ldr",
+            "turn": -70,
+            "ldr": "0 Ride - Racing motorcycle\n1 25 0 0 0 1 0 0 0 1 0 0 0 1 18895c01.dat\n"
+          }
+        },
+        {
+          "level": 4,
+          "title": "Knight",
+          "parts": {
+            "torso": {
+              "part": "973p4d",
+              "color": 0
+            },
+            "armL": {
+              "part": "3818",
+              "color": 0
+            },
+            "armR": {
+              "part": "3819",
+              "color": 0
+            },
+            "handL": {
+              "part": "3820",
+              "color": 0
+            },
+            "handR": {
+              "part": "3820",
+              "color": 0
+            },
+            "hips": {
+              "part": "3815",
+              "color": 272
+            },
+            "legR": {
+              "part": "3816",
+              "color": 272
+            },
+            "legL": {
+              "part": "3817",
+              "color": 272
+            },
+            "head": {
+              "part": "3626bps6",
+              "color": 14
+            },
+            "hair": {
+              "part": "48493",
+              "color": 179
+            }
+          },
+          "shoes": {
+            "color": 179,
+            "finish": "steel"
+          },
+          "gear": [
+            {
+              "slot": "right_hand",
+              "name": "Longsword",
+              "part": "18031",
+              "color": 179,
+              "attach": "handL",
+              "at": [
+                -24.89,
+                33.73,
+                -9.898
+              ],
+              "m": [
+                0.985,
+                -0.12,
+                0.12,
+                0.17,
+                0.696,
+                -0.696,
+                0,
+                0.707,
+                0.707
+              ]
+            },
+            {
+              "slot": "left_hand",
+              "name": "Royal lion shield",
+              "part": "18836p41",
+              "color": 272,
+              "attach": "handR",
+              "at": [
+                24.89,
+                33.73,
+                -9.898
+              ],
+              "m": [
+                0.985,
+                0.12,
+                -0.12,
+                -0.17,
+                0.696,
+                -0.696,
+                0,
+                0.707,
+                0.707
+              ]
+            }
+          ],
+          "ride": {
+            "name": "Royal armored horse",
+            "file": "horse_royal.ldr",
+            "turn": -70,
+            "ldr": "0 Ride - Royal armored horse\n1 15 0 0 0 1 0 0 0 1 0 0 0 1 4493c01.dat\n1 15 0 0 0 1 0 0 0 1 0 0 0 1 2490p40.dat\n"
+          }
+        },
+        {
+          "level": 5,
+          "title": "Champion",
+          "parts": {
+            "torso": {
+              "part": "973p2l",
+              "color": 320
+            },
+            "armL": {
+              "part": "3818",
+              "color": 320
+            },
+            "armR": {
+              "part": "3819",
+              "color": 320
+            },
+            "handL": {
+              "part": "3820",
+              "color": 14
+            },
+            "handR": {
+              "part": "3820",
+              "color": 14
+            },
+            "hips": {
+              "part": "3815",
+              "color": 320
+            },
+            "legR": {
+              "part": "3816",
+              "color": 320
+            },
+            "legL": {
+              "part": "3817",
+              "color": 320
+            },
+            "head": {
+              "part": "3626bps6",
+              "color": 14
+            },
+            "hair": {
+              "part": "6122c01",
+              "color": 297
+            }
+          },
+          "shoes": {
+            "color": 297,
+            "finish": "gold"
+          },
+          "gear": [
+            {
+              "slot": "right_hand",
+              "name": "Champion sword (gold inlay)",
+              "part": "24108pe3",
+              "color": 179,
+              "attach": "handL",
+              "at": [
+                -24.89,
+                33.73,
+                -9.898
+              ],
+              "m": [
+                0.985,
+                -0.12,
+                0.12,
+                0.17,
+                0.696,
+                -0.696,
+                0,
+                0.707,
+                0.707
+              ]
+            },
+            {
+              "slot": "neck",
+              "name": "Champion cape",
+              "part": "20551c01",
+              "color": 25,
+              "attach": "torso",
+              "at": [
+                0,
+                0,
+                0
+              ],
+              "m": [
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          ],
+          "ride": {
+            "name": "Dragon",
+            "file": "dragon.ldr",
+            "turn": -35,
+            "ldr": "0 Ride - Dragon (brick-built, real Lego dragon head)\n0 Name: dragon.ldr\n0 // legs\n1 320 -30 -24 -50 1 0 0 0 1 0 0 0 1 3003.dat\n1 320 -30 -48 -50 1 0 0 0 1 0 0 0 1 3003.dat\n1 320 -30 -24 50 1 0 0 0 1 0 0 0 1 3003.dat\n1 320 -30 -48 50 1 0 0 0 1 0 0 0 1 3003.dat\n1 320 30 -24 -50 1 0 0 0 1 0 0 0 1 3003.dat\n1 320 30 -48 -50 1 0 0 0 1 0 0 0 1 3003.dat\n1 320 30 -24 50 1 0 0 0 1 0 0 0 1 3003.dat\n1 320 30 -48 50 1 0 0 0 1 0 0 0 1 3003.dat\n0 // body: orange belly, dark red back, plates on top\n1 25 0 -72 -60 1 0 0 0 1 0 0 0 1 3001.dat\n1 320 0 -96 -60 1 0 0 0 1 0 0 0 1 3001.dat\n1 320 0 -104 -60 1 0 0 0 1 0 0 0 1 3020.dat\n1 25 0 -72 -20 1 0 0 0 1 0 0 0 1 3001.dat\n1 320 0 -96 -20 1 0 0 0 1 0 0 0 1 3001.dat\n1 320 0 -104 -20 1 0 0 0 1 0 0 0 1 3020.dat\n1 25 0 -72 20 1 0 0 0 1 0 0 0 1 3001.dat\n1 320 0 -96 20 1 0 0 0 1 0 0 0 1 3001.dat\n1 320 0 -104 20 1 0 0 0 1 0 0 0 1 3020.dat\n1 25 0 -72 60 1 0 0 0 1 0 0 0 1 3001.dat\n1 320 0 -96 60 1 0 0 0 1 0 0 0 1 3001.dat\n1 320 0 -104 60 1 0 0 0 1 0 0 0 1 3020.dat\n0 // spine spikes\n1 297 10 -128 -70 1 0 0 0 1 0 0 0 1 4589.dat\n1 297 10 -128 -30 1 0 0 0 1 0 0 0 1 4589.dat\n1 297 10 -128 10 1 0 0 0 1 0 0 0 1 4589.dat\n1 297 10 -128 50 1 0 0 0 1 0 0 0 1 4589.dat\n0 // neck\n1 320 0 -96 -100 1 0 0 0 1 0 0 0 1 3003.dat\n1 320 0 -120 -100 1 0 0 0 1 0 0 0 1 3003.dat\n1 320 0 -144 -120 1 0 0 0 1 0 0 0 1 3003.dat\n1 320 0 -168 -120 1 0 0 0 1 0 0 0 1 3003.dat\n1 320 0 -192 -120 1 0 0 0 1 0 0 0 1 3003.dat\n1 320 0 -216 -140 1 0 0 0 1 0 0 0 1 3003.dat\n0 // head\n1 320 0 -222 -165 1 0 0 0 1 0 0 0 1 24196p01.dat\n1 320 0 -222 -165 1 0 0 0 1 0 0 0 1 24199.dat\n0 // tail (tapers down to the ground)\n1 320 0 -72 100 1 0 0 0 1 0 0 0 1 3003.dat\n1 320 0 -72 130 0 0 1 0 1 0 -1 0 0 3004.dat\n1 320 0 -48 150 0 0 1 0 1 0 -1 0 0 3004.dat\n1 25 0 -48 170 0 0 1 0 1 0 -1 0 0 3040b.dat\n0 // wings\n1 25 117 -196 -10 0 0.766 0.643 0 0.643 -0.766 -1 0 0 30355.dat\n1 25 -117 -196 -10 0 -0.766 -0.643 0 0.643 -0.766 1 0 0 30356.dat\n"
+          }
+        }
+      ]
+    }
+  },
+  "parts": [
+    "11097",
+    "18031",
+    "18034",
+    "18787",
+    "18836p41",
+    "20551c01",
+    "20597",
+    "24108pe3",
+    "2586",
+    "3626bps6",
+    "3815",
+    "3816",
+    "3817",
+    "3818",
+    "3819",
+    "3820",
+    "48493",
+    "59",
+    "6122c01",
+    "973",
+    "973p2l",
+    "973p2p",
+    "973p45",
+    "973p4d"
+  ],
+  "rideParts": [
+    "18895c01",
+    "24196p01",
+    "24199",
+    "2490p40",
+    "3001",
+    "3003",
+    "3004",
+    "3020",
+    "30355",
+    "30356",
+    "3040b",
+    "42511c01",
+    "4493c01",
+    "4589"
+  ]
+}
