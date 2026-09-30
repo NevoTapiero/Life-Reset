@@ -22,6 +22,10 @@ import {
   splitInstanced,
   townInstances,
   type Placement,
+  type Season,
+  seasonAt,
+  placementsIn,
+  textIn,
   buildMinifig,
   houseAt,
   houseFor,
@@ -771,6 +775,7 @@ export function LegoTown({
   onBuy,
   onInvite,
   time,
+  season: seasonProp,
   className,
 }: {
   residents: Resident[];
@@ -788,6 +793,8 @@ export function LegoTown({
   onInvite?: () => void;
   /** force a time of day ("day", "golden", "dusk", "night"); otherwise it follows the clock */
   time?: string;
+  /** force a season; otherwise it follows the date */
+  season?: Season;
   className?: string;
 }) {
   const residents = all.slice(0, MAX_RESIDENTS);
@@ -797,14 +804,16 @@ export function LegoTown({
     return () => clearInterval(t);
   }, []);
   const mood = time ? moodNamed(time) : moodAt(hour);
+  const season = seasonProp ?? seasonAt(new Date());
+  const grass = GRASS[season];
   const town = useModel(
     useMemo(() => townText(residents), [residents]),
     true,
   );
-  const plaza = useModel(useMemo(() => plazaText(), []), true);
+  const plaza = useModel(useMemo(() => textIn(plazaText(), season), [season]), true);
   const decor = useModel(useMemo(() => townDecorText(), []), true);
   // plots nobody lives on yet are little parks
-  const parks = useModel(useMemo(() => emptyLotsText(residents.length), [residents.length]), true);
+  const parks = useModel(useMemo(() => textIn(emptyLotsText(residents.length), season), [residents.length, season]), true);
   const emptyLots = useMemo(() => Array.from({ length: MAX_RESIDENTS - residents.length }, (_, k) => lotFor(residents.length + k)), [residents.length]);
   const lots = useMemo(() => residents.map((_, i) => lotFor(i)), [residents]);
   const meIndex = Math.max(
@@ -915,13 +924,13 @@ export function LegoTown({
         onPick={pick}
         overlay={
           <>
-            <Hills />
+            <Hills color={grass} />
             {/* the ground: grass everywhere, the smooth grey street square, the plaza and each plot */}
-            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color="#4b9b3c" y={-0.03} />
+            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.03} />
             <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#5d6166" y={-0.015} flat />
             <StudGround at={[0, 0]} size={PLOT} color="#a3a7ad" />
             {[...lots, ...emptyLots].map((lot, i) => (
-              <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color="#4b9b3c" />
+              <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} />
             ))}
           </>
         }
@@ -959,7 +968,8 @@ export function LegoTown({
         ]}
       >
         {town && <primitive object={town} />}
-        <InstancedParts placements={townInstances(residents)} />
+        <InstancedParts placements={placementsIn(townInstances(residents), season)} />
+        <Falling season={season} />
         {/* the shop, its front to the camera's side of the plaza */}
         {/* the shop at the back of the plaza, the fountain and the rest of the square in front of it */}
         <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} lit={mood.night} />
@@ -1506,9 +1516,64 @@ function StudGround({
   );
 }
 
+// The grass by season: fresh in spring, LEGO green in summer, olive in autumn, snow in winter.
+const GRASS: Record<Season, string> = { spring: "#58a843", summer: "#4b9b3c", autumn: "#8a9a3e", winter: "#e9eef3" };
+
+// What drifts down over the town: blossom in spring, leaves in autumn, snow in
+// winter (summer is clear). Small flat tiles tumbling and swaying as they fall,
+// wrapping back to the top; LDraw space, so -y is up.
+const FALLING = 900;
+const FALL: Record<Season, { colors: string[]; size: number; speed: number } | null> = {
+  spring: { colors: ["#ffc0dc", "#ffffff"], size: 5, speed: 18 },
+  summer: null,
+  autumn: { colors: ["#e8742a", "#f3b23a", "#b8401f", "#d2912c"], size: 7, speed: 26 },
+  winter: { colors: ["#ffffff"], size: 5, speed: 22 },
+};
+let flakeSeed = 11;
+const flakeRnd = () => (flakeSeed = (flakeSeed * 16807) % 2147483647) / 2147483647;
+const FLAKES = Array.from({ length: FALLING }, () => ({
+  x: (flakeRnd() * 2 - 1) * TOWN_HALF * 20,
+  z: (flakeRnd() * 2 - 1) * TOWN_HALF * 20,
+  y: flakeRnd(),
+  sway: flakeRnd() * 6,
+  spin: 0.5 + flakeRnd() * 2,
+}));
+function Falling({ season }: { season: Season }) {
+  const fall = FALL[season];
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const flakes = FLAKES;
+  useEffect(() => {
+    if (!mesh.current || !fall) return;
+    const c = new THREE.Color();
+    flakes.forEach((_, i) => mesh.current!.setColorAt(i, c.set(fall.colors[i % fall.colors.length])));
+    mesh.current.instanceColor!.needsUpdate = true;
+  }, [fall, flakes]);
+  const o = useMemo(() => new THREE.Object3D(), []);
+  useFrame(({ clock }) => {
+    if (!mesh.current || !fall) return;
+    const t = clock.elapsedTime;
+    const top = 700; // LDU above the ground
+    flakes.forEach((f, i) => {
+      const h = top - ((f.y * top + t * fall.speed * (0.7 + f.spin * 0.2)) % top);
+      o.position.set(f.x + Math.sin(t * 0.8 + f.sway) * 18, -h, f.z + Math.cos(t * 0.6 + f.sway) * 12);
+      o.rotation.set(t * f.spin, t * f.spin * 0.7, f.sway);
+      o.updateMatrix();
+      mesh.current!.setMatrixAt(i, o.matrix);
+    });
+    mesh.current.instanceMatrix.needsUpdate = true;
+  });
+  if (!fall) return null;
+  return (
+    <instancedMesh key={season} ref={mesh} args={[undefined, undefined, FALLING]} frustumCulled={false}>
+      <boxGeometry args={[fall.size, fall.size * 0.2, fall.size]} />
+      <meshStandardMaterial roughness={0.8} side={THREE.DoubleSide} />
+    </instancedMesh>
+  );
+}
+
 // Soft green hills beyond the forest, fading into the haze: the land goes on,
 // you just can't get there.
-function Hills() {
+function Hills({ color }: { color: string }) {
   const hills = useMemo(() => {
     const out: { p: [number, number, number]; r: number }[] = [];
     let seed = 3;
@@ -1525,7 +1590,7 @@ function Hills() {
       {hills.map((h, i) => (
         <mesh key={i} position={h.p} scale={[h.r, h.r * 0.2, h.r]}>
           <sphereGeometry args={[1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshStandardMaterial color={i % 3 ? "#5f9e46" : "#6aa84f"} roughness={1} />
+          <meshStandardMaterial color={color} roughness={1} />
         </mesh>
       ))}
     </>

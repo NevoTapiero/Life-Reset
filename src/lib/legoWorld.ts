@@ -291,6 +291,43 @@ export function splitInstanced(lines: string[], parent?: { x: number; z: number;
   return { kept, placed };
 }
 
+// ---- seasons, by the real date ----------------------------------------------
+// Leafy trees turn orange, yellow and red in autumn and are snowy white in
+// winter; spring has pink blossom among the green. Pines (3471) stay green all
+// year, and flowers are gone in winter.
+export type Season = "spring" | "summer" | "autumn" | "winter";
+export const SEASONS: Season[] = ["spring", "summer", "autumn", "winter"];
+// ponytail: northern hemisphere (Israel); flip by 6 months for southern players if we get any
+export const seasonAt = (d: Date): Season => SEASONS[Math.floor(((d.getMonth() + 10) % 12) / 3)];
+const LEAFY = new Set(["3470", "2435", "2417"]);
+const AUTUMN = [COL.orange, COL.yellow, COL.darkOrange, COL.red];
+/** a part's colour this season (k: which copy, for variety); null: not there this season */
+export function seasonColor(part: string, color: number, k: number, season: Season): number | null {
+  if (part === "3741ac05") return season === "winter" ? null : color;
+  if (!LEAFY.has(part) || season === "summer") return color;
+  if (season === "winter") return COL.white;
+  if (season === "autumn") return AUTUMN[k % AUTUMN.length];
+  return k % 3 === 0 ? COL.pink : color; // spring blossom
+}
+export const placementsIn = (placed: Placement[], season: Season): Placement[] =>
+  placed.flatMap((p, k) => {
+    const color = seasonColor(p.part, p.color, k, season);
+    return color === null ? [] : [{ ...p, color }];
+  });
+/** the same for LDraw text (the plaza and the parks) */
+export const textIn = (text: string, season: Season): string => {
+  let k = 0;
+  return text
+    .split("\n")
+    .flatMap((l) => {
+      const t = l.trim().split(/\s+/);
+      if (t[0] !== "1" || t.length < 15) return [l];
+      const color = seasonColor(t[14].replace(/\.dat$/i, ""), Number(t[1]), k++, season);
+      return color === null ? [] : [[t[0], color, ...t.slice(2)].join(" ")];
+    })
+    .join("\n");
+};
+
 // ---- the land around the town -------------------------------------------
 
 // small seeded random, so the forest is the same every visit

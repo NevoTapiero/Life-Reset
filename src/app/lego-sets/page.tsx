@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import HOUSES from "@/lib/legoHouses.json";
 import type { Visit } from "@/components/LegoWorld";
+import { SEASONS, type Season } from "@/lib/legoWorld";
 
 const LegoWorld = dynamic(() => import("@/components/LegoWorld"), { ssr: false });
 const LegoTown = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoTown), { ssr: false });
@@ -43,6 +44,7 @@ export default function LegoPreview() {
   const [house, setHouse] = useState<string | null>(null); // null = the town
   const [spin, setSpin] = useState(0); // previews: turn the house to find its front
   const [time, setTime] = useState<string | undefined>(undefined); // undefined = your clock
+  const [season, setSeason] = useState<Season | undefined>(undefined); // undefined = the date
   const [friends, setFriends] = useState(5); // how many friends live in the demo town
   // nevo already let you in, omer hasn't answered; a new knock is answered after a moment
   const [visits, setVisits] = useState<Record<string, Visit>>({ nevo: "allowed", omer: "knocked" });
@@ -93,6 +95,11 @@ export default function LegoPreview() {
             {t}
           </button>
         ))}
+        {SEASONS.map((t) => (
+          <button key={t} onClick={() => setSeason(season === t ? undefined : t)} className={button(season === t)}>
+            {t}
+          </button>
+        ))}
         {house && (
           <button onClick={() => setSpin((s) => (s + 1) % 4)} className={button(false)}>
             Turn house ({spin})
@@ -126,6 +133,7 @@ export default function LegoPreview() {
           owned={owned}
           onBuy={buy}
           time={time}
+          season={season}
           className="w-full h-[75vh] rounded overflow-hidden"
         />
       ) : (
