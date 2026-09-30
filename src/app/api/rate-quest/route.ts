@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { WORKOUT_PRICING_NOTE, ratedFromTitle } from "@/lib/pricing";
 
 // The System rates custom quests so players do not grade their own homework.
 // Uses the Gemini API free tier; falls back to a standard rating without a key.
@@ -132,7 +133,7 @@ const ANCHORS: Record<Period, string[]> = {
   daily: [
     "- Drink a glass of water = 1",
     "- Make your bed = 2",
-    "- 10 minute walk = 8",
+    "- 10 minute walk (about 1,100 steps) = 2",
     "- Read 10 pages = 12",
     "- 30 minute workout = 25",
     "- Run 5 km = 50",
@@ -188,6 +189,27 @@ export async function POST(req: Request) {
   const early = refuseIfTracked(wordKind);
   if (early) return early;
 
+  // Steps and sleep are never guessed: the number in the title goes through the
+  // same price table a watch uses, so "10k steps" by hand pays what 10,000
+  // steps from a watch pays. (Daily only: a watch has no weekly twin.)
+  const priced = (kind: Tracked | null) => {
+    if (period !== "daily" || (kind !== "steps" && kind !== "sleep")) return null;
+    const rated = ratedFromTitle(kind, title);
+    if (rated === null) return null;
+    return NextResponse.json({
+      xp: rated,
+      reason:
+        kind === "steps"
+          ? "Priced like a watch prices steps: 10,000 steps = 20."
+          : "Priced like a watch prices sleep: 7 to 9 hours = 12.",
+      icon: kind === "steps" ? "leaf" : "moon",
+      source: "price-table",
+      tracks: kind,
+    });
+  };
+  const fixed = priced(wordKind);
+  if (fixed) return fixed;
+
   // What the people around this player already run for the same period, so the
   // same habit is priced the same for everyone in the group.
   const matches = closestPeers(title, peers.filter((q) => (q.period ?? "daily") === period));
@@ -229,6 +251,7 @@ export async function POST(req: Request) {
     ...ANCHORS[period],
     "Interpolate between anchors. Reserve the top fifth of the scale for feats that demand serious discipline.",
     ...peerLines,
+    ...(period === "daily" ? [WORKOUT_PRICING_NOTE] : []),
     'Also say whether a fitness watch measures this on its own: "steps" (a step count or walking), "sleep" (hours slept), "workout" (exercise, gym, running, sport), or "none".',
     "Also pick the single best matching icon name from this exact list:",
     "droplet, moon, book, dumbbell, sun, lotus, pen, snowflake, phone-off, target, calendar, users, bulb, sparkle, apple, screen-off, leaf, flame, trophy, chart, tasks",
@@ -266,6 +289,9 @@ export async function POST(req: Request) {
       const tracks = wordKind ?? modelKind;
       const late = refuseIfTracked(tracks);
       if (late) return late;
+      // the model spotted steps or sleep the word check missed: price it, don't trust its number
+      const latePriced = priced(tracks);
+      if (latePriced) return latePriced;
       let xp = Math.min(cap, Math.max(1, Math.round(raw)));
       // A clear variant of a quest a friend already runs stays in that quest's
       // range, whatever the model felt like. Same habit, same price.

@@ -94,9 +94,22 @@ async function collection(token: string, path: string, since: string) {
 }
 
 type Scored = { score_state?: string };
-type SleepRec = Scored & { id: string; nap?: boolean; score?: { sleep_performance_percentage?: number } };
+type SleepRec = Scored & {
+  id: string;
+  nap?: boolean;
+  end?: string;
+  score?: {
+    sleep_performance_percentage?: number;
+    // time actually asleep = light + slow wave + REM (awake time excluded)
+    stage_summary?: {
+      total_light_sleep_time_milli?: number;
+      total_slow_wave_sleep_time_milli?: number;
+      total_rem_sleep_time_milli?: number;
+    };
+  };
+};
 type RecoveryRec = Scored & { cycle_id: number; score?: { recovery_score?: number } };
-type WorkoutRec = Scored & { id: string; sport_name?: string; score?: { strain?: number } };
+type WorkoutRec = Scored & { id: string; start?: string; sport_name?: string; score?: { strain?: number } };
 
 export async function recentSleep(token: string, since: string): Promise<SleepRec[]> {
   return collection(token, "/v2/activity/sleep", since);

@@ -217,3 +217,30 @@ export async function awardXp(
     return false;
   }
 }
+
+// Re-price a player's cards (quests and watch items alike) and their total.
+export async function recalcPlayer(uid: string): Promise<void> {
+  try {
+    await fetch(`${SUPA}/rest/v1/rpc/recalc_player`, {
+      method: "POST",
+      headers: { apikey: SERVICE, authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_uid: uid }),
+    });
+  } catch {
+    // the next check or sync recomputes it anyway
+  }
+}
+
+// Sum of a player's ledger XP for these sources, to report what a sync changed.
+export async function ledgerTotal(uid: string, sources: string[]): Promise<number> {
+  try {
+    const r = await fetch(
+      `${SUPA}/rest/v1/xp_ledger?user_id=eq.${uid}&source=in.(${sources.join(",")})&select=xp`,
+      { headers: { apikey: SERVICE, authorization: `Bearer ${SERVICE}` } },
+    );
+    const rows = await r.json();
+    return Array.isArray(rows) ? rows.reduce((s: number, x: { xp: number }) => s + (x.xp ?? 0), 0) : 0;
+  } catch {
+    return 0;
+  }
+}
