@@ -6,7 +6,7 @@ import { brickSound } from "@/lib/brickSound";
 
 // Your minifig, alive: it blinks and sways, and a tap knocks it apart like in
 // the LEGO games (head, arms and torso fly off) before it snaps back together.
-export default function TapFig({ character, level, size }: { character: string | null; level: number; size: number }) {
+export default function TapFig({ character, level, size, phase = 0 }: { character: string | null; level: number; size: number; /** seconds: puts idle blinks out of step in a group */ phase?: number }) {
   const [breaking, setBreaking] = useState(0);
   const busy = useRef(false);
 
@@ -23,7 +23,13 @@ export default function TapFig({ character, level, size }: { character: string |
   }
 
   return (
-    <button type="button" onClick={knock} className={`tap-fig ${breaking ? "mf-break" : ""}`} aria-label="Tap your minifig">
+    <button
+      type="button"
+      onClick={knock}
+      className={`tap-fig ${breaking ? "mf-break" : ""}`}
+      aria-label="Tap the minifig"
+      style={phase ? ({ "--mf-phase": `-${phase}s` } as React.CSSProperties) : undefined}
+    >
       <Minifig character={character} level={level} size={size} alive />
     </button>
   );
