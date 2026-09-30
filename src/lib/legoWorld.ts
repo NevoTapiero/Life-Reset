@@ -1181,7 +1181,7 @@ export function stationSpot(i: number): [number, number] {
   // the camera faces the back wall, where screen-left is +x
   if (i < 4) return [(1.5 - i) * 140, -ROOM + 70];
   const side = i < 7 ? -1 : 1;
-  return [side * (ROOM - 70), -110 + ((i - 4) % 3) * 140];
+  return [side * (ROOM - 70), -150 + ((i - 4) % 3) * 150];
 }
 const stationFacing = (i: number): Mat => (i < 4 ? ROT[0] : i < 7 ? ROT[90] : ROT[270]);
 
@@ -1200,6 +1200,12 @@ export function roomText(stations: Station[], owned: string[] = []): string {
     if (row % 2) plank(2);
     for (let k = 0; k < 7; k++) plank(4);
     if (!(row % 2)) plank(2);
+  }
+  // a dark skirting board along the foot of every wall (1x2 tiles on the planks)
+  for (let k = 0; k < 16; k++) {
+    const t = -ROOM + 20 + k * 40;
+    out.push(line(COL.reddishBrown, t, -16, -ROOM + 10, ROT[0], "3069b"));
+    for (const side of [-1, 1]) out.push(line(COL.reddishBrown, side * (ROOM - 10), -16, t, ROT[90], "3069b"));
   }
   // walls: a tan lower course and a white upper one, 1x6x5 bricks
   const back = -ROOM + 10;

@@ -1255,6 +1255,7 @@ function Stage({
   pins = [],
   follow,
   aim,
+  sunFrom = [18, 30, -14],
   children,
 }: {
   className?: string;
@@ -1285,6 +1286,9 @@ function Stage({
   follow?: React.RefObject<THREE.Vector3>;
   /** while following: which way round to swing the camera (behind them), or null */
   aim?: React.RefObject<number | null>;
+  /** where the sun stands, from the target (three's space): behind and right outdoors, in
+   *  through the open front of a room */
+  sunFrom?: [number, number, number];
   children: React.ReactNode;
 }) {
   const [sun] = useState(() => new THREE.Object3D());
@@ -1340,7 +1344,7 @@ function Stage({
           <directionalLight
             ref={light}
             target={sun}
-            position={[target.x + 18, 30, target.z - 14]}
+            position={[target.x + sunFrom[0], sunFrom[1], target.z + sunFrom[2]]}
             intensity={mood?.sun ?? 2.3}
             color={mood?.sunColor ?? "#ffffff"}
             castShadow
@@ -1356,7 +1360,7 @@ function Stage({
             {/* what the plastic reflects: outdoors the sky and the sun; indoors a warm room.
                 Plus soft panels for the glossy highlights that make it read as plastic. */}
             {mood ? (
-              <Sky sunPosition={mood.night ? [0, -1, 0] : [18, 30, -14]} turbidity={6} rayleigh={mood.name === "day" ? 1.2 : 2.5} />
+              <Sky sunPosition={mood.night ? [0, -1, 0] : sunFrom} turbidity={6} rayleigh={mood.name === "day" ? 1.2 : 2.5} />
             ) : (
               <mesh scale={100}>
                 <sphereGeometry args={[1, 16, 8]} />
@@ -1493,7 +1497,7 @@ export function LegoTown({
   visits?: Record<string, Visit>;
   onKnock?: (name: string) => void;
   /** your own house's inside (your room); without it you get the roof-off view */
-  room?: (leave: () => void) => React.ReactNode;
+  room?: (leave: () => void, mood: Mood) => React.ReactNode;
   /** the shop: your gold, prices by item id (null: no shop yet), what you own, and buying */
   gold?: number | null;
   prices?: Record<string, number> | null;
@@ -1720,7 +1724,7 @@ export function LegoTown({
   if (room && inside === meIndex)
     return (
       <div className={`relative ${className ?? ""}`}>
-        {room(() => wipeTo(() => setInside(null)))}
+        {room(() => wipeTo(() => setInside(null)), mood)}
         {wipe && <BrickWipe phase={wipe} />}
       </div>
     );
@@ -2099,8 +2103,12 @@ export function LegoTown({
 
 // looking steeply down into a house with its roof off
 const LOOK_IN = new THREE.Vector3(0.3, 1.25, -0.55).normalize();
-// standing in your room: from the open front at about head height, looking across it
-const ROOM_VIEW = new THREE.Vector3(0, 0.62, -1).normalize();
+// standing in your room: from the open front, a little to the right and above head
+// height, looking across it (the three-quarter view of a LEGO game's cutaway room)
+const ROOM_VIEW = new THREE.Vector3(0.1, 0.6, -1).normalize();
+// the room's sun: in through the open front, from the left, so everything you face is lit
+// and the furniture throws its shadows back across the floor
+const ROOM_SUN: [number, number, number] = [-14, 30, 18];
 // you can look around the room but not walk out of it
 const ROOM_BOUNDS = new THREE.Box3(new THREE.Vector3(-8, 0, -8), new THREE.Vector3(8, 6, 8));
 // how high (three units, about four bricks) the walls stay when you're inside
@@ -3487,6 +3495,7 @@ export function LegoRoom({
   level,
   character,
   name,
+  mood,
   className,
 }: {
   stations: Station[];
@@ -3508,14 +3517,18 @@ export function LegoRoom({
   character?: string | null;
   /** your name, for the player card */
   name?: string;
+  /** the time of day outside (the town's): sky in the windows and over the walls, sun by the
+   *  hour; at night the room's own lamp. Without it: daytime. */
+  mood?: Mood;
   className?: string;
 }) {
+  const sky = mood ?? moodNamed("day");
   // roomText only reads each station's id and pillar (and what you own), so doing one doesn't rebuild the room
   const room = useModel(roomText(stations, owned), true);
   const [busy, setBusy] = useState<string | null>(null);
   const [paid, setPaid] = useState<{ id: string; xp: number } | null>(null);
-  // aimed a little low and framed tight, so the room fills the screen (not the wall-sky above it)
-  const target = useMemo(() => new THREE.Vector3(0, 5.5, 3), []);
+  // aimed a little low and framed tight, so the room fills the screen (not the sky above it)
+  const target = useMemo(() => new THREE.Vector3(0, 5, 0), []);
 
   const tap = async (st: Station) => {
     if (st.done || busy) return;
@@ -3545,10 +3558,11 @@ export function LegoRoom({
         className="absolute inset-0"
         label="Your room"
         target={target}
-        width={30}
+        width={29}
         dir={ROOM_VIEW}
-        fov={58}
-        sky="#f4e9d6"
+        fov={44}
+        mood={sky}
+        sunFrom={ROOM_SUN}
         pan
         bounds={ROOM_BOUNDS}
         pins={stations
@@ -3605,7 +3619,9 @@ export function LegoRoom({
           )}
       >
         {room && <primitive object={room} />}
-        <Minifig look={level ? loadoutFor(level, character ?? undefined) : look} at={[0, -16, 60]} />
+        {/* after dark the room's own light: a warm lamp under the ceiling */}
+        {sky.night && <pointLight position={[0, -200, -40]} intensity={sky.name === "dusk" ? 220 : 360} decay={2} color="#ffd394" />}
+        <Minifig look={level ? loadoutFor(level, character ?? undefined) : look} at={[60, -16, 100]} turn={-Math.PI * 0.25} />
       </Stage>
       {stations.length === 0 && (
         <p className="absolute inset-x-0 top-4 text-center text-sm font-semibold" style={{ color: "#3a3a3a" }}>

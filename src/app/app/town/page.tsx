@@ -121,8 +121,9 @@ export default function TownPage() {
         residents={residents}
         visits={visits}
         onKnock={knock}
-        room={(leave) => (
+        room={(leave, mood) => (
           <LegoRoom
+            mood={mood}
             stations={stations ?? []}
             onTap={async (id) => (await complete(id))?.xp ?? null}
             chest={chest}
