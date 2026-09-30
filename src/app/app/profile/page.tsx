@@ -44,15 +44,20 @@ export default function ProfilePage() {
     if (!svg || !profile) return;
     setSharing(true);
     const r = rankForXp(profile.xp);
-    const res = await shareCard({
-      character: profile.archetype,
-      level: legoLevel(r.tierIndex),
-      name: profile.username,
-      title: `${levelTitle(profile.archetype, r.tierIndex)} · ${r.label}`,
-      svg,
-    });
-    setSharing(false);
-    if (res === "failed") setMsg("Couldn't make the picture on this device.");
+    try {
+      const res = await shareCard({
+        character: profile.archetype,
+        level: legoLevel(r.tierIndex),
+        name: profile.username,
+        title: `${levelTitle(profile.archetype, r.tierIndex)} · ${r.label}`,
+        svg,
+      });
+      if (res === "failed") setMsg("Couldn't make the picture on this device.");
+    } catch {
+      setMsg("Couldn't make the picture on this device.");
+    } finally {
+      setSharing(false);
+    }
   }
   const fileRef = useRef<HTMLInputElement>(null);
 

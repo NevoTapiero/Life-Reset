@@ -67,11 +67,20 @@ export function useMissions() {
     const todayStr = String(todayData);
     const yesterdayStr = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 86400000).toISOString().slice(0, 10);
     const since = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 230 * 86400000).toISOString().slice(0, 10);
-    const { data: comps } = await supabase
-      .from("quest_completions")
-      .select("quest_id, completed_on")
-      .eq("user_id", uid)
-      .gte("completed_on", since);
+    // newest first, a page at a time (the server hands out 1000 rows max)
+    const comps: { quest_id: string; completed_on: string }[] = [];
+    for (let from = 0; from < 20000; from += 1000) {
+      const { data: page } = await supabase
+        .from("quest_completions")
+        .select("quest_id, completed_on")
+        .eq("user_id", uid)
+        .gte("completed_on", since)
+        .order("completed_on", { ascending: false })
+        .order("quest_id")
+        .range(from, from + 999);
+      comps.push(...((page ?? []) as { quest_id: string; completed_on: string }[]));
+      if (!page || page.length < 1000) break;
+    }
     setProfile(prof as Profile);
     const activeRows = ((uq as unknown as UserQuestRow[]) ?? []).filter((r) => r.quests);
     setQuests(activeRows.map((r) => r.quests).sort((a, b) => a.sort - b.sort));

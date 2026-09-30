@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import AppActivity from "@/components/AppActivity";
 import BrickLoader from "@/components/BrickLoader";
@@ -102,17 +102,21 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reacts to a milestone just crossed
     setNewGold(fresh[0]);
     brickSound.stud(7);
-    const t = setTimeout(() => setNewGold(null), 4200);
-    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-check when XP, streak or checks change
   }, [xpNow, uidNow, m.doneCount, m.profile?.streak_current, m.days]);
+  // the toast hides itself (its own timer, so a reload can't cancel it)
+  useEffect(() => {
+    if (!newGold) return;
+    const t = setTimeout(() => setNewGold(null), 4200);
+    return () => clearTimeout(t);
+  }, [newGold]);
 
   // energy for running in the town, from last night's sleep and today's steps
   // (the same rule as the town: src/lib/energy.ts)
   const [energy, setEnergy] = useState<number | null>(null);
   // XP your apps paid that waits in your chest at home (collected in the world)
   const [chest, setChest] = useState(0);
-  useEffect(() => {
+  const loadChest = useCallback(() => {
     supabase.auth.getUser().then(({ data }) => {
       const uid = data.user?.id;
       if (!uid) return;
@@ -133,6 +137,9 @@ export default function HomePage() {
         .then(({ data: rows }) => setEnergy(energyFrom((rows ?? []).map((r) => r.meta as LedgerMeta), todayKey())));
     });
   }, []);
+  useEffect(() => {
+    loadChest();
+  }, [loadChest]);
 
   if (!m.profile) {
     return (
@@ -165,7 +172,13 @@ export default function HomePage() {
   const daily = m.counts.daily;
   const clearedAll = daily.total > 0 && daily.done === daily.total;
   // where today sits in the 7-day streak cycle (1..7; 0 = no streak yet)
-  const streakDay = p.streak_current <= 0 ? 0 : ((p.streak_current - 1) % 7) + 1;
+  // (the saved streak is the run ending on the last day you checked
+  // something: it only still counts if that was today or yesterday)
+  const lastDone = p.last_completed_on;
+  const doneToday = !!m.days && lastDone === m.days.today;
+  const alive = doneToday || (!!m.days && lastDone === m.days.yesterday);
+  const streakNow = alive ? p.streak_current : 0;
+  const streakDay = streakNow <= 0 ? 0 : doneToday ? ((streakNow - 1) % 7) + 1 : streakNow % 7;
   const evening = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Jerusalem" }).format(new Date())) >= 17;
   if (m.days && clearedAll !== wasCleared) {
     // cleared just now (not already cleared when the page opened): celebrate
@@ -179,7 +192,7 @@ export default function HomePage() {
     <div className="slide-in">
       {!p.archetype && <MinifigPicker onPicked={m.setProfile} />}
       {newGold && (
-        <button className="gold-toast" onClick={() => setNewGold(null)} role="status">
+        <button className="gold-toast" onClick={() => setNewGold(null)} aria-live="polite">
           <span className="relative">
             <GoldBrick got size={46} />
             <BrickBurst count={14} />
@@ -232,7 +245,7 @@ export default function HomePage() {
               <span className="text-[14px] font-extrabold">{levelTitle(p.archetype, rank.tierIndex)}</span>
               <span className="chip chip-orange ml-auto" title="Days in a row">
                 <Icon name="flame" size={13} strokeWidth={2.4} />
-                {p.streak_current}
+                {streakNow}
               </span>
             </div>
           </div>
@@ -262,7 +275,7 @@ export default function HomePage() {
               ))}
             </span>
             <span className="text-[12px] font-extrabold text-muted w-[88px] text-right">
-              {streakDay === 7 ? `+${STREAK_BONUS_XP} today!` : `${7 - streakDay} to +${STREAK_BONUS_XP}`}
+              {streakDay === 7 && doneToday ? `+${STREAK_BONUS_XP} today!` : `${7 - streakDay} to +${STREAK_BONUS_XP}`}
             </span>
           </div>
           {energy !== null && (
@@ -445,7 +458,13 @@ export default function HomePage() {
       )}
 
       {/* what the connected apps counted */}
-      <AppActivity onXp={m.load} />
+      <AppActivity
+        onXp={() => {
+          m.load();
+          loadChest();
+        }}
+        onSynced={loadChest}
+      />
     </div>
   );
 }

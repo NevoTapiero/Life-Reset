@@ -17,6 +17,7 @@ export default function MonthMosaic({ uid }: { uid: string }) {
   useEffect(() => {
     (async () => {
       const { data: t } = await supabase.rpc("app_today");
+      if (!t) return; // offline: no mosaic this time
       const day = String(t);
       const since = new Date(new Date(day + "T00:00:00Z").getTime() - (DAYS - 1) * 86400000).toISOString().slice(0, 10);
       const { data } = await supabase.from("quest_completions").select("completed_on").eq("user_id", uid).gte("completed_on", since);

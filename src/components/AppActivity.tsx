@@ -192,7 +192,7 @@ function YesterdayDrawer({ count, children }: { count: number; children: React.R
   );
 }
 
-export default function AppActivity({ onXp }: { onXp?: () => void }) {
+export default function AppActivity({ onXp, onSynced }: { onXp?: () => void; onSynced?: () => void }) {
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [total, setTotal] = useState(0);
   const [providers, setProviders] = useState<Record<Provider, boolean> | null>(null);
@@ -279,11 +279,13 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
         onXp?.();
         await Promise.all([loadEntries(), loadAgenda()]);
       }
+      // new items may have dropped rewards in the chest even with no XP now
+      if (d.newItems > 0) onSynced?.();
     } catch {
       // a failed background sync is retried on the next open
     }
     setSyncing(false);
-  }, [bearer, loadEntries, loadAgenda, loadProviders, onXp]);
+  }, [bearer, loadEntries, loadAgenda, loadProviders, onXp, onSynced]);
 
   // Refresh on open, and again every time the app comes back to the front: no
   // refresh button to remember.
