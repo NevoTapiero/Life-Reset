@@ -721,6 +721,19 @@ body {
   background: var(--panel);
   box-shadow: 0 5px 0 var(--lip), 0 14px 30px rgb(27 42 52 / 0.25);
 }
+/* studs along the plate's top edge */
+.brick-nav::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: -6px;
+  height: 8px;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 50% 45%, #ffffff 0 3px, #e3e9ef 3.6px 5px, transparent 5.5px);
+  background-size: 18px 9px;
+  background-repeat: space no-repeat;
+}
 .brick-nav a {
   flex: 1;
   display: flex;
