@@ -27,6 +27,7 @@ export const COL = {
   transLightBlue: 43,
   transYellow: 46,
   pearlGold: 297,
+  azure: 322,
   purple: 22,
   brightGreen: 10,
   red: 4,
@@ -54,7 +55,7 @@ export const LEGO_PARTS = [
   "4186", "91405", "3062b", "3068b", "3069b", "3741ac05", "3470", "2435", "3471", "2417", "30055",
   "3031", "3754", "3003", "29592", "62698-f2", "33051", "14769p0f", "1", "60594", "60603", "3010", "3005", "87079",
   "3001", "3002", "3004", "3009", "3020", "3022", "3023b", "3032", "3036", "3795", "3666", "3710", "2431", "3941", "4589", "4079", "3068bp0t", "3068bp71", "3068bp74", "4738a", "4739a", "11602", "89801", "30224",
-  "3961", "3960", "60474", "11213", "87081", "6141", "98138", "2039", "30367c", "3942c", "3027", "3033", "3958", "41539", "3035",
+  "3961", "3960", "60474", "11213", "87081", "6141", "98138", "2039", "30367c", "3942c", "3027", "3033", "3958", "41539", "3035", "3832", "3034", "4032a", "2423", "33320", "49661",
   "973", "3818", "3819", "3820", "3815", "3816", "3817", "3626cp01", "53981",
 ];
 
@@ -148,6 +149,8 @@ export function buildGarden(streak: number, s: HouseSpec): string[] {
   // trees at 10 and 30 days
   if (streak >= 10) out.push(put("3470", COL.green, 5.5, front + 3.5, 0));
   if (streak >= 30) out.push(put("2435", COL.green, PLOT - 6, front + 4, 0));
+  // and a pond with a frog and ducklings at 20
+  if (streak >= POND_STREAK) out.push(...place(POND, GARDEN_POND[0], GARDEN_POND[1], ROT[0], 0));
   return out;
 }
 
@@ -308,7 +311,8 @@ const HEIGHT: Record<string, number> = {
   "3068b": 8, "87079": 8, "2431": 8, "14769p0f": 8, "4079": 8, "3741ac05": 12,
   "29592": 11, "62698-f2": 1, "33051": 0, "1": 96, "4738a": 32, "4739a": 25,
   "3009": 24, "2435": 8, "11602": 0, "89801": 0, "30224": 8,
-  "3470": 8, "3961": 24, "3960": 16, "60474": 8, "11213": 8, "87081": 24, "6141": 8, "98138": 8, "2039": 168, "30367c": 24,
+  "3470": 8, "3832": 8, "3034": 8, "4032a": 8, "2423": 8, "33320": 0, "49661": 0,
+  "3961": 24, "3960": 16, "60474": 8, "11213": 8, "87081": 24, "6141": 8, "98138": 8, "2039": 168, "30367c": 24,
 };
 type Piece = [part: string, color: number, dx: number, h: number, dz: number, m?: Mat];
 const FLOOR = -8; // top of the planks
@@ -548,6 +552,29 @@ export function plazaText(): string {
   return modelText(out, "plaza.ldr");
 }
 
+// ---- a pond ----
+// An oval of medium azure plates (10 x 8 studs) with lily pads, a frog, two
+// ducklings, stones and reeds; centred on its own origin, on the ground.
+const POND: Piece[] = [
+  ["3795", COL.azure, 0, 0, -60],
+  ["3832", COL.azure, 0, 0, -20],
+  ["3832", COL.azure, 0, 0, 20],
+  ["3795", COL.azure, 0, 0, 60],
+  ["4032a", COL.green, -40, 8, -20],
+  ["33320", COL.green, -40, 16, -20], // a frog on a lily pad
+  ["4032a", COL.green, 50, 8, 30],
+  ["49661", COL.yellow, 10, 8, -10],
+  ["49661", COL.yellow, 35, 8, -40, ROT[90]],
+  ["3941", COL.darkGrey, -120, 0, 0],
+  ["4032a", COL.lightGrey, 115, 0, 40],
+  ["2423", COL.green, 80, 0, -70, ROT[180]],
+  ["2423", COL.green, -90, 0, 70],
+];
+// where a garden's pond goes (plot frame, LDU): right of the flower beds, clear
+// of the path, the hedge and the 30-day tree; every level's garden starts on row 36
+const GARDEN_POND: [number, number] = [220, 340];
+export const POND_STREAK = 20;
+
 // ---- empty plots: a little park until a friend moves in ----
 // Trees in the corners, flower beds either side of a path, a bench -- in the
 // plot's own frame (front +Z), turned with the lot like a house would be.
@@ -560,6 +587,7 @@ export function emptyLotsText(first: number): string {
     ...[-160, -120, 120, 160].flatMap((x) => [-80, 0, 80].map((z, k) => ["3741ac05", [COL.red, COL.yellow, COL.pink][k], x, 0, z] as Piece)),
     ...bench.map(([p, c, dx, h, dz, m]) => [p, c, dx, h, dz - 200, m] as Piece),
     ...Array.from({ length: 12 }, (_, k) => ["3068b", COL.tan, 0, 0, -200 + k * 40 + 20] as Piece), // the path
+    ...POND.map(([p, c, dx, h, dz, m]) => [p, c, dx - 240, h, dz + 280, m] as Piece), // a pond, front left
   ];
   const out: string[] = [];
   for (let i = first; i < MAX_RESIDENTS; i++) {

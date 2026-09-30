@@ -29,7 +29,7 @@ const DEMO_STATIONS = [
 
 // a sample street (the real one is /app/town, from your friends list)
 const DEMO_TOWN = [
-  { name: "ifti", level: 5, streak: 12, me: true },
+  { name: "ifti", level: 5, streak: 24, me: true },
   { name: "nevo", level: 3, streak: 6 },
   { name: "dana", level: 1, streak: 2 },
   { name: "omer", level: 2, streak: 0 },
@@ -133,7 +133,7 @@ export default function LegoPreview() {
           houseLevel={HOUSES.find((h) => h.id === house)?.level}
           house={house}
           spin={spin}
-          streak={12}
+          streak={30}
           className="w-full h-[75vh] rounded overflow-hidden"
         />
       )}
