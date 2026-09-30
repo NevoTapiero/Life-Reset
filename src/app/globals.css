@@ -767,6 +767,21 @@ body {
   background-repeat: space no-repeat;
 }
 
+/* the welcome screen's lineup */
+@keyframes lineupBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+.lineup-fig { display: inline-block; animation: lineupBob 2.8s ease-in-out infinite; }
+.lineup-plate {
+  height: 30px;
+  background:
+    radial-gradient(circle at 50% 40%, #7cc57b 0 4px, var(--lego-green-edge) 4.6px 5.4px, transparent 6px) 0 4px / 16px 12px repeat-x,
+    var(--lego-green);
+  box-shadow: inset 0 -5px 0 var(--lego-green-edge);
+}
+@media (prefers-reduced-motion: reduce) { .lineup-fig { animation: none; } }
+
 /* the stud counter: a gold stud spinning like a LEGO-game pickup */
 .stud-counter {
   display: inline-flex;
