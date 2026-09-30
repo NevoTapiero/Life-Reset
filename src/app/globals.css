@@ -767,6 +767,31 @@ body {
   background-repeat: space no-repeat;
 }
 
+/* studs flying into the stud counter (LEGO-game pickup) */
+@keyframes studFly {
+  0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+  15% { transform: translate(-50%, calc(-50% - 22px)) scale(1.1); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.7); opacity: 1; }
+}
+.flying-stud {
+  position: fixed;
+  z-index: 70;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 42% 38%, #fff6c4 0 16%, var(--lego-yellow) 40%, #c99a06 100%);
+  box-shadow: inset 0 0 0 2px #e0b313, 0 2px 4px rgb(0 0 0 / 0.25);
+  animation: studFly 650ms cubic-bezier(0.5, 0, 0.75, 0.6) both;
+}
+@keyframes counterBump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.stud-counter.bump { animation: counterBump 380ms var(--ease-bounce); }
+@media (prefers-reduced-motion: reduce) { .flying-stud { display: none; } }
+
 /* a mission's brick snapping down when checked */
 @keyframes brickSnap {
   0% { transform: translateY(0) rotate(0); }

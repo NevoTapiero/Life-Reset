@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import AppActivity from "@/components/AppActivity";
 import BrickLoader from "@/components/BrickLoader";
@@ -38,6 +38,29 @@ export default function HomePage() {
   // null until the first load, then whether today's daily missions were all done
   const [wasCleared, setWasCleared] = useState<boolean | null>(null);
   const [justCleared, setJustCleared] = useState(false);
+  // studs flying from a checked mission into the stud counter
+  const counterRef = useRef<HTMLSpanElement>(null);
+  const [flying, setFlying] = useState<{ id: number; x: number; y: number; dx: number; dy: number; delay: number }[]>([]);
+  const [bump, setBump] = useState(false);
+  const flyId = useRef(0);
+  function flyStuds(from: DOMRect) {
+    const to = counterRef.current?.getBoundingClientRect();
+    if (!to) return;
+    const tx = to.left + 14;
+    const ty = to.top + to.height / 2;
+    const base = (flyId.current += 10);
+    const studs = Array.from({ length: 7 }, (_, i) => {
+      const x = from.right - 40 - (i % 3) * 14;
+      const y = from.top + from.height / 2 + ((i * 7) % 11) - 5;
+      return { id: base + i, x, y, dx: tx - x, dy: ty - y, delay: i * 55 };
+    });
+    setFlying((f) => [...f, ...studs]);
+    setTimeout(() => setBump(true), 620);
+    setTimeout(() => {
+      setBump(false);
+      setFlying((f) => f.filter((s) => s.id < base || s.id > base + 6));
+    }, 1100);
+  }
   useEffect(() => {
     if (justCleared) brickSound.levelUp(false);
   }, [justCleared]);
@@ -82,6 +105,14 @@ export default function HomePage() {
   return (
     <div className="slide-in">
       {!p.archetype && <MinifigPicker onPicked={m.setProfile} />}
+      {flying.map((f) => (
+        <span
+          key={f.id}
+          className="flying-stud"
+          aria-hidden
+          style={{ left: f.x, top: f.y, "--dx": `${f.dx}px`, "--dy": `${f.dy}px`, animationDelay: `${f.delay}ms` } as React.CSSProperties}
+        />
+      ))}
       {m.rankUp && <RankUp rank={m.rankUp.rank} previousTier={m.rankUp.previousTier} character={p.archetype} onClose={m.dismissRankUp} />}
 
       {/* you, today: a LEGO-game player card */}
@@ -93,7 +124,7 @@ export default function HomePage() {
           <div className="flex-1 min-w-0 pb-3">
             <div className="flex items-center justify-between gap-2">
               <div className="hud-label">{greeting()}</div>
-              <span className="stud-counter" title="Gold studs">
+              <span className={`stud-counter ${bump ? "bump" : ""}`} title="Gold studs" ref={counterRef}>
                 <span className="stud-spin" aria-hidden />
                 {(p.gold ?? 0).toLocaleString()}
               </span>
@@ -168,7 +199,10 @@ export default function HomePage() {
             paidBy={trackedBy(q, m.trackers)}
             pending={m.pendingId === q.id}
             xpFloat={m.xpFloat?.id === q.id ? m.xpFloat.amount : null}
-            onToggle={() => m.toggle(q)}
+            onToggle={(from) => {
+              if (!m.isDoneOn(q, m.today) && !trackedBy(q, m.trackers)) flyStuds(from);
+              m.toggle(q);
+            }}
           />
         ))}
         {tabQuests.length === 0 && (
@@ -293,14 +327,14 @@ function MissionTile({
   paidBy?: string | null;
   pending: boolean;
   xpFloat: number | null;
-  onToggle: () => void;
+  onToggle: (from: DOMRect) => void;
   small?: boolean;
   label?: string;
 }) {
   const period = periodOf(q);
   return (
     <button
-      onClick={onToggle}
+      onClick={(e) => onToggle(e.currentTarget.getBoundingClientRect())}
       disabled={pending}
       aria-pressed={done}
       className={`card relative w-full text-left flex items-center gap-3 ${small ? "px-3 py-2.5" : "px-3 py-3"} transition-transform duration-100 active:translate-y-[2px]`}
