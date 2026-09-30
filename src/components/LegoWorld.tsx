@@ -71,6 +71,8 @@ import {
   CHEST_SPOT,
   DECOR,
   roomText,
+  roomBlockers,
+  ROOM_START,
   stationSpot,
   TOWN_HALF,
   PITCH,
@@ -3523,6 +3525,12 @@ export function LegoRoom({
   className?: string;
 }) {
   const sky = mood ?? moodNamed("day");
+  // walk about your room: the stick (touch) or WASD / arrows (and Space to jump)
+  const stick = useRef({ x: 0, y: 0 });
+  const jumps = useRef(0);
+  useKeysToStick(stick, jumps);
+  const blockers = useMemo(() => roomBlockers(stations, owned), [stations, owned]);
+  const start = useMemo<P3[]>(() => [[ROOM_START[0], 0, ROOM_START[1]]], []);
   // roomText only reads each station's id and pillar (and what you own), so doing one doesn't rebuild the room
   const room = useModel(roomText(stations, owned), true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -3621,7 +3629,9 @@ export function LegoRoom({
         {room && <primitive object={room} />}
         {/* after dark the room's own light: a warm lamp under the ceiling */}
         {sky.night && <pointLight position={[0, -200, -40]} intensity={sky.name === "dusk" ? 220 : 360} decay={2} color="#ffd394" />}
-        <Minifig look={level ? loadoutFor(level, character ?? undefined) : look} at={[60, -16, 100]} turn={-Math.PI * 0.25} />
+        <group position={[0, -16, 0]}>
+          <Walker id="me" look={level ? loadoutFor(level, character ?? undefined) : look} to={start} turn={-Math.PI * 0.25} input={stick} jumpRef={jumps} blockers={blockers} />
+        </group>
       </Stage>
       {stations.length === 0 && (
         <p className="absolute inset-x-0 top-4 text-center text-sm font-semibold" style={{ color: "#3a3a3a" }}>
@@ -3658,6 +3668,9 @@ export function LegoRoom({
           )}
         </div>
       )}
+      <div className="absolute bottom-3 left-3">
+        <Joystick outRef={stick} />
+      </div>
       {onLeave && (
         <div className="absolute bottom-3 right-3">
           <RoundAction icon="out" text="Step outside" onClick={onLeave} />

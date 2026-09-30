@@ -488,6 +488,7 @@ const HEIGHT: Record<string, number> = {
   "3009": 24, "2435": 8, "11602": 0, "89801": 0, "30224": 8,
   "3470": 8, "3471": 8, "3832": 8, "3034": 8, "4032a": 8, "2423": 8, "33320": 0, "49661": 0,
   "3961": 24, "3960": 16, "60474": 8, "11213": 8, "87081": 24, "6141": 8, "98138": 8, "2039": 168, "30367c": 24,
+  "3027": 8, "3958": 8, "3035": 8, "3942c": 48,
 };
 type Piece = [part: string, color: number, dx: number, h: number, dz: number, m?: Mat];
 const FLOOR = -8; // top of the planks
@@ -1185,6 +1186,59 @@ export function stationSpot(i: number): [number, number] {
 }
 const stationFacing = (i: number): Mat => (i < 4 ? ROT[0] : i < 7 ? ROT[90] : ROT[270]);
 
+// the starter furniture (plot frame pieces, see place()): the rug is a 6x16 plate with
+// tan corner tiles and two cushions; the table for two has round legs, mugs and chairs
+const RUG: Piece[] = [
+  ["3027", COL.darkRed, 0, 0, 0],
+  ...[-140, 140].flatMap((dx) => [-40, 40].map((dz) => ["3068b", COL.tan, dx, 8, dz] as Piece)),
+  ["3022", COL.yellow, -100, 8, 0],
+  ["3022", COL.blue, 100, 8, 0],
+];
+export const DINING_AT: [number, number] = [20, 150];
+const DINING: Piece[] = [
+  ...[-30, 30].flatMap((dx) => [-30, 30].map((dz) => ["3062b", COL.reddishBrown, dx, 0, dz] as Piece)),
+  ["3032", COL.reddishBrown, 0, 24, 0],
+  ["3062b", COL.white, -20, 32, -10],
+  ["3062b", COL.white, 20, 32, 10],
+  ["33051", COL.red, 0, 32, 0],
+  ["3062b", COL.darkGrey, -80, 0, 0],
+  ["4079", COL.red, -80, 24, 0, ROT[270]],
+  ["3062b", COL.darkGrey, 80, 0, 0],
+  ["4079", COL.red, 80, 24, 0, ROT[90]],
+];
+// a shelf on the wall (its top at -150): a 2x6 plate out of the wall, a mug and a plant on it
+const SHELF: Piece[] = [["3795", COL.reddishBrown, 0, -8, 0, ALONG_Z], ["3062b", COL.white, 0, 0, -30], ["3941", COL.darkOrange, 0, 0, 20], ["3741ac05", COL.pink, 0, 24, 20]];
+const SHELVES: [number, number, Mat][] = [
+  [ROOM - 30, -60, ROT[270]],
+  [-(ROOM - 30), 100, ROT[90]],
+];
+// where you first stand in your room (LDU): just in from the doormat
+export const ROOM_START: [number, number] = [-40, 240];
+
+// What you can't walk through in your room: the walls, the furniture along them
+// (a station's spot), the table, the chest, the plants and what you've bought.
+export function roomBlockers(stations: Station[], owned: string[] = []): Blocker[] {
+  const big = 9999;
+  const w = ROOM - 25;
+  const out: Blocker[] = [
+    { x0: w, x1: big, z0: -big, z1: big },
+    { x0: -big, x1: -w, z0: -big, z1: big },
+    { x0: -big, x1: big, z0: -big, z1: -w },
+    { x0: -big, x1: big, z0: ROOM - 12, z1: big },
+    { x0: DINING_AT[0] - 120, x1: DINING_AT[0] + 120, z0: DINING_AT[1] - 45, z1: DINING_AT[1] + 45 },
+    { cx: CHEST_SPOT[0], cz: CHEST_SPOT[1], r: 50 },
+    { cx: -265, cz: 275, r: 32 },
+    { cx: 265, cz: 275, r: 32 },
+  ];
+  stations.slice(0, MAX_STATIONS).forEach((_, i) => {
+    const [x, z] = stationSpot(i);
+    if (i < 4) out.push({ x0: x - 70, x1: x + 70, z0: -ROOM, z1: z + 60 });
+    else out.push({ x0: x < 0 ? -ROOM : x - 60, x1: x < 0 ? x + 60 : ROOM, z0: z - 60, z1: z + 60 });
+  });
+  for (const d of DECOR) if (owned.includes(d.id) && d.pieces.length) out.push({ cx: d.at[0], cz: d.at[1], r: d.id === "cat" ? 18 : 50 });
+  return out;
+}
+
 export function roomText(stations: Station[], owned: string[] = []): string {
   const out: string[] = [];
   // the floor: base plates, then smooth planks (2x4 tiles in staggered rows,
@@ -1224,8 +1278,12 @@ export function roomText(stations: Station[], owned: string[] = []): string {
       const z = -ROOM + 60 + k * 120;
       out.push(line(COL.tan, side * (ROOM - 10), -120, z, ROT[90], "3754"), line(COL.white, side * (ROOM - 10), -WALL, z, ROT[90], "3754"));
     }
-  // the starter house: a rug in the middle, plants in the front corners, pictures on the walls
-  out.push(line(COL.darkRed, 0, FLOOR - 8, 40, ROT[0], "3036"));
+  // the starter house: a big rug with cushions in the middle, a table for two in front of
+  // it, a doormat at the open front, plants in the front corners, shelves, pictures and
+  // a clock on the walls
+  out.push(...place(RUG, 0, 40, ROT[0]), ...place(DINING, DINING_AT[0], DINING_AT[1], ROT[0]));
+  out.push(line(COL.tan, 0, FLOOR - 8, 292, ROT[0], "3020")); // the doormat
+  for (const [x, z, f] of SHELVES) out.push(...place(SHELF, x, z, f, -150));
   const trees = owned.includes("indoor-trees");
   for (const side of [-1, 1])
     out.push(
@@ -1239,6 +1297,7 @@ export function roomText(stations: Station[], owned: string[] = []): string {
   // what you've bought
   for (const d of DECOR) if (owned.includes(d.id) && d.pieces.length) out.push(...place(d.pieces, d.at[0], d.at[1], ROT[d.facing]));
   out.push(picture("3068bp0t", 0, -ROOM + 28, ROT[0]), picture("3068bp71", -ROOM + 28, 30, ROT[90]), picture("3068bp74", ROOM - 28, 30, ROT[270]));
+  out.push(picture("14769p0f", ROOM - 28, -170, ROT[270])); // the clock
 
   // the chest, where what your watch earned waits to be collected
   out.push(...place([["4738a", COL.reddishBrown, 0, 0, 0], ["4739a", COL.reddishBrown, 0, 32, 0]], CHEST_SPOT[0], CHEST_SPOT[1], ROT[180]));
