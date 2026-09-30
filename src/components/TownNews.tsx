@@ -53,10 +53,10 @@ export default function TownNews({ friends }: { friends: Friend[] }) {
         <p className="text-[13.5px] font-bold text-muted mt-1">Nobody has built anything yet today. Be the first.</p>
       ) : (
         <ul className="flex flex-col divide-y-2 divide-[var(--line)]">
-          {busy.map(({ friend, done }) => (
+          {busy.map(({ friend, done }, i) => (
             <li key={friend.username}>
               <Link href={`/app/friend/${encodeURIComponent(friend.username)}`} className="flex items-center gap-3 py-2.5">
-                <Minifig character={friend.archetype} level={legoLevel(rankForXp(friend.xp).tierIndex)} size={50} />
+                <Minifig character={friend.archetype} level={legoLevel(rankForXp(friend.xp).tierIndex)} size={50} alive phase={(i * 1.9) % 5} />
                 <span className="flex-1 min-w-0">
                   <span className="block font-extrabold text-[15px] truncate">
                     {friend.username} <span className="text-muted font-bold">built {done.length} {done.length === 1 ? "brick" : "bricks"}</span>

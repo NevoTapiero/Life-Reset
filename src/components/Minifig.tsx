@@ -40,6 +40,7 @@ export default function Minifig({
   className,
   alive = false,
   sleepy = false,
+  phase = 0,
 }: {
   character?: string | null;
   level?: number;
@@ -50,12 +51,14 @@ export default function Minifig({
   alive?: boolean;
   /** eyes shut and z's floating up (bedtime) */
   sleepy?: boolean;
+  /** seconds: puts idle blinks out of step in a list */
+  phase?: number;
 }) {
   const o = OUTFITS[character ?? "warrior"] ?? OUTFITS.warrior;
   const id = useId().replace(/:/g, "");
   const shade = `url(#${id}-shade)`;
   return (
-    <svg viewBox="0 0 120 170" height={size} width={(size * 120) / 170} className={[className, alive ? "mf-alive" : ""].filter(Boolean).join(" ") || undefined} aria-hidden style={{ display: "block", overflow: "visible" }}>
+    <svg viewBox="0 0 120 170" height={size} width={(size * 120) / 170} className={[className, alive ? "mf-alive" : ""].filter(Boolean).join(" ") || undefined} aria-hidden style={{ display: "block", overflow: "visible", ...(phase ? { "--mf-phase": `-${phase}s` } : {}) } as React.CSSProperties}>
       <defs>
         {/* one cylinder shade for every part: lit left, darker right */}
         <linearGradient id={`${id}-shade`} x1="0" x2="1" y1="0" y2="0">
