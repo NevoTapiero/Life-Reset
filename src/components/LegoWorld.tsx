@@ -34,10 +34,14 @@ import {
   houseSpec,
   minifigSpot,
   doorWalk,
+  insideWalk,
+  rideSpot,
+  type Loadout,
   SHOP_WALK,
   walkRoute,
   rerouteFrom,
   type P3,
+  type Route,
   modelText,
   CHEST_SPOT,
   DECOR,
@@ -65,6 +69,9 @@ import {
   MAX_STATIONS,
   type Station,
   type MinifigLook,
+  type Figure,
+  figureOf,
+  loadoutFor,
   type Resident,
   type House as Baked,
 } from "@/lib/legoWorld";
@@ -168,20 +175,137 @@ function loadProp(part: string, color: number) {
   return p;
 }
 
-// Each minifig look is parsed once; every figure wearing it is a clone
-// (sharing its geometry and materials).
+// The loadouts' printed torsos, helmets and gear live in their own pack
+// (scripts/lego/loadouts.mjs), fetched once, only for minifigs.
+let figurePack: Promise<string> | null = null;
+const getFigurePack = () =>
+  (figurePack ??= fetch("/lego/figures.mpd")
+    .then((r) => r.text())
+    .then((t) => t.slice(t.indexOf("0 NOFILE") + "0 NOFILE".length)));
+
+// Each figure is parsed once; every minifig wearing it is a clone (sharing its
+// geometry and materials).
 const minifigs = new Map<string, Promise<THREE.Object3D>>();
-function loadMinifig(look: MinifigLook) {
-  const key = `${look.skin}/${look.hair}/${look.torso}/${look.legs}`;
+function loadMinifig(fig: Figure) {
+  const key = JSON.stringify(fig);
   let p = minifigs.get(key);
   if (!p)
     minifigs.set(
       key,
-      (p = getLoader(true)
-        .then(({ loader, parts }) => parse(loader, modelText(buildMinifig(look), "minifig.ldr") + parts))
-        .then(finish)),
+      (p = Promise.all([getLoader(true), getFigurePack()])
+        .then(async ([{ loader, parts }, figures]) => rig(finish(await parse(loader, modelText(buildMinifig(fig), "minifig.ldr") + figures + parts)), fig, loader))),
     );
   return p;
+}
+
+// The rides (skateboard, horse, motorcycle, dragon...) come with the loadouts,
+// their parts in their own pack; each ride is parsed only once someone needs it,
+// laid lengthways along x with its wheels (or feet) at 0 and its corner at the
+// origin: it runs off along -x and out along +z (from the pavement into the
+// street), so a dragon grows away from the path, not across it.
+let ridePack: Promise<string> | null = null;
+const rides = new Map<string, Promise<THREE.Object3D>>();
+function loadRide(ride: Loadout["ride"]) {
+  let p = rides.get(ride.ldr);
+  if (!p)
+    rides.set(
+      ride.ldr,
+      (p = Promise.all([
+        getLoader(true),
+        getFigurePack(),
+        (ridePack ??= fetch("/lego/rides.mpd")
+          .then((r) => r.text())
+          .then((t) => t.slice(t.indexOf("0 NOFILE") + "0 NOFILE".length))),
+      ]).then(async ([{ loader, parts }, figures, pack]) => {
+        const g = finish(await parse(loader, modelText(ride.ldr.split("\n"), "ride.ldr") + pack + figures + parts));
+        const size = new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3());
+        const turn = new THREE.Group();
+        turn.rotation.y = size.z > size.x ? Math.PI / 2 : 0; // longer front to back: turn it to run along x
+        turn.add(g);
+        turn.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(turn);
+        turn.position.set(-box.max.x, -box.max.y, -box.min.z); // LDraw is -Y up: the bottom is max y
+        const holder = new THREE.Group();
+        holder.add(turn);
+        return holder;
+      })),
+    );
+  return p;
+}
+function Ride({ ride, at, turn }: { ride: Loadout["ride"]; at: P3; turn: number }) {
+  const [model, setModel] = useState<THREE.Object3D | null>(null);
+  useEffect(() => {
+    let live = true;
+    loadRide(ride)
+      .then((o) => live && setModel(o.clone()))
+      .catch((e) => console.error("ride:", e));
+    return () => {
+      live = false;
+    };
+  }, [ride]);
+  return model && <primitive object={model} position={at} rotation={[0, turn, 0]} />;
+}
+
+// Ready a parsed figure to move: its parts named (MINIFIG_PARTS, then its
+// gear), each arm on a shoulder pivot ("swingL"/"swingR") that also carries
+// its hand and whatever that hand holds, and the shoes painted on the feet.
+function rig(model: THREE.Object3D, fig: Figure, loader: LDrawLoader) {
+  const gear = fig.gear ?? [];
+  model.children.forEach((c, i) => (c.name = i < MINIFIG_PARTS.length ? MINIFIG_PARTS[i] : `gear:${gear[i - MINIFIG_PARTS.length]?.attach}`));
+  model.updateMatrixWorld(true);
+  if (fig.shoes) {
+    const shoe = (loader.getMaterial(String(fig.shoes.color)) as THREE.MeshStandardMaterial | null)?.clone() ?? new THREE.MeshStandardMaterial({ color: "#333" });
+    const f = fig.shoes.finish;
+    if (f === "gold" || f === "steel" || f === "iron") Object.assign(shoe, { metalness: f === "gold" ? 0.7 : 0.55, roughness: f === "gold" ? 0.3 : 0.4 });
+    for (const leg of ["legL", "legR"]) model.getObjectByName(leg)?.traverse((o) => (o as THREE.Mesh).isMesh && paintFeet(o as THREE.Mesh, shoe));
+  }
+  for (const side of ["L", "R"]) {
+    const arm = model.getObjectByName(`arm${side}`);
+    if (!arm) continue;
+    const pivot = new THREE.Group();
+    pivot.name = `swing${side}`;
+    pivot.position.copy(arm.position);
+    model.add(pivot);
+    pivot.updateMatrixWorld(true);
+    const held = model.children.filter((c) => c.name === `hand${side}` || c.name === `gear:hand${side}` || c.name === `gear:arm${side}`);
+    for (const o of [arm, ...held]) pivot.attach(o);
+  }
+  return model;
+}
+
+// Shoes have no LDraw part: the feet are moulded into the legs. Triangles in
+// the bottom 8 LDU (soles at y = 0, -Y up) get the shoe material instead.
+function paintFeet(mesh: THREE.Mesh, shoe: THREE.Material) {
+  const g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+  const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  const pos = g.getAttribute("position");
+  const tris = pos.count / 3;
+  const matOf = new Int32Array(tris);
+  for (const gr of g.groups) for (let t = gr.start / 3; t < (gr.start + gr.count) / 3; t++) matOf[t] = gr.materialIndex ?? 0;
+  const v = new THREE.Vector3();
+  for (let t = 0; t < tris; t++) {
+    let foot = true;
+    for (let k = 0; k < 3 && foot; k++) foot = v.fromBufferAttribute(pos, t * 3 + k).applyMatrix4(mesh.matrixWorld).y > -8.5;
+    if (foot) matOf[t] = mats.length;
+  }
+  // regroup: triangles sorted by material, one group per run
+  const order = Array.from({ length: tris }, (_, t) => t).sort((a, b) => matOf[a] - matOf[b]);
+  for (const name of Object.keys(g.attributes)) {
+    const a = g.getAttribute(name) as THREE.BufferAttribute;
+    const n = a.itemSize * 3;
+    const out = new (a.array.constructor as Float32ArrayConstructor)(a.array.length);
+    order.forEach((t, i) => out.set(a.array.subarray(t * n, t * n + n), i * n));
+    g.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize, a.normalized));
+  }
+  g.clearGroups();
+  for (let i = 0; i < tris; ) {
+    let j = i;
+    while (j < tris && matOf[order[j]] === matOf[order[i]]) j++;
+    g.addGroup(i * 3, (j - i) * 3, matOf[order[i]]);
+    i = j;
+  }
+  mesh.geometry = g;
+  mesh.material = [...mats, shoe];
 }
 
 // Every placement drawn with one InstancedMesh per part, colour and material.
@@ -241,8 +365,47 @@ const gltf = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const houses = new Map<string, Promise<THREE.Object3D>>();
 function loadHouse(url: string) {
   let p = houses.get(url);
-  if (!p) houses.set(url, (p = gltf.loadAsync(url).then((g) => finish(g.scene))));
+  if (!p)
+    houses.set(
+      url,
+      (p = gltf.loadAsync(url).then((g) => {
+        rooms.set(url, measureRooms(g.scene));
+        return finish(g.scene);
+      })),
+    );
   return p;
+}
+
+// Where a set's rooms are: official sets come with yards, decks and porches,
+// so the building isn't simply the middle of the model. The cells (1 stud)
+// where the model rises past half its height are the building; their middle is
+// the room, and going forward from there, where they end is the front wall. In the glb's own frame
+// (LDU, origin its front-left corner, -Y up); filled in as each house loads.
+const rooms = new Map<string, { x: number; z: number; front: number }>();
+function measureRooms(scene: THREE.Object3D) {
+  scene.updateMatrixWorld(true);
+  const top = new Map<string, number>();
+  const v = new THREE.Vector3();
+  let highest = 0;
+  scene.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const pos = mesh.geometry.getAttribute("position");
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      const k = `${Math.floor(v.x / 20)},${Math.floor(v.z / 20)}`;
+      top.set(k, Math.max(top.get(k) ?? 0, -v.y));
+      highest = Math.max(highest, -v.y);
+    }
+  });
+  const tall = [...top].filter(([, h]) => h > highest / 2).map(([k]) => k.split(",").map(Number));
+  if (!tall.length) return { x: 0, z: 0, front: 0 };
+  const cx = Math.floor(tall.reduce((a, [x]) => a + x, 0) / tall.length);
+  const cz = Math.floor(tall.reduce((a, [, z]) => a + z, 0) / tall.length);
+  const isTall = new Set(tall.map(([x, z]) => `${x},${z}`));
+  let front = cz;
+  while (isTall.has(`${cx},${front + 1}`)) front++;
+  return { x: (cx + 0.5) * 20, z: (cz + 0.5) * 20, front: (front + 1) * 20 };
 }
 
 // A baked building placed at `at` (LDU). `cut`: a height (three's y) above
@@ -330,22 +493,24 @@ function Minifig({
   turn = 0,
   walking,
 }: {
-  look: MinifigLook;
+  /** four colours (townsfolk) or a whole figure (a character's loadout) */
+  look: MinifigLook | Figure;
   at: [number, number, number];
   turn?: number;
   /** while true, the legs and arms swing */
   walking?: React.RefObject<boolean>;
 }) {
   const [model, setModel] = useState<THREE.Object3D | null>(null);
+  const key = JSON.stringify("parts" in look ? { parts: look.parts, gear: look.gear, shoes: look.shoes } : figureOf(look));
   useEffect(() => {
     let live = true;
-    loadMinifig(look)
+    loadMinifig(JSON.parse(key))
       .then((o) => live && setModel(o.clone()))
       .catch((e) => console.error("minifig:", e));
     return () => {
       live = false;
     };
-  }, [look]);
+  }, [key]);
   const root = useRef<THREE.Group>(null);
   const taps = useRef(0); // bumped by a tap
   const seen = useRef(0);
@@ -357,21 +522,21 @@ function Minifig({
     const t = clock.elapsedTime;
     if (!model || !root.current) return;
     // the head and hair turn together, glancing around
-    const head = model.children[MINIFIG_PARTS.indexOf("head")];
-    const hair = model.children[MINIFIG_PARTS.indexOf("hair")];
+    const head = model.getObjectByName("head");
+    const hair = model.getObjectByName("hair");
     if (head && hair) {
       if (!base.current.length) base.current = [head.quaternion.clone(), hair.quaternion.clone()];
       const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.sin(t * 0.5) * 0.45);
       head.quaternion.copy(base.current[0]).premultiply(yaw);
       hair.quaternion.copy(base.current[1]).premultiply(yaw);
     }
-    // walking: legs and arms swing, opposite each other
-    const parts = ["legL", "legR", "armL", "armR"].map((n) => model.children[MINIFIG_PARTS.indexOf(n)]);
+    // walking: legs and arms (with hands and whatever they hold) swing, opposite each other
+    const parts = ["legL", "legR", "swingL", "swingR"].map((n) => model.getObjectByName(n));
     if (parts.every(Boolean)) {
-      if (!limbs.current.length) limbs.current = parts.map((p) => p.quaternion.clone());
+      if (!limbs.current.length) limbs.current = parts.map((p) => p!.quaternion.clone());
       const swing = walking?.current ? Math.sin(t * 10) * 0.6 : 0;
       parts.forEach((p, k) =>
-        p.quaternion.copy(limbs.current[k]).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), k % 2 ? swing : -swing)),
+        p!.quaternion.copy(limbs.current[k]).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), k % 2 ? swing : -swing)),
       );
     }
     // a hop when tapped (LDraw is -Y up)
@@ -1020,30 +1185,36 @@ export function LegoTown({
           <Stroller key={i} {...p} />
         ))}
         {residents.map((res, i) => (
+          <Ride key={res.name} ride={loadoutFor(res.level).ride} at={rideSpot(lots[i], res.level)} turn={turnRad(lots[i].facing)} />
+        ))}
+        {residents.map((res, i) => (
           <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
             <House level={res.level} name={res.name} cut={i === inside ? CUT : undefined} lit={mood.night} />
           </group>
         ))}
         {residents.map((res, i) => {
-          // you walk into the house you're visiting; everyone else stays at their door
-          if (i === meIndex && inside !== null) {
-            const [x, y, z] = inLot(lots[inside], [
-              centre(residents[inside].level)[0],
-              -16,
-              centre(residents[inside].level)[2] + 40,
-            ]);
-            return <Minifig key={res.name} look={BASE_HUNTER} at={[x, y, z]} turn={turnRad(lots[inside].facing)} />;
-          }
+          // you walk to where you last looked, and into the house you're visiting; everyone else stays at their door
           if (i === meIndex) {
             // you walk to wherever you last looked (the whole-town view doesn't move you)
             const shop = dest === SHOP_FOCUS || !residents[dest];
-            const to = shop ? SHOP_WALK : doorWalk(lots[dest], residents[dest].level, dest === meIndex ? 0 : 40);
-            return <Walker key="me" look={BASE_HUNTER} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
+            let to = SHOP_WALK;
+            if (!shop) {
+              const { level, name } = residents[dest];
+              const side = dest === meIndex ? 0 : 40;
+              const house = houseFor(level, name);
+              const r = rooms.get(houseUrl(house));
+              const [hx, , hz] = houseAt(houseSpec(level), house);
+              to =
+                inside === dest
+                  ? insideWalk(lots[dest], level, side, r && { x: hx + r.x, z: hz + r.z, front: hz + r.front })
+                  : doorWalk(lots[dest], level, side);
+            }
+            return <Walker key="me" look={loadoutFor(res.level)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
           }
           return (
             <Minifig
               key={res.name}
-              look={BASE_HUNTER}
+              look={loadoutFor(res.level)}
               at={inLot(lots[i], minifigSpot(houseSpec(res.level)))}
               turn={turnRad(lots[i].facing)}
             />
@@ -1350,18 +1521,18 @@ const STROLLERS: { look: MinifigLook; r: number; speed: number; start: number }[
 // You, walking round town to wherever you look: your door, a friend's door
 // (beside them), the shop. Change your mind mid-walk and you turn round there.
 const WALK_SPEED = 260; // LDU a second
-function Walker({ look, to, turn }: { look: MinifigLook; to: P3[]; turn: number }) {
+function Walker({ look, to, turn }: { look: MinifigLook | Figure; to: P3[]; turn: number }) {
   const root = useRef<THREE.Group>(null);
   const walking = useRef(false);
   const key = JSON.stringify(to);
-  const state = useRef<{ from: P3[]; pos: P3; walk: { r: ReturnType<typeof walkRoute>; i: number; f: number } | null }>(null);
+  const state = useRef<{ from: P3[]; pos: P3; walk: { r: Route; i: number; f: number } | null }>(null);
   useEffect(() => {
     const dest: P3[] = JSON.parse(key);
     const s = state.current;
     if (!s) state.current = { from: dest, pos: dest[dest.length - 1], walk: null };
     else {
-      const r = s.walk ? rerouteFrom(s.walk.r, s.walk.i, s.pos, dest) : walkRoute([...s.from].reverse(), dest);
-      s.walk = { r, i: 0, f: 0 };
+      const r = s.walk ? rerouteFrom(s.walk.r, s.walk.i, s.pos, dest) : walkRoute(s.from, dest);
+      s.walk = r.pts.length > 1 ? { r, i: 0, f: 0 } : null;
       s.from = dest;
     }
   }, [key]);
@@ -1701,6 +1872,7 @@ export function LegoRoom({
   owned = [],
   onLeave,
   look = BASE_HUNTER,
+  level,
   className,
 }: {
   stations: Station[];
@@ -1716,6 +1888,8 @@ export function LegoRoom({
   owned?: string[];
   onLeave?: () => void;
   look?: MinifigLook;
+  /** your level: you wear your character's loadout for it (instead of `look`) */
+  level?: number;
   className?: string;
 }) {
   // roomText only reads each station's id and pillar (and what you own), so doing one doesn't rebuild the room
@@ -1823,7 +1997,7 @@ export function LegoRoom({
           )}
       >
         {room && <primitive object={room} />}
-        <Minifig look={look} at={[0, -16, 60]} />
+        <Minifig look={level ? loadoutFor(level) : look} at={[0, -16, 60]} />
       </Stage>
       {stations.length === 0 && (
         <p className="absolute inset-x-0 top-4 text-center text-sm font-semibold" style={{ color: "#3a3a3a" }}>

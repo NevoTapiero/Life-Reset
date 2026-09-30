@@ -98,6 +98,7 @@ export default function YouPage() {
                 }}
                 owned={owned}
                 onLeave={() => setInside(false)}
+                level={rank.tierIndex + 1}
                 className="absolute inset-0"
               />
             ) : (

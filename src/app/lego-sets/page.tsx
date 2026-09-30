@@ -44,6 +44,7 @@ export default function LegoPreview() {
   const [house, setHouse] = useState<string | null>(null); // null = the town
   const [spin, setSpin] = useState(0); // previews: turn the house to find its front
   const [time, setTime] = useState<string | undefined>(undefined); // undefined = your clock
+  const [hero, setHero] = useState(5); // your level: what you wear in your room
   const [season, setSeason] = useState<Season | undefined>(undefined); // undefined = the date
   const [friends, setFriends] = useState(5); // how many friends live in the demo town
   // nevo already let you in, omer hasn't answered; a new knock is answered after a moment
@@ -95,6 +96,11 @@ export default function LegoPreview() {
             {t}
           </button>
         ))}
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={`hero-${n}`} onClick={() => setHero(n)} className={button(hero === n)}>
+            Hero L{n}
+          </button>
+        ))}
         {SEASONS.map((t) => (
           <button key={t} onClick={() => setSeason(season === t ? undefined : t)} className={button(season === t)}>
             {t}
@@ -125,6 +131,7 @@ export default function LegoPreview() {
               onCollect={collect}
               owned={owned}
               onLeave={leave}
+              level={hero}
               className="w-full h-full"
             />
           )}
