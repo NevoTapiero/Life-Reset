@@ -40,17 +40,22 @@ export function useMissions() {
   const [rankUp, setRankUp] = useState<{ rank: Rank; previousTier: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const { data: userData } = await supabase.auth.getUser();
+  // the first load failed (offline, server down): Home shows a retry
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  const loadOnce = async () => {
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (userErr) throw userErr;
     const uid = userData.user?.id;
     if (!uid) return;
     setEmail(userData.user?.email ?? null);
-    const [{ data: prof }, { data: uq }, { data: todayData }, { data: tr }] = await Promise.all([
+    const [{ data: prof, error: profErr }, { data: uq }, { data: todayData }, { data: tr }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", uid).single(),
       supabase.from("user_quests").select("quest_id, added_on, quests(*)").eq("user_id", uid).eq("active", true),
       supabase.rpc("app_today"),
       supabase.rpc("my_trackers"),
     ]);
+    if (profErr || !prof || !todayData) throw profErr ?? new Error("no profile");
     setTrackers((tr as string[]) ?? []);
     const todayStr = String(todayData);
     const yesterdayStr = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 86400000).toISOString().slice(0, 10);
@@ -85,6 +90,15 @@ export function useMissions() {
       for (const q of (extra as Quest[]) ?? []) byId.set(q.id, q);
     }
     setYesterdayQuests([...byId.values()].sort((a, b) => a.sort - b.sort));
+  };
+
+  const load = useCallback(async () => {
+    setLoadFailed(false);
+    try {
+      await loadOnce();
+    } catch {
+      setLoadFailed(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -174,6 +188,7 @@ export function useMissions() {
   return {
     profile,
     setProfile,
+    loadFailed,
     email,
     quests,
     trackers,

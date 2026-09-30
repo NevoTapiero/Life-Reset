@@ -37,7 +37,17 @@ export default function HomePage() {
   if (!m.profile) {
     return (
       <div className="py-24 flex justify-center">
-        <BrickLoader label="Building your day" />
+        {m.loadFailed ? (
+          <div className="card p-6 text-center max-w-[300px]">
+            <p className="display text-[19px]">No connection</p>
+            <p className="text-[13.5px] font-bold text-muted mt-1">Your missions are safe. Check your internet and try again.</p>
+            <button className="btn-primary brick-yellow px-6 py-3 mt-4" onClick={m.load}>
+              Try again
+            </button>
+          </div>
+        ) : (
+          <BrickLoader label="Building your day" />
+        )}
       </div>
     );
   }
