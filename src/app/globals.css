@@ -1819,3 +1819,9 @@ body {
 /* white icon tiles (back, close, app logos) get the panel outline */
 .icon-tile[class*="!bg-white"] { box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 4px 0 var(--ol) var(--ol-c); }
 .icon-tile[class*="!bg-white"]:active { transform: translateY(2px); box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 2px 0 var(--ol) var(--ol-c); }
+
+/* shop tiles: garden things stand on grass, furniture on a wooden floor */
+.shop-tile.garden { background: color-mix(in srgb, var(--lego-green) 14%, #fff); }
+.shop-tile.room { background: color-mix(in srgb, var(--lego-tan) 38%, #fff); }
+.shop-tile { box-shadow: 0 0 0 2px var(--lego-black), 0 3px 0 2px var(--lego-black) !important; }
+.shop-tile.afford { box-shadow: 0 0 0 3px var(--lego-yellow), 0 0 0 5px var(--lego-black), 0 3px 0 5px var(--lego-black) !important; }

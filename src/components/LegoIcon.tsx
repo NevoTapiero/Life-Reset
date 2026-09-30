@@ -82,6 +82,12 @@ const PRINTS: Record<string, React.ReactNode> = {
       <path d="M10.4 10.2h3.2v3.4h-3.2Z" fill="currentColor" />
     </>
   ),
+  tree: (
+    <>
+      <path d="M12 4.5 7.5 11h2.6L6.5 16h11l-3.6-5h2.6Z" />
+      <path d="M12 16v3.5" />
+    </>
+  ),
   tasks: <path d="M6 7.5l1.5 1.5L10 6.5M12.5 8h6M6 12.5 7.5 14 10 11.5M12.5 13h6M6.5 17.5h3M12.5 17.5h6" />,
   moon: <path d="M18.5 14.5A7 7 0 0 1 9.5 5.5a7.2 7.2 0 1 0 9 9Z" />,
   dumbbell: <path d="M7 8v8M4.5 9.8v4.4M17 8v8M19.5 9.8v4.4M7 12h10" />,
