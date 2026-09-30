@@ -646,20 +646,26 @@ body {
 }
 
 /* segmented brick tabs */
+/* tabs like a LEGO game menu bar: a dark blue studded plate, the chosen tab a
+   yellow brick, the others white outlined letters */
 .brick-tabs {
   display: grid;
   gap: 6px;
   padding: 5px;
   border-radius: 16px;
-  background: color-mix(in srgb, var(--lego-blue) 16%, var(--panel));
-  box-shadow: inset 0 2px 0 rgb(27 42 52 / 0.08);
+  background:
+    radial-gradient(circle, rgb(255 255 255 / 0.1) 0 3px, transparent 3.5px) 0 0 / 14px 14px,
+    var(--lego-blue-edge);
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.25), 0 3px 0 var(--lego-black);
 }
 .brick-tab {
   padding: 8px 6px;
   border-radius: 11px;
-  font-weight: 800;
-  font-size: 13px;
-  color: var(--muted);
+  font-family: var(--font-brick), sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -667,9 +673,10 @@ body {
   transition: background 150ms ease, color 150ms ease, transform 120ms var(--ease-strong);
 }
 .brick-tab.on {
-  background: var(--panel);
-  color: var(--ink);
-  box-shadow: 0 3px 0 var(--lip);
+  background: linear-gradient(var(--lego-yellow), #e8bd25);
+  color: var(--lego-black);
+  text-shadow: none;
+  box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.45), 0 3px 0 var(--lego-yellow-edge);
 }
 .brick-tab:active { transform: translateY(1px); }
 .count-chip {
@@ -678,10 +685,11 @@ body {
   border-radius: 999px;
   font-size: 11px;
   line-height: 18px;
-  background: var(--panel-2);
-  color: var(--muted);
+  background: rgb(255 255 255 / 0.18);
+  color: #fff;
+  text-shadow: none;
 }
-.brick-tab.on .count-chip { background: var(--lego-yellow); color: var(--lego-black); }
+.brick-tab.on .count-chip { background: var(--lego-black); color: var(--lego-yellow); }
 
 /* small stat chips (streak, gold, level) */
 .chip {
