@@ -2,16 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { legoLevel, photoOf } from "@/lib/brick";
-import { rankForXp, type Profile } from "@/lib/game";
+import { goldBricks } from "@/lib/goldBricks";
+import type { Profile } from "@/lib/game";
 
 // Gold bricks, like the LEGO games: one for each milestone, gold when earned,
 // a grey outline while it's still to get. Worked out from what the app already
 // knows (profile, missions done, friends, connected apps), nothing new stored.
 
-type Brick = { id: string; name: string; how: string; got: boolean; progress?: string };
-
-function GoldBrick({ got, size = 44 }: { got: boolean; size?: number }) {
+export function GoldBrick({ got, size = 44 }: { got: boolean; size?: number }) {
   const [body, edge, shine] = got ? ["#f2cd37", "#b88a06", "#fff3b0"] : ["#dde4eb", "#c3ced9", "#eef2f6"];
   return (
     <svg viewBox="0 0 32 26" width={size} height={(size * 26) / 32} aria-hidden style={{ display: "block" }}>
@@ -48,25 +46,7 @@ export default function GoldBricks({ profile }: { profile: Profile }) {
     );
   }, [profile.id]);
 
-  const level = legoLevel(rankForXp(profile.xp).tierIndex);
-  const best = Math.max(profile.streak_best, profile.streak_current);
-  const n = counts;
-  const bricks: Brick[] = [
-    { id: "first", name: "First brick", how: "Check your first mission", got: (n?.done ?? 0) >= 1 },
-    { id: "ten", name: "Ten bricks", how: "Check 10 missions", got: (n?.done ?? 0) >= 10, progress: `${Math.min(n?.done ?? 0, 10)}/10` },
-    { id: "hundred", name: "Brick pile", how: "Check 100 missions", got: (n?.done ?? 0) >= 100, progress: `${Math.min(n?.done ?? 0, 100)}/100` },
-    { id: "week", name: "One week", how: "A 7 day streak", got: best >= 7, progress: `${Math.min(best, 7)}/7` },
-    { id: "fortnight", name: "Two weeks", how: "A 14 day streak", got: best >= 14, progress: `${Math.min(best, 14)}/14` },
-    { id: "month", name: "A whole month", how: "A 30 day streak", got: best >= 30, progress: `${Math.min(best, 30)}/30` },
-    { id: "xp1k", name: "1,000 XP", how: "Earn 1,000 XP", got: profile.xp >= 1000, progress: `${Math.min(profile.xp, 1000)}/1000` },
-    { id: "xp5k", name: "5,000 XP", how: "Earn 5,000 XP", got: profile.xp >= 5000, progress: `${Math.min(profile.xp, 5000)}/5000` },
-    { id: "lv3", name: "Level 3", how: "Reach LEGO level 3", got: level >= 3 },
-    { id: "lv5", name: "Level 5", how: "Reach LEGO level 5, the full outfit", got: level >= 5 },
-    { id: "friend", name: "Neighbour", how: "Add a friend to your town", got: (n?.friends ?? 0) >= 1 },
-    { id: "town", name: "Full street", how: "Have 4 friends in your town", got: (n?.friends ?? 0) >= 4, progress: `${Math.min(n?.friends ?? 0, 4)}/4` },
-    { id: "app", name: "Plugged in", how: "Connect an app that pays XP by itself", got: (n?.apps ?? 0) >= 1 },
-    { id: "photo", name: "Say cheese", how: "Add your photo", got: !!photoOf(profile) },
-  ];
+  const bricks = goldBricks(profile, { done: counts?.done ?? 0, friends: counts?.friends, apps: counts?.apps });
   const got = bricks.filter((b) => b.got).length;
   const shown = bricks.find((b) => b.id === open);
 

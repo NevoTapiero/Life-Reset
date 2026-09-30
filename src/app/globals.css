@@ -780,6 +780,28 @@ body {
   background-repeat: space no-repeat;
 }
 
+/* a gold brick just earned: a toast from the top */
+@keyframes goldIn {
+  0% { transform: translate(-50%, -120%); }
+  60% { transform: translate(-50%, 8px); }
+  100% { transform: translate(-50%, 0); }
+}
+.gold-toast {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 50%;
+  z-index: 65;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px 10px 12px;
+  border-radius: 18px;
+  background: var(--lego-black);
+  color: var(--lego-yellow);
+  box-shadow: 0 4px 0 #000, 0 12px 26px rgb(0 0 0 / 0.3);
+  animation: goldIn 520ms var(--ease-bounce) both;
+}
+
 /* Build your day: a sky with a baseplate, the day as a tower of bricks */
 .build-day {
   background:

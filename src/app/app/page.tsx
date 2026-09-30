@@ -10,6 +10,8 @@ import MinifigPicker from "@/components/MinifigPicker";
 import FirstTips from "@/components/FirstTips";
 import TellTheJudge from "@/components/TellTheJudge";
 import BuildYourDay from "@/components/BuildYourDay";
+import { GoldBrick } from "@/components/GoldBricks";
+import { goldBricks, saveSeenGold, seenGold, type GoldBrick as GoldBrickT } from "@/lib/goldBricks";
 import Minifig from "@/components/Minifig";
 import RankUp, { BrickBurst } from "@/components/RankUp";
 import { brickSound } from "@/lib/brickSound";
@@ -78,6 +80,30 @@ export default function HomePage() {
   useEffect(() => {
     if (justCleared) brickSound.levelUp(false);
   }, [justCleared]);
+  // a gold brick earned just now: a toast (Profile has the whole collection)
+  const [newGold, setNewGold] = useState<GoldBrickT | null>(null);
+  const xpNow = m.profile?.xp;
+  const uidNow = m.profile?.id;
+  useEffect(() => {
+    if (!m.profile || !m.days) return;
+    const earned = goldBricks(m.profile, { done: m.doneCount }).filter((b) => b.got);
+    const seen = seenGold(m.profile.id);
+    if (!seen) {
+      // first time on this device: remember, don't celebrate the past
+      saveSeenGold(m.profile.id, earned.map((b) => b.id));
+      return;
+    }
+    const fresh = earned.filter((b) => !seen.has(b.id));
+    if (fresh.length === 0) return;
+    saveSeenGold(m.profile.id, [...seen, ...fresh.map((b) => b.id)]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reacts to a milestone just crossed
+    setNewGold(fresh[0]);
+    brickSound.stud(7);
+    const t = setTimeout(() => setNewGold(null), 4200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-check when XP, streak or checks change
+  }, [xpNow, uidNow, m.doneCount, m.profile?.streak_current, m.days]);
+
   // energy for running in the town, from last night's sleep and today's steps
   // (the same rule as the town: src/lib/energy.ts)
   const [energy, setEnergy] = useState<number | null>(null);
@@ -137,6 +163,18 @@ export default function HomePage() {
   return (
     <div className="slide-in">
       {!p.archetype && <MinifigPicker onPicked={m.setProfile} />}
+      {newGold && (
+        <button className="gold-toast" onClick={() => setNewGold(null)} role="status">
+          <span className="relative">
+            <GoldBrick got size={46} />
+            <BrickBurst count={14} />
+          </span>
+          <span className="text-left">
+            <span className="block text-[11px] font-black tracking-wider uppercase opacity-80">Gold brick</span>
+            <span className="display block text-[18px] leading-tight">{newGold.name}</span>
+          </span>
+        </button>
+      )}
       {building && p.archetype && (
         <BuildYourDay
           quests={m.inPeriod("daily").filter((q) => !trackedBy(q, m.trackers))}

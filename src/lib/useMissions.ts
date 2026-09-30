@@ -226,6 +226,8 @@ export function useMissions() {
     load,
     toggle,
     canToggle,
+    // every check in the loaded history (about 7 months), for milestones
+    doneCount: [...history.values()].reduce((a, d) => a + d.size, 0),
     isDoneOn,
     cardDayOf,
     inPeriod,
