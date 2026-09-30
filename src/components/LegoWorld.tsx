@@ -979,7 +979,7 @@ function Chase({
   useFrame((_, dt) => {
     const c = controls.current;
     if (!c || flying.current) return;
-    want.copy(follow.current).add(CHASE_LIFT).sub(c.target).multiplyScalar(Math.min(1, dt * 6));
+    want.copy(follow.current).add(CHASE_LIFT).sub(c.target).multiplyScalar(Math.min(1, dt * 10));
     c.target.add(want);
     camera.position.add(want);
     // ease round behind you as you go (never while you're turning the view yourself)
@@ -988,7 +988,7 @@ function Chase({
       off.subVectors(camera.position, c.target);
       const now = Math.atan2(off.x, off.z);
       const d = Math.atan2(Math.sin(yaw - now), Math.cos(yaw - now));
-      off.applyAxisAngle(THREE.Object3D.DEFAULT_UP, d * Math.min(1, dt * 1.4));
+      off.applyAxisAngle(THREE.Object3D.DEFAULT_UP, d * Math.min(1, dt * 5)); // quick, so it never feels like it's dragging behind you
       camera.position.copy(c.target).add(off);
     }
     c.update();
@@ -2259,7 +2259,7 @@ function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>, jumpR
     const set = () => {
       const k = (a: string, b: string) => (down.has(a) || down.has(b) ? 1 : 0);
       // keys walk; hold Shift to run
-      const push = down.has("shift") ? 1 : 0.7;
+      const push = down.has("shift") ? 1 : 0.84; // a brisk walk; Shift (the stick right out) runs
       outRef.current = { x: (k("d", "arrowright") - k("a", "arrowleft")) * push, y: (k("w", "arrowup") - k("s", "arrowdown")) * push };
     };
     const on = (e: KeyboardEvent) => {
@@ -2812,16 +2812,29 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
     t.needsUpdate = true;
     return t;
   }, []);
+  // water flows: its studs slide along the band (the ribbon's u runs downstream)
+  const waterMap = useMemo(() => {
+    const t = studTexture().clone();
+    t.repeat.set(1, 1);
+    t.needsUpdate = true;
+    return t;
+  }, []);
+  const water = useRef<THREE.Mesh>(null);
+  useFrame((_, dt) => {
+    const map = (water.current?.material as THREE.MeshStandardMaterial | undefined)?.map;
+    if (map) map.offset.x = (map.offset.x - dt * 0.7) % 1;
+  });
   return (
     <>
       {meshes.map((m) => (
-        <mesh key={m.key} geometry={m.geometry} castShadow={shadows} receiveShadow={shadows}>
-          <meshStandardMaterial color={m.color} map={m.studs ? studMap : null} roughness={m.color === "#3f8fd8" ? 0.25 : 0.7} />
+        <mesh key={m.key} ref={m.color === WATER ? water : undefined} geometry={m.geometry} castShadow={shadows} receiveShadow={shadows}>
+          <meshStandardMaterial color={m.color} map={m.studs ? (m.color === WATER ? waterMap : studMap) : null} roughness={m.color === WATER ? 0.25 : 0.7} />
         </mesh>
       ))}
     </>
   );
 }
+const WATER = "#3f8fd8";
 // A band `w` wide along a polyline (LDU, LDraw frame), `h` thick, its bottom at LDraw y
 // `bottom` (0: the ground): a top and two sides, mitred at the bends, UVs in studs along and
 // across it. One piece, so nothing overlaps and nothing fights in the depth buffer.
@@ -3570,6 +3583,20 @@ function brickRound(): THREE.BufferGeometry {
   parts.push(stud);
   return mergeGeometries(parts.map((g) => g.toNonIndexed()));
 }
+// the wind: a gentle sway that grows with height, each tree on its own beat (its place in the
+// instance matrix), done in the vertex shader so thousands of trees cost nothing extra
+function sway(material: THREE.Material) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = { value: 0 };
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nuniform float uTime;")
+      .replace(
+        "#include <begin_vertex>",
+        "#include <begin_vertex>\n#ifdef USE_INSTANCING\nfloat beat = instanceMatrix[3][0] * 0.13 + instanceMatrix[3][2] * 0.17;\ntransformed.x += sin(uTime * 1.1 + beat) * transformed.y * 0.05;\ntransformed.z += cos(uTime * 0.9 + beat) * transformed.y * 0.035;\n#endif",
+      );
+    material.userData.shader = shader;
+  };
+}
 function ForestBelt({ season, shadows = true }: { season: Season; shadows?: boolean }) {
   const trunks = useRef<THREE.InstancedMesh>(null);
   const pines = useRef<THREE.InstancedMesh>(null);
@@ -3615,6 +3642,14 @@ function ForestBelt({ season, shadows = true }: { season: Season; shadows?: bool
         if (m.current.instanceColor) m.current.instanceColor.needsUpdate = true;
       }
   }, [leafColour, pineColour]);
+  const pineMat = useRef<THREE.MeshStandardMaterial>(null);
+  const leafMat = useRef<THREE.MeshStandardMaterial>(null);
+  useEffect(() => {
+    for (const m of [pineMat.current, leafMat.current]) if (m) sway(m);
+  }, []);
+  useFrame(({ clock }) => {
+    for (const m of [pineMat.current, leafMat.current]) if (m?.userData.shader) m.userData.shader.uniforms.uTime.value = clock.elapsedTime;
+  });
   return (
     <>
       <instancedMesh ref={trunks} args={[undefined, undefined, FOREST.length]} castShadow={shadows}>
@@ -3622,10 +3657,10 @@ function ForestBelt({ season, shadows = true }: { season: Season; shadows?: bool
         <meshStandardMaterial color="#582a12" roughness={0.8} flatShading />
       </instancedMesh>
       <instancedMesh ref={pines} args={[undefined, undefined, nPine]} geometry={pineGeo} castShadow={shadows}>
-        <meshStandardMaterial roughness={0.5} flatShading />
+        <meshStandardMaterial ref={pineMat} roughness={0.5} flatShading />
       </instancedMesh>
       <instancedMesh ref={leafy} args={[undefined, undefined, FOREST.length - nPine]} geometry={roundGeo} castShadow={shadows}>
-        <meshStandardMaterial roughness={0.5} flatShading />
+        <meshStandardMaterial ref={leafMat} roughness={0.5} flatShading />
       </instancedMesh>
     </>
   );
