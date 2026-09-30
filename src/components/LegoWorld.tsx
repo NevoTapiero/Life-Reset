@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { ContactShadows, Environment, Lightformer, OrbitControls } from "@react-three/drei";
+import { ContactShadows, Environment, Html, Lightformer, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
 import { LDrawConditionalLineMaterial } from "three/examples/jsm/materials/LDrawConditionalLineMaterial.js";
@@ -18,8 +18,11 @@ import {
   houseSpec,
   minifigSpot,
   modelText,
+  plotX,
+  townText,
   type HouseSpec,
   type MinifigLook,
+  type Resident,
 } from "@/lib/legoWorld";
 
 // Your plot in real parts: the 32x32 baseplate, your house, your garden, and
@@ -201,13 +204,48 @@ export default function LegoWorld({
   }, [set, spec.x0, spec.w, spec.z0, spec.d]);
 
   return (
-    <div className={className} role="img" aria-label="Your house and garden">
+    <Stage className={className} label="Your house and garden" target={target} width={set ? 38 : 30}>
+      {world && <primitive object={world} />}
+      {set && <SetHouse key={set.file} file={set.file} turn={set.turn} spec={spec} />}
+      <Minifig look={look} at={at} />
+    </Stage>
+  );
+}
+
+// Sky, light and camera around whatever LDraw models are passed in. The light
+// and the contact shadow follow the target, so a long town is lit wherever you look.
+function Stage({
+  className,
+  label,
+  target,
+  width,
+  pan = false,
+  onPick,
+  overlay,
+  children,
+}: {
+  className?: string;
+  label: string;
+  target: THREE.Vector3;
+  width: number;
+  pan?: boolean;
+  /** a tap on the ground (not a drag), at this point in three's space */
+  onPick?: (p: THREE.Vector3) => void;
+  /** things placed in three's space rather than LDraw's (labels) */
+  overlay?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [sun] = useState(() => new THREE.Object3D());
+  return (
+    <div className={className} role="img" aria-label={label}>
       <Canvas shadows dpr={[1, 2]} camera={{ fov: 32, near: 1, far: 400 }} gl={{ antialias: true }}>
         <color attach="background" args={["#bfe3ff"]} />
         <fog attach="fog" args={["#bfe3ff", 120, 220]} />
         <hemisphereLight args={["#fff8ef", "#5a7a4a", 0.9]} />
+        <primitive object={sun} position={[target.x, 0, target.z]} />
         <directionalLight
-          position={[18, 30, -14]}
+          target={sun}
+          position={[target.x + 18, 30, target.z - 14]}
           intensity={2.3}
           castShadow
           shadow-mapSize={[2048, 2048]}
@@ -224,16 +262,80 @@ export default function LegoWorld({
         </Environment>
 
         {/* LDraw is -Y up: a half-turn about X stands it upright */}
-        <group rotation={[Math.PI, 0, 0]} scale={LDU}>
-          {world && <primitive object={world} />}
-          {set && <SetHouse key={set.file} file={set.file} turn={set.turn} spec={spec} />}
-          <Minifig look={look} at={at} />
+        <group
+          rotation={[Math.PI, 0, 0]}
+          scale={LDU}
+          onClick={
+            onPick &&
+            ((e) => {
+              if (e.delta > 6) return; // a drag, not a tap
+              onPick(e.point);
+            })
+          }
+        >
+          {children}
         </group>
+        {overlay}
 
-        <ContactShadows position={[0, 0.02, 0]} opacity={0.2} scale={36} blur={2} far={10} />
-        <FitCamera target={target} width={set ? 38 : 30} />
-        <OrbitControls target={target} enablePan={false} minDistance={14} maxDistance={110} minPolarAngle={0.45} maxPolarAngle={1.25} />
+        <ContactShadows position={[target.x, 0.02, target.z]} opacity={0.2} scale={36} blur={2} far={10} />
+        <FitCamera target={target} width={width} />
+        <OrbitControls
+          target={target}
+          enablePan={pan}
+          screenSpacePanning={false}
+          // in the town a one-finger drag walks along the street; two fingers turn and zoom
+          {...(pan && {
+            mouseButtons: { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE },
+            touches: { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE },
+          })}
+          minDistance={14}
+          maxDistance={110}
+          minPolarAngle={0.45}
+          maxPolarAngle={1.25}
+        />
       </Canvas>
     </div>
+  );
+}
+
+// Your town: you and your friends, one plot each along a street, you in the
+// middle. Drag to walk along it; tap a house to go to it.
+export function LegoTown({ residents, className }: { residents: Resident[]; className?: string }) {
+  const town = useModel(useMemo(() => townText(residents), [residents]), true);
+  const count = residents.length;
+  const [focus, setFocus] = useState(() => Math.max(0, residents.findIndex((r) => r.me)));
+  const target = useMemo(() => new THREE.Vector3(plotX(focus, count) * LDU, 3, 0), [focus, count]);
+  const plotW = PLOT * 20 * LDU;
+
+  return (
+    <Stage
+      className={className}
+      label="Your town"
+      target={target}
+      width={46}
+      pan
+      onPick={(p) => setFocus(Math.min(count - 1, Math.max(0, Math.round(p.x / plotW + (count - 1) / 2))))}
+      overlay={residents.map((r, i) => {
+        const s = houseSpec(r.level);
+        const cz = (s.z0 + s.d / 2 - PLOT / 2) * 20 * LDU;
+        return (
+          <Html key={r.name} position={[plotX(i, count) * LDU, r.level >= 5 ? 24 : 17, -cz]} center zIndexRange={[10, 0]}>
+            <button
+              onClick={() => setFocus(i)}
+              className="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
+              style={{ background: r.me ? "#ff8a1f" : "rgba(20,18,16,0.8)", color: "#fff" }}
+            >
+              {r.me ? "You" : r.name}
+            </button>
+          </Html>
+        );
+      })}
+    >
+      {town && <primitive object={town} />}
+      {residents.map((r, i) => {
+        const [x, y, z] = minifigSpot(houseSpec(r.level));
+        return <Minifig key={r.name} look={BASE_HUNTER} at={[x + plotX(i, count), y, z]} />;
+      })}
+    </Stage>
   );
 }

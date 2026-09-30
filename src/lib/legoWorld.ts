@@ -293,3 +293,26 @@ export function minifigSpot(s: HouseSpec): [number, number, number] {
 export function modelText(lines: string[], name = "model.ldr"): string {
   return [`0 FILE ${name}`, `0 ${name}`, ...lines, "0 NOFILE", ""].join("\n");
 }
+
+// ---- the town -------------------------------------------------------------
+
+// A resident's plot: their house by level, their garden by streak.
+export type Resident = { name: string; level: number; streak: number; me?: boolean };
+
+// ponytail: one straight street, plots side by side; a grid of streets when towns get big
+// Plot i's centre on x (LDU): the plots sit side by side, centred on the middle one.
+export const plotX = (i: number, n: number) => (i - (n - 1) / 2) * PLOT * S;
+
+// The town as one LDraw file: each plot is its own submodel, placed along x,
+// with a grey street of baseplates running in front of them (+Z).
+export function townText(residents: Resident[]): string {
+  const count = residents.length;
+  const main = residents.flatMap((_, i) => [
+    `1 16 ${n(plotX(i, count))} 0 0 1 0 0 0 1 0 0 0 1 plot-${i}.ldr`,
+    line(COL.darkGrey, plotX(i, count), 0, PLOT * S, ROT[0], "3811"),
+  ]);
+  const plots = residents.map((r, i) =>
+    modelText([baseplate(), ...buildHouse(r.level), ...buildGarden(r.streak, houseSpec(r.level))], `plot-${i}.ldr`),
+  );
+  return [modelText(main, "town.ldr"), ...plots].join("");
+}
