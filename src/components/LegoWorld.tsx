@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ContactShadows, Environment, Lightformer, OrbitControls, PerformanceMonitor } from "@react-three/drei";
@@ -80,6 +80,7 @@ import {
   townDecorText,
   townFlats,
   plotHedges,
+  forestTrees,
   townClouds,
   type Slab,
   emptyLotsText,
@@ -873,6 +874,16 @@ function FitCamera({
   return null;
 }
 
+// Never more pixels than a phone screen at 2x: a big window renders at a lower ratio,
+// since fill rate (bloom, anti-aliasing, the ground) is what makes big windows crawl.
+const PIXEL_BUDGET = 2.2e6; // about 1080 x 2000
+// (reported up to the Canvas's own dpr prop: r3f re-applies that prop, so setting the store alone doesn't stick)
+function PixelBudget({ onSize }: { onSize: (w: number, h: number) => void }) {
+  const size = useThree((s) => s.size);
+  useEffect(() => onSize(size.width, size.height), [size.width, size.height, onSize]);
+  return null;
+}
+
 // The lens can change (a wider one while playing); before FitCamera frames anything.
 function FovSync({ fov }: { fov: number }) {
   const { camera } = useThree();
@@ -1204,6 +1215,10 @@ function Stage({
   const [sun] = useState(() => new THREE.Object3D());
   // full sharpness (up to 2x) while the device keeps up; a step down if it can't
   const [dpr, setDpr] = useState(2);
+  // and never more pixels than a phone screen at 2x (PixelBudget)
+  const [box, setBox] = useState({ w: 400, h: 700 });
+  const sized = useCallback((w: number, h: number) => setBox({ w, h }), []);
+  const budget = Math.max(1, Math.min(dpr, Math.sqrt(PIXEL_BUDGET / (box.w * box.h))));
   const controls = useRef<OrbitControlsImpl>(null);
   const light = useRef<THREE.DirectionalLight>(null);
   const flying = useRef(false);
@@ -1225,7 +1240,7 @@ function Stage({
       <div className="relative w-full h-full">
         <Canvas
           shadows
-          dpr={[1, dpr]}
+          dpr={[1, budget]}
           camera={{ fov, near: 1, far: far }}
           gl={{ antialias: true }}
           onCreated={({ gl }) => {
@@ -1238,6 +1253,7 @@ function Stage({
           }}
         >
           <PerformanceMonitor onDecline={() => setDpr(1.25)} onIncline={() => setDpr(2)} />
+          <PixelBudget onSize={sized} />
           <color attach="background" args={[mood?.horizon ?? sky]} />
           {/* the haze scales with how much is in view: a house, the shop, or the whole town */}
           <fog attach="fog" args={[mood?.horizon ?? sky, Math.max(200, width * 3.2), Math.max(520, width * 8)]} />
@@ -1312,7 +1328,7 @@ function Stage({
               stays sharp (no blur: it read as low quality). The effects draw off screen, so the
               neutral tone mapping moves in here. */}
           {mood && (
-            <EffectComposer multisampling={4}>
+            <EffectComposer multisampling={2}>
               <Bloom luminanceThreshold={0.85} luminanceSmoothing={0.2} intensity={mood.night ? 1.1 : 0.25} mipmapBlur />
               <Vignette offset={0.35} darkness={0.28} />
               <ToneMapping mode={ToneMappingMode.NEUTRAL} />
@@ -3086,6 +3102,59 @@ function StudGround({
 // The grass by season: fresh in spring, LEGO green in summer, olive in autumn, snow in winter.
 const GRASS: Record<Season, string> = { spring: "#58ab41", summer: "#4b9f4a", autumn: "#80a83e", winter: "#eef2f6" };
 
+// The forest belt as three instanced meshes (trunks, pine cones, leafy balls):
+// a few hundred trees for three draw calls. Three's space (LDraw z flipped).
+const FOREST = forestTrees();
+function ForestBelt({ season }: { season: Season }) {
+  const trunks = useRef<THREE.InstancedMesh>(null);
+  const pines = useRef<THREE.InstancedMesh>(null);
+  const leafy = useRef<THREE.InstancedMesh>(null);
+  const nPine = FOREST.filter((t) => t.pine).length;
+  useLayoutEffect(() => {
+    const o = new THREE.Object3D();
+    let p = 0;
+    let l = 0;
+    FOREST.forEach((t, i) => {
+      const x = t.x * LDU;
+      const z = -t.z * LDU;
+      const h = t.h * LDU;
+      o.position.set(x, h * 0.18, z);
+      o.scale.set(0.5, h * 0.36, 0.5);
+      o.updateMatrix();
+      trunks.current?.setMatrixAt(i, o.matrix);
+      if (t.pine) {
+        o.position.set(x, h * 0.65, z);
+        o.scale.set(h * 0.26, h * 0.7, h * 0.26);
+        o.updateMatrix();
+        pines.current?.setMatrixAt(p++, o.matrix);
+      } else {
+        o.position.set(x, h * 0.62, z);
+        o.scale.set(h * 0.32, h * 0.3, h * 0.32);
+        o.updateMatrix();
+        leafy.current?.setMatrixAt(l++, o.matrix);
+      }
+    });
+    for (const m of [trunks, pines, leafy]) if (m.current) m.current.instanceMatrix.needsUpdate = true;
+  }, []);
+  const leafColour = season === "winter" ? "#eef2f6" : season === "autumn" ? "#e8742a" : season === "spring" ? "#7bc043" : "#4b9f4a";
+  return (
+    <>
+      <instancedMesh ref={trunks} args={[undefined, undefined, FOREST.length]} castShadow>
+        <cylinderGeometry args={[1, 1, 1, 6]} />
+        <meshStandardMaterial color="#582a12" roughness={0.8} />
+      </instancedMesh>
+      <instancedMesh ref={pines} args={[undefined, undefined, nPine]} castShadow>
+        <coneGeometry args={[1, 1, 8]} />
+        <meshStandardMaterial color={season === "winter" ? "#dfe6ea" : "#237841"} roughness={0.55} />
+      </instancedMesh>
+      <instancedMesh ref={leafy} args={[undefined, undefined, FOREST.length - nPine]} castShadow>
+        <sphereGeometry args={[1, 10, 8]} />
+        <meshStandardMaterial color={leafColour} roughness={0.55} />
+      </instancedMesh>
+    </>
+  );
+}
+
 // The world beyond the town, built the LEGO way: the land runs on to the
 // horizon; terraced hills (stepped layers, each a shade lighter) with little
 // LEGO trees on top; beyond them a ring of stepped grey mountains with white
@@ -3152,6 +3221,8 @@ function Scenery({ color, season, sunAt }: { color: string; season: Season; sunA
           })}
         </group>
       ))}
+      {/* the forest belt round the town: cone pines and ball-topped leafy trees on brown trunks */}
+      <ForestBelt season={season} />
       {/* LEGO pine trees on the hilltops (a plain cone reads as the 3471 from here) */}
       <instancedMesh ref={treeMesh} args={[undefined, undefined, trees.length]}>
         <coneGeometry args={[1, 1, 8]} />
