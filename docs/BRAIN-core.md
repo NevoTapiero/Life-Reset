@@ -22,7 +22,9 @@ The Town tab lays you and your friends' plots along one street.
 
 **Inside your house** is a room with a station for each of your missions (up
 to 10): a barbell for Strength, a laptop for Focus, an apple for
-Constitution, a clock for Discipline, a bookcase for Wisdom. Tapping a
+Constitution, a clock for Discipline, a bookcase for Wisdom -- in a
+real-sized room (walls ten bricks high, windows, a plank floor) seen from
+about head height. Tapping a
 station is doing the mission -- it pays out (+XP floats up) and stays lit for
 the day, Clash of Clans collector style. Next: band-tracked missions fill
 their station on their own and you tap to collect; gold alongside XP.

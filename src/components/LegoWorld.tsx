@@ -207,10 +207,21 @@ function Minifig({ look, at }: { look: MinifigLook; at: [number, number, number]
 
 const FRONT_RIGHT = new THREE.Vector3(0.55, 0.65, -0.8).normalize();
 
-function FitCamera({ target, width, dir = FRONT_RIGHT }: { target: THREE.Vector3; width: number; dir?: THREE.Vector3 }) {
+function FitCamera({
+  target,
+  width,
+  dir = FRONT_RIGHT,
+  fov = 32,
+}: {
+  target: THREE.Vector3;
+  width: number;
+  dir?: THREE.Vector3;
+  fov?: number;
+}) {
   const { camera, size } = useThree();
   useLayoutEffect(() => {
     const cam = camera as THREE.PerspectiveCamera;
+    cam.fov = fov;
     const vfov = (cam.fov * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * (size.width / size.height));
     const dist = width / 2 / Math.tan(Math.min(hfov, vfov) / 2);
@@ -218,7 +229,7 @@ function FitCamera({ target, width, dir = FRONT_RIGHT }: { target: THREE.Vector3
     cam.position.copy(target).addScaledVector(dir, dist);
     cam.lookAt(target);
     cam.updateProjectionMatrix();
-  }, [camera, size, target, width, dir]);
+  }, [camera, size, target, width, dir, fov]);
   return null;
 }
 
@@ -285,6 +296,8 @@ function Stage({
   width,
   pan = false,
   dir,
+  fov,
+  sky = "#bfe3ff",
   bounds,
   onPick,
   overlay,
@@ -297,6 +310,10 @@ function Stage({
   width: number;
   pan?: boolean;
   dir?: THREE.Vector3;
+  /** vertical field of view: narrow for the diorama outside, wide for being in a room */
+  fov?: number;
+  /** the colour beyond the scene: sky outside, a warm ceiling glow inside */
+  sky?: string;
   /** the camera's target stays inside this box (three's space) */
   bounds?: THREE.Box3;
   /** a tap on the ground (not a drag), at this point in three's space */
@@ -329,8 +346,8 @@ function Stage({
           gl={{ antialias: true }}
           onCreated={({ gl }) => (gl.localClippingEnabled = true)}
         >
-          <color attach="background" args={["#bfe3ff"]} />
-          <fog attach="fog" args={["#bfe3ff", 140, 330]} />
+          <color attach="background" args={[sky]} />
+          <fog attach="fog" args={[sky, 140, 330]} />
           <hemisphereLight args={["#fff8ef", "#5a7a4a", 0.9]} />
           <primitive object={sun} position={[target.x, 0, target.z]} />
           <directionalLight
@@ -369,7 +386,7 @@ function Stage({
           <PinTracker pins={pins} els={pinEls} />
 
           <ContactShadows position={[target.x, 0.02, target.z]} opacity={0.2} scale={36} blur={2} far={10} />
-          <FitCamera target={target} width={width} dir={dir} />
+          <FitCamera target={target} width={width} dir={dir} fov={fov} />
           <OrbitControls
             ref={controls}
             onChange={clamp}
@@ -385,7 +402,7 @@ function Stage({
               },
               touches: { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE },
             })}
-            minDistance={14}
+            minDistance={fov && fov > 40 ? 6 : 14}
             maxDistance={110}
             minPolarAngle={0.45}
             maxPolarAngle={1.25}
@@ -555,8 +572,10 @@ export function LegoTown({
 
 // looking steeply down into a house with its roof off
 const LOOK_IN = new THREE.Vector3(0.3, 1.25, -0.55).normalize();
-// straight into your room from its open front, steeply from above
-const ROOM_VIEW = new THREE.Vector3(0, 1.35, -0.7).normalize();
+// standing in your room: from the open front at about head height, looking across it
+const ROOM_VIEW = new THREE.Vector3(0, 0.62, -1).normalize();
+// you can look around the room but not walk out of it
+const ROOM_BOUNDS = new THREE.Box3(new THREE.Vector3(-8, 0, -8), new THREE.Vector3(8, 6, 8));
 // how high (three units, about four bricks) the walls stay when you're inside
 const CUT = 4.6;
 
@@ -636,7 +655,7 @@ export function LegoRoom({
   const room = useModel(roomText(stations), true);
   const [busy, setBusy] = useState<string | null>(null);
   const [paid, setPaid] = useState<{ id: string; xp: number } | null>(null);
-  const target = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  const target = useMemo(() => new THREE.Vector3(0, 3, 3), []);
 
   const tap = async (st: Station) => {
     if (st.done || busy) return;
@@ -654,13 +673,17 @@ export function LegoRoom({
         className="absolute inset-0"
         label="Your room"
         target={target}
-        width={20}
+        width={31}
         dir={ROOM_VIEW}
+        fov={58}
+        sky="#f4e9d6"
+        pan
+        bounds={ROOM_BOUNDS}
         pins={stations.slice(0, MAX_STATIONS).map((st, i) => {
           const [x, z] = stationSpot(i);
           return {
             key: st.id,
-            at: [x * LDU, 5.5, -z * LDU] as [number, number, number],
+            at: [x * LDU, 7, -z * LDU] as [number, number, number],
             node: (
               <button
                 onClick={() => tap(st)}
@@ -688,7 +711,7 @@ export function LegoRoom({
         })}
       >
         {room && <primitive object={room} />}
-        <Minifig look={look} at={[0, 0, 285]} />
+        <Minifig look={look} at={[0, -8, 60]} />
       </Stage>
       {stations.length === 0 && (
         <p className="absolute inset-x-0 top-4 text-center text-sm font-semibold" style={{ color: "#3a3a3a" }}>

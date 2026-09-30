@@ -20,6 +20,7 @@ export const COL = {
   green: 2,
   darkGreen: 288,
   orange: 25,
+  darkTan: 28,
   purple: 22,
   brightGreen: 10,
   red: 4,
@@ -38,14 +39,14 @@ export const COL = {
 // How far below its origin each part reaches (its bottom), measured from the
 // LDraw geometry: the part's origin sits this far above whatever it stands on.
 const BOTTOM: Record<string, number> = {
-  "3062b": 24, "3068b": 8, "3069b": 8, "3741ac05": 12, "3470": 8, "2435": 8, "3471": 8, "2417": 8, "30055": 48,
+  "3062b": 24, "3068b": 8, "87079": 8, "3069b": 8, "3741ac05": 12, "3470": 8, "2435": 8, "3471": 8, "2417": 8, "30055": 48,
 };
 
 // every part the plot and the minifig use; scripts/lego/pack.mjs packs exactly
 // these (the houses are official sets, baked separately into public/lego/houses)
 export const LEGO_PARTS = [
   "4186", "91405", "3062b", "3068b", "3069b", "3741ac05", "3470", "2435", "3471", "2417", "30055",
-  "3031", "3754", "3003", "29592", "62698-f2", "33051", "14769p0f", "1",
+  "3031", "3754", "3003", "29592", "62698-f2", "33051", "14769p0f", "1", "60594", "60603", "3010", "3005", "87079",
   "973", "3818", "3819", "3820", "3815", "3816", "3817", "3626cp01", "53981",
 ];
 
@@ -274,41 +275,87 @@ export function townLand(count: number): string[] {
 export type Station = { id: string; title: string; pillar: string; xp: number; done: boolean };
 export const MAX_STATIONS = 10;
 
-// Each pillar's station: a 4x4 plate in its colour with a prop on top. `top`
-// is the plate's upper surface (LDraw -Y is up).
-const LAY_FLAT: Mat = [0, -1, 0, 1, 0, 0, 0, 0, 1]; // a quarter turn about Z
-const STATION_LOOK: Record<string, { colour: number; props: (x: number, z: number, top: number) => string[] }> = {
-  Strength: { colour: COL.red, props: (x, z, top) => [line(COL.darkGrey, x, top - 11, z, LAY_FLAT, "29592")] },
-  Focus: {
-    colour: COL.blue,
-    props: (x, z, top) => [line(COL.darkGrey, x, top - 24, z, ROT[0], "3003"), line(COL.lightGrey, x, top - 25, z, ROT[180], "62698-f2")],
-  },
-  Constitution: { colour: COL.green, props: (x, z, top) => [line(COL.red, x + 6, top, z, ROT[0], "33051")] },
-  Discipline: {
-    colour: COL.orange,
-    props: (x, z, top) => [line(COL.white, x, top - 24, z, ROT[0], "3003"), line(COL.white, x, top - 32, z, ROT[0], "14769p0f")],
-  },
-  Wisdom: { colour: COL.purple, props: (x, z, top) => [line(COL.reddishBrown, x, top - 96, z, ROT[180], "1")] },
-};
-
-// Station i's centre on the room floor (LDU): three across, four rows deep --
-// a phone-shaped room.
-export function stationSpot(i: number): [number, number] {
-  // the camera looks in from the front, where screen-left is +x
-  return [(1 - (i % 3)) * 100, (Math.floor(i / 3) - 1.5) * 130];
+// A turn about the vertical composed onto a part's own orientation.
+function turnMat(facing: Mat, m: Mat): Mat {
+  const out = [0, 0, 0, 0, 0, 0, 0, 0, 0] as Mat;
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) out[i * 3 + j] += facing[i * 3 + k] * m[k * 3 + j];
+  return out;
 }
 
-// The room: a 16x32 floor of two 16x16 plates, a white wall behind and one on
-// the left (the camera looks in from the open front), and the stations.
+// Each pillar's station: a 4x4 plate in its colour with a prop on top, turned
+// to face into the room. `top` is the plate's upper surface (LDraw -Y is up).
+const LAY_FLAT: Mat = [0, -1, 0, 1, 0, 0, 0, 0, 1]; // a quarter turn about Z
+type Place = (color: number, dx: number, y: number, dz: number, m: Mat, part: string) => string;
+const STATION_LOOK: Record<string, { colour: number; props: (put: Place, top: number) => string[] }> = {
+  Strength: { colour: COL.red, props: (put, top) => [put(COL.darkGrey, 0, top - 11, 0, LAY_FLAT, "29592")] },
+  Focus: {
+    colour: COL.blue,
+    props: (put, top) => [put(COL.darkGrey, 0, top - 24, 0, ROT[0], "3003"), put(COL.lightGrey, 0, top - 25, 0, ROT[180], "62698-f2")],
+  },
+  Constitution: { colour: COL.green, props: (put, top) => [put(COL.red, 6, top, 0, ROT[0], "33051")] },
+  Discipline: {
+    colour: COL.orange,
+    props: (put, top) => [put(COL.white, 0, top - 24, 0, ROT[0], "3003"), put(COL.white, 0, top - 32, 0, ROT[0], "14769p0f")],
+  },
+  Wisdom: { colour: COL.purple, props: (put, top) => [put(COL.reddishBrown, 0, top - 96, 10, ROT[180], "1")] },
+};
+
+// The room is 32x32 studs with walls ten bricks high -- about two and a half
+// minifigs, a real ceiling height -- on the back and both sides; the front is
+// open to the camera. Stations stand against the walls like furniture: four
+// along the back, three down each side, the floor open in the middle.
+const ROOM = 320; // half the room, LDU
+const WALL = 240; // ten bricks
+// station i: its centre on the floor (LDU) and which way it faces
+export function stationSpot(i: number): [number, number] {
+  // the camera faces the back wall, where screen-left is +x
+  if (i < 4) return [(1.5 - i) * 140, -ROOM + 70];
+  const side = i < 7 ? -1 : 1;
+  return [side * (ROOM - 70), -110 + ((i - 4) % 3) * 140];
+}
+const stationFacing = (i: number): Mat => (i < 4 ? ROT[0] : i < 7 ? ROT[90] : ROT[270]);
+
 export function roomText(stations: Station[]): string {
   const out: string[] = [];
-  for (const z of [-160, 160]) out.push(line(COL.tan, 0, 0, z, ROT[0], "91405"));
-  for (const x of [-90, 30]) out.push(line(COL.white, x, -120, -310, ROT[0], "3754"));
-  for (let k = -2; k <= 2; k++) out.push(line(COL.white, -150, -120, k * 120, ROT[90], "3754"));
+  // the floor: base plates, then smooth planks (2x4 tiles in staggered rows,
+  // a 2x2 tile closing each row) between the walls
+  for (const x of [-160, 160]) for (const z of [-160, 160]) out.push(line(COL.darkTan, x, 0, z, ROT[0], "91405"));
+  for (let row = 0; row < 15; row++) {
+    const z = -ROOM + 40 + row * 40;
+    let x = -ROOM + 20;
+    const plank = (len: 2 | 4) => {
+      out.push(line(COL.reddishBrown, x + len * 10, -8, z, ROT[0], len === 4 ? "87079" : "3068b"));
+      x += len * 20;
+    };
+    if (row % 2) plank(2);
+    for (let k = 0; k < 7; k++) plank(4);
+    if (!(row % 2)) plank(2);
+  }
+  // walls: a tan lower course and a white upper one, 1x6x5 bricks
+  const back = -ROOM + 10;
+  for (let k = -2; k <= 2; k++) {
+    const x = k * 120;
+    out.push(line(COL.tan, x, -120, back, ROT[0], "3754"));
+    if (k === -1 || k === 1) {
+      // a window: frame and glass, a 1x1 column either side, two 1x4 bricks above
+      out.push(line(COL.white, x, -192, back, ROT[0], "60594"), line(COL.transClear, x, -192, back, ROT[0], "60603"));
+      for (let b = 0; b < 5; b++) for (const dx of [-50, 50]) out.push(line(COL.white, x + dx, -144 - b * 24, back, ROT[0], "3005"));
+      for (const y of [-216, -240]) out.push(line(COL.white, x, y, back, ROT[0], "3010"));
+    } else out.push(line(COL.white, x, -WALL, back, ROT[0], "3754"));
+  }
+  for (const side of [-1, 1])
+    for (let k = 0; k < 5; k++) {
+      const z = -ROOM + 60 + k * 120;
+      out.push(line(COL.tan, side * (ROOM - 10), -120, z, ROT[90], "3754"), line(COL.white, side * (ROOM - 10), -WALL, z, ROT[90], "3754"));
+    }
   stations.slice(0, MAX_STATIONS).forEach((st, i) => {
     const [x, z] = stationSpot(i);
+    const f = stationFacing(i);
     const look = STATION_LOOK[st.pillar] ?? STATION_LOOK.Discipline;
-    out.push(line(look.colour, x, -8, z, ROT[0], "3031"), ...look.props(x, z, -8));
+    // place a prop at an offset from the station's centre, turned with it
+    const put: Place = (color, dx, y, dz, m, part) => line(color, x + f[0] * dx + f[2] * dz, y, z + f[6] * dx + f[8] * dz, turnMat(f, m), part);
+    // a rug in the pillar's colour on the planks, the prop on it
+    out.push(line(look.colour, x, -16, z, ROT[0], "3031"), ...look.props(put, -16));
   });
   return modelText(out, "room.ldr");
 }
