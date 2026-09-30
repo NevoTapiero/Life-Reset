@@ -9,6 +9,7 @@ import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
 import MinifigPicker from "@/components/MinifigPicker";
 import FirstTips from "@/components/FirstTips";
 import TellTheJudge from "@/components/TellTheJudge";
+import StartSteps from "@/components/StartSteps";
 import BuildYourDay from "@/components/BuildYourDay";
 import { GoldBrick } from "@/components/GoldBricks";
 import { goldBricks, saveSeenGold, seenGold, type GoldBrick as GoldBrickT } from "@/lib/goldBricks";
@@ -293,6 +294,7 @@ export default function HomePage() {
       )}
 
       {p.archetype && <FirstTips />}
+      {p.archetype && <StartSteps doneCount={m.doneCount} />}
 
       {/* missions */}
       <div className="flex items-center justify-between mt-7 mb-3">
