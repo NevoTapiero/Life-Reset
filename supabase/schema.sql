@@ -637,8 +637,11 @@ as $$ select public.uncomplete_quest_for(p_quest_id, public.app_today()) $$;
 
 -- ============ social ============
 -- friends-only board: you and the challengers you added, nobody else
-create or replace function public.get_leaderboard()
-returns table (username text, archetype text, xp int, streak_current int, weekly_xp bigint, is_me boolean)
+-- (2026-09-30-profile-photo: also returns avatar_url; changing the return
+-- type needs a drop first)
+drop function if exists public.get_leaderboard();
+create function public.get_leaderboard()
+returns table (username text, archetype text, xp int, streak_current int, weekly_xp bigint, is_me boolean, avatar_url text)
 language sql stable security definer set search_path = public
 as $$
   with circle as (
@@ -650,7 +653,8 @@ as $$
   )
   select p.username, p.archetype, p.xp, p.streak_current,
          coalesce(sum(c.xp_awarded) filter (where c.completed_on >= public.app_today() - 6), 0) as weekly_xp,
-         p.id = auth.uid() as is_me
+         p.id = auth.uid() as is_me,
+         p.avatar_url
   from public.profiles p
   join circle on circle.pid = p.id
   left join public.quest_completions c on c.user_id = p.id
@@ -1779,3 +1783,55 @@ end $$;
 drop trigger if exists quest_gold on public.quest_completions;
 create trigger quest_gold after insert or update of xp_awarded or delete on public.quest_completions
   for each row execute function public.gold_follows_quest_xp();
+
+-- ============ profile photo (2026-09-30-profile-photo.sql) ============
+alter table public.profiles add column if not exists avatar_url text;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('avatars', 'avatars', true, 2097152, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update
+  set public = excluded.public,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "avatars_read_own" on storage.objects;
+drop policy if exists "avatars_insert_own" on storage.objects;
+drop policy if exists "avatars_update_own" on storage.objects;
+drop policy if exists "avatars_delete_own" on storage.objects;
+
+create policy "avatars_read_own" on storage.objects for select to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "avatars_insert_own" on storage.objects for insert to authenticated
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "avatars_update_own" on storage.objects for update to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "avatars_delete_own" on storage.objects for delete to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- Set (or clear, with null) your picture. Only a public URL inside your own
+-- folder of this project's avatars bucket is accepted.
+create or replace function public.set_avatar(p_url text)
+returns public.profiles
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  me uuid := auth.uid();
+  result public.profiles;
+begin
+  if me is null then
+    raise exception 'not signed in';
+  end if;
+  if p_url is not null and p_url not like
+     'https://etlumfjimkjjdmhimzwr.supabase.co/storage/v1/object/public/avatars/' || me::text || '/%' then
+    raise exception 'that picture is not in your folder';
+  end if;
+  update public.profiles set avatar_url = p_url where id = me returning * into result;
+  return result;
+end;
+$$;
+
+revoke all on function public.set_avatar(text) from public, anon;
+grant execute on function public.set_avatar(text) to authenticated;

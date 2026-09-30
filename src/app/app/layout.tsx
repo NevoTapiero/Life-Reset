@@ -4,37 +4,31 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { applyCharacterTheme } from "@/lib/theme";
+import { resetTheme } from "@/lib/theme";
 import Icon from "@/components/Icon";
+import BrickLoader from "@/components/BrickLoader";
 
+// Three screens outside the LEGO world: Home (your missions and apps), World
+// (the board and the door into the 3D town) and Profile (the dry stuff).
 const TABS = [
-  { href: "/app", label: "You", icon: "user" },
-  { href: "/app/town", label: "Town", icon: "users" },
-  { href: "/app/missions", label: "Missions", icon: "tasks" },
-  { href: "/app/stats", label: "Record", icon: "chart" },
-  { href: "/app/profile", label: "Profile", icon: "sliders" },
+  { href: "/app", label: "Home", icon: "home", match: (p: string) => p === "/app" || p.startsWith("/app/quests") || p.startsWith("/app/missions") },
+  { href: "/app/world", label: "World", icon: "globe", match: (p: string) => p.startsWith("/app/world") || p.startsWith("/app/leaderboard") },
+  { href: "/app/profile", label: "Profile", icon: "user", match: (p: string) => p.startsWith("/app/profile") || p.startsWith("/app/stats") },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [authed, setAuthed] = useState<boolean | null>(null);
-  const activeIndex = TABS.findIndex((t) => t.href === pathname);
 
   useEffect(() => {
+    resetTheme();
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) {
         router.replace("/auth");
         return;
       }
       setAuthed(true);
-      // paint the app in the user's character colors
-      supabase
-        .from("profiles")
-        .select("archetype")
-        .eq("id", data.session.user.id)
-        .single()
-        .then(({ data: p }) => applyCharacterTheme(p?.archetype));
       // redeem a pending invite-link code from before sign-in
       let code: string | null = null;
       try {
@@ -42,7 +36,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         if (code) localStorage.removeItem("sl-pending-code");
       } catch {}
       if (code) {
-        supabase.rpc("add_friend", { p_code: code }).then(() => router.replace("/app/leaderboard"));
+        supabase.rpc("add_friend", { p_code: code }).then(() => router.replace("/app/world"));
       }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
@@ -54,73 +48,37 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!authed) {
     return (
       <main className="flex-1 flex items-center justify-center">
-        <div className="hud-label pulse-glow">Loading…</div>
+        <BrickLoader label="Loading" />
       </main>
     );
   }
 
-  // the friend profile is a focused, full-screen view: no nav, no distractions
-  const hideNav = pathname.startsWith("/app/friend/");
+  // Inside the 3D world the town takes the whole screen; a friend's page is a
+  // focused view. Neither shows the bar.
+  const inWorld = pathname.startsWith("/app/town");
+  const hideNav = inWorld || pathname.startsWith("/app/friend/");
+
+  if (inWorld) {
+    return <main className="fixed inset-0 z-30 bg-[var(--bg-top)]">{children}</main>;
+  }
 
   return (
     <>
-      <main className={`flex-1 pt-5 ${hideNav ? "pb-8" : "pb-28"}`}>{children}</main>
+      <main className={`flex-1 pt-4 ${hideNav ? "pb-8" : "pb-32"}`}>{children}</main>
       {!hideNav && (
-      <nav
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md px-4 pb-4 z-40"
-        style={{ willChange: "transform" }}
-      >
-        <div
-          className="relative flex py-2.5 rounded-full border border-line"
-          style={{
-            background: "color-mix(in srgb, var(--panel) 85%, transparent)",
-            backdropFilter: "blur(18px)",
-            boxShadow: "0 12px 40px rgba(0,0,0,0.55)",
-          }}
-        >
-          {/* springy bubble: pokes above the bar and lands with a bounce */}
-          <div
-            aria-hidden
-            className="absolute inset-y-0 flex items-center justify-center"
-            style={{
-              width: `${100 / TABS.length}%`,
-              transform: `translateX(${Math.max(activeIndex, 0) * 100}%)`,
-              transition: "transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1)",
-              opacity: activeIndex < 0 ? 0 : 1,
-            }}
-          >
-            <span
-              className="block rounded-full"
-              style={{
-                width: 54,
-                height: 54,
-                transform: "translateY(-13px)",
-                background: "linear-gradient(180deg, var(--accent-2), var(--accent))",
-                boxShadow:
-                  "0 6px 22px rgb(var(--accent-rgb) / 0.55), 0 0 0 5px var(--bg), inset 0 1px 0 rgba(255,255,255,0.3)",
-              }}
-            />
+        <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md px-4 pb-4 z-40" aria-label="Main">
+          <div className="brick-nav">
+            {TABS.map((t) => {
+              const on = t.match(pathname);
+              return (
+                <Link key={t.href} href={t.href} className={on ? "on" : ""} aria-current={on ? "page" : undefined}>
+                  <Icon name={t.icon} size={22} strokeWidth={on ? 2.3 : 2} />
+                  {t.label}
+                </Link>
+              );
+            })}
           </div>
-          {TABS.map((t) => {
-            const active = pathname === t.href;
-            return (
-              <Link
-                key={t.href}
-                href={t.href}
-                aria-label={t.label}
-                className="relative flex-1 flex items-center justify-center py-2.5 active:scale-90"
-                style={{
-                  color: active ? "#fff" : "var(--muted)",
-                  transform: active ? "translateY(-13px)" : "none",
-                  transition: "transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1), color 200ms ease",
-                }}
-              >
-                <Icon name={t.icon} size={23} strokeWidth={active ? 2 : 1.7} />
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
+        </nav>
       )}
     </>
   );

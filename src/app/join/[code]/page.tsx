@@ -24,7 +24,7 @@ export default function JoinPage() {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
         await supabase.rpc("add_friend", { p_code: code });
-        router.replace("/app/leaderboard");
+        router.replace("/app/world");
       } else {
         try {
           localStorage.setItem("sl-pending-code", code);

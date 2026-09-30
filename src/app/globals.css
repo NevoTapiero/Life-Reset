@@ -1,30 +1,57 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   BRICK THEME. The whole app outside the 3D world looks like a LEGO game:
+   a blue baseplate behind everything, white tiles with a plastic lip, real
+   LEGO brick colours for actions. Every colour lives here as a token; pages
+   use the tokens, never raw hex.
+   --------------------------------------------------------------------------- */
 :root {
-  /* neutral surfaces, tinted toward the character accent so the whole app
-     carries the theme rather than just the buttons and text. Kept low --
-     past ~10% the greys start fighting the body copy for contrast. */
-  --bg-neutral: #0c0c0e;
-  --panel-neutral: #1c1c1e;
-  --panel-2-neutral: #242428;
-  --bg: color-mix(in srgb, var(--accent) 7%, var(--bg-neutral));
-  --panel: color-mix(in srgb, var(--accent) 8%, var(--panel-neutral));
-  --panel-2: color-mix(in srgb, var(--accent) 8%, var(--panel-2-neutral));
-  --line: rgba(255, 255, 255, 0.08);
-  --line-strong: rgba(255, 255, 255, 0.16);
-  --ink: #ffffff;
-  --muted: #8e8e93;
-  --accent: #ff6b00;
-  --accent-2: #ff8800;
-  /* same colors as bare triplets, for rgb(... / alpha) glows below */
-  --accent-rgb: 255 107 0;
-  --accent-2-rgb: 255 136 0;
-  --bronze: #d47a1e;
-  --gold: #f5c752;
-  --silver: #c3cede;
-  --danger: #ff5d73;
+  /* real LEGO colours */
+  --lego-red: #c91a09;
+  --lego-red-edge: #8a1206;
+  --lego-blue: #0055bf;
+  --lego-blue-edge: #003a85;
+  --lego-azure: #078bc9;
+  --lego-light-blue: #9fc3e9;
+  --lego-yellow: #f2cd37;
+  --lego-yellow-edge: #b88a06;
+  --lego-green: #4b9f4a;
+  --lego-green-edge: #256a2b;
+  --lego-orange: #fe8a18;
+  --lego-orange-edge: #b35a00;
+  --lego-black: #1b2a34;
+  --lego-grey: #a0a5a9;
+  --lego-dark-grey: #6c6e68;
+  --lego-white: #ffffff;
+  --lego-tan: #e4cd9e;
+
+  /* surfaces */
+  --bg: #b9d6f2;
+  --bg-top: #7fb3ea;
+  --plate: #a9cbef; /* baseplate studs */
+  --panel: #ffffff;
+  --panel-2: #eef2f6;
+  --lip: #c6d1dc; /* the plastic edge under a white tile */
+  --line: #dde4eb;
+  --line-strong: #c3ced9;
+  --ink: var(--lego-black);
+  --muted: #5d6b77;
+
+  /* action colours */
+  --accent: var(--lego-blue);
+  --accent-2: var(--lego-azure);
+  --accent-rgb: 0 85 191;
+  --accent-2-rgb: 7 139 201;
+  --bronze: #b0602a;
+  --gold: var(--lego-yellow);
+  --silver: var(--lego-grey);
+  --danger: var(--lego-red);
+  --good: var(--lego-green);
+
   --ease-strong: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @theme inline {
@@ -40,9 +67,15 @@
   --color-danger: var(--danger);
   --color-gold: var(--gold);
   --color-silver: var(--silver);
-  --font-sans: var(--font-archivo);
+  --color-good: var(--good);
+  --color-brick-red: var(--lego-red);
+  --color-brick-blue: var(--lego-blue);
+  --color-brick-yellow: var(--lego-yellow);
+  --color-brick-green: var(--lego-green);
+  --color-brick-orange: var(--lego-orange);
+  --font-sans: var(--font-body);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-archivo);
+  --font-display: var(--font-brick);
 }
 
 html {
@@ -58,50 +91,53 @@ html, body {
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-family: var(--font-body), system-ui, sans-serif;
   font-size: 15.5px;
-  font-weight: 460;
+  font-weight: 600;
   min-height: 100dvh;
 }
 
-/* ambient amber glow, like the original app's radial atmosphere */
+/* the baseplate: sky at the top fading into a light blue plate of studs */
 .glow-scene {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(42rem 30rem at 50% -8rem, rgb(var(--accent-rgb) / 0.16), transparent 60%),
-    radial-gradient(30rem 22rem at 85% 105%, rgb(var(--accent-rgb) / 0.05), transparent 65%);
+    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.55) 0 3.2px, var(--plate) 3.8px 5.6px, transparent 6.2px) 0 0 / 22px 22px,
+    linear-gradient(180deg, var(--bg-top) 0%, var(--bg) 38%, var(--bg) 100%);
+}
+.glow-scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--bg-top) 0%, color-mix(in srgb, var(--bg-top) 60%, transparent) 16%, transparent 42%);
 }
 
 ::selection {
-  background: rgb(var(--accent-rgb) / 0.35);
+  background: rgb(var(--accent-rgb) / 0.25);
 }
 
-/* type: wide heavy geometric for the in-app HUD voice */
+/* type: chunky rounded letters, like a LEGO game menu */
 .display {
-  font-family: var(--font-archivo), sans-serif;
-  font-stretch: 125%;
-  font-weight: 850;
-  letter-spacing: 0.01em;
-  text-transform: uppercase;
+  font-family: var(--font-brick), var(--font-body), sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  line-height: 1.1;
 }
 
-/* tall condensed block lettering for the marketing screens */
 .display-hero {
-  font-family: var(--font-anton), var(--font-archivo), sans-serif;
-  font-weight: 400;
-  letter-spacing: 0.015em;
-  text-transform: uppercase;
+  font-family: var(--font-brick), var(--font-body), sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 0.95;
 }
 
 .hud-label {
-  font-family: var(--font-archivo), sans-serif;
-  font-stretch: 110%;
-  font-weight: 700;
-  font-size: 10.5px;
-  letter-spacing: 0.14em;
+  font-family: var(--font-body), sans-serif;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -110,123 +146,163 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--line);
   border-radius: 999px;
   padding: 6px 15px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--panel);
+  box-shadow: 0 3px 0 var(--lip);
 }
 .eyebrow::before {
   content: "";
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   background: var(--accent);
-  box-shadow: 0 0 10px var(--accent);
 }
 
-/* surfaces */
+/* ---- surfaces: white LEGO tiles with a plastic lip ---- */
 .card {
   background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 18px;
+  box-shadow: 0 4px 0 var(--lip), 0 8px 18px rgb(27 42 52 / 0.1);
+}
+
+/* a tile with a row of studs on top, for the headline blocks */
+.tile-studs {
+  position: relative;
+  margin-top: 6px;
+}
+.tile-studs::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: -6px;
+  height: 8px;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 50% 45%, #ffffff 0 3px, #e3e9ef 3.6px 5px, transparent 5.5px);
+  background-size: 18px 9px;
+  background-repeat: space no-repeat;
 }
 
 .bezel {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--line);
+  background: var(--panel-2);
   border-radius: 22px;
   padding: 6px;
 }
 .bezel-core {
-  background: linear-gradient(180deg, #202024, #1a1a1d);
+  background: var(--panel);
   border-radius: 16px;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.07);
+  box-shadow: 0 3px 0 var(--lip);
 }
 
 .hud-frame {
-  border: 1px solid rgb(var(--accent-rgb) / 0.5);
-  outline: 1px solid rgb(var(--accent-rgb) / 0.14);
-  outline-offset: 3px;
-  border-radius: 14px;
-  box-shadow: 0 0 24px rgb(var(--accent-rgb) / 0.12);
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  border-radius: 18px;
+  box-shadow: 0 4px 0 var(--lego-blue-edge);
 }
 
-/* buttons */
-.btn-primary {
+/* ---- buttons are bricks: studs on top, a lip underneath to press into ---- */
+.btn-primary,
+.btn-ghost {
+  --brick: var(--lego-blue);
+  --brick-edge: var(--lego-blue-edge);
+  --brick-ink: #fff;
+  --press: 5px;
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, var(--accent-2), var(--accent));
-  color: #fff;
+  margin-top: 6px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brick) 80%, #fff) 0%, var(--brick) 40%, var(--brick) 100%);
+  color: var(--brick-ink);
+  font-family: var(--font-brick), var(--font-body), sans-serif;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 14px;
-  box-shadow: 0 5px 18px rgb(var(--accent-rgb) / 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  transition: transform 160ms var(--ease-strong), opacity 160ms ease;
-  animation: breathe 3.2s ease-in-out infinite;
+  font-size: 16px;
+  letter-spacing: 0.01em;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.45),
+    0 var(--press) 0 var(--brick-edge),
+    0 calc(var(--press) + 4px) 12px rgb(27 42 52 / 0.2);
+  transition: transform 90ms var(--ease-strong), box-shadow 90ms var(--ease-strong), filter 150ms ease;
+  -webkit-tap-highlight-color: transparent;
 }
-.btn-primary:active { transform: scale(0.97); }
-.btn-primary:disabled { opacity: 0.35; box-shadow: none; animation: none; }
-
-@keyframes breathe {
-  0%, 100% { box-shadow: 0 5px 18px rgb(var(--accent-rgb) / 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.25); }
-  50% { box-shadow: 0 5px 26px rgb(var(--accent-rgb) / 0.46), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.btn-primary::before,
+.btn-ghost::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: -6px;
+  height: 8px;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--brick) 65%, #fff) 0 3px, var(--brick) 3.6px 5px, transparent 5.5px);
+  background-size: 18px 9px;
+  background-repeat: space no-repeat;
 }
+.btn-primary:active:not(:disabled),
+.btn-ghost:active:not(:disabled) {
+  transform: translateY(calc(var(--press) - 1px));
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.45), 0 1px 0 var(--brick-edge), 0 2px 5px rgb(27 42 52 / 0.2);
+}
+.btn-primary:disabled,
+.btn-ghost:disabled { filter: saturate(0.4) brightness(1.05); opacity: 0.7; cursor: default; }
+.btn-primary:focus-visible,
+.btn-ghost:focus-visible { outline: 3px solid var(--lego-yellow); outline-offset: 3px; }
 
 .btn-ghost {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  border-radius: 999px;
-  background: var(--panel);
-  border: 1px solid var(--line-strong);
-  color: var(--ink);
-  font-weight: 600;
-  font-size: 14px;
-  transition: transform 160ms var(--ease-strong), border-color 160ms ease;
+  --brick: #ffffff;
+  --brick-edge: var(--lip);
+  --brick-ink: var(--ink);
+  font-size: 15px;
 }
-.btn-ghost:active { transform: scale(0.97); }
-@media (hover: hover) and (pointer: fine) {
-  .btn-ghost:hover { border-color: rgb(var(--accent-rgb) / 0.55); }
+.btn-ghost::before {
+  background-image: radial-gradient(circle at 50% 45%, #ffffff 0 3px, #e3e9ef 3.6px 5px, transparent 5.5px);
 }
+/* colour variants for any brick button */
+.brick-yellow { --brick: var(--lego-yellow); --brick-edge: var(--lego-yellow-edge); --brick-ink: var(--lego-black); }
+.brick-red { --brick: var(--lego-red); --brick-edge: var(--lego-red-edge); --brick-ink: #fff; }
+.brick-green { --brick: var(--lego-green); --brick-edge: var(--lego-green-edge); --brick-ink: #fff; }
+.brick-orange { --brick: var(--lego-orange); --brick-edge: var(--lego-orange-edge); --brick-ink: #fff; }
+.brick-flat::before { display: none; }
+.brick-flat { margin-top: 0; }
 
 .btn-icon-slot {
   width: 26px;
   height: 26px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.28);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: none;
 }
 
-/* rows and tiles */
+/* ---- rows and tiles ---- */
 .option-row {
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 2px solid transparent;
   border-radius: 16px;
-  transition: border-color 140ms ease, background 140ms ease, transform 120ms var(--ease-strong), box-shadow 140ms ease;
+  box-shadow: 0 3px 0 var(--lip);
+  transition: border-color 140ms ease, background 140ms ease, transform 120ms var(--ease-strong);
   cursor: pointer;
   text-align: left;
 }
-.option-row:active { transform: scale(0.985); }
+.option-row:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--lip); }
 .option-row.selected {
-  border-color: rgb(var(--accent-rgb) / 0.75);
-  background: linear-gradient(180deg, rgb(var(--accent-rgb) / 0.10), rgb(var(--accent-rgb) / 0.05)), var(--panel);
-  box-shadow: 0 0 20px rgb(var(--accent-rgb) / 0.10);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+  box-shadow: 0 3px 0 var(--lego-blue-edge);
 }
 
 .icon-tile {
   width: 44px;
   height: 44px;
   border-radius: 13px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--line);
+  background: var(--panel-2);
+  box-shadow: inset 0 -3px 0 var(--line-strong);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -236,19 +312,22 @@ body {
 
 .field {
   background: var(--panel);
-  border: 1px solid var(--line-strong);
+  border: 2px solid var(--line-strong);
   border-radius: 14px;
   color: var(--ink);
   outline: none;
+  font-weight: 700;
+  box-shadow: inset 0 2px 0 var(--panel-2);
   transition: border-color 140ms ease;
 }
-.field:focus { border-color: rgb(var(--accent-rgb) / 0.7); }
-.field::placeholder { color: var(--muted); }
+.field:focus { border-color: var(--accent); }
+.field::placeholder { color: var(--muted); font-weight: 600; }
 
 .track {
-  height: 7px;
+  height: 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--panel-2);
+  box-shadow: inset 0 2px 0 var(--line-strong);
   overflow: hidden;
 }
 .track > div {
@@ -257,11 +336,10 @@ body {
   transition: width 500ms var(--ease-strong);
 }
 .track-accent > div {
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  box-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.5);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lego-green) 75%, #fff), var(--lego-green));
 }
 
-/* motion */
+/* ---- motion ---- */
 @keyframes rise {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
@@ -285,20 +363,21 @@ body {
 .stagger > *:nth-child(12) { animation-delay: 440ms; }
 
 @keyframes pulseGlow {
-  0%, 100% { opacity: 0.75; }
+  0%, 100% { opacity: 0.65; }
   50% { opacity: 1; }
 }
 .pulse-glow { animation: pulseGlow 1.6s ease-in-out infinite; }
 
 @keyframes floatUp {
-  0% { opacity: 0; transform: translateY(4px); }
-  15% { opacity: 1; }
-  100% { opacity: 0; transform: translateY(-24px); }
+  0% { opacity: 0; transform: translateY(4px) scale(0.9); }
+  15% { opacity: 1; transform: translateY(0) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-26px) scale(1); }
 }
 .xp-float {
   animation: floatUp 1.1s var(--ease-strong) both;
-  color: var(--accent);
-  text-shadow: 0 0 14px rgb(var(--accent-rgb) / 0.8);
+  color: var(--lego-green-edge);
+  font-family: var(--font-brick), sans-serif;
+  font-weight: 700;
 }
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -306,8 +385,8 @@ body {
 
 /* screen slide between pages */
 @keyframes slideIn {
-  from { opacity: 0; transform: translateX(26px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .slide-in { animation: slideIn 380ms var(--ease-strong) backwards; }
 
@@ -349,20 +428,21 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(7, 7, 9, 0.88);
-  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--lego-blue) 88%, transparent);
+  backdrop-filter: blur(6px);
+  color: #fff;
   animation: fadeUp 240ms ease both;
 }
-.rankup-badge { animation: badgeLand 620ms cubic-bezier(0.34, 1.56, 0.64, 1) both 120ms; }
+.rankup-badge { animation: badgeLand 620ms var(--ease-bounce) both 120ms; }
 .rankup-ring {
   position: absolute;
   width: 220px;
   height: 220px;
   border-radius: 999px;
-  border: 2px solid var(--accent);
+  border: 4px solid var(--lego-yellow);
   animation: ringExpand 900ms var(--ease-strong) both 260ms;
 }
-.rankup-ring.late { animation-delay: 460ms; border-color: rgba(255, 136, 0, 0.6); }
+.rankup-ring.late { animation-delay: 460ms; border-color: #fff; }
 .rankup-title { animation: fadeUp 420ms var(--ease-strong) both 340ms; }
 
 /* trophy bounce on all-clear */
@@ -373,88 +453,70 @@ body {
 }
 .bounce-in { animation: bounceIn 520ms var(--ease-strong) both; }
 
-/* toggle switch */
+/* toggle switch: a 1x2 plate sliding along a 1x4 */
 .switch {
-  width: 46px;
-  height: 27px;
+  width: 50px;
+  height: 30px;
   border-radius: 999px;
-  border: 1px solid var(--line-strong);
   background: var(--panel-2);
+  box-shadow: inset 0 2px 0 var(--line-strong);
   position: relative;
-  transition: background 200ms ease, border-color 200ms ease;
+  transition: background 200ms ease;
   flex: none;
   cursor: pointer;
 }
 .switch::after {
   content: "";
   position: absolute;
-  top: 2.5px;
+  top: 3px;
   left: 3px;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
-  background: var(--muted);
-  transition: transform 220ms var(--ease-drawer), background 200ms ease;
+  background: #fff;
+  box-shadow: 0 2px 0 var(--lip), 0 2px 5px rgb(27 42 52 / 0.2);
+  transition: transform 220ms var(--ease-drawer);
 }
-.switch.on {
-  background: rgb(var(--accent-rgb) / 0.25);
-  border-color: rgb(var(--accent-rgb) / 0.7);
-}
-.switch.on::after {
-  transform: translateX(19px);
-  background: var(--accent);
-  box-shadow: 0 0 10px rgb(var(--accent-rgb) / 0.7);
-}
+.switch.on { background: var(--lego-green); box-shadow: inset 0 2px 0 var(--lego-green-edge); }
+.switch.on::after { transform: translateX(20px); }
 
-/* segmented arcade XP meter: discrete ticks, neon fill, dark gaps */
+/* the XP meter: a row of 1x1 bricks filling up */
 .bar-seg {
   position: relative;
-  height: 15px;
-  border-radius: 5px;
-  background: #232327;
+  height: 16px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  box-shadow: inset 0 2px 0 var(--line-strong);
   overflow: hidden;
 }
 .bar-seg > i {
   position: absolute;
   inset: 0;
   display: block;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  box-shadow: 0 0 18px rgb(var(--accent-rgb) / 0.55);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lego-green) 70%, #fff) 0%, var(--lego-green) 45%, var(--lego-green-edge) 100%);
   transition: width 600ms var(--ease-strong);
 }
 .bar-seg > b {
   position: absolute;
   inset: 0;
   display: block;
-  background: repeating-linear-gradient(90deg, transparent 0 11px, var(--bg) 11px 14px);
+  background: repeating-linear-gradient(90deg, transparent 0 12px, rgb(27 42 52 / 0.16) 12px 14px);
   pointer-events: none;
 }
 
-/* podium metal frames for the board (no overflow clip: the row menu must escape) */
+/* podium rows on the board (no overflow clip: the row menu must escape) */
 .metal-row {
   position: relative;
   border-radius: 18px;
+  background: var(--panel);
 }
-.metal-gold {
-  border: 1px solid rgba(245, 199, 82, 0.85);
-  background: linear-gradient(180deg, rgba(245, 199, 82, 0.16), rgba(245, 199, 82, 0.04)), var(--panel);
-  box-shadow: 0 0 26px rgba(245, 199, 82, 0.22), inset 0 1px 0 rgba(255, 235, 170, 0.25);
-}
-.metal-silver {
-  border: 1px solid rgba(195, 206, 222, 0.6);
-  background: linear-gradient(180deg, rgba(195, 206, 222, 0.11), rgba(195, 206, 222, 0.03)), var(--panel);
-  box-shadow: 0 0 18px rgba(195, 206, 222, 0.12), inset 0 1px 0 rgba(225, 232, 244, 0.18);
-}
-.metal-bronze {
-  border: 1px solid rgba(212, 122, 30, 0.6);
-  background: linear-gradient(180deg, rgba(212, 122, 30, 0.12), rgba(212, 122, 30, 0.03)), var(--panel);
-  box-shadow: 0 0 18px rgba(212, 122, 30, 0.14), inset 0 1px 0 rgba(240, 170, 96, 0.18);
-}
+.metal-gold { box-shadow: 0 0 0 3px var(--lego-yellow), 0 5px 0 3px var(--lego-yellow-edge); }
+.metal-silver { box-shadow: 0 0 0 3px var(--lego-grey), 0 5px 0 3px var(--lego-dark-grey); }
+.metal-bronze { box-shadow: 0 0 0 3px var(--lego-orange), 0 5px 0 3px var(--lego-orange-edge); }
 @keyframes shineSweep {
   0% { transform: translateX(-130%) skewX(-18deg); }
   55%, 100% { transform: translateX(240%) skewX(-18deg); }
 }
-/* clipped overlay that carries the gold sweep, so the row itself can overflow */
 .shine-overlay {
   position: absolute;
   inset: 0;
@@ -468,11 +530,11 @@ body {
   top: 0;
   bottom: 0;
   width: 42%;
-  background: linear-gradient(90deg, transparent, rgba(255, 240, 190, 0.16), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
   animation: shineSweep 3.4s ease-in-out infinite;
 }
 
-/* medal chip: circular rank number in metal */
+/* medal: a round 1x1 tile with the place number */
 .medal {
   width: 30px;
   height: 30px;
@@ -481,23 +543,23 @@ body {
   align-items: center;
   justify-content: center;
   flex: none;
-  color: #101013;
-  font-stretch: 125%;
-  font-weight: 850;
-  font-size: 14px;
+  color: var(--lego-black);
+  font-family: var(--font-brick), sans-serif;
+  font-weight: 700;
+  font-size: 15px;
 }
-.medal-gold { background: linear-gradient(160deg, #ffe9a3, #f5c752 55%, #c99a2e); box-shadow: 0 0 14px rgba(245, 199, 82, 0.5); }
-.medal-silver { background: linear-gradient(160deg, #eef3fa, #c3cede 55%, #8fa0b8); box-shadow: 0 0 12px rgba(195, 206, 222, 0.35); }
-.medal-bronze { background: linear-gradient(160deg, #f0b070, #d47a1e 55%, #9d5a14); box-shadow: 0 0 12px rgba(212, 122, 30, 0.4); }
+.medal-gold { background: var(--lego-yellow); box-shadow: inset 0 -3px 0 var(--lego-yellow-edge); }
+.medal-silver { background: #d9dcde; box-shadow: inset 0 -3px 0 var(--lego-grey); }
+.medal-bronze { background: var(--lego-orange); color: #fff; box-shadow: inset 0 -3px 0 var(--lego-orange-edge); }
 
-/* character scene: dark wallpaper card with amber glow + radar grid */
+/* hero scene: a sky tile */
 .scene {
   position: relative;
   border-radius: 22px;
-  border: 1px solid var(--line);
   background:
-    radial-gradient(26rem 17rem at 50% -10%, var(--scene-glow, rgb(var(--accent-rgb) / 0.28)), transparent 62%),
-    linear-gradient(180deg, #17171a, #0f0f11);
+    radial-gradient(26rem 17rem at 50% -10%, rgba(255, 255, 255, 0.6), transparent 62%),
+    linear-gradient(180deg, var(--bg-top), var(--lego-light-blue));
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--lego-blue) 45%, var(--bg-top)), 0 8px 18px rgb(27 42 52 / 0.12);
   overflow: hidden;
 }
 @keyframes floatP {
@@ -506,42 +568,181 @@ body {
 }
 .particle {
   position: absolute;
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
+  background: #fff;
   animation: floatP 4.6s ease-in-out infinite;
   pointer-events: none;
 }
 
-/* class pill: uppercase tag with glowing dot */
+/* class pill: a small coloured tile tag */
 .class-pill {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  border: 1px solid var(--line-strong);
   border-radius: 999px;
-  padding: 5px 13px;
-  background: rgba(0, 0, 0, 0.35);
-  font-stretch: 110%;
-  font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.14em;
+  padding: 5px 12px;
+  background: var(--panel);
+  box-shadow: 0 2px 0 var(--lip);
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .class-pill::before {
   content: "";
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   background: currentColor;
-  box-shadow: 0 0 9px currentColor;
 }
+
+/* ---- brick theme pieces used by the Home, World and Profile screens ---- */
+
+/* a round stud checkbox: empty stud, then a green one with a tick */
+.stud-check {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: transparent;
+  background: radial-gradient(circle at 50% 45%, #ffffff 0 9px, var(--panel-2) 10px 100%);
+  box-shadow: inset 0 -3px 0 var(--line-strong), 0 0 0 2px var(--line-strong);
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+.stud-check.on {
+  color: #fff;
+  background: radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--lego-green) 70%, #fff) 0 9px, var(--lego-green) 10px 100%);
+  box-shadow: inset 0 -3px 0 var(--lego-green-edge), 0 0 0 2px var(--lego-green-edge);
+}
+
+/* a colour strip on the left of a mission tile: the pillar's brick */
+.pillar-strip {
+  width: 10px;
+  align-self: stretch;
+  border-radius: 6px;
+  background: var(--strip, var(--lego-blue));
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.2);
+  flex: none;
+}
+
+/* segmented brick tabs */
+.brick-tabs {
+  display: grid;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--lego-blue) 16%, var(--panel));
+  box-shadow: inset 0 2px 0 rgb(27 42 52 / 0.08);
+}
+.brick-tab {
+  padding: 8px 6px;
+  border-radius: 11px;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 150ms ease, color 150ms ease, transform 120ms var(--ease-strong);
+}
+.brick-tab.on {
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 3px 0 var(--lip);
+}
+.brick-tab:active { transform: translateY(1px); }
+.count-chip {
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 18px;
+  background: var(--panel-2);
+  color: var(--muted);
+}
+.brick-tab.on .count-chip { background: var(--lego-yellow); color: var(--lego-black); }
+
+/* small stat chips (streak, gold, level) */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: nowrap;
+  background: var(--panel-2);
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--line-strong);
+}
+.chip-red { background: var(--lego-red); color: #fff; box-shadow: inset 0 -2px 0 var(--lego-red-edge); }
+.chip-blue { background: var(--lego-blue); color: #fff; box-shadow: inset 0 -2px 0 var(--lego-blue-edge); }
+.chip-yellow { background: var(--lego-yellow); color: var(--lego-black); box-shadow: inset 0 -2px 0 var(--lego-yellow-edge); }
+.chip-green { background: var(--lego-green); color: #fff; box-shadow: inset 0 -2px 0 var(--lego-green-edge); }
+.chip-orange { background: var(--lego-orange); color: #fff; box-shadow: inset 0 -2px 0 var(--lego-orange-edge); }
+
+/* section heading with a little brick in front */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-brick), sans-serif;
+  font-weight: 700;
+  font-size: 19px;
+  color: var(--ink);
+}
+.section-title::before {
+  content: "";
+  width: 16px;
+  height: 11px;
+  border-radius: 3px;
+  background: var(--brick, var(--lego-red));
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.22), 4px -3px 0 -1px var(--brick, var(--lego-red)), -4px -3px 0 -1px var(--brick, var(--lego-red));
+  flex: none;
+}
+
+/* the bottom bar: a white plate with three brick buttons */
+.brick-nav {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 24px;
+  background: var(--panel);
+  box-shadow: 0 5px 0 var(--lip), 0 14px 30px rgb(27 42 52 / 0.25);
+}
+.brick-nav a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px 7px;
+  border-radius: 16px;
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  transition: background 160ms ease, color 160ms ease, transform 200ms var(--ease-bounce), box-shadow 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.brick-nav a.on {
+  color: var(--lego-black);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lego-yellow) 70%, #fff), var(--lego-yellow) 45%);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.5), 0 4px 0 var(--lego-yellow-edge);
+  transform: translateY(-4px);
+}
+.brick-nav a:active { transform: translateY(1px); }
 
 @media (prefers-reduced-motion: reduce) {
   .rise, .stagger > *, .slide-in, .check-pop, .bounce-in, .rankup-badge, .rankup-title { animation-duration: 1ms; animation-delay: 0ms; }
-  .btn-primary, .flame-flicker, .shine::before, .particle { animation: none; }
+  .flame-flicker, .shine-overlay::before, .particle { animation: none; }
   .rankup-ring { animation: none; opacity: 0; }
 }
 
