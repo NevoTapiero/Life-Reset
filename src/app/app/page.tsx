@@ -6,6 +6,7 @@ import AppActivity from "@/components/AppActivity";
 import BrickLoader from "@/components/BrickLoader";
 import Icon from "@/components/Icon";
 import MinifigPicker from "@/components/MinifigPicker";
+import FirstTips from "@/components/FirstTips";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import RankUp from "@/components/RankUp";
 import { useMissions } from "@/lib/useMissions";
@@ -96,6 +97,8 @@ export default function HomePage() {
           <span>{next ? `${rank.xpForStage - rank.xpIntoStage} XP to ${next}` : "Top rank"}</span>
         </div>
       </section>
+
+      {p.archetype && <FirstTips />}
 
       {/* missions */}
       <div className="flex items-center justify-between mt-7 mb-3">
