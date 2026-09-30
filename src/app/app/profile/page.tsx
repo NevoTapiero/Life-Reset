@@ -7,13 +7,24 @@ import { supabase } from "@/lib/supabase";
 import BrickLoader from "@/components/BrickLoader";
 import Connections from "@/components/Connections";
 import Icon from "@/components/Icon";
-import PlayerAvatar, { MinifigHead } from "@/components/PlayerAvatar";
+import LegoIcon, { BrickColor } from "@/components/LegoIcon";
+import Minifig from "@/components/Minifig";
+import PlayerAvatar from "@/components/PlayerAvatar";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import { setSound, soundOn } from "@/lib/sfx";
 import { CHARACTERS, CHARACTER_KEYS, CharacterKey, Profile, rankForXp } from "@/lib/game";
 
 // three.js touches window: the 3D plot loads on the client, and only when asked
 const LegoWorld = dynamic(() => import("@/components/LegoWorld"), { ssr: false });
+
+// the card behind each character, in LEGO colours: [top, bottom]
+const CARD_COLORS: Record<string, [string, string]> = {
+  warrior: ["#fe8a18", "#c91a09"],
+  mentalist: ["#b791d1", "#5d3a78"],
+  wizard: ["#3c86e0", "#0a3463"],
+  guardian: ["#7cc57b", "#237841"],
+  shadow: ["#3d4e5a", "#05131d"],
+};
 
 // Profile: the plain facts. Your picture, name, email, level, streak and XP,
 // which character you play, the apps you connected, privacy, sign out.
@@ -143,71 +154,89 @@ export default function ProfilePage() {
 
   return (
     <div className="slide-in">
-      {/* picture and name */}
-      <section className="card tile-studs px-5 pt-6 pb-5 text-center">
-        <div className="flex justify-center">
-        <div className="relative">
-          <PlayerAvatar photo={photo} character={profile.archetype} size={112} />
-          <button
-            className="absolute -right-1 bottom-0 grid place-items-center rounded-full"
-            style={{ width: 40, height: 40, background: "var(--lego-yellow)", color: "var(--lego-black)", boxShadow: "0 0 0 3px #fff, 0 4px 0 3px var(--lego-yellow-edge)" }}
-            aria-label="Change your picture"
-            disabled={uploading}
-            onClick={() => fileRef.current?.click()}
-          >
-            <Icon name={uploading ? "refresh" : "camera"} size={19} strokeWidth={2.2} className={uploading ? "animate-spin" : ""} />
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) uploadPhoto(f);
-            }}
-          />
+      {/* the collectible minifigure card: your minifig on its stand, your level as the series number */}
+      <section className="minifig-card" style={{ "--card": CARD_COLORS[profile.archetype ?? "warrior"]?.[0], "--card-2": CARD_COLORS[profile.archetype ?? "warrior"]?.[1] } as React.CSSProperties}>
+        <div className="relative flex items-start justify-between px-4 pt-4">
+          <span className="minifig-card-brand">
+            SOLO LEVELING
+            <b>MINIFIGURES</b>
+          </span>
+          <span className="minifig-card-level" aria-label={`Level ${level}`}>
+            <small>LV</small>
+            {level}
+          </span>
         </div>
+        <div className="relative flex justify-center pt-1 pb-3">
+          <span className="minifig-card-spot" aria-hidden />
+          <span className="minifig-float">
+            <Minifig character={profile.archetype} level={level} size={250} />
+          </span>
         </div>
-        {photo && (
-          <div>
-            <button className="text-[12.5px] font-extrabold text-muted underline underline-offset-4 mt-2" disabled={uploading} onClick={useMinifig}>
-              Use my minifig instead
-            </button>
-          </div>
-        )}
 
-        {!editing ? (
-          <button className="mt-3 flex items-center gap-2 mx-auto" onClick={() => setEditing(true)} aria-label="Edit your name">
-            <span className="display text-[28px]">{profile.username}</span>
-            <span className="text-muted">
-              <Icon name="pen" size={16} strokeWidth={2.2} />
-            </span>
-          </button>
-        ) : (
-          <div className="mt-4 flex gap-2">
+        {/* the nameplate */}
+        <div className="relative mx-3 mb-3 rounded-[16px] bg-white px-3.5 py-3 flex items-center gap-3" style={{ boxShadow: "0 4px 0 var(--lip)" }}>
+          <div className="relative flex-none">
+            <PlayerAvatar photo={photo} character={profile.archetype} size={54} />
+            <button
+              className="absolute -right-1.5 -bottom-1 grid place-items-center rounded-full"
+              style={{ width: 28, height: 28, background: "var(--lego-yellow)", color: "var(--lego-black)", boxShadow: "0 0 0 2px #fff, 0 3px 0 2px var(--lego-yellow-edge)" }}
+              aria-label="Change your picture"
+              disabled={uploading}
+              onClick={() => fileRef.current?.click()}
+            >
+              <Icon name={uploading ? "refresh" : "camera"} size={14} strokeWidth={2.4} className={uploading ? "animate-spin" : ""} />
+            </button>
             <input
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              className="field px-3.5 py-2.5 flex-1 min-w-0 text-[16px]"
-              maxLength={20}
-              aria-label="Your name"
-              autoFocus
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadPhoto(f);
+              }}
             />
-            <button className="btn-primary brick-flat px-4 py-2.5 !text-[14px]" onClick={saveName}>
-              Save
-            </button>
-            <button className="btn-ghost brick-flat px-3 py-2.5 !text-[14px]" onClick={() => { setEditing(false); setNameDraft(profile.username); }}>
-              Cancel
-            </button>
           </div>
-        )}
-        <div className="flex items-center justify-center gap-2 mt-2">
-          <span className="chip chip-blue">Level {level}</span>
-          <span className="font-extrabold">{levelTitle(profile.archetype, rank.tierIndex)}</span>
+          {!editing ? (
+            <button className="flex-1 min-w-0 text-left" onClick={() => setEditing(true)} aria-label="Edit your name">
+              <span className="flex items-center gap-1.5">
+                <span className="display text-[24px] truncate">{profile.username}</span>
+                <span className="text-muted flex-none">
+                  <Icon name="pen" size={14} strokeWidth={2.4} />
+                </span>
+              </span>
+              <span className="block text-[13px] font-extrabold text-muted truncate">
+                {levelTitle(profile.archetype, rank.tierIndex)} · {CHARACTERS[(profile.archetype ?? "warrior") as CharacterKey].name.replace("The ", "")} · {rank.label}
+              </span>
+            </button>
+          ) : (
+            <div className="flex-1 min-w-0 flex gap-1.5">
+              <input
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                className="field px-3 py-2 flex-1 min-w-0 text-[16px]"
+                maxLength={20}
+                aria-label="Your name"
+                autoFocus
+              />
+              <button className="btn-primary brick-flat px-3 py-2 !text-[13px]" onClick={saveName}>
+                Save
+              </button>
+              <button className="btn-ghost brick-flat px-2.5 py-2 !text-[13px]" aria-label="Cancel" onClick={() => { setEditing(false); setNameDraft(profile.username); }}>
+                <Icon name="x" size={14} strokeWidth={2.6} />
+              </button>
+            </div>
+          )}
         </div>
-        {msg && <p className="text-sm font-bold mt-3" style={{ color: "var(--danger)" }}>{msg}</p>}
       </section>
+      {photo && (
+        <div className="text-center">
+          <button className="text-[12.5px] font-extrabold text-muted underline underline-offset-4 mt-2" disabled={uploading} onClick={useMinifig}>
+            Remove my photo
+          </button>
+        </div>
+      )}
+      {msg && <p className="text-sm font-bold mt-3 text-center" style={{ color: "var(--danger)" }}>{msg}</p>}
 
       {/* your plot in 3D: the house grows with your level, the garden with your streak */}
       <section className="scene mt-4 overflow-hidden">
@@ -220,9 +249,7 @@ export default function ProfilePage() {
           </div>
         ) : (
           <button className="w-full px-4 py-4 flex items-center gap-3 text-left" onClick={() => setShow3d(true)}>
-            <span className="grid place-items-center rounded-[12px] flex-none text-white" style={{ width: 46, height: 46, background: "var(--lego-orange)", boxShadow: "inset 0 -3px 0 var(--lego-orange-edge)" }}>
-              <Icon name="home" size={22} strokeWidth={2.4} />
-            </span>
+            <LegoIcon name="home" color="orange" size={46} />
             <span className="flex-1">
               <span className="display block text-[18px] text-white" style={{ textShadow: "0 2px 0 rgb(0 0 0 / 0.15)" }}>My house in 3D</span>
               <span className="block text-[13px] font-extrabold text-white/90">Level {level} house, {profile.streak_current} day garden</span>
@@ -234,12 +261,12 @@ export default function ProfilePage() {
 
       {/* the numbers */}
       <section className="grid grid-cols-2 gap-3 mt-4">
-        <Stat label="Total XP" value={profile.xp.toLocaleString()} brick="var(--lego-green)" />
-        <Stat label="Rank" value={rank.label} brick="var(--lego-blue)" />
-        <Stat label="Streak" value={`${profile.streak_current} ${profile.streak_current === 1 ? "day" : "days"}`} brick="var(--lego-orange)" icon="flame" />
-        <Stat label="Best streak" value={`${profile.streak_best} ${profile.streak_best === 1 ? "day" : "days"}`} brick="var(--lego-red)" icon="trophy" />
-        <Stat label="Gold" value={(profile.gold ?? 0).toLocaleString()} brick="var(--lego-yellow)" icon="coin" />
-        <Stat label="Playing since" value={new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(profile.created_at))} brick="var(--lego-azure)" icon="calendar" />
+        <Stat label="Total XP" value={profile.xp.toLocaleString()} color="green" icon="star" />
+        <Stat label="Rank" value={rank.label} color="blue" icon="chart" />
+        <Stat label="Streak" value={`${profile.streak_current} ${profile.streak_current === 1 ? "day" : "days"}`} color="orange" icon="flame" />
+        <Stat label="Best streak" value={`${profile.streak_best} ${profile.streak_best === 1 ? "day" : "days"}`} color="red" icon="trophy" />
+        <Stat label="Gold" value={(profile.gold ?? 0).toLocaleString()} color="yellow" icon="stud" />
+        <Stat label="Playing since" value={new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(profile.created_at)).replace(" 20", " ")} color="azure" icon="calendar" />
       </section>
 
       {/* account */}
@@ -251,9 +278,7 @@ export default function ProfilePage() {
         <Row icon="chart" label="Your record" value="Stats and what you train most" onClick={() => router.push("/app/stats")} />
         <Row icon="user" label="Name" value={profile.username} onClick={() => { setEditing(true); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
         <div className="px-4 py-3.5 flex items-center gap-3">
-          <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
-            <Icon name="users" size={17} strokeWidth={2} />
-          </span>
+          <LegoIcon name="users" color="white" size={34} />
           <span className="flex-1 min-w-0">
             <span className="block font-extrabold text-[15px]">Friends can see me</span>
             <span className="block text-[12.5px] font-bold text-muted">{profile.share_activity ? "Your house and rank show in their town" : "You are hidden from friends"}</span>
@@ -261,9 +286,7 @@ export default function ProfilePage() {
           <button className={`switch ${profile.share_activity ? "on" : ""}`} role="switch" aria-checked={profile.share_activity} aria-label="Friends can see me" onClick={togglePrivacy} />
         </div>
         <div className="px-4 py-3.5 flex items-center gap-3">
-          <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
-            <Icon name="sparkle" size={17} strokeWidth={2} />
-          </span>
+          <LegoIcon name="sparkle" color="white" size={34} />
           <span className="flex-1 min-w-0">
             <span className="block font-extrabold text-[15px]">Sounds</span>
             <span className="block text-[12.5px] font-bold text-muted">Brick snaps and chimes on this device</span>
@@ -297,9 +320,7 @@ export default function ProfilePage() {
               aria-pressed={on}
               aria-label={CHARACTERS[key].name}
             >
-              <span className="rounded-full overflow-hidden">
-                <MinifigHead character={key} size={48} />
-              </span>
+              <Minifig character={key} level={level} size={78} />
               <span className="text-[10px] font-extrabold leading-tight">{CHARACTERS[key].name.replace("The ", "")}</span>
             </button>
           );
@@ -322,16 +343,13 @@ export default function ProfilePage() {
   );
 }
 
-function Stat({ label, value, brick, icon }: { label: string; value: string; brick: string; icon?: string }) {
+function Stat({ label, value, color, icon }: { label: string; value: string; color: BrickColor; icon: string }) {
   return (
-    <div className="card px-3.5 py-3 flex items-center gap-3 min-w-0">
-      <span className="w-2.5 self-stretch rounded-md flex-none" style={{ background: brick, boxShadow: "inset 0 -3px 0 rgb(0 0 0 / 0.2)" }} />
+    <div className="card px-3 py-3 flex items-center gap-2.5 min-w-0">
+      <LegoIcon name={icon} color={color} size={36} />
       <span className="min-w-0">
-        <span className="flex items-center gap-1 text-[12px] font-extrabold text-muted">
-          {icon && <Icon name={icon} size={13} strokeWidth={2.2} />}
-          {label}
-        </span>
-        <span className="display block text-[18px] truncate">{value}</span>
+        <span className="block text-[12px] font-extrabold text-muted">{label}</span>
+        <span className="display block text-[17px] truncate">{value}</span>
       </span>
     </div>
   );
@@ -340,9 +358,7 @@ function Stat({ label, value, brick, icon }: { label: string; value: string; bri
 function Row({ icon, label, value, onClick }: { icon: string; label: string; value: string; onClick?: () => void }) {
   const body = (
     <>
-      <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
-        <Icon name={icon} size={17} strokeWidth={2} />
-      </span>
+      <LegoIcon name={icon} color="white" size={34} />
       <span className="flex-1 min-w-0 text-left">
         <span className="block text-[12.5px] font-extrabold text-muted">{label}</span>
         <span className="block font-extrabold text-[15px] truncate">{value}</span>

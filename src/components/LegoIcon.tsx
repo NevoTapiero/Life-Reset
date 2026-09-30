@@ -68,6 +68,13 @@ const PRINTS: Record<string, React.ReactNode> = {
   ),
   play: <path d="M9 6.5v11l8.5-5.5Z" fill="currentColor" />,
   logout: <path d="M13.5 5.5H8A2.5 2.5 0 0 0 5.5 8v8A2.5 2.5 0 0 0 8 18.5h5.5M10.5 12h8M15.5 8.5 19 12l-3.5 3.5" />,
+  stud: (
+    <>
+      <circle cx="12" cy="12" r="6.6" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  star: <path d="m12 4.8 2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5-3.6-3.5 5-.7Z" />,
   // the five pillars
   "stat-str": <path d="M7 8v8M4.5 9.8v4.4M17 8v8M19.5 9.8v4.4M7 12h10" />,
   "stat-foc": (

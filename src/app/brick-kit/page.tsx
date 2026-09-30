@@ -2,6 +2,7 @@
 
 import LegoIcon, { BrickColor } from "@/components/LegoIcon";
 import { MinifigHead } from "@/components/PlayerAvatar";
+import Minifig from "@/components/Minifig";
 
 // The brick theme's parts on one page (like /lego-sets for the 3D world), to
 // look at every piece side by side while designing. Not linked from the app.
@@ -46,6 +47,16 @@ export default function BrickKit() {
             </span>
           ))}
         </div>
+      </section>
+      <section className="card p-4">
+        <h2 className="section-title mb-3">Minifigs by level</h2>
+        {CHARS.map((c) => (
+          <div key={c} className="flex items-end gap-1 mb-3">
+            {[1, 2, 3, 4, 5].map((l) => (
+              <Minifig key={l} character={c} level={l} size={96} />
+            ))}
+          </div>
+        ))}
       </section>
     </main>
   );
