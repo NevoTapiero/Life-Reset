@@ -6,16 +6,22 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { rankForXp } from "@/lib/game";
 import type { Resident } from "@/lib/legoWorld";
+import type { Visit } from "@/components/LegoWorld";
 
 const LegoTown = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoTown), { ssr: false });
 
 // ponytail: nearest 9 plots by rank order; page the street when friend lists get long
 const MAX_PLOTS = 9;
 
+type VisitRow = { username: string; knocked_by_me: boolean; allowed: boolean };
+
 // Your town: your plot in the middle of the street, your friends' either side.
 // Each house is built from that player's rank, each garden from their streak.
+// Knock on a friend's door to be let in; answer the people at yours.
 export default function TownPage() {
   const [residents, setResidents] = useState<Resident[] | null>(null);
+  const [visits, setVisits] = useState<Record<string, Visit>>({});
+  const [atDoor, setAtDoor] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,16 +35,38 @@ export default function TownPage() {
         me: r.is_me,
       }));
       // you in the middle, friends alternating either side
-      const me = people.filter((p) => p.me);
-      const others = people.filter((p) => !p.me);
-      const street: Resident[] = [...me];
-      others.forEach((p, i) => (i % 2 ? street.push(p) : street.unshift(p)));
+      const street: Resident[] = people.filter((p) => p.me);
+      people.filter((p) => !p.me).forEach((p, i) => (i % 2 ? street.push(p) : street.unshift(p)));
       setResidents(street);
+    });
+    supabase.rpc("my_visits").then(({ data, error }) => {
+      if (error) return; // visits need the house-visits migration; the town works without it
+      const rows = (data ?? []) as VisitRow[];
+      setVisits(Object.fromEntries(rows.filter((v) => v.knocked_by_me).map((v) => [v.username, v.allowed ? "allowed" : "knocked"])));
+      setAtDoor(rows.filter((v) => !v.knocked_by_me && !v.allowed).map((v) => v.username));
     });
   }, []);
 
-  if (error) return <p className="text-danger text-sm py-10 text-center">{error}</p>;
-  if (!residents) return <div className="hud-label pulse-glow text-center py-20">Walking into town…</div>;
+  async function knock(name: string) {
+    setError(null);
+    const { error } = await supabase.rpc("knock", { p_host: name });
+    if (error) return setError(error.message);
+    setVisits((v) => ({ ...v, [name]: "knocked" }));
+  }
+
+  async function answer(name: string, allow: boolean) {
+    const { error } = await supabase.rpc("answer_knock", { p_visitor: name, p_allow: allow });
+    if (error) return setError(error.message);
+    setAtDoor((d) => d.filter((n) => n !== name));
+  }
+
+  if (!residents) {
+    return error ? (
+      <p className="text-danger text-sm py-10 text-center">{error}</p>
+    ) : (
+      <div className="hud-label pulse-glow text-center py-20">Walking into town…</div>
+    );
+  }
 
   return (
     <div className="slide-in">
@@ -46,9 +74,26 @@ export default function TownPage() {
         <h1 className="display text-[19px]">Town</h1>
         <span className="hud-label">{residents.length === 1 ? "Just you so far" : `${residents.length} houses`}</span>
       </div>
-      <div className="relative rounded-2xl overflow-hidden" style={{ height: "68vh", minHeight: 380 }}>
-        <LegoTown residents={residents} className="absolute inset-0" />
-      </div>
+
+      {atDoor.map((name) => (
+        <div key={name} className="flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 mb-3" style={{ borderColor: "var(--line)" }}>
+          <span className="text-sm">
+            <b>{name}</b> is knocking on your door
+          </span>
+          <span className="flex gap-2 flex-none">
+            <button onClick={() => answer(name, false)} className="px-3 py-1.5 rounded-full text-sm text-muted">
+              Not now
+            </button>
+            <button onClick={() => answer(name, true)} className="px-3 py-1.5 rounded-full text-sm font-semibold" style={{ background: "var(--accent)", color: "#fff" }}>
+              Let in
+            </button>
+          </span>
+        </div>
+      ))}
+      {error && <p className="text-danger text-sm mb-3">{error}</p>}
+
+      <LegoTown residents={residents} visits={visits} onKnock={knock} className="rounded-2xl overflow-hidden h-[68vh] min-h-[380px]" />
+
       {residents.length === 1 && (
         <p className="text-muted text-sm mt-3 text-center">
           Your street is empty. <Link href="/app/leaderboard" className="underline">Add friends</Link> and their houses move in next door.

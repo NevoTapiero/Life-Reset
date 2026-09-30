@@ -4,6 +4,7 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import HOUSES from "@/lib/legoHouses.json";
+import type { Visit } from "@/components/LegoWorld";
 
 const LegoWorld = dynamic(() => import("@/components/LegoWorld"), { ssr: false });
 const LegoTown = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoTown), { ssr: false });
@@ -19,6 +20,12 @@ const DEMO_TOWN = [
 
 export default function LegoPreview() {
   const [level, setLevel] = useState<number | null>(null); // null = the town
+  // nevo already let you in, omer hasn't answered; a new knock is answered after a moment
+  const [visits, setVisits] = useState<Record<string, Visit>>({ nevo: "allowed", omer: "knocked" });
+  const knock = (name: string) => {
+    setVisits((v) => ({ ...v, [name]: "knocked" }));
+    setTimeout(() => setVisits((v) => ({ ...v, [name]: "allowed" })), 1500);
+  };
   const button = (active: boolean) => `px-3 py-1.5 rounded border text-sm ${active ? "bg-white text-black" : ""}`;
   return (
     <main className="min-h-screen p-4">
@@ -33,7 +40,7 @@ export default function LegoPreview() {
         ))}
       </div>
       {level === null ? (
-        <LegoTown residents={DEMO_TOWN} className="w-full h-[75vh] rounded overflow-hidden" />
+        <LegoTown residents={DEMO_TOWN} visits={visits} onKnock={knock} className="w-full h-[75vh] rounded overflow-hidden" />
       ) : (
         <LegoWorld houseLevel={level} streak={12} className="w-full h-[75vh] rounded overflow-hidden" />
       )}

@@ -18,6 +18,8 @@ export const COL = {
   black: 0,
   blue: 1,
   green: 2,
+  darkGreen: 288,
+  brightGreen: 10,
   red: 4,
   yellow: 14,
   white: 15,
@@ -34,13 +36,13 @@ export const COL = {
 // How far below its origin each part reaches (its bottom), measured from the
 // LDraw geometry: the part's origin sits this far above whatever it stands on.
 const BOTTOM: Record<string, number> = {
-  "3062b": 24, "3068b": 8, "3069b": 8, "3741ac05": 12, "3470": 8, "2435": 8,
+  "3062b": 24, "3068b": 8, "3069b": 8, "3741ac05": 12, "3470": 8, "2435": 8, "3471": 8, "2417": 8, "30055": 48,
 };
 
 // every part the plot and the minifig use; scripts/lego/pack.mjs packs exactly
 // these (the houses are official sets, baked separately into public/lego/houses)
 export const LEGO_PARTS = [
-  "4186", "91405", "3062b", "3068b", "3069b", "3741ac05", "3470", "2435",
+  "4186", "91405", "3062b", "3068b", "3069b", "3741ac05", "3470", "2435", "3471", "2417", "30055",
   "973", "3818", "3819", "3820", "3815", "3816", "3817", "3626cp01", "53981",
 ];
 
@@ -191,5 +193,73 @@ export function townText(residents: Resident[]): string {
   const plots = residents.map((r, i) =>
     modelText([baseplate(), ...buildGarden(r.streak, houseSpec(r.level))], `plot-${i}.ldr`),
   );
-  return [modelText(main, "town.ldr"), ...plots].join("");
+  return [modelText([...main, ...townLand(count)], "town.ldr"), ...plots].join("");
+}
+
+// ---- the land around the town -------------------------------------------
+
+// The street's extent in LDU: x across every plot, z from the back fence to
+// the far side of the street. The camera may not leave it.
+export function townBounds(count: number) {
+  return { x0: plotX(0, count), x1: plotX(count - 1, count), zBack: (-PLOT / 2) * S, zFront: (PLOT / 2 + 16) * S };
+}
+
+// small seeded random, so the forest is the same every visit
+function seeded(seed: number) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const TREES = [
+  { part: "3471", color: COL.darkGreen },
+  { part: "3471", color: COL.green },
+  { part: "3470", color: COL.green },
+  { part: "2435", color: COL.darkGreen },
+  { part: "2417", color: COL.brightGreen },
+];
+
+// Everything outside the plots: a spindled fence along the back of the street,
+// then meadow and a forest all around (baseplates of grass, trees and bushes)
+// that you can see but not walk into -- the edge of your world.
+export function townLand(count: number): string[] {
+  const out: string[] = [];
+  const P = PLOT * S;
+  const { x0, x1 } = townBounds(count);
+  const left = x0 - P / 2;
+  const right = x1 + P / 2;
+
+  // the fence, on the last row of every plot
+  for (let x = left + 40; x < right; x += 80) out.push(line(COL.reddishBrown, x, -BOTTOM["30055"], -P / 2 + 10, ROT[0], "30055"));
+
+  // grass: a ring of baseplates one plot deep around the street
+  const zStreet = P / 2 + 8 * S;
+  const ground: [number, number][] = [];
+  for (let i = -1; i <= count; i++) {
+    const x = plotX(i, count);
+    ground.push([x, -P], [x, P + 16 * S]);
+    if (i === -1 || i === count) ground.push([x, 0]);
+  }
+  for (const [x, z] of ground) out.push(line(COL.green, x, 0, z, ROT[0], "4186"));
+  // the street's two ends are grass too
+  for (const x of [plotX(-1, count), plotX(count, count)]) for (const dx of [-16, 0, 16]) out.push(line(COL.green, x + dx * S, 0, zStreet, ROT[0], "91405"));
+
+  // the forest: thick behind and at the ends, starting beyond a strip of meadow
+  // in front so it never hides the houses from the camera
+  const rnd = seeded(7);
+  for (const [gx, gz] of ground) {
+    const front = gz > 0;
+    const n = front ? 10 : 22;
+    for (let k = 0; k < n; k++) {
+      const t = TREES[Math.floor(rnd() * TREES.length)];
+      const x = gx + (rnd() - 0.5) * (P - 60);
+      const z = front ? gz + rnd() * (P / 2 - 40) : gz + (rnd() - 0.5) * (P - 60);
+      const rot = ([0, 90, 180, 270] as const)[Math.floor(rnd() * 4)];
+      out.push(line(t.color, Math.round(x / S) * S, -BOTTOM[t.part], Math.round(z / S) * S, ROT[rot], t.part));
+    }
+  }
+  return out;
 }
