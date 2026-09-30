@@ -108,10 +108,20 @@ export default function HomePage() {
   // energy for running in the town, from last night's sleep and today's steps
   // (the same rule as the town: src/lib/energy.ts)
   const [energy, setEnergy] = useState<number | null>(null);
+  // XP your apps paid that waits in your chest at home (collected in the world)
+  const [chest, setChest] = useState(0);
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       const uid = data.user?.id;
       if (!uid) return;
+      supabase
+        .from("xp_ledger")
+        .select("pending_xp")
+        .eq("user_id", uid)
+        .is("collected_at", null)
+        .then(({ data: rows, error }) => {
+          if (!error) setChest(((rows ?? []) as { pending_xp: number }[]).reduce((a, r) => a + (r.pending_xp ?? 0), 0));
+        });
       const since = new Date(new Date().getTime() - 36 * 3600 * 1000).toISOString();
       supabase
         .from("xp_ledger")
@@ -252,6 +262,17 @@ export default function HomePage() {
           )}
         </div>
       </section>
+
+      {chest > 0 && (
+        <Link href="/app/town" className="card mt-4 px-4 py-3 flex items-center gap-3 active:translate-y-[2px] transition-transform" style={{ background: "var(--lego-yellow)", boxShadow: "0 4px 0 var(--lego-yellow-edge)" }}>
+          <LegoIcon name="trophy" color="orange" size={40} />
+          <span className="flex-1">
+            <span className="display block text-[17px]">Your chest: +{chest.toLocaleString()} XP</span>
+            <span className="text-[13px] font-bold opacity-80">Waiting at home. Jump in and open it.</span>
+          </span>
+          <Icon name="chevron-right" size={18} strokeWidth={2.4} />
+        </Link>
+      )}
 
       {p.archetype && <FirstTips />}
 
