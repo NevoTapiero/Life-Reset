@@ -15,6 +15,7 @@ import { GoldBrick } from "@/components/GoldBricks";
 import { goldBricks, saveSeenGold, seenGold, type GoldBrick as GoldBrickT } from "@/lib/goldBricks";
 import Minifig from "@/components/Minifig";
 import StudCount from "@/components/StudCount";
+import Hearts from "@/components/Hearts";
 import { extraOn } from "@/lib/extras";
 import RankUp, { BrickBurst } from "@/components/RankUp";
 import { brickSound } from "@/lib/brickSound";
@@ -297,10 +298,9 @@ export default function HomePage() {
                 <Icon name="bolt" size={13} strokeWidth={2.4} />
                 Energy
               </span>
-              <span className="energy-bricks flex-1" aria-label={`Energy ${Math.round(energy)} of 100`}>
-                {Array.from({ length: 10 }, (_, i) => (
-                  <span key={i} className={i < Math.round(energy / 10) ? (energy >= 60 ? "g" : energy >= 30 ? "a" : "r") : ""} />
-                ))}
+              {/* energy as LEGO-game hearts: five, with halves */}
+              <span className="flex-1" role="img" aria-label={`Energy ${Math.round(energy)} of 100`}>
+                <Hearts value={energy} />
               </span>
               <span className="text-[12px] font-extrabold text-muted w-[88px] text-right">{energy >= 60 ? "Ready to run" : energy >= 30 ? "Sleep, walk" : "Tired"}</span>
             </div>

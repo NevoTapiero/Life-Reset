@@ -40,7 +40,7 @@ export default function ShopWindow({ gold }: { gold: number }) {
     <section className="card p-4">
       <div className="flex items-center justify-between">
         <span className="display text-[18px]">Town shop</span>
-        <span className="stud-counter !text-[14px]" aria-label={`${gold} gold`}>
+        <span className="stud-counter !text-[18px]" aria-label={`${gold} gold`}>
           <span className="stud-spin" aria-hidden />
           {gold.toLocaleString()}
         </span>

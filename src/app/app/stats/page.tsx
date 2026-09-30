@@ -79,7 +79,7 @@ export default function StatsPage() {
         <Link href="/app/profile" className="icon-tile !w-10 !h-10 !bg-white" aria-label="Back to Profile">
           <Icon name="chevron-left" size={20} strokeWidth={2.4} />
         </Link>
-        <h1 className="display text-[26px]">Your record</h1>
+        <h1 className="display tt-text text-[28px]">Your record</h1>
       </div>
       <div className="flex items-center gap-3.5 mt-5">
         <PlayerAvatar photo={photoOf(profile)} character={profile.archetype} size={58} />
