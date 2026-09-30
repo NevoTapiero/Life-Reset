@@ -12,8 +12,8 @@ import { useStations } from "@/lib/useStations";
 const LegoTown = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoTown), { ssr: false });
 const LegoRoom = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoRoom), { ssr: false });
 
-// ponytail: nearest 9 plots by rank order; page the street when friend lists get long
-const MAX_PLOTS = 9;
+// ponytail: you and your top 7 friends by rank; more towns (or a bigger square) when friend lists get long
+const MAX_PLOTS = 8;
 
 type VisitRow = { username: string; knocked_by_me: boolean; allowed: boolean };
 
@@ -37,10 +37,8 @@ export default function TownPage() {
         streak: r.streak_current,
         me: r.is_me,
       }));
-      // you in the middle, friends alternating either side
-      const street: Resident[] = people.filter((p) => p.me);
-      people.filter((p) => !p.me).forEach((p, i) => (i % 2 ? street.push(p) : street.unshift(p)));
-      setResidents(street);
+      // you first (your house is right behind the shop), then your friends around the square
+      setResidents([...people.filter((p) => p.me), ...people.filter((p) => !p.me)]);
     });
     supabase.rpc("my_visits").then(({ data, error }) => {
       if (error) return; // visits need the house-visits migration; the town works without it
@@ -106,13 +104,15 @@ export default function TownPage() {
             chest={chest}
             gold={gold}
             onCollect={async () => (await collect())?.xp ?? null}
-            prices={prices}
             owned={owned}
-            onBuy={buy}
             onLeave={leave}
             className="w-full h-full"
           />
         )}
+        gold={gold}
+        prices={prices}
+        owned={owned}
+        onBuy={buy}
         className="rounded-2xl overflow-hidden h-[68vh] min-h-[380px]" />
 
       {residents.length === 1 && (

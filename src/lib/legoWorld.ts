@@ -1,4 +1,5 @@
 import HOUSES from "./legoHouses.json" with { type: "json" };
+import SHOP from "./legoShop.json" with { type: "json" };
 
 // The plot, built from real LDraw parts (the community library that models
 // every LEGO element). This file only writes LDraw text: which part, which
@@ -84,6 +85,8 @@ function put(part: string, color: number, u: number, w: number, plates: number, 
 export type House = { id: string; name: string; w: number; d: number; h: number };
 export const houseFor = (level: number): House => (HOUSES as House[])[Math.min(Math.max(level, 1), HOUSES.length) - 1];
 export const houseUrl = (h: House) => `/lego/houses/${h.id}.glb`;
+// the shop in the middle of the town (an official set too, baked the same way)
+export const SHOP_BUILDING = SHOP as House;
 
 // The house's footprint on the plot, in cells: centred left to right, as far
 // back as leaves the garden 12 rows (or against the back edge if it's deep).
@@ -187,31 +190,42 @@ export function modelText(lines: string[], name = "model.ldr"): string {
 // A resident's plot: their house by level, their garden by streak.
 export type Resident = { name: string; level: number; streak: number; me?: boolean };
 
-// ponytail: one straight street, plots side by side; a grid of streets when towns get big
-// Plot i's centre on x (LDU): the plots sit side by side, centred on the middle one.
-export const plotX = (i: number, n: number) => (i - (n - 1) / 2) * PLOT * S;
+// The town is a square: the shop on a plaza in the middle, up to eight houses
+// around it on 48x48 plots, every one facing the plaza, 16-stud streets
+// between the blocks and a ring road round them, and forest beyond.
+const PITCH = PLOT + 16; // a block and the street after it, studs
+export const TOWN_HALF = 1.5 * PLOT + 2 * 16; // 104 studs: three blocks, two streets, the ring road
+export type Lot = { x: number; z: number; facing: 0 | 90 | 180 | 270 }; // centre (LDU) and where its front faces
+// you first, right behind the shop; then your friends around the square
+const LOTS: [number, number, Lot["facing"]][] = [
+  [0, -1, 0], [-1, -1, 0], [1, -1, 0], [-1, 0, 90], [1, 0, 270], [0, 1, 180], [-1, 1, 180], [1, 1, 180],
+];
+export const MAX_RESIDENTS = LOTS.length;
+export function lotFor(i: number): Lot {
+  const [gx, gz, facing] = LOTS[i];
+  return { x: gx * PITCH * S, z: gz * PITCH * S, facing };
+}
+// a point in a lot's own frame (its front is +Z) in the town's frame
+export function inLot(lot: Lot, [x, y, z]: [number, number, number]): [number, number, number] {
+  const m = ROT[lot.facing];
+  return [lot.x + m[0] * x + m[2] * z, y, lot.z + m[6] * x + m[8] * z];
+}
 
-// The town as one LDraw file: each plot is its own submodel, placed along x,
-// with a grey street of 16x16 plates, flush with the baseplates, in front (+Z).
+// The town as one LDraw file: each plot (its garden) as its own submodel
+// turned to face the plaza, and the forest around. The ground under it all --
+// plots, plaza, streets, grass -- is drawn flat by the renderer: a 48x48
+// baseplate alone is 110,000 triangles of studs.
 export function townText(residents: Resident[]): string {
-  const count = residents.length;
-  const main = residents.flatMap((_, i) => [
-    `1 16 ${n(plotX(i, count))} 0 0 1 0 0 0 1 0 0 0 1 plot-${i}.ldr`,
-    ...[-16, 0, 16].map((dx) => line(COL.darkGrey, plotX(i, count) + dx * S, 0, (PLOT / 2 + 8) * S, ROT[0], "91405")),
-  ]);
-  const plots = residents.map((r, i) =>
-    modelText([baseplate(), ...buildGarden(r.streak, houseSpec(r.level))], `plot-${i}.ldr`),
-  );
-  return [modelText([...main, ...townLand(count)], "town.ldr"), ...plots].join("");
+  const lots = residents.slice(0, MAX_RESIDENTS).map((_, i) => lotFor(i));
+  const main = [
+    ...lots.map((lot, i) => `1 16 ${n(lot.x)} 0 ${n(lot.z)} ${ROT[lot.facing].map(n).join(" ")} plot-${i}.ldr`),
+    ...townLand(),
+  ];
+  const plots = residents.slice(0, MAX_RESIDENTS).map((r, i) => modelText(buildGarden(r.streak, houseSpec(r.level)), `plot-${i}.ldr`));
+  return [modelText(main, "town.ldr"), ...plots].join("");
 }
 
 // ---- the land around the town -------------------------------------------
-
-// The street's extent in LDU: x across every plot, z from the back fence to
-// the far side of the street. The camera may not leave it.
-export function townBounds(count: number) {
-  return { x0: plotX(0, count), x1: plotX(count - 1, count), zBack: (-PLOT / 2) * S, zFront: (PLOT / 2 + 16) * S };
-}
 
 // small seeded random, so the forest is the same every visit
 function seeded(seed: number) {
@@ -231,45 +245,24 @@ const TREES = [
   { part: "2417", color: COL.brightGreen },
 ];
 
-// Everything outside the plots: a spindled fence along the back of the street,
-// then meadow and a forest all around (baseplates of grass, trees and bushes)
-// that you can see but not walk into -- the edge of your world.
-export function townLand(count: number): string[] {
+// The ground itself is drawn flat by the renderer (smooth grey streets, like
+// LEGO road plates, and grass beyond); studded plates there would be about
+// 90,000 studs. Here: the forest -- a band of trees and bushes on a 16-stud
+// lattice all round the town, the edge of your world, seen but not walked into.
+const FOREST = 3; // rings of 16-stud cells
+export function townLand(): string[] {
   const out: string[] = [];
-  const P = PLOT * S;
-  const { x0, x1 } = townBounds(count);
-  const left = x0 - P / 2;
-  const right = x1 + P / 2;
-
-  // the fence, on the last row of every plot
-  for (let x = left + 40; x < right; x += 80) out.push(line(COL.reddishBrown, x, -BOTTOM["30055"], -P / 2 + 10, ROT[0], "30055"));
-
-  // grass: a ring of baseplates one plot deep around the street
-  const zStreet = P / 2 + 8 * S;
-  const ground: [number, number][] = [];
-  for (let i = -1; i <= count; i++) {
-    const x = plotX(i, count);
-    ground.push([x, -P], [x, P + 16 * S]);
-    if (i === -1 || i === count) ground.push([x, 0]);
-  }
-  for (const [x, z] of ground) out.push(line(COL.green, x, 0, z, ROT[0], "4186"));
-  // the street's two ends are grass too
-  for (const x of [plotX(-1, count), plotX(count, count)]) for (const dx of [-16, 0, 16]) out.push(line(COL.green, x + dx * S, 0, zStreet, ROT[0], "91405"));
-
-  // the forest: thick behind and at the ends, starting beyond a strip of meadow
-  // in front so it never hides the houses from the camera
+  const inner = TOWN_HALF / 16 - 0.5; // the town is 13 cells across
   const rnd = seeded(7);
-  for (const [gx, gz] of ground) {
-    const front = gz > 0;
-    const n = front ? 10 : 22;
-    for (let k = 0; k < n; k++) {
+  for (let i = -inner - FOREST; i <= inner + FOREST; i++)
+    for (let j = -inner - FOREST; j <= inner + FOREST; j++) {
+      if (Math.abs(i) <= inner && Math.abs(j) <= inner) continue;
+      if (rnd() < 0.4) continue; // a clearing
       const t = TREES[Math.floor(rnd() * TREES.length)];
-      const x = gx + (rnd() - 0.5) * (P - 60);
-      const z = front ? gz + rnd() * (P / 2 - 40) : gz + (rnd() - 0.5) * (P - 60);
-      const rot = ([0, 90, 180, 270] as const)[Math.floor(rnd() * 4)];
-      out.push(line(t.color, Math.round(x / S) * S, -BOTTOM[t.part], Math.round(z / S) * S, ROT[rot], t.part));
+      const x = Math.round(i * 16 + (rnd() - 0.5) * 12) * S;
+      const z = Math.round(j * 16 + (rnd() - 0.5) * 12) * S;
+      out.push(line(t.color, x, -BOTTOM[t.part], z, ROT[([0, 90, 180, 270] as const)[Math.floor(rnd() * 4)]], t.part));
     }
-  }
   return out;
 }
 

@@ -18,7 +18,12 @@ Home, Mountain Hut, Lakeside Lodge, Olivia's House), from the LDraw Official
 Model Repository. `scripts/lego/pack.mjs` packs the parts the plot uses into
 `public/lego/parts.mpd` and bakes each house to a small glb in
 `public/lego/houses/` (turned to face the garden, outlines dropped, meshopt).
-The Town tab lays you and your friends' plots along one street.
+The Town tab is a square: the shop -- LEGO's Market Street (10190), four
+storeys -- on a plaza in the middle, up to eight houses around it on 48x48
+plots all facing the plaza (yours right behind the shop), smooth grey streets
+between the blocks and a ring road, then forest and hills. The ground is drawn
+as flat stud-textured plates (a real 48x48 baseplate is 110k triangles).
+Later: a fountain on the plaza, and more.
 
 **Inside your house** is a room with a station for each of your missions (up
 to 10): a barbell for Strength, a laptop for Focus, an apple for
@@ -31,7 +36,8 @@ What your watch earns while you're away (steps, sleep, recovery, workouts)
 waits in a treasure chest in the room; tap it to collect the XP and gold.
 Penalties still land at once. (migrations/2026-09-30-unclaimed-rewards.sql:
 ledger pending_xp, profiles.gold, collect(), gold follows mission XP.)
-**The shop** (a button in your room) sells furniture for gold: floor lamp,
+**The shop** (the Market Street building in the middle of town: walk up to
+it and go in) sells furniture for gold: floor lamp,
 coffee table, cat, indoor trees, sofa, TV, aquarium, trophy -- each built
 from LEGO parts with its own spot in the room (DECOR in legoWorld.ts).
 Prices live in shop_items; buy_item() checks and takes the gold on the

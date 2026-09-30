@@ -23,12 +23,15 @@ import {
   houseSpec,
   minifigSpot,
   modelText,
-  plotX,
   CHEST_SPOT,
   DECOR,
   roomText,
   stationSpot,
-  townBounds,
+  TOWN_HALF,
+  MAX_RESIDENTS,
+  SHOP_BUILDING,
+  lotFor,
+  inLot,
   townText,
   MAX_STATIONS,
   type Station,
@@ -116,11 +119,10 @@ function loadHouse(url: string) {
   return p;
 }
 
-// A house on its plot, `dx` LDU along the street.
-// `cut`: a height (three's y) above which the house is clipped away -- the
-// roof comes off and you look down into the rooms, dollhouse style.
-function House({ level, dx = 0, cut }: { level: number; dx?: number; cut?: number }) {
-  const url = houseUrl(houseFor(level));
+// A baked building placed at `at` (LDU). `cut`: a height (three's y) above
+// which it is clipped away -- the roof comes off and you look down into the
+// rooms, dollhouse style.
+function Building({ url, at, cut }: { url: string; at: [number, number, number]; cut?: number }) {
   const [model, setModel] = useState<{
     url: string;
     obj: THREE.Object3D;
@@ -155,11 +157,16 @@ function House({ level, dx = 0, cut }: { level: number; dx?: number; cut?: numbe
     });
   }, [model, cut]);
   if (!model || model.url !== url) return null;
-  const [x, y, z] = houseAt(houseSpec(level));
-  return <primitive object={model.obj} position={[x + dx, y, z]} />;
+  return <primitive object={model.obj} position={at} />;
 }
 
-function Minifig({ look, at }: { look: MinifigLook; at: [number, number, number] }) {
+// A house on its plot (in the plot's own frame).
+function House({ level, cut }: { level: number; cut?: number }) {
+  return <Building url={houseUrl(houseFor(level))} at={houseAt(houseSpec(level))} cut={cut} />;
+}
+
+// `turn`: which way the figure faces (radians about the vertical, LDraw frame)
+function Minifig({ look, at, turn = 0 }: { look: MinifigLook; at: [number, number, number]; turn?: number }) {
   const model = useModel(
     useMemo(() => modelText(buildMinifig(look), "minifig.ldr"), [look]),
     false,
@@ -189,7 +196,7 @@ function Minifig({ look, at }: { look: MinifigLook; at: [number, number, number]
     }
     const h = t - hopAt.current;
     root.current.position.y = at[1] - (h < 0.45 ? Math.sin((h / 0.45) * Math.PI) * 14 : 0);
-    root.current.rotation.y = Math.sin(t * 0.3) * 0.25;
+    root.current.rotation.y = turn + Math.sin(t * 0.3) * 0.25;
   });
 
   if (!model) return null;
@@ -420,16 +427,25 @@ function Stage({
   );
 }
 
-// Your town: you and your friends, one plot each along a street, you in the
-// middle, fenced at the back and ringed by forest. Drag to walk along it; tap a
-// house to go to it. Knock on a friend's door; once they let you in (or it's
-// your own house) you can go inside: the roof comes off and you walk in.
+// Your town: the shop on a plaza in the middle, your house and your
+// friends' around it, all facing the plaza, forest all round. Drag to walk;
+// tap a house or the shop to go to it. Knock on a friend's door; once they let
+// you in (or it's your own house) you can go inside. The shop sells furniture
+// for your house.
 export type Visit = "allowed" | "knocked";
+const SHOP_FOCUS = -1;
+const turnRad = (facing: number) => (facing * Math.PI) / 180;
+const toThree = ([x, y, z]: [number, number, number]): [number, number, number] => [x * LDU, y, -z * LDU];
+
 export function LegoTown({
-  residents,
+  residents: all,
   visits = {},
   onKnock,
   room,
+  gold = null,
+  prices = null,
+  owned = [],
+  onBuy,
   className,
 }: {
   residents: Resident[];
@@ -438,44 +454,84 @@ export function LegoTown({
   onKnock?: (name: string) => void;
   /** your own house's inside (your room); without it you get the roof-off view */
   room?: (leave: () => void) => React.ReactNode;
+  /** the shop: your gold, prices by item id (null: no shop yet), what you own, and buying */
+  gold?: number | null;
+  prices?: Record<string, number> | null;
+  owned?: string[];
+  onBuy?: (id: string) => Promise<string | null>;
   className?: string;
 }) {
-  const town = useModel(
-    useMemo(() => townText(residents), [residents]),
-    true,
-  );
-  const count = residents.length;
-  const meIndex = Math.max(
-    0,
-    residents.findIndex((r) => r.me),
-  );
+  const residents = all.slice(0, MAX_RESIDENTS);
+  const town = useModel(useMemo(() => townText(residents), [residents]), true);
+  const lots = useMemo(() => residents.map((_, i) => lotFor(i)), [residents]);
+  const meIndex = Math.max(0, residents.findIndex((r) => r.me));
   const [focus, setFocus] = useState(meIndex);
   const [inside, setInside] = useState<number | null>(null);
-  const plotW = PLOT * 20 * LDU;
+  const [shopOpen, setShopOpen] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
-  // a house's centre on the ground, in LDU relative to its plot
-  const centre = (level: number) => {
+  // a house's centre on the ground, in its lot's frame (LDU)
+  const centre = (level: number): [number, number, number] => {
     const s = houseSpec(level);
-    return [(s.x0 + s.w / 2 - PLOT / 2) * 20, (s.z0 + s.d / 2 - PLOT / 2) * 20] as const;
+    return [(s.x0 + s.w / 2 - PLOT / 2) * 20, 0, (s.z0 + s.d / 2 - PLOT / 2) * 20];
   };
-  const target = useMemo(() => {
-    if (inside === null) return new THREE.Vector3(plotX(focus, count) * LDU, 3, 0);
-    const [cx, cz] = centre(residents[inside].level);
-    return new THREE.Vector3((plotX(inside, count) + cx) * LDU, 2, -cz * LDU);
-  }, [focus, inside, count, residents]);
-  const bounds = useMemo(() => {
-    const b = townBounds(count);
-    return new THREE.Box3(new THREE.Vector3(b.x0 * LDU, 0, -b.zFront * LDU), new THREE.Vector3(b.x1 * LDU, 12, -b.zBack * LDU));
-  }, [count]);
+  const houseCentre = (i: number) => inLot(lots[i], centre(residents[i].level));
 
-  const r = residents[focus];
-  const access = r.me ? "allowed" : visits[r.name];
+  const target = useMemo(() => {
+    if (focus === SHOP_FOCUS) return new THREE.Vector3(0, 12, 0); // halfway up the shop
+    const [x, , z] = toThree(houseCentre(focus));
+    return new THREE.Vector3(x, inside === null ? 3 : 2, z);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, inside, lots]);
+  // look at a house from its front: turn the view with the lot
+  const dir = useMemo(() => {
+    const base = inside === null ? FRONT_RIGHT : LOOK_IN;
+    if (focus === SHOP_FOCUS) return base;
+    return base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -turnRad(lots[focus].facing));
+  }, [focus, inside, lots]);
+  const bounds = useMemo(() => {
+    const h = (TOWN_HALF - 8) * 20 * LDU;
+    return new THREE.Box3(new THREE.Vector3(-h, 0, -h), new THREE.Vector3(h, 12, h));
+  }, []);
+
   const go = (i: number) => {
     setFocus(i);
     setInside(null);
   };
+  // the stops along the way, for the arrows: the shop, then every house
+  const stops = [SHOP_FOCUS, ...residents.map((_, i) => i)];
+  const step = (by: number) => go(stops[(stops.indexOf(focus) + by + stops.length) % stops.length]);
+  const nameOf = (i: number) => (i === SHOP_FOCUS ? "the shop" : residents[i].me ? "your house" : residents[i].name);
+
+  // a tap on the ground: go to whatever is nearest -- the plaza or a lot
+  const pick = (p: THREE.Vector3) => {
+    const x = p.x / LDU;
+    const z = -p.z / LDU;
+    let best = SHOP_FOCUS;
+    let bestD = x * x + z * z;
+    lots.forEach((lot, i) => {
+      const d = (x - lot.x) ** 2 + (z - lot.z) ** 2;
+      if (d < bestD) {
+        best = i;
+        bestD = d;
+      }
+    });
+    go(best);
+  };
 
   if (room && inside === meIndex) return <div className={className}>{room(() => setInside(null))}</div>;
+
+  const r = focus === SHOP_FOCUS ? null : residents[focus];
+  const access = r && (r.me ? "allowed" : visits[r.name]);
+  const label = (text: string, me: boolean, onClick: () => void) => (
+    <button
+      onClick={onClick}
+      className="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
+      style={{ background: me ? "#ff8a1f" : "rgba(20,18,16,0.8)", color: "#fff" }}
+    >
+      {text}
+    </button>
+  );
 
   return (
     <div className={`relative ${className ?? ""}`}>
@@ -483,80 +539,106 @@ export function LegoTown({
         className="absolute inset-0"
         label="Your town"
         target={target}
-        width={inside === null ? 62 : houseFor(residents[inside].level).w + 10}
-        dir={inside === null ? undefined : LOOK_IN}
+        width={inside === null ? (focus === SHOP_FOCUS ? 95 : 62) : houseFor(residents[inside].level).w + 10}
+        dir={dir}
         bounds={bounds}
         pan
-        onPick={(p) => go(Math.min(count - 1, Math.max(0, Math.round(p.x / plotW + (count - 1) / 2))))}
-        overlay={<Hills count={count} />}
-        pins={residents.flatMap((res, i) => {
-          if (i === inside) return [];
-          const [cx, cz] = centre(res.level);
-          const at: [number, number, number] = [(plotX(i, count) + cx) * LDU, houseFor(res.level).h * LDU + 3, -cz * LDU];
-          return [
-            {
-              key: res.name,
-              at,
-              node: (
-                <button
-                  onClick={() => go(i)}
-                  className="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
-                  style={{ background: res.me ? "#ff8a1f" : "rgba(20,18,16,0.8)", color: "#fff" }}
-                >
-                  {res.me ? "You" : res.name}
-                </button>
-              ),
-            },
-          ];
-        })}
+        onPick={pick}
+        overlay={
+          <>
+            <Hills />
+            {/* the ground: grass everywhere, the smooth grey street square, the plaza and each plot */}
+            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color="#4b9b3c" y={-0.03} />
+            <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#5d6166" y={-0.015} flat />
+            <StudGround at={[0, 0]} size={PLOT} color="#a3a7ad" />
+            {lots.map((lot, i) => (
+              <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color="#4b9b3c" />
+            ))}
+          </>
+        }
+        pins={[
+          {
+            key: "shop",
+            at: [0, SHOP_BUILDING.h * LDU + 3, 0] as [number, number, number],
+            node: label("Shop", false, () => go(SHOP_FOCUS)),
+          },
+          ...residents.flatMap((res, i) => {
+            if (i === inside) return [];
+            const [x, , z] = toThree(houseCentre(i));
+            return [
+              {
+                key: res.name,
+                at: [x, houseFor(res.level).h * LDU + 3, z] as [number, number, number],
+                node: label(res.me ? "You" : res.name, !!res.me, () => go(i)),
+              },
+            ];
+          }),
+        ]}
       >
         {town && <primitive object={town} />}
+        {/* the shop, its front to the camera's side of the plaza */}
+        <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, (SHOP_BUILDING.d / 2) * 20]} />
         {residents.map((res, i) => (
-          <House key={res.name} level={res.level} dx={plotX(i, count)} cut={i === inside ? CUT : undefined} />
+          <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
+            <House level={res.level} cut={i === inside ? CUT : undefined} />
+          </group>
         ))}
         {residents.map((res, i) => {
           // you walk into the house you're visiting; everyone else stays at their door
           if (i === meIndex && inside !== null) {
-            const [cx, cz] = centre(residents[inside].level);
-            return <Minifig key={res.name} look={BASE_HUNTER} at={[plotX(inside, count) + cx, -16, cz + 40]} />;
+            const [x, y, z] = inLot(lots[inside], [centre(residents[inside].level)[0], -16, centre(residents[inside].level)[2] + 40]);
+            return <Minifig key={res.name} look={BASE_HUNTER} at={[x, y, z]} turn={turnRad(lots[inside].facing)} />;
           }
-          const [x, y, z] = minifigSpot(houseSpec(res.level));
-          return <Minifig key={res.name} look={BASE_HUNTER} at={[x + plotX(i, count), y, z]} />;
+          return (
+            <Minifig key={res.name} look={BASE_HUNTER} at={inLot(lots[i], minifigSpot(houseSpec(res.level)))} turn={turnRad(lots[i].facing)} />
+          );
         })}
       </Stage>
 
-      {/* the camera looks along the street from its right, so the house on screen-left is the next one up */}
+      {note && !shopOpen && (
+        <div className="absolute top-3 inset-x-0 flex justify-center pointer-events-none">
+          <span className="px-3 py-1.5 rounded-full text-sm font-semibold shadow" style={{ background: "rgba(20,18,16,0.85)", color: "#fff" }}>
+            {note}
+          </span>
+        </div>
+      )}
+
       <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-2 px-3 pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-2">
-          {focus + 1 < count && (
-            <TownButton
-              quiet
-              onClick={() => go(focus + 1)}
-              label={`Walk to ${residents[focus + 1].me ? "your house" : residents[focus + 1].name}`}
-            >
-              ‹
-            </TownButton>
-          )}
-          {inside !== null ? (
+          <TownButton quiet onClick={() => step(-1)} label={`Walk to ${nameOf(stops[(stops.indexOf(focus) - 1 + stops.length) % stops.length])}`}>
+            ‹
+          </TownButton>
+          {focus === SHOP_FOCUS ? (
+            prices && <TownButton onClick={() => setShopOpen(true)}>Go into the shop</TownButton>
+          ) : inside !== null ? (
             <TownButton onClick={() => setInside(null)}>Step outside</TownButton>
           ) : access === "allowed" ? (
-            <TownButton onClick={() => setInside(focus)}>{r.me ? "Go inside" : `Go inside ${r.name}'s house`}</TownButton>
+            <TownButton onClick={() => setInside(focus)}>{r!.me ? "Go inside" : `Go inside ${r!.name}'s house`}</TownButton>
           ) : access === "knocked" ? (
-            <TownButton disabled>Knocked. Waiting for {r.name}…</TownButton>
+            <TownButton disabled>Knocked. Waiting for {r!.name}…</TownButton>
           ) : onKnock ? (
-            <TownButton onClick={() => onKnock(r.name)}>Knock on {r.name}&apos;s door</TownButton>
+            <TownButton onClick={() => onKnock(r!.name)}>Knock on {r!.name}&apos;s door</TownButton>
           ) : null}
-          {focus > 0 && (
-            <TownButton
-              quiet
-              onClick={() => go(focus - 1)}
-              label={`Walk to ${residents[focus - 1].me ? "your house" : residents[focus - 1].name}`}
-            >
-              ›
-            </TownButton>
-          )}
+          <TownButton quiet onClick={() => step(1)} label={`Walk to ${nameOf(stops[(stops.indexOf(focus) + 1) % stops.length])}`}>
+            ›
+          </TownButton>
         </div>
       </div>
+
+      {shopOpen && prices && onBuy && (
+        <ShopSheet
+          gold={gold}
+          prices={prices}
+          owned={owned}
+          onBuy={onBuy}
+          onClose={(bought) => {
+            setShopOpen(false);
+            if (!bought) return;
+            setNote(`${bought} is waiting in your house`);
+            setTimeout(() => setNote(null), 2500);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -597,23 +679,139 @@ function TownButton({
   );
 }
 
+// Inside the shop: the furniture for sale, what you have, what you can afford.
+function ShopSheet({
+  gold,
+  prices,
+  owned,
+  onBuy,
+  onClose,
+}: {
+  gold: number | null;
+  prices: Record<string, number>;
+  owned: string[];
+  onBuy: (id: string) => Promise<string | null>;
+  /** closed, with the name of what was just bought (if anything) */
+  onClose: (bought?: string) => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const buy = async (id: string, name: string) => {
+    if (busy) return;
+    setBusy(id);
+    const err = await onBuy(id);
+    setBusy(null);
+    if (err) return setError(err);
+    onClose(name);
+  };
+  return (
+    <div className="absolute inset-0 flex items-end" style={{ background: "rgba(0,0,0,0.35)" }} onClick={() => onClose()}>
+      <div
+        className="w-full max-h-[70%] overflow-y-auto rounded-t-2xl p-4 slide-in"
+        style={{ background: "var(--panel, #1b1916)", color: "var(--ink, #fff)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <span className="display text-[17px]">Market Street</span>
+          <span className="text-sm font-bold" style={{ color: "#ffd35c" }}>
+            {(gold ?? 0).toLocaleString()} gold
+          </span>
+        </div>
+        <p className="text-xs text-muted mb-3">Furniture for your house. It&apos;s there when you get home.</p>
+        {error && <p className="text-sm mb-2" style={{ color: "#ff8a7a" }}>{error}</p>}
+        <div className="flex flex-col gap-2">
+          {DECOR.filter((d) => prices[d.id] !== undefined)
+            .sort((a, b) => prices[a.id] - prices[b.id])
+            .map((d) => {
+              const price = prices[d.id];
+              const short = price - (gold ?? 0);
+              return (
+                <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5" style={{ borderColor: "var(--line, #333)" }}>
+                  <span className="font-semibold text-sm">{d.name}</span>
+                  {owned.includes(d.id) ? (
+                    <span className="text-xs text-muted">In your house</span>
+                  ) : short > 0 ? (
+                    <span className="text-xs text-muted">
+                      {price} gold · need {short} more
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => buy(d.id, d.name)}
+                      disabled={busy === d.id}
+                      className="px-3 py-1.5 rounded-full text-xs font-bold active:scale-95 transition-transform"
+                      style={{ background: "linear-gradient(180deg,#ffd35c,#f0a818)", color: "#4a2a00", opacity: busy === d.id ? 0.7 : 1 }}
+                    >
+                      Buy · {price} gold
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// A studded LEGO surface drawn as one flat quad with a stud texture: from town
+// distance it reads the same as real studs at a fraction of the triangles.
+let studs: THREE.CanvasTexture | null = null;
+function studTexture() {
+  if (studs) return studs;
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#ffffff";
+  g.fillRect(0, 0, 64, 64);
+  // the stud's shadow, then its top, lit from the top left
+  g.fillStyle = "rgba(0,0,0,0.22)";
+  g.beginPath();
+  g.arc(35, 35, 19, 0, Math.PI * 2);
+  g.fill();
+  const top = g.createRadialGradient(26, 26, 2, 32, 32, 19);
+  top.addColorStop(0, "#ffffff");
+  top.addColorStop(1, "#dcdcdc");
+  g.fillStyle = top;
+  g.beginPath();
+  g.arc(32, 32, 18, 0, Math.PI * 2);
+  g.fill();
+  studs = new THREE.CanvasTexture(c);
+  studs.colorSpace = THREE.SRGBColorSpace;
+  studs.wrapS = studs.wrapT = THREE.RepeatWrapping;
+  studs.anisotropy = 8;
+  return studs;
+}
+function StudGround({ at, size, color, y = 0, flat }: { at: [number, number]; size: number; color: string; y?: number; flat?: boolean }) {
+  const map = useMemo(() => {
+    if (flat) return null;
+    const t = studTexture().clone();
+    t.repeat.set(size, size);
+    t.needsUpdate = true;
+    return t;
+  }, [size, flat]);
+  const w = size * 20 * LDU;
+  return (
+    <mesh position={[at[0], y, at[1]]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <planeGeometry args={[w, w]} />
+      <meshStandardMaterial color={color} map={map} roughness={0.8} />
+    </mesh>
+  );
+}
+
 // Soft green hills beyond the forest, fading into the haze: the land goes on,
 // you just can't get there.
-function Hills({ count }: { count: number }) {
+function Hills() {
   const hills = useMemo(() => {
-    const b = townBounds(count);
     const out: { p: [number, number, number]; r: number }[] = [];
     let seed = 3;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    const back = -b.zBack * LDU + 100;
-    for (let x = b.x0 * LDU - 140; x < b.x1 * LDU + 140; x += 45 + rnd() * 30)
-      out.push({ p: [x, 0, back + rnd() * 50], r: 45 + rnd() * 45 });
-    for (const side of [-1, 1]) {
-      const x = side < 0 ? b.x0 * LDU - 110 : b.x1 * LDU + 110;
-      for (let z = -90; z < back; z += 50) out.push({ p: [x + side * rnd() * 40, 0, z], r: 45 + rnd() * 35 });
+    const far = (TOWN_HALF + 48) * 20 * LDU + 40; // beyond the forest
+    for (let a = 0; a < Math.PI * 2; a += 0.28 + rnd() * 0.2) {
+      const d = far + rnd() * 60;
+      out.push({ p: [Math.cos(a) * d, 0, Math.sin(a) * d], r: 45 + rnd() * 45 });
     }
     return out;
-  }, [count]);
+  }, []);
   return (
     <>
       {hills.map((h, i) => (
@@ -635,8 +833,6 @@ export function LegoRoom({
   gold = null,
   onCollect,
   owned = [],
-  prices = null,
-  onBuy,
   onLeave,
   look = BASE_HUNTER,
   className,
@@ -650,31 +846,14 @@ export function LegoRoom({
   gold?: number | null;
   /** open the chest; resolves with the XP it paid */
   onCollect?: () => Promise<number | null>;
-  /** furniture you've bought (DECOR ids) */
+  /** furniture you've bought at the shop (DECOR ids) */
   owned?: string[];
-  /** the shop's prices by item id (null: no shop yet) */
-  prices?: Record<string, number> | null;
-  /** buy a piece; resolves with an error message, or null when it's yours */
-  onBuy?: (id: string) => Promise<string | null>;
   onLeave?: () => void;
   look?: MinifigLook;
   className?: string;
 }) {
   // roomText only reads each station's id and pillar (and what you own), so doing one doesn't rebuild the room
   const room = useModel(roomText(stations, owned), true);
-  const [shopOpen, setShopOpen] = useState(false);
-  const [shopNote, setShopNote] = useState<string | null>(null);
-  const buy = async (id: string, name: string) => {
-    if (!onBuy || busy) return;
-    setBusy(id);
-    const err = await onBuy(id);
-    setBusy(null);
-    if (err) return setShopNote(err);
-    // close the shop so you see it arrive
-    setShopOpen(false);
-    setShopNote(`${name} is in your room`);
-    setTimeout(() => setShopNote(null), 2500);
-  };
   const [busy, setBusy] = useState<string | null>(null);
   const [paid, setPaid] = useState<{ id: string; xp: number } | null>(null);
   const target = useMemo(() => new THREE.Vector3(0, 3, 3), []);
@@ -784,71 +963,7 @@ export function LegoRoom({
           {gold.toLocaleString()} gold
         </div>
       )}
-      {prices && (
-        <button
-          onClick={() => {
-            setShopOpen(true);
-            setShopNote(null);
-          }}
-          className="absolute top-3 right-3 px-3.5 py-1.5 rounded-full text-sm font-bold shadow-lg active:scale-95 transition-transform"
-          style={{ background: "#ff8a1f", color: "#fff" }}
-        >
-          Shop
-        </button>
-      )}
-      {shopNote && !shopOpen && (
-        <div className="absolute top-14 inset-x-0 flex justify-center pointer-events-none">
-          <span className="px-3 py-1.5 rounded-full text-sm font-semibold shadow" style={{ background: "rgba(20,18,16,0.85)", color: "#fff" }}>
-            {shopNote}
-          </span>
-        </div>
-      )}
-      {shopOpen && prices && (
-        <div className="absolute inset-0 flex items-end" style={{ background: "rgba(0,0,0,0.35)" }} onClick={() => setShopOpen(false)}>
-          <div
-            className="w-full max-h-[70%] overflow-y-auto rounded-t-2xl p-4 slide-in"
-            style={{ background: "var(--panel, #1b1916)", color: "var(--ink, #fff)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span className="display text-[17px]">Shop</span>
-              <span className="text-sm font-bold" style={{ color: "#ffd35c" }}>
-                {(gold ?? 0).toLocaleString()} gold
-              </span>
-            </div>
-            {shopNote && <p className="text-sm mb-2" style={{ color: "#ff8a7a" }}>{shopNote}</p>}
-            <div className="flex flex-col gap-2">
-              {DECOR.filter((d) => prices[d.id] !== undefined)
-                .sort((a, b) => prices[a.id] - prices[b.id])
-                .map((d) => {
-                  const price = prices[d.id];
-                  const have = owned.includes(d.id);
-                  const short = price - (gold ?? 0);
-                  return (
-                    <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5" style={{ borderColor: "var(--line, #333)" }}>
-                      <span className="font-semibold text-sm">{d.name}</span>
-                      {have ? (
-                        <span className="text-xs text-muted">In your room</span>
-                      ) : short > 0 ? (
-                        <span className="text-xs text-muted">{price} gold · need {short} more</span>
-                      ) : (
-                        <button
-                          onClick={() => buy(d.id, d.name)}
-                          disabled={busy === d.id}
-                          className="px-3 py-1.5 rounded-full text-xs font-bold active:scale-95 transition-transform"
-                          style={{ background: "linear-gradient(180deg,#ffd35c,#f0a818)", color: "#4a2a00", opacity: busy === d.id ? 0.7 : 1 }}
-                        >
-                          Buy · {price} gold
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        </div>
-      )}
-      {onLeave && !shopOpen && (
+      {onLeave && (
         <div className="absolute inset-x-0 bottom-3 flex justify-center">
           <TownButton onClick={onLeave}>Step outside</TownButton>
         </div>

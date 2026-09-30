@@ -83,6 +83,8 @@ const HOUSES = [
   { id: "31048-1", name: "Lakeside Lodge", turn: 3 },
   { id: "3315-1", name: "Olivia's House", turn: 2 },
 ];
+// the building in the middle of the town where you spend gold
+const SHOP = { id: "10190-1", name: "Market Street", turn: 2 };
 const EXTRAS = /minifig|car \d|trailer|boat|quad|moose|bird|4719c01|anna|olivia|peter/i;
 
 // GLTFExporter reads its Blobs with the browser's FileReader; Node only has Blob
@@ -107,7 +109,7 @@ const HOUSE_OUT = `${OUT}houses/`;
 mkdirSync(HOUSE_OUT, { recursive: true });
 const tmp = mkdtempSync(join(tmpdir(), "lego-"));
 const manifest = [];
-for (const { id, name, turn } of HOUSES) {
+for (const { id, name, turn } of [...HOUSES, SHOP]) {
   const text = readFileSync(`${SETS}${id}.mpd`, "utf8").replace(/\r/g, "");
   const end = text.indexOf("\n0 FILE ", 1); // the main model is the first file
   const main = text.slice(0, end).split("\n").filter((l) => !(l.startsWith("1 ") && EXTRAS.test(l))).join("\n");
@@ -149,4 +151,5 @@ for (const { id, name, turn } of HOUSES) {
   manifest.push({ id, name, w, d, h });
   console.log(`house ${id} ${name}: ${w}x${d} studs, ${(statSync(`${HOUSE_OUT}${id}.glb`).size / 1e6).toFixed(2)} MB`);
 }
-writeFileSync(fileURLToPath(new URL("../../src/lib/legoHouses.json", import.meta.url)), JSON.stringify(manifest, null, 2) + "\n");
+writeFileSync(fileURLToPath(new URL("../../src/lib/legoHouses.json", import.meta.url)), JSON.stringify(manifest.filter((m) => m.id !== SHOP.id), null, 2) + "\n");
+writeFileSync(fileURLToPath(new URL("../../src/lib/legoShop.json", import.meta.url)), JSON.stringify(manifest.find((m) => m.id === SHOP.id), null, 2) + "\n");

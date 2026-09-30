@@ -29,11 +29,12 @@ const DEMO_STATIONS = [
 
 // a sample street (the real one is /app/town, from your friends list)
 const DEMO_TOWN = [
+  { name: "ifti", level: 5, streak: 12, me: true },
   { name: "nevo", level: 3, streak: 6 },
   { name: "dana", level: 1, streak: 2 },
-  { name: "ifti", level: 5, streak: 12, me: true },
   { name: "omer", level: 2, streak: 0 },
   { name: "maya", level: 4, streak: 30 },
+  { name: "tal", level: 1, streak: 9 },
 ];
 
 export default function LegoPreview() {
@@ -95,14 +96,17 @@ export default function LegoPreview() {
               chest={chest}
               gold={gold}
               onCollect={collect}
-              prices={DEMO_PRICES}
               owned={owned}
-              onBuy={buy}
               onLeave={leave}
               className="w-full h-full"
             />
           )}
-          className="w-full h-[75vh] rounded overflow-hidden" />
+          gold={gold}
+          prices={DEMO_PRICES}
+          owned={owned}
+          onBuy={buy}
+          className="w-full h-[75vh] rounded overflow-hidden"
+        />
       ) : (
         <LegoWorld houseLevel={level} streak={12} className="w-full h-[75vh] rounded overflow-hidden" />
       )}
