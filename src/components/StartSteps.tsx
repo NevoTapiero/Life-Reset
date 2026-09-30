@@ -15,15 +15,20 @@ export default function StartSteps({ doneCount }: { doneCount: number }) {
   const [hidden, setHidden] = useState(true);
 
   useEffect(() => {
-    try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- reads a device setting once
-      setHidden(localStorage.getItem(KEY) === "1");
-    } catch {
-      setHidden(false);
-    }
+    // one onboarding card at a time: wait while "How it works" is still up
+    const read = () => {
+      try {
+        setHidden(localStorage.getItem(KEY) === "1" || localStorage.getItem("sl-tips-v1") !== "done");
+      } catch {
+        setHidden(false);
+      }
+    };
+    read();
+    window.addEventListener("sl-tips-done", read);
     Promise.all([supabase.rpc("get_leaderboard"), supabase.rpc("my_trackers")]).then(([lb, tr]) =>
       setState({ friends: Math.max(0, ((lb.data as unknown[]) ?? []).length - 1), apps: ((tr.data as unknown[]) ?? []).length }),
     );
+    return () => window.removeEventListener("sl-tips-done", read);
   }, []);
 
   if (hidden || !state) return null;

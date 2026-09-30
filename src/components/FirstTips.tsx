@@ -24,6 +24,8 @@ export default function FirstTips() {
     try {
       localStorage.setItem(KEY, "done");
     } catch {}
+    // Getting started waits for the tips to go, so only one shows at a time
+    window.dispatchEvent(new Event("sl-tips-done"));
   }
 
   const tips = [
