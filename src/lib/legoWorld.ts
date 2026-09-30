@@ -334,9 +334,10 @@ export function inLot(lot: Lot, [x, y, z]: [number, number, number]): [number, n
 }
 /** the gravel path from a lot's front gate (just past its hedge, by the door) in to the ring
  *  round the plaza: from the ring inwards, winding a little, LDU */
+/** the middle of the tiled path from a house's door, in the plot frame (LDU) */
+export const pathX = (s: HouseSpec) => (doorCells(s)[1] + 1 - PLOT / 2) * S;
 export function lotPath(lot: Lot, level: number): P3[] {
-  const [u] = minifigSpot(houseSpec(level));
-  const gate = inLot(lot, [u, 0, (PLOT / 2 + 3) * S]);
+  const gate = inLot(lot, [pathX(houseSpec(level)), 0, (PLOT / 2 + 3) * S]); // where the tiles end, past the hedge
   const end = nearestStreet(gate);
   const [dx, dz] = [end[0] - gate[0], end[2] - gate[2]];
   const len = Math.hypot(dx, dz) || 1;
@@ -1064,8 +1065,9 @@ export function townClouds(): Slab[] {
     const cx = Math.cos(a) * d;
     const cz = Math.sin(a) * d;
     const cy = 1100 + rnd() * 700; // height of the cloud's base
+    // white round-cornered plates with studs, stacked: a LEGO cloud
     for (const [dx, dz, w, dd, layer] of puff)
-      out.push({ x: cx + dx * 60, z: cz + dz * 60, w: w * 60, d: dd * 60, h: 24, y: cy + layer * 24, color: "#ffffff" });
+      out.push({ x: cx + dx * 60, z: cz + dz * 60, w: w * 60, d: dd * 60, h: 24, y: cy + layer * 24, radius: Math.min(w, dd) * 60 * 0.4, color: "#ffffff", studs: true });
   }
   return out;
 }

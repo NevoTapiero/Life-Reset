@@ -3618,8 +3618,16 @@ function Scenery({ color, season, sunAt, shadows = true }: { color: string; seas
         const [x, z] = [h.p[0] + ox * c + oz * sn, h.p[2] - ox * sn + oz * c];
         out.push({ x: x / LDU, z: -z / LDU, w: w / LDU, d: (w * 0.8) / LDU, h: t / LDU, y: (k * t) / LDU, radius: (w * 0.25) / LDU, yaw: -h.turn, color: `#${shades[k].getHexString()}`, studs: true });
       }
+    // the mountains the same way: stepped grey plates, snow on the top steps
+    for (const pk of peaks)
+      for (let k = 0; k < pk.steps; k++) {
+        const w = pk.w * (1 - k / pk.steps);
+        const t = pk.w * 0.11;
+        const snow = k >= pk.steps * snowLine;
+        out.push({ x: pk.p[0] / LDU, z: -pk.p[2] / LDU, w: w / LDU, d: (w * 0.85) / LDU, h: t / LDU, y: (k * t) / LDU, radius: (w * 0.12) / LDU, yaw: -pk.turn, color: snow ? "#f4f6f8" : k % 2 ? "#a0a5a9" : "#8c9196", studs: true });
+      }
     return out;
-  }, [hills, shades]);
+  }, [hills, peaks, shades, snowLine]);
   const treeMesh = useRef<THREE.InstancedMesh>(null);
   const hillPine = useMemo(() => brickPine(), []);
   useLayoutEffect(() => {
@@ -3651,21 +3659,6 @@ function Scenery({ color, season, sunAt, shadows = true }: { color: string; seas
       <instancedMesh ref={treeMesh} args={[undefined, undefined, trees.length]} geometry={hillPine}>
         <meshStandardMaterial color={season === "winter" ? "#e9eef3" : "#237841"} roughness={0.5} flatShading />
       </instancedMesh>
-      {peaks.map((pk, i) => (
-        <group key={`p${i}`} position={pk.p} rotation={[0, pk.turn, 0]}>
-          {Array.from({ length: pk.steps }, (_, k) => {
-            const w = pk.w * (1 - k / pk.steps);
-            const t = pk.w * 0.11;
-            const snow = k >= pk.steps * snowLine;
-            return (
-              <mesh key={k} position={[0, t * (k + 0.5), 0]}>
-                <boxGeometry args={[w, t, w * 0.85]} />
-                <meshStandardMaterial color={snow ? "#f4f6f8" : k % 2 ? "#a0a5a9" : "#8c9196"} roughness={0.6} />
-              </mesh>
-            );
-          })}
-        </group>
-      ))}
       {/* the sun: a round yellow plate, bright enough to glow */}
       {sunAt && (
         <mesh position={sunAt}>
