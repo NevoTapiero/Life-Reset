@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import BrickLogo from "@/components/BrickLogo";
 import Icon from "@/components/Icon";
 import TownArt from "@/components/TownArt";
@@ -23,7 +25,14 @@ const STEPS = [
 ];
 
 export default function Landing() {
-  useEffect(() => resetTheme(), []);
+  const router = useRouter();
+  useEffect(() => {
+    resetTheme();
+    // already signed in: straight to Home
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) router.replace("/app");
+    });
+  }, [router]);
   return (
     <main className="flex-1 flex flex-col py-8">
       <div className="text-center rise">
