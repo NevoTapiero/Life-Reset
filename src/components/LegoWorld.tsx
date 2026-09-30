@@ -207,21 +207,10 @@ function Minifig({ look, at }: { look: MinifigLook; at: [number, number, number]
 
 const FRONT_RIGHT = new THREE.Vector3(0.55, 0.65, -0.8).normalize();
 
-function FitCamera({
-  target,
-  width,
-  dir = FRONT_RIGHT,
-  fov = 32,
-}: {
-  target: THREE.Vector3;
-  width: number;
-  dir?: THREE.Vector3;
-  fov?: number;
-}) {
+function FitCamera({ target, width, dir = FRONT_RIGHT }: { target: THREE.Vector3; width: number; dir?: THREE.Vector3 }) {
   const { camera, size } = useThree();
   useLayoutEffect(() => {
     const cam = camera as THREE.PerspectiveCamera;
-    cam.fov = fov;
     const vfov = (cam.fov * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * (size.width / size.height));
     const dist = width / 2 / Math.tan(Math.min(hfov, vfov) / 2);
@@ -229,7 +218,7 @@ function FitCamera({
     cam.position.copy(target).addScaledVector(dir, dist);
     cam.lookAt(target);
     cam.updateProjectionMatrix();
-  }, [camera, size, target, width, dir, fov]);
+  }, [camera, size, target, width, dir]);
   return null;
 }
 
@@ -296,7 +285,7 @@ function Stage({
   width,
   pan = false,
   dir,
-  fov,
+  fov = 32,
   sky = "#bfe3ff",
   bounds,
   onPick,
@@ -342,7 +331,7 @@ function Stage({
         <Canvas
           shadows
           dpr={[1, 2]}
-          camera={{ fov: 32, near: 1, far: 500 }}
+          camera={{ fov, near: 1, far: 500 }}
           gl={{ antialias: true }}
           onCreated={({ gl }) => (gl.localClippingEnabled = true)}
         >
@@ -386,7 +375,7 @@ function Stage({
           <PinTracker pins={pins} els={pinEls} />
 
           <ContactShadows position={[target.x, 0.02, target.z]} opacity={0.2} scale={36} blur={2} far={10} />
-          <FitCamera target={target} width={width} dir={dir} fov={fov} />
+          <FitCamera target={target} width={width} dir={dir} />
           <OrbitControls
             ref={controls}
             onChange={clamp}
@@ -402,7 +391,7 @@ function Stage({
               },
               touches: { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE },
             })}
-            minDistance={fov && fov > 40 ? 6 : 14}
+            minDistance={fov > 40 ? 6 : 14}
             maxDistance={110}
             minPolarAngle={0.45}
             maxPolarAngle={1.25}
