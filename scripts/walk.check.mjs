@@ -1,9 +1,9 @@
 // node scripts/walk.check.mjs -- every walk between any two places (doors, insides, the shop) keeps to the streets
 import assert from "node:assert";
-import { doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
+import { doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, shopWalk, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
 
 const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
-const places = [SHOP_WALK, ...lots.flatMap((lot, i) => [doorWalk(lot, 1 + (i % 5), 40), insideWalk(lot, 1 + (i % 5), 40)])];
+const places = [SHOP_WALK, shopWalk(1), shopWalk(3), ...lots.flatMap((lot, i) => [doorWalk(lot, 1 + (i % 5), 40), insideWalk(lot, 1 + (i % 5), 40)])];
 const straight = (a, b) => Math.abs(a[0] - b[0]) < 1 || Math.abs(a[2] - b[2]) < 1;
 const onStreets = (r) => {
   for (let i = 0; i < r.pts.length - 1; i++)

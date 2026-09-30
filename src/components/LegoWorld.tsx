@@ -38,6 +38,7 @@ import {
   rideSpot,
   type Loadout,
   SHOP_WALK,
+  shopWalk,
   walkRoute,
   rerouteFrom,
   type P3,
@@ -1022,6 +1023,13 @@ export function LegoTown({
   const [inside, setInside] = useState<number | null>(null);
   // where your minifig is walking to: the last place you looked at
   const [dest, setDest] = useState(meIndex);
+  // your friends go out too: each spends about a third of the time at the shop, staggered
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 15_000);
+    return () => clearInterval(t);
+  }, []);
+  const outShopping = (i: number) => i !== meIndex && i !== dest && i !== inside && (tick + i * 2) % 6 >= 4;
   if (focus !== OVERVIEW && focus !== dest) setDest(focus);
   const [shopOpen, setShopOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -1211,12 +1219,14 @@ export function LegoTown({
             }
             return <Walker key="me" look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
           }
+          // friends: at their door, or off to the shop now and then (home when you come round)
+          const away = outShopping(i);
           return (
-            <Minifig
+            <Walker
               key={res.name}
               look={loadoutFor(res.level, res.character ?? undefined)}
-              at={inLot(lots[i], minifigSpot(houseSpec(res.level)))}
-              turn={turnRad(lots[i].facing)}
+              to={away ? shopWalk(1 + (i % 3)) : doorWalk(lots[i], res.level)}
+              turn={away ? Math.PI : turnRad(lots[i].facing)}
             />
           );
         })}
