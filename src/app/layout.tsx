@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Fredoka, Geist_Mono, Nunito } from "next/font/google";
+import ButtonSounds from "@/components/ButtonSounds";
 import PwaSetup from "@/components/PwaSetup";
 import "./globals.css";
 
@@ -50,6 +51,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${fredoka.variable} ${nunito.variable} ${geistMono.variable} antialiased`}>
         <PwaSetup />
+        <ButtonSounds />
         <div className="glow-scene" aria-hidden />
         <div className="mx-auto w-full max-w-md min-h-dvh flex flex-col px-4">
           {children}

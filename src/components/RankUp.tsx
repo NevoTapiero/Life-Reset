@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { MinifigHead } from "@/components/PlayerAvatar";
+import Minifig from "@/components/Minifig";
 import RankBadge from "@/components/RankBadge";
 import { legoLevel, levelTitle } from "@/lib/brick";
-import { sfx } from "@/lib/sfx";
+import { brickSound } from "@/lib/brickSound";
 import type { Rank } from "@/lib/game";
 
 const BURST = ["var(--lego-red)", "var(--lego-yellow)", "var(--lego-blue)", "var(--lego-green)", "var(--lego-orange)", "#ffffff"];
@@ -51,10 +51,8 @@ export default function RankUp({
 }) {
   const newLevel = legoLevel(rank.tierIndex) > legoLevel(previousTier);
   useEffect(() => {
-    sfx.ting();
-    const t = setTimeout(() => sfx.clatter(), 180);
-    return () => clearTimeout(t);
-  }, []);
+    brickSound.levelUp(newLevel);
+  }, [newLevel]);
   return (
     <div className="rankup-backdrop" onClick={onClose} role="dialog" aria-label={newLevel ? "New level" : "Rank up"}>
       <div className="relative flex items-center justify-center">
@@ -63,9 +61,7 @@ export default function RankUp({
         <BrickBurst count={newLevel ? 30 : 18} />
         <div className="rankup-badge">
           {newLevel ? (
-            <span className="block rounded-full overflow-hidden" style={{ boxShadow: "0 0 0 6px #fff, 0 10px 0 6px var(--lego-yellow-edge)" }}>
-              <MinifigHead character={character} size={132} />
-            </span>
+            <Minifig character={character} level={legoLevel(rank.tierIndex)} size={210} />
           ) : (
             <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={120} />
           )}

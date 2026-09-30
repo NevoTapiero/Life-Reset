@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { sfx } from "@/lib/sfx";
+import { brickSound } from "@/lib/brickSound";
 import {
   PERIODS,
   Period,
@@ -141,8 +141,11 @@ export function useMissions() {
       for (const d of before) if (periodStart(period, d) === periodStart(period, on)) after.delete(d);
     } else after.add(on);
     setHistory((prev) => new Map(prev).set(q.id, after));
-    if (isDone) sfx.click();
-    else sfx.snap();
+    if (isDone) brickSound.unsnap();
+    else {
+      brickSound.snap();
+      brickSound.stud(cardStepOn(before, period, on));
+    }
     if (!isDone) setXpFloat({ id: q.id, amount: cardXp(q.xp, cardStepOn(before, period, on)) });
     const { data, error: rpcError } = await supabase.rpc(isDone ? "uncomplete_quest_for" : "complete_quest_for", {
       p_quest_id: q.id,
@@ -151,7 +154,10 @@ export function useMissions() {
     if (rpcError) {
       setHistory((prev) => new Map(prev).set(q.id, before));
       if (rpcError.message.includes("only log today") || rpcError.message.includes("only change today")) load();
-      else setError(rpcError.message);
+      else {
+        brickSound.error();
+        setError(rpcError.message);
+      }
     } else if (data) {
       const updated = data as Profile;
       if (!isDone && profile) {
