@@ -493,6 +493,7 @@ function Minifig({
   at,
   turn = 0,
   walking,
+  wave = false,
 }: {
   /** four colours (townsfolk) or a whole figure (a character's loadout) */
   look: MinifigLook | Figure;
@@ -500,6 +501,8 @@ function Minifig({
   turn?: number;
   /** while true, the legs and arms swing */
   walking?: React.RefObject<boolean>;
+  /** standing, it raises an arm and waves (hello!) */
+  wave?: boolean;
 }) {
   const [model, setModel] = useState<THREE.Object3D | null>(null);
   const key = JSON.stringify("parts" in look ? { parts: look.parts, gear: look.gear, shoes: look.shoes } : figureOf(look));
@@ -539,6 +542,12 @@ function Minifig({
       parts.forEach((p, k) =>
         p!.quaternion.copy(limbs.current[k]).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), k % 2 ? swing : -swing)),
       );
+      // waving: one arm up (about the shoulder), rocking side to side; a few seconds, then a rest
+      if (wave && !walking?.current && t % 5 < 3) {
+        const up = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 2.6);
+        const rock = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.sin(t * 9) * 0.35);
+        parts[3]!.quaternion.copy(limbs.current[3]).premultiply(up).premultiply(rock);
+      }
     }
     // a hop when tapped (LDraw is -Y up)
     if (taps.current !== seen.current) {
@@ -1040,6 +1049,7 @@ export function LegoTown({
     const hostIn = host === meIndex || host === dest || phase(host) < 4;
     return hostIn ? host : "shop";
   };
+  const visited = (host: number) => residents.some((_, j) => outing(j) === host);
   if (focus !== OVERVIEW && focus !== dest) setDest(focus);
   const [shopOpen, setShopOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -1227,7 +1237,9 @@ export function LegoTown({
                   ? insideWalk(lots[dest], level, side, r && { x: hx + r.x, z: hz + r.z, front: hz + r.front })
                   : doorWalk(lots[dest], level, side);
             }
-            return <Walker key="me" look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
+            // you wave at the friend you've come to see, or at one who's come round to yours
+            const wave = inside === null && !shop && (dest !== meIndex || visited(meIndex));
+            return <Walker key="me" wave={wave} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
           }
           // friends: at their door, at the shop, or on a neighbour's step, turned to them
           const out = outing(i);
@@ -1235,6 +1247,8 @@ export function LegoTown({
           return (
             <Walker
               key={res.name}
+              // hello: when you come to see them, when someone's round, and to whoever they're visiting
+              wave={host !== null || (!out && (dest === i || visited(i)))}
               look={loadoutFor(res.level, res.character ?? undefined)}
               to={
                 out === "shop"
@@ -1548,7 +1562,7 @@ const STROLLERS: { look: MinifigLook; r: number; speed: number; start: number }[
 // You, walking round town to wherever you look: your door, a friend's door
 // (beside them), the shop. Change your mind mid-walk and you turn round there.
 const WALK_SPEED = 260; // LDU a second
-function Walker({ look, to, turn }: { look: MinifigLook | Figure; to: P3[]; turn: number }) {
+function Walker({ look, to, turn, wave = false }: { look: MinifigLook | Figure; to: P3[]; turn: number; wave?: boolean }) {
   const root = useRef<THREE.Group>(null);
   const walking = useRef(false);
   const key = JSON.stringify(to);
@@ -1598,7 +1612,7 @@ function Walker({ look, to, turn }: { look: MinifigLook | Figure; to: P3[]; turn
   });
   return (
     <group ref={root}>
-      <Minifig look={look} at={[0, 0, 0]} walking={walking} />
+      <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} />
     </group>
   );
 }
