@@ -126,14 +126,26 @@ export default function Minifig({
       <rect x="51" y="8" width="18" height="8" rx="2.5" fill={SKIN_SHADE} />
       <rect x="41" y="14" width="38" height="40" rx="11" fill={SKIN} />
       <rect x="41" y="14" width="38" height="40" rx="11" fill={shade} />
-      {/* face */}
-      <g className="mf-eyes">
-        <ellipse cx="53" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
-        <ellipse cx="67" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
-        <circle cx="54" cy="30.8" r="1" fill="#fff" />
-        <circle cx="68" cy="30.8" r="1" fill="#fff" />
+      {/* face: a two-sided head, like real minifigs. The calm side shows;
+          the shocked side flashes while the minifig falls apart. */}
+      <g className="mf-calm">
+        <g className="mf-eyes">
+          <ellipse cx="53" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
+          <ellipse cx="67" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
+          <circle cx="54" cy="30.8" r="1" fill="#fff" />
+          <circle cx="68" cy="30.8" r="1" fill="#fff" />
+        </g>
+        <FacePrint character={character} />
       </g>
-      <path d="M51.5 40c5 4.6 12 4.6 17 0" fill="none" stroke="#1b2a34" strokeWidth="2.6" strokeLinecap="round" />
+      <g className="mf-shock" style={{ display: "none" }}>
+        <circle cx="53" cy="31" r="4.4" fill="#fff" stroke="#1b2a34" strokeWidth="1.6" />
+        <circle cx="67" cy="31" r="4.4" fill="#fff" stroke="#1b2a34" strokeWidth="1.6" />
+        <circle cx="53" cy="31.5" r="1.7" fill="#1b2a34" />
+        <circle cx="67" cy="31.5" r="1.7" fill="#1b2a34" />
+        <path d="M49 24.5l6-2M71 24.5l-6-2" stroke="#1b2a34" strokeWidth="1.8" strokeLinecap="round" />
+        <ellipse cx="60" cy="43" rx="4" ry="4.6" fill="#1b2a34" />
+        <ellipse cx="60" cy="44.6" rx="2.4" ry="2" fill="#c91a09" />
+      </g>
       <HeadGear o={o} />
 
       {/* gold crown (level 5) */}
@@ -143,6 +155,54 @@ export default function Minifig({
       </g>
     </svg>
   );
+}
+
+// each character's printed face: brows, lashes, a beard, and the mouth
+function FacePrint({ character }: { character?: string | null }) {
+  const ink = { fill: "none", stroke: "#1b2a34", strokeLinecap: "round" as const };
+  switch (character ?? "warrior") {
+    case "wizard":
+      // a white beard hides the mouth; bushy brows
+      return (
+        <>
+          <path d="M48.5 26.5c2.5-1.6 5-1.8 7.5-.8M71.5 26.5c-2.5-1.6-5-1.8-7.5-.8" {...ink} strokeWidth="2.2" />
+          <path d="M45 37c4 2.6 9 3.2 15 3.2s11-.6 15-3.2c1.5 11-3.5 23-15 29-11.5-6-16.5-18-15-29Z" fill="#f4f4f0" />
+          <path d="M60 44v18M54 43.5c.5 6 2 11 4 15M66 43.5c-.5 6-2 11-4 15" stroke="#d6d6cf" strokeWidth="1.1" fill="none" strokeLinecap="round" />
+          <path d="M50.5 38.5c3.2-1.8 6.4-1.6 9.5.6 3.1-2.2 6.3-2.4 9.5-.6-2 3-6 3.6-9.5 1.4-3.5 2.2-7.5 1.6-9.5-1.4Z" fill="#e0e0da" />
+        </>
+      );
+    case "mentalist":
+      // lashes and a calm smile
+      return (
+        <>
+          <path d="M49.5 29.5l-2-1.6M50.8 28.4l-1-2M70.5 29.5l2-1.6M69.2 28.4l1-2" {...ink} strokeWidth="1.2" />
+          <path d="M53 40.5c4.4 3.2 9.6 3.2 14 0" {...ink} strokeWidth="2.3" />
+          <circle cx="49" cy="37.5" r="2.2" fill="#ff9e8a" opacity="0.55" />
+          <circle cx="71" cy="37.5" r="2.2" fill="#ff9e8a" opacity="0.55" />
+        </>
+      );
+    case "guardian":
+      // thick level brows, a small scar, a firm half smile
+      return (
+        <>
+          <path d="M49 26.5h7.5M63.5 26.5H71" {...ink} strokeWidth="2.6" />
+          <path d="M71.5 33l2.5 5" stroke="#c99a06" strokeWidth="1.3" strokeLinecap="round" />
+          <path d="M53 41c3.6 1.8 9 1.8 13-1.6" {...ink} strokeWidth="2.5" />
+        </>
+      );
+    case "shadow":
+      // under the mask: just the grin
+      return <path d="M51.5 40c5 4.6 12 4.6 17 0" {...ink} strokeWidth="2.6" />;
+    default:
+      // warrior: brows angled in, determined grin with teeth
+      return (
+        <>
+          <path d="M48.5 25.5l7.5 2.2M71.5 25.5 64 27.7" {...ink} strokeWidth="2.4" />
+          <path d="M51 39.5c5.5 5.5 12.5 5.5 18 0Z" fill="#1b2a34" stroke="#1b2a34" strokeWidth="1.6" strokeLinejoin="round" />
+          <path d="M53 40.4c4.5 1.6 9.5 1.6 14 0" stroke="#fff" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+        </>
+      );
+  }
 }
 
 function Hand({ x, y, flip }: { x: number; y: number; flip?: boolean }) {
