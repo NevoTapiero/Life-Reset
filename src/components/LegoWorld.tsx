@@ -45,6 +45,10 @@ import {
   shopWalk,
   walkRoute,
   rerouteFrom,
+  walkFrom,
+  stepFree,
+  townBlockers,
+  type Blocker,
   type P3,
   type Route,
   modelText,
@@ -756,11 +760,17 @@ function FitCamera({
   width,
   dir = FRONT_RIGHT,
   controls,
+  follow,
+  flyingRef,
 }: {
   target: THREE.Vector3;
   width: number;
   dir?: THREE.Vector3;
   controls: React.RefObject<OrbitControlsImpl | null>;
+  /** following someone: frame where they are when following starts, not `target` */
+  follow?: React.RefObject<THREE.Vector3>;
+  /** set while a glide is under way (the follow camera waits for it) */
+  flyingRef?: React.RefObject<boolean>;
 }) {
   const { camera, size } = useThree();
   const flight = useRef<{ from: THREE.Vector3; fromAim: THREE.Vector3; to: THREE.Vector3; toAim: THREE.Vector3; t: number } | null>(null);
@@ -770,19 +780,21 @@ function FitCamera({
     const vfov = (cam.fov * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * (size.width / size.height));
     const dist = width / 2 / Math.tan(Math.min(hfov, vfov) / 2);
+    const aim = follow ? follow.current.clone().add(CHASE_LIFT) : target;
     // by default from the front-right, looking down at the house (the front faces three's -Z)
-    const to = target.clone().addScaledVector(dir, dist);
+    const to = aim.clone().addScaledVector(dir, dist);
     const c = controls.current;
     if (!placed.current || !c) {
       cam.position.copy(to);
-      cam.lookAt(target);
-      c?.target.copy(target);
+      cam.lookAt(aim);
+      c?.target.copy(aim);
       c?.update();
       placed.current = !!c;
       return;
     }
-    flight.current = { from: cam.position.clone(), fromAim: c.target.clone(), to, toAim: target.clone(), t: 0 };
-  }, [camera, size, target, width, dir, controls]);
+    flight.current = { from: cam.position.clone(), fromAim: c.target.clone(), to, toAim: aim.clone(), t: 0 };
+    // (follow is a ref: only where they are when following starts matters)
+  }, [camera, size, target, width, dir, controls, follow]);
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
@@ -793,6 +805,7 @@ function FitCamera({
   useFrame((_, dt) => {
     const f = flight.current;
     const c = controls.current;
+    if (flyingRef) flyingRef.current = !!f;
     if (!f || !c) return;
     f.t = Math.min(1, f.t + dt / 0.9);
     const e = f.t < 0.5 ? 4 * f.t ** 3 : 1 - (-2 * f.t + 2) ** 3 / 2; // ease in and out
@@ -800,6 +813,33 @@ function FitCamera({
     c.target.lerpVectors(f.fromAim, f.toAim, e);
     c.update();
     if (f.t === 1) flight.current = null;
+  });
+  return null;
+}
+
+// The LEGO-game camera: once you're being followed, the view keeps you in
+// frame as you move -- eased, not rigid -- at whatever angle and distance you
+// have swung it to.
+const CHASE_LIFT = new THREE.Vector3(0, 2.2, 0); // aim at the minifig's middle, not its feet
+function Chase({
+  follow,
+  controls,
+  flying,
+}: {
+  follow: React.RefObject<THREE.Vector3>;
+  controls: React.RefObject<OrbitControlsImpl | null>;
+  flying: React.RefObject<boolean>;
+}) {
+  const { camera } = useThree();
+  const want = useMemo(() => new THREE.Vector3(), []);
+  useFrame((_, dt) => {
+    const c = controls.current;
+    if (!c || flying.current) return;
+    want.copy(follow.current).add(CHASE_LIFT).sub(c.target).multiplyScalar(Math.min(1, dt * 6));
+    if (want.lengthSq() < 1e-8) return;
+    c.target.add(want);
+    camera.position.add(want);
+    c.update();
   });
   return null;
 }
@@ -989,6 +1029,7 @@ function Stage({
   onPick,
   overlay,
   pins = [],
+  follow,
   children,
 }: {
   className?: string;
@@ -1015,12 +1056,15 @@ function Stage({
   overlay?: React.ReactNode;
   /** buttons pinned over points in three's space (names, station bubbles) */
   pins?: Pin[];
+  /** follow someone (their position in three's space, kept up to date), LEGO-game style */
+  follow?: React.RefObject<THREE.Vector3>;
   children: React.ReactNode;
 }) {
   const [sun] = useState(() => new THREE.Object3D());
   // full sharpness (up to 2x) while the device keeps up; a step down if it can't
   const [dpr, setDpr] = useState(2);
   const controls = useRef<OrbitControlsImpl>(null);
+  const flying = useRef(false);
   const pinEls = useRef(new Map<string, HTMLDivElement>());
   // keep the camera over the town: pull the target back inside, camera with it
   const clamp = () => {
@@ -1113,7 +1157,8 @@ function Stage({
             maxPolarAngle={1.25}
           />
           {/* after the controls, so it can move them */}
-          <FitCamera target={target} width={width} dir={dir} controls={controls} />
+          <FitCamera target={target} width={width} dir={dir} controls={controls} follow={follow} flyingRef={flying} />
+          {follow && <Chase follow={follow} controls={controls} flying={flying} />}
           {/* outdoors: lamps and lit windows glowing after dark, a soft vignette. Everything
               stays sharp (no blur: it read as low quality). The effects draw off screen, so the
               neutral tone mapping moves in here. */}
@@ -1158,6 +1203,11 @@ export type Visit = "allowed" | "knocked";
 const SHOP_FOCUS = -1;
 const OVERVIEW = -2; // the whole town from above
 const LOOK_DOWN = new THREE.Vector3(0.25, 1.35, -0.75).normalize();
+// playing: the camera behind and above you, looking down at about 40 degrees, close
+// enough that you're the star (LEGO-game style); you can swing it round with a drag
+const CHASE_DIR = new THREE.Vector3(0.12, 0.66, -0.78).normalize();
+const CHASE_WIDTH = 22;
+const STILL = new THREE.Vector3(); // a target that never changes (the camera follows you instead)
 const turnRad = (facing: number) => (facing * Math.PI) / 180;
 const toThree = ([x, y, z]: [number, number, number]): [number, number, number] => [x * LDU, y, -z * LDU];
 
@@ -1254,6 +1304,23 @@ export function LegoTown({
   const [shopOpen, setShopOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
+  // playing: outside, the camera follows you and you walk where you like (stick or keys);
+  // the whole-town view and being inside a house frame the scene instead
+  const following = focus !== OVERVIEW && inside === null;
+  const stick = useRef({ x: 0, y: 0 });
+  useKeysToStick(stick);
+  const me3 = useRef(new THREE.Vector3());
+  const blockers = useMemo(() => townBlockers(residents), [residents]);
+  const [goes, setGoes] = useState(0); // bumped by every "walk there", so the same place twice still walks
+  const [near, setNear] = useState<number | null>(null);
+  const places = useMemo(
+    () => [
+      { id: SHOP_FOCUS, at: SHOP_WALK[SHOP_WALK.length - 1] },
+      ...residents.map((res, i) => ({ id: i, at: doorWalk(lots[i], res.level).at(-1)! })),
+    ],
+    [residents, lots],
+  );
+
   // a house's centre on the ground, in its lot's frame (LDU)
   const centre = (level: number): [number, number, number] => {
     const s = houseSpec(level);
@@ -1262,34 +1329,33 @@ export function LegoTown({
   const houseCentre = (i: number) => inLot(lots[i], centre(residents[i].level));
 
   const target = useMemo(() => {
+    if (following) return STILL; // the camera follows you instead
     // the shop and the fountain in front of it, looking up at the building
     if (focus === OVERVIEW) return new THREE.Vector3(0, 0, 0);
     if (focus === SHOP_FOCUS) return new THREE.Vector3(0, 10, -((SHOP_FRONT + FOUNTAIN[1]) / 2) * LDU);
     const [x, , z] = toThree(houseCentre(focus));
     return new THREE.Vector3(x, inside === null ? 3 : 2, z);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focus, inside, lots]);
+  }, [focus, inside, lots, following]);
   // look at a house from its front: turn the view with the lot
   const dir = useMemo(() => {
+    if (following) return CHASE_DIR;
     const base = inside === null ? FRONT_RIGHT : LOOK_IN;
     if (focus === OVERVIEW) return LOOK_DOWN;
     if (focus === SHOP_FOCUS) return base;
     return base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -turnRad(lots[focus].facing));
-  }, [focus, inside, lots]);
+  }, [focus, inside, lots, following]);
   const bounds = useMemo(() => {
     const h = (TOWN_HALF - 8) * 20 * LDU;
     return new THREE.Box3(new THREE.Vector3(-h, 0, -h), new THREE.Vector3(h, 12, h));
   }, []);
 
+  // walk to a place (a name tapped): the camera follows you there
   const go = (i: number) => {
     setFocus(i);
     setInside(null);
+    setGoes((n) => n + 1);
   };
-  // the stops along the way, for the arrows: the shop, then every house
-  const stops = [SHOP_FOCUS, ...residents.map((_, i) => i)];
-  const step = (by: number) => go(stops[(stops.indexOf(focus) + by + stops.length) % stops.length]);
-  const nameOf = (i: number) =>
-    i === SHOP_FOCUS ? "the shop" : i === OVERVIEW ? "the whole town" : residents[i].me ? "your house" : residents[i].name;
 
   // a tap on the ground: go to whatever is nearest -- the plaza or a lot
   const pick = (p: THREE.Vector3) => {
@@ -1309,7 +1375,9 @@ export function LegoTown({
 
   if (room && inside === meIndex) return <div className={className}>{room(() => setInside(null))}</div>;
 
-  const r = focus < 0 ? null : residents[focus]; // the shop and the overview are nobody's house
+  // the action button is about where you're standing (following) or what you're looking at
+  const here = following ? near : focus;
+  const r = here === null || here < 0 ? null : residents[here]; // the shop and the overview are nobody's house
   const access = r && (r.me ? "allowed" : visits[r.name]);
   const label = (text: string, me: boolean, onClick: () => void) => (
     <button onClick={onClick} className={`lego lego-sm ${me ? "" : "lego-white"}`}>
@@ -1326,20 +1394,23 @@ export function LegoTown({
         width={
           inside !== null
             ? houseFor(residents[inside].level, residents[inside].name).w + 10
-            : focus === OVERVIEW
-              ? 230
-              : focus === SHOP_FOCUS
-                ? 95
-                : 62
+            : following
+              ? CHASE_WIDTH
+              : focus === OVERVIEW
+                ? 230
+                : focus === SHOP_FOCUS
+                  ? 95
+                  : 62
         }
         far={1500}
         // the house and shop framings rely on the usual 110 limit; only the overview pulls further out
         maxDistance={focus === OVERVIEW ? 600 : 110}
         dir={dir}
         bounds={bounds}
-        pan
+        pan={!following}
+        follow={following ? me3 : undefined}
         mood={mood}
-        onPick={pick}
+        onPick={following ? undefined : pick}
         overlay={
           <>
             <Hills color={grass} />
@@ -1382,6 +1453,7 @@ export function LegoTown({
       >
         {town && <primitive object={town} />}
         {built && !settled && <Settle onSettled={() => setSettled(true)} />}
+        {following && <Near where={me3} places={places} onNear={setNear} />}
         <InstancedParts placements={placementsIn(townInstances(residents), season)} />
         {/* the shop, its front to the camera's side of the plaza */}
         {/* the shop at the back of the plaza, the fountain and the rest of the square in front of it */}
@@ -1436,7 +1508,7 @@ export function LegoTown({
             }
             // you wave at the friend you've come to see, or at one who's come round to yours
             const wave = inside === null && !shop && (dest !== meIndex || visited(meIndex));
-            return <Walker key="me" wave={wave} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
+            return <Walker key="me" wave={wave} go={goes} input={stick} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
           }
           // friends: at their door, at the shop, or on a neighbour's step, turned to them
           const out = outing(i);
@@ -1488,34 +1560,29 @@ export function LegoTown({
         </div>
       )}
 
-      {/* the arrows sit at the edges, so they never move when the middle button's text changes */}
-      <div className="absolute inset-x-0 bottom-3 flex items-center gap-2 px-3 pointer-events-none">
-        <div className="pointer-events-auto flex-none">
-          <TownButton
-            quiet
-            onClick={() => step(-1)}
-            label={`Walk to ${nameOf(stops[(stops.indexOf(focus) - 1 + stops.length) % stops.length])}`}
-          >
-            ‹
-          </TownButton>
-        </div>
-        <div className="flex-1 min-w-0 flex justify-center">
-          {focus === OVERVIEW ? null : focus === SHOP_FOCUS ? (
+      {/* LEGO-game controls: the stick bottom left (while you're out and about), the action
+          button bottom right -- what you can do where you're standing */}
+      <div className="absolute inset-x-0 bottom-3 flex items-end justify-between gap-2 px-3 pointer-events-none">
+        <div className="flex-none">{following && <Joystick outRef={stick} />}</div>
+        <div className="min-w-0 flex justify-end pb-1">
+          {here === null || here === OVERVIEW ? null : here === SHOP_FOCUS ? (
             prices && <TownButton onClick={() => setShopOpen(true)}>Go into the shop</TownButton>
           ) : inside !== null ? (
             <TownButton onClick={() => setInside(null)}>Step outside</TownButton>
           ) : access === "allowed" ? (
-            <TownButton onClick={() => setInside(focus)}>{r!.me ? "Go inside" : `Go inside ${r!.name}'s house`}</TownButton>
+            <TownButton
+              onClick={() => {
+                setFocus(here);
+                setInside(here);
+              }}
+            >
+              {r!.me ? "Go inside" : `Go inside ${r!.name}'s house`}
+            </TownButton>
           ) : access === "knocked" ? (
             <TownButton disabled>Knocked. Waiting for {r!.name}…</TownButton>
           ) : onKnock ? (
             <TownButton onClick={() => onKnock(r!.name)}>Knock on {r!.name}&apos;s door</TownButton>
           ) : null}
-        </div>
-        <div className="pointer-events-auto flex-none">
-          <TownButton quiet onClick={() => step(1)} label={`Walk to ${nameOf(stops[(stops.indexOf(focus) + 1) % stops.length])}`}>
-            ›
-          </TownButton>
         </div>
       </div>
 
@@ -1560,6 +1627,96 @@ function Settle({ onSettled }: { onSettled: () => void }) {
     if (smooth.current >= 20 || waited.current > 4) {
       done.current = true;
       onSettled();
+    }
+  });
+  return null;
+}
+
+// The on-screen stick (bottom left, LEGO-game style): drag the knob; it writes
+// where it points (-1..1, y up) into `out` and springs back when let go.
+function Joystick({ outRef }: { outRef: React.RefObject<{ x: number; y: number }> }) {
+  const knob = useRef<HTMLSpanElement>(null);
+  const move = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const reach = r.width / 2 - 14;
+    let x = e.clientX - (r.left + r.width / 2);
+    let y = e.clientY - (r.top + r.height / 2);
+    const d = Math.hypot(x, y);
+    if (d > reach) [x, y] = [(x / d) * reach, (y / d) * reach];
+    outRef.current = { x: x / reach, y: -y / reach };
+    if (knob.current) knob.current.style.transform = `translate(${x}px, ${y}px)`;
+  };
+  const stop = () => {
+    outRef.current = { x: 0, y: 0 };
+    if (knob.current) knob.current.style.transform = "";
+  };
+  return (
+    <div
+      className="lego-stick pointer-events-auto"
+      role="application"
+      aria-label="Walk: drag to move"
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        move(e);
+      }}
+      onPointerMove={(e) => e.buttons && move(e)}
+      onPointerUp={stop}
+      onPointerCancel={stop}
+    >
+      <span ref={knob} className="lego-stick-knob" />
+    </div>
+  );
+}
+
+// WASD or the arrow keys walk you too (on a computer)
+function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>) {
+  useEffect(() => {
+    const down = new Set<string>();
+    const set = () => {
+      const k = (a: string, b: string) => (down.has(a) || down.has(b) ? 1 : 0);
+      outRef.current = { x: k("d", "arrowright") - k("a", "arrowleft"), y: k("w", "arrowup") - k("s", "arrowdown") };
+    };
+    const on = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest?.("input, textarea, select")) return;
+      const key = e.key.toLowerCase();
+      if (!["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) return;
+      e.preventDefault();
+      if (e.type === "keydown") down.add(key);
+      else down.delete(key);
+      set();
+    };
+    window.addEventListener("keydown", on);
+    window.addEventListener("keyup", on);
+    return () => {
+      window.removeEventListener("keydown", on);
+      window.removeEventListener("keyup", on);
+    };
+  }, [outRef]);
+}
+
+// Which place you're standing at (a door, the shop), for the action button:
+// checked every frame, reported only when it changes.
+function Near({
+  where,
+  places,
+  onNear,
+}: {
+  where: React.RefObject<THREE.Vector3>;
+  places: { id: number; at: P3 }[];
+  onNear: (id: number | null) => void;
+}) {
+  const last = useRef<number | null | undefined>(undefined);
+  useFrame(() => {
+    const p = where.current;
+    let best: number | null = null;
+    let bestD = 170; // LDU: a few steps from the door
+    for (const pl of places) {
+      const d = Math.hypot(pl.at[0] - p.x / LDU, pl.at[2] + p.z / LDU);
+      if (d < bestD) [best, bestD] = [pl.id, d];
+    }
+    if (best !== last.current) {
+      last.current = best;
+      onNear(best);
     }
   });
   return null;
@@ -1828,35 +1985,84 @@ function Jogger({ look, speed, start }: (typeof JOGGERS)[number]) {
 // You, walking round town to wherever you look: your door, a friend's door
 // (beside them), the shop. Change your mind mid-walk and you turn round there.
 const WALK_SPEED = 180; // LDU a second: brisk, with legs that keep up (stride 16)
-function Walker({ look, to, turn, wave = false }: { look: MinifigLook | Figure; to: P3[]; turn: number; wave?: boolean }) {
+// You can also drive yourself about (joystick or keys): `input` is where the
+// stick points (x right, y up the screen), `blockers` what you can't walk
+// through; `where` gets your position (three's space) every frame, for the
+// camera to follow. A new `go` (the same place again included) walks you there.
+const DRIVE_SPEED = 200; // LDU a second at full stick
+function Walker({
+  look,
+  to,
+  turn,
+  wave = false,
+  go = 0,
+  input,
+  blockers,
+  where,
+}: {
+  look: MinifigLook | Figure;
+  to: P3[];
+  turn: number;
+  wave?: boolean;
+  go?: number;
+  input?: React.RefObject<{ x: number; y: number }>;
+  blockers?: Blocker[];
+  where?: React.RefObject<THREE.Vector3>;
+}) {
   const root = useRef<THREE.Group>(null);
   const walking = useRef(false);
-  const key = JSON.stringify(to);
-  const state = useRef<{ from: P3[]; pos: P3; walk: { r: Route; i: number; f: number } | null }>(null);
+  const key = JSON.stringify(to) + "#" + go;
+  // `from`: the place you last walked to, or null after driving yourself somewhere
+  const state = useRef<{ from: P3[] | null; pos: P3; walk: { r: Route; i: number; f: number } | null }>(null);
   useEffect(() => {
-    const dest: P3[] = JSON.parse(key);
+    const dest: P3[] = JSON.parse(key.slice(0, key.lastIndexOf("#")));
     const s = state.current;
     if (!s) state.current = { from: dest, pos: dest[dest.length - 1], walk: null };
     else {
-      const r = s.walk ? rerouteFrom(s.walk.r, s.walk.i, s.pos, dest) : walkRoute(s.from, dest);
+      const r = s.walk ? rerouteFrom(s.walk.r, s.walk.i, s.pos, dest) : s.from ? walkRoute(s.from, dest) : walkFrom(s.pos, dest);
       s.walk = r.pts.length > 1 ? { r, i: 0, f: 0 } : null;
       s.from = dest;
     }
   }, [key]);
-  useFrame((_, dt) => {
+  const look3 = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ camera }, dt) => {
     const s = state.current;
     const o = root.current;
     if (!s || !o) return;
-    const w = s.walk;
-    walking.current = !!w;
     // turn quickly but smoothly (never snap round a corner), the short way round
     const face = (yaw: number) => {
       const d = Math.atan2(Math.sin(yaw - o.rotation.y), Math.cos(yaw - o.rotation.y));
       o.rotation.y += d * Math.min(1, dt * 12);
     };
+    const report = () => where?.current.set(s.pos[0] * LDU, -s.pos[1] * LDU, -s.pos[2] * LDU);
+    // driving: the stick moves you relative to the camera, sliding along walls
+    const stick = input?.current;
+    const push = stick ? Math.min(1, Math.hypot(stick.x, stick.y)) : 0;
+    if (stick && push > 0.15) {
+      camera.getWorldDirection(look3);
+      const f = Math.hypot(look3.x, look3.z) || 1;
+      const [fx, fz] = [look3.x / f, look3.z / f]; // forward on the ground, three's space
+      const mx = fx * stick.y - fz * stick.x;
+      const mz = fz * stick.y + fx * stick.x;
+      const m = Math.hypot(mx, mz) || 1;
+      const [dx, dz] = [mx / m, -mz / m]; // LDraw: z is flipped
+      const len = DRIVE_SPEED * push * Math.min(dt, 0.1);
+      const [x, z] = stepFree(s.pos[0], s.pos[2], dx * len, dz * len, blockers ?? []);
+      s.walk = null;
+      s.from = null;
+      s.pos = [x, 0, z];
+      walking.current = true;
+      o.position.set(...s.pos);
+      face(Math.atan2(dx, dz));
+      report();
+      return;
+    }
+    const w = s.walk;
+    walking.current = !!w;
     if (!w) {
       o.position.set(...s.pos);
-      face(turn);
+      if (s.from) face(turn); // at a place: turn to it; after driving, stay as you are
+      report();
       return;
     }
     let step = WALK_SPEED * Math.min(dt, 0.1);
@@ -1870,6 +2076,7 @@ function Walker({ look, to, turn, wave = false }: { look: MinifigLook | Figure; 
       if (w.i >= w.r.pts.length - 1) {
         s.walk = null;
         s.pos = b;
+        report();
         return;
       }
       [a, b] = [w.r.pts[w.i], w.r.pts[w.i + 1]];
@@ -1880,6 +2087,7 @@ function Walker({ look, to, turn, wave = false }: { look: MinifigLook | Figure; 
     s.pos = [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
     o.position.set(...s.pos);
     face(Math.atan2(b[0] - a[0], b[2] - a[2]));
+    report();
   });
   return (
     <group ref={root}>

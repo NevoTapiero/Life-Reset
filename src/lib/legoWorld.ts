@@ -885,6 +885,57 @@ export function walkRoute(from: P3[], to: P3[]): Route {
     ],
   };
 }
+// ---- walking where you like (the joystick) ----
+// What you can't walk through: houses and the shop (boxes), the fountain (a
+// circle), and the edge of the town. LDU, town frame.
+export type Blocker = { x0: number; z0: number; x1: number; z1: number } | { cx: number; cz: number; r: number };
+export function townBlockers(residents: Resident[]): Blocker[] {
+  const out: Blocker[] = residents.slice(0, MAX_RESIDENTS).map((r, i) => {
+    const lot = lotFor(i);
+    const h = houseFor(r.level, r.name);
+    const [hx, , hz] = houseAt(houseSpec(r.level), h);
+    const a = inLot(lot, [hx + 10, 0, hz - 10]);
+    const b = inLot(lot, [hx + h.w * S - 10, 0, hz - h.d * S + 10]);
+    return { x0: Math.min(a[0], b[0]), z0: Math.min(a[2], b[2]), x1: Math.max(a[0], b[0]), z1: Math.max(a[2], b[2]) };
+  });
+  const shop = SHOP as House;
+  out.push({ x0: (-shop.w / 2) * S + 10, x1: (shop.w / 2) * S - 10, z0: SHOP_FRONT - shop.d * S, z1: SHOP_FRONT - 10 });
+  out.push({ cx: FOUNTAIN[0], cz: FOUNTAIN[1], r: 95 });
+  return out;
+}
+const EDGE = (TOWN_HALF - 4) * S;
+/** can you stand here? */
+export function free(x: number, z: number, blockers: Blocker[]): boolean {
+  if (Math.abs(x) > EDGE || Math.abs(z) > EDGE) return false;
+  return !blockers.some((b) => ("r" in b ? (x - b.cx) ** 2 + (z - b.cz) ** 2 < b.r * b.r : x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1));
+}
+/** a step from (x, z) by (dx, dz), sliding along whatever is in the way */
+export function stepFree(x: number, z: number, dx: number, dz: number, blockers: Blocker[]): [number, number] {
+  if (free(x + dx, z + dz, blockers)) return [x + dx, z + dz];
+  if (free(x + dx, z, blockers)) return [x + dx, z];
+  if (free(x, z + dz, blockers)) return [x, z + dz];
+  return [x, z];
+}
+/** the nearest point on the streets round the plaza (where walks begin and end) */
+export function nearestStreet([x, , z]: P3): P3 {
+  const lim = (v: number) => Math.max(-EDGE, Math.min(EDGE, v));
+  const options: P3[] = [
+    [ST, 0, lim(z)],
+    [-ST, 0, lim(z)],
+    [lim(x), 0, ST],
+    [lim(x), 0, -ST],
+  ];
+  return options.reduce((a, b) => (Math.hypot(b[0] - x, b[2] - z) < Math.hypot(a[0] - x, a[2] - z) ? b : a));
+}
+/** a walk from wherever you are (after driving yourself about) to a place: straight
+ *  there if it's close by, otherwise out to the street, along, and in */
+export function walkFrom(pos: P3, to: P3[]): Route {
+  const here = [nearestStreet(pos), pos];
+  if (Math.hypot(to[1][0] - pos[0], to[1][2] - pos[2]) < 520)
+    return { pts: [pos, ...to.slice(1)], chains: [here, ...to.slice(1).map((_, k) => to.slice(0, k + 2))] };
+  return walkRoute(here, to);
+}
+
 /** turn round mid-walk at `pos` on segment `i` of `r` */
 export function rerouteFrom(r: Route, i: number, pos: P3, to: P3[]): Route {
   const [a, b] = [r.chains[i], r.chains[i + 1]];

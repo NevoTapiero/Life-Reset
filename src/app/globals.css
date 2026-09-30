@@ -710,3 +710,33 @@ body {
 @keyframes fadeAway { to { opacity: 0; visibility: hidden; } }
 .fade-away { animation: fadeAway 450ms ease-out forwards; }
 @media (prefers-reduced-motion: reduce) { .stack-brick { animation: none; } }
+
+/* the joystick: a round dark grey LEGO plate with a round orange 2x2 brick knob */
+.lego-stick {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 30px, rgba(255, 255, 255, 0.08) 31px 33px, transparent 34px),
+    radial-gradient(circle, #5b5f63 0 70%, #43474a 100%);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.25), 0 5px 0 #26292b, 0 8px 16px rgba(0, 0, 0, 0.35);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  opacity: 0.92;
+}
+.lego-stick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 50px;
+  height: 50px;
+  margin: -25px 0 0 -25px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 38% 34%, #ffc27a 0 5px, transparent 6px),
+    radial-gradient(circle at 50% 50%, #ffb052 0 13px, #fe8a18 14px 16px, transparent 17px),
+    radial-gradient(circle, #fe8a18 0 70%, #d86f06 100%);
+  box-shadow: 0 4px 0 #b35a00, 0 6px 10px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}

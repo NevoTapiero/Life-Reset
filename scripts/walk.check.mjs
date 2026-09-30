@@ -1,6 +1,6 @@
 // node scripts/walk.check.mjs -- every walk between any two places (doors, insides, the shop) keeps to the streets
 import assert from "node:assert";
-import { jogAt, doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, shopWalk, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
+import { jogAt, townBlockers, free, stepFree, nearestStreet, walkFrom, doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, shopWalk, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
 
 const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
 const places = [SHOP_WALK, shopWalk(1), shopWalk(3), ...lots.flatMap((lot, i) => [doorWalk(lot, 1 + (i % 5), 40), doorWalk(lot, 1 + (i % 5), -40), insideWalk(lot, 1 + (i % 5), 40)])];
@@ -32,4 +32,26 @@ for (let d = -500; d < 10000; d += 5) {
   const [a, b] = [jogAt(d).at, jogAt(d + 5).at];
   assert(Math.hypot(a[0] - b[0], a[2] - b[2]) <= 5.01, `jump at ${d}`);
 }
-console.log(`ok: ${places.length ** 2} walks, and the joggers' lap`);
+// walking where you like: everywhere people stand is walkable, and nothing walks into a house
+for (let lvl = 1; lvl <= 5; lvl++) {
+  const residents = lots.map((_, i) => ({ name: `p${i}`, level: lvl, streak: 0 }));
+  const blockers = townBlockers(residents);
+  for (const [i, lot] of lots.entries()) {
+    const door = doorWalk(lot, lvl, 40).at(-1);
+    assert(free(door[0], door[2], blockers), `door ${i} at level ${lvl} is inside something`);
+    assert(free(...doorWalk(lot, lvl).at(-1).filter((_, k) => k !== 1), blockers), `own door ${i}`);
+  }
+  for (const k of [0, 1, 2, 3]) assert(free(shopWalk(k).at(-1)[0], shopWalk(k).at(-1)[2], blockers), `shop spot ${k}`);
+  // pushing straight into a house stops at its wall
+  const [x, z] = stepFree(0, 1000, 0, -2000, blockers);
+  assert(free(x, z, blockers));
+}
+// the nearest street point is on a street, and a walk from anywhere ends where it should
+for (const p of [[100, 0, 900], [-1500, 0, 200], [30, 0, -30]]) {
+  const st = nearestStreet(p);
+  assert(Math.abs(Math.abs(st[0]) - 640) < 1 || Math.abs(Math.abs(st[2]) - 640) < 1);
+  const r = walkFrom(p, places[4]);
+  assert.deepEqual(r.pts.at(-1), places[4].at(-1));
+  assert.equal(r.pts.length, r.chains.length);
+}
+console.log(`ok: ${places.length ** 2} walks, the joggers' lap, and walking where you like`);
