@@ -8,6 +8,9 @@
    --------------------------------------------------------------------------- */
 :root {
   /* the LEGO video game text look: a 16-way dark outline plus a drop */
+  /* the LEGO game outline around panels and buttons */
+  --ol: 2.5px;
+  --ol-c: var(--lego-black);
   --tt-shadow: 2.60px 0.00px 0 var(--tt-edge, var(--lego-black)), 2.40px 0.99px 0 var(--tt-edge, var(--lego-black)), 1.84px 1.84px 0 var(--tt-edge, var(--lego-black)), 0.99px 2.40px 0 var(--tt-edge, var(--lego-black)), 0.00px 2.60px 0 var(--tt-edge, var(--lego-black)), -0.99px 2.40px 0 var(--tt-edge, var(--lego-black)), -1.84px 1.84px 0 var(--tt-edge, var(--lego-black)), -2.40px 0.99px 0 var(--tt-edge, var(--lego-black)), -2.60px 0.00px 0 var(--tt-edge, var(--lego-black)), -2.40px -0.99px 0 var(--tt-edge, var(--lego-black)), -1.84px -1.84px 0 var(--tt-edge, var(--lego-black)), -0.99px -2.40px 0 var(--tt-edge, var(--lego-black)), -0.00px -2.60px 0 var(--tt-edge, var(--lego-black)), 0.99px -2.40px 0 var(--tt-edge, var(--lego-black)), 1.84px -1.84px 0 var(--tt-edge, var(--lego-black)), 2.40px -0.99px 0 var(--tt-edge, var(--lego-black)), 0 4.5px 0 var(--tt-edge, var(--lego-black));
   /* real LEGO colours */
   --lego-red: #c91a09;
@@ -169,7 +172,8 @@ body {
 .card {
   background: var(--panel);
   border-radius: 18px;
-  box-shadow: 0 4px 0 var(--lip), 0 8px 18px rgb(27 42 52 / 0.1);
+  /* outlined like a LEGO game panel, with a dark lip below */
+  box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 5px 0 var(--ol) var(--ol-c), 0 10px 18px rgb(27 42 52 / 0.12);
 }
 
 /* a tile with a row of studs on top, for the headline blocks */
@@ -230,7 +234,9 @@ body {
   letter-spacing: 0.01em;
   box-shadow:
     inset 0 2px 0 rgba(255, 255, 255, 0.45),
-    0 var(--press) 0 var(--brick-edge),
+    0 0 0 var(--ol) var(--ol-c),
+    0 var(--press) 0 0 var(--brick-edge),
+    0 var(--press) 0 var(--ol) var(--ol-c),
     0 calc(var(--press) + 4px) 12px rgb(27 42 52 / 0.2);
   transition: transform 90ms var(--ease-strong), box-shadow 90ms var(--ease-strong), filter 150ms ease;
   -webkit-tap-highlight-color: transparent;
@@ -251,7 +257,7 @@ body {
 .btn-primary:active:not(:disabled),
 .btn-ghost:active:not(:disabled) {
   transform: translateY(calc(var(--press) - 1px));
-  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.45), 0 1px 0 var(--brick-edge), 0 2px 5px rgb(27 42 52 / 0.2);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.45), 0 0 0 var(--ol) var(--ol-c), 0 1px 0 0 var(--brick-edge), 0 1px 0 var(--ol) var(--ol-c);
 }
 .btn-primary:disabled,
 .btn-ghost:disabled { filter: saturate(0.4) brightness(1.05); opacity: 0.7; cursor: default; }
@@ -291,16 +297,16 @@ body {
   background: var(--panel);
   border: 2px solid transparent;
   border-radius: 16px;
-  box-shadow: 0 3px 0 var(--lip);
+  box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 4px 0 var(--ol) var(--ol-c);
   transition: border-color 140ms ease, background 140ms ease, transform 120ms var(--ease-strong);
   cursor: pointer;
   text-align: left;
 }
-.option-row:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--lip); }
+.option-row:active { transform: translateY(2px); box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 2px 0 var(--ol) var(--ol-c); }
 .option-row.selected {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 7%, var(--panel));
-  box-shadow: 0 3px 0 var(--lego-blue-edge);
+  box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 4px 0 var(--ol) var(--ol-c);
 }
 
 .icon-tile {
@@ -316,17 +322,18 @@ body {
   flex: none;
 }
 
+/* text fields: a recessed white slot with the same dark outline as panels */
 .field {
   background: var(--panel);
-  border: 2px solid var(--line-strong);
+  border: var(--ol) solid var(--ol-c);
   border-radius: 14px;
   color: var(--ink);
   outline: none;
   font-weight: 700;
-  box-shadow: inset 0 2px 0 var(--panel-2);
-  transition: border-color 140ms ease;
+  box-shadow: inset 0 3px 0 var(--panel-2);
+  transition: box-shadow 140ms ease;
 }
-.field:focus { border-color: var(--accent); }
+.field:focus { box-shadow: inset 0 3px 0 var(--panel-2), 0 0 0 3px var(--lego-yellow); }
 .field::placeholder { color: var(--muted); font-weight: 600; }
 
 .track {
@@ -575,7 +582,7 @@ body {
   background:
     radial-gradient(26rem 17rem at 50% -10%, rgba(255, 255, 255, 0.6), transparent 62%),
     linear-gradient(180deg, var(--bg-top), var(--lego-light-blue));
-  box-shadow: 0 4px 0 color-mix(in srgb, var(--lego-blue) 45%, var(--bg-top)), 0 8px 18px rgb(27 42 52 / 0.12);
+  box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 5px 0 var(--ol) var(--ol-c), 0 10px 18px rgb(27 42 52 / 0.12);
   overflow: hidden;
 }
 @keyframes floatP {
@@ -731,7 +738,7 @@ body {
   height: 11px;
   border-radius: 3px;
   background: var(--brick, var(--lego-red));
-  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.22), 4px -3px 0 -1px var(--brick, var(--lego-red)), -4px -3px 0 -1px var(--brick, var(--lego-red));
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.22), 0 0 0 2px var(--lego-black), 4px -3px 0 -1px var(--brick, var(--lego-red)), -4px -3px 0 -1px var(--brick, var(--lego-red)), 4px -3px 0 1px var(--lego-black), -4px -3px 0 1px var(--lego-black);
   flex: none;
 }
 
@@ -742,7 +749,7 @@ body {
   padding: 8px;
   border-radius: 24px;
   background: var(--panel);
-  box-shadow: 0 5px 0 var(--lip), 0 14px 30px rgb(27 42 52 / 0.25);
+  box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 5px 0 var(--ol) var(--ol-c), 0 14px 30px rgb(27 42 52 / 0.25);
 }
 /* studs along the plate's top edge */
 .brick-nav::before {
@@ -902,7 +909,7 @@ body {
   padding: 6px 6px 6px 8px;
   border-radius: 18px;
   background: var(--panel);
-  box-shadow: 0 4px 0 var(--lip), 0 8px 18px rgb(27 42 52 / 0.1);
+  box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 5px 0 var(--ol) var(--ol-c), 0 10px 18px rgb(27 42 52 / 0.12);
   border: 2px solid transparent;
   transition: border-color 150ms ease;
 }
@@ -968,7 +975,7 @@ body {
   padding: 14px;
   border-radius: 14px;
   background: #fbfaf5;
-  box-shadow: 0 4px 0 #dcd9cc, 0 8px 18px rgb(27 42 52 / 0.1);
+  box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 5px 0 var(--ol) var(--ol-c), 0 10px 18px rgb(27 42 52 / 0.12);
   border: 2px solid #e6e2d3;
 }
 .instructions-step {
@@ -1141,7 +1148,7 @@ body {
   background:
     radial-gradient(circle at 50% 45%, rgb(255 255 255 / 0.14) 0 3px, transparent 3.6px) 0 0 / 20px 20px,
     linear-gradient(170deg, var(--card) 0%, var(--card-2) 100%);
-  box-shadow: 0 5px 0 color-mix(in srgb, var(--card-2) 70%, #000), 0 12px 26px rgb(27 42 52 / 0.22);
+  box-shadow: 0 0 0 var(--ol) var(--ol-c), 0 6px 0 var(--ol) var(--ol-c), 0 12px 26px rgb(27 42 52 / 0.22);
 }
 .minifig-card-brand {
   display: inline-flex;
@@ -1771,7 +1778,7 @@ body {
     radial-gradient(circle at 80% 0%, rgb(255 255 255 / 0.18), transparent 55%),
     radial-gradient(circle, rgb(255 255 255 / 0.08) 0 3px, transparent 3.5px) 0 0 / 16px 16px,
     linear-gradient(160deg, var(--lego-blue), var(--lego-blue-edge));
-  box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.2), 0 5px 0 var(--lego-black);
+  box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.2), 0 0 0 var(--ol) var(--ol-c), 0 5px 0 var(--ol) var(--ol-c);
 }
 .day-complete-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
 .day-complete-rows li {
@@ -1794,3 +1801,9 @@ body {
 }
 @keyframes foilSweep { 0% { transform: translateX(-70%); } 22%, 100% { transform: translateX(70%); } }
 @media (prefers-reduced-motion: reduce) { .minifig-card::after { animation: none; display: none; } }
+
+/* a mission's reward shown as a stud pickup, coloured by value */
+.xp-stud { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-brick); font-weight: 700; font-size: 12.5px; color: var(--ink); }
+.xp-stud i { width: 13px; height: 13px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--lego-black); background: radial-gradient(circle at 42% 38%, #fff6c4 0 18%, var(--lego-yellow) 45%, #c99a06 100%); }
+.xp-stud[data-kind="silver"] i { background: radial-gradient(circle at 42% 38%, #fff 0 18%, #d7dde2 45%, var(--lego-dark-grey) 100%); }
+.xp-stud[data-kind="blue"] i { background: radial-gradient(circle at 42% 38%, #d8ebff 0 18%, var(--lego-azure) 45%, var(--lego-blue-edge) 100%); }

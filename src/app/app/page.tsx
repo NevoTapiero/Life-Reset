@@ -313,7 +313,7 @@ export default function HomePage() {
       </section>
 
       {chest > 0 && (
-        <Link href="/app/town" className="card mt-4 px-4 py-3 flex items-center gap-3 active:translate-y-[2px] transition-transform" style={{ background: "var(--lego-yellow)", boxShadow: "0 4px 0 var(--lego-yellow-edge)" }}>
+        <Link href="/app/town" className="card mt-4 px-4 py-3 flex items-center gap-3 active:translate-y-[2px] transition-transform" style={{ background: "var(--lego-yellow)" }}>
           <span className="chest-wobble flex-none">
             <LegoIcon name="chest" color="orange" size={40} />
           </span>
@@ -611,8 +611,10 @@ function MissionTile({
         ) : (
           <span className="mt-1 flex items-center gap-2 flex-wrap">
             <CardStuds day={cardDay} done={done} unit={PERIOD_UNIT[period]} />
-            <span className="text-[12px] font-extrabold text-muted">
-              {label ? `${label} · ` : ""}+{cardXp(q.xp, cardDay)} XP
+            {label && <span className="text-[12px] font-extrabold text-muted">{label}</span>}
+            {/* the reward as a stud pickup: silver, gold or blue by what it pays */}
+            <span className="xp-stud" data-kind={cardXp(q.xp, cardDay) >= 16 ? "blue" : cardXp(q.xp, cardDay) >= 8 ? "gold" : "silver"}>
+              <i aria-hidden />+{cardXp(q.xp, cardDay)} XP
             </span>
           </span>
         )}

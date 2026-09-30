@@ -169,6 +169,13 @@ export default function LegoIcon({
           <stop offset="1" stopColor={edge} />
         </linearGradient>
       </defs>
+      {/* a dark outline behind the whole brick, like the LEGO game look */}
+      <g fill="#1b2a34">
+        {studX.map((x) => (
+          <rect key={x} x={x - 5.5} y="0.9" width="11" height="7.4" rx="2.4" />
+        ))}
+        <rect x="0.6" y="5.1" width="30.8" height="26.3" rx="4.8" />
+      </g>
       {/* studs */}
       {studX.map((x) => (
         <g key={x}>
