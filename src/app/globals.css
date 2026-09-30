@@ -780,6 +780,28 @@ body {
   background-repeat: space no-repeat;
 }
 
+/* LEGO Art mosaic: round 1x1 tiles on a dark baseplate */
+.mosaic {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  width: min(100%, 250px);
+  margin-inline: auto;
+  padding: 7px;
+  border-radius: 10px;
+  background: var(--lego-black);
+  box-shadow: inset 0 -3px 0 #000;
+}
+.mosaic-tile {
+  display: block;
+  aspect-ratio: 1;
+  width: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, transparent 0 55%, rgb(255 255 255 / 0.16) 56% 62%, transparent 63%), var(--t);
+  box-shadow: inset 0 -1.5px 0 rgb(0 0 0 / 0.3);
+}
+.mosaic-tile.today { box-shadow: 0 0 0 2.5px var(--lego-yellow), inset 0 -2px 0 rgb(0 0 0 / 0.25); }
+
 /* a gold brick just earned: a toast from the top */
 @keyframes goldIn {
   0% { transform: translate(-50%, -120%); }

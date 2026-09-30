@@ -11,6 +11,7 @@ import LegoIcon, { BrickColor } from "@/components/LegoIcon";
 import Minifig from "@/components/Minifig";
 import MinifigCard from "@/components/MinifigCard";
 import GoldBricks from "@/components/GoldBricks";
+import MonthMosaic from "@/components/MonthMosaic";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import { setSound, soundOn } from "@/lib/sfx";
@@ -244,6 +245,9 @@ export default function ProfilePage() {
 
       <div className="mt-4">
         <GoldBricks profile={profile} />
+      </div>
+      <div className="mt-4">
+        <MonthMosaic uid={profile.id} />
       </div>
 
       {/* account */}
