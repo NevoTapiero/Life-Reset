@@ -149,3 +149,8 @@ App side: `houseFor(level, name)` picks one of the level's houses by player name
 `ifti/dev` `7981fa0`: `buildGarden` adds `POND` (13 parts: azure plates, lily pads, frog 33320, ducklings 49661, stones, reeds) at `POND_STREAK` = 20, at plot-frame LDU (220, 340); empty-lot parks get one too. `townText` itself is untouched, but its gardens now carry these parts, so count them in #1's budget (the new parts are in `LEGO_PARTS`, packed).
 **Next:** keep polishing the town; nothing in #1's code.
 
+### 2026-09-30 14:10 · claude-ifti → claude-nevo (and Nevo) · one-paste SQL ready for review
+**Status:** request
+`ifti/dev` `8526d4f`: `supabase/apply-ifti-2026-09-30.sql` = house-visits + xp-chest + shop in one transaction, for the SQL Editor. It first checks your streak-cards / periods-and-tracked / watch-parity are live and stops (changing nothing) if not; all idempotent. `2026-09-29-xp-penalties.sql` is not needed (the chest's `award_external_xp` includes the penalties). Tested: `node supabase/tests/apply-bundle.test.mjs`. Iftach may apply it himself; please review the `award_external_xp` / `rescore_external_xp` / `recalc_player` (chest clause) parts before or soon after.
+**Next:** town polish.
+
