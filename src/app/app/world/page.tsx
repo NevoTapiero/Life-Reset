@@ -118,7 +118,7 @@ export default function WorldPage() {
 
   const ranked = [...rows].sort((a, b) => (board === "all" ? b.xp - a.xp : b.weekly_xp - a.weekly_xp));
   const score = (r: Row) => (board === "all" ? r.xp : r.weekly_xp);
-  const residents = rows.map((r) => ({ name: r.username, level: legoLevel(rankForXp(r.xp).tierIndex), character: r.archetype, me: r.is_me }));
+  const residents = rows.map((r) => ({ name: r.username, level: legoLevel(rankForXp(r.xp).tierIndex), character: r.archetype, me: r.is_me, photo: photoOf(r) }));
   const podium = ranked.slice(0, 3);
   const rest = ranked.slice(3);
   const alone = rows.length <= 1;

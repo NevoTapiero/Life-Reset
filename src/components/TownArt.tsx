@@ -7,7 +7,7 @@ import { MinifigHead } from "@/components/PlayerAvatar";
 // house as tall as its owner's level. The real 3D town is one tap away; this
 // is the postcard.
 
-type Resident = { name: string; level: number; character: string | null; me: boolean };
+type Resident = { name: string; level: number; character: string | null; me: boolean; photo?: string | null };
 
 const WALLS = ["var(--lego-red)", "var(--lego-yellow)", "var(--lego-blue)", "var(--lego-orange)", "var(--lego-green)"];
 const ROOFS = ["var(--lego-black)", "var(--lego-red)", "var(--lego-dark-grey)", "var(--lego-blue)", "var(--lego-red-edge)"];
@@ -71,9 +71,19 @@ export default function TownArt({ residents, className }: { residents: Resident[
             <rect x={cx - 7} y={ground - 20} width="14" height="20" rx="2" fill="var(--lego-tan)" />
             <rect x={x + 7} y={y + 9} width="12" height="10" rx="1.5" fill="#fff" opacity="0.9" />
             {w > 55 && <rect x={x + w - 19} y={y + 9} width="12" height="10" rx="1.5" fill="#fff" opacity="0.9" />}
-            {/* the owner's head above the roof */}
+            {/* the owner above the roof: their photo, or their minifig head */}
             <g transform={`translate(${cx - (r.me ? 17 : 13)} ${y - 58 - lvl * 2})`}>
-              <MinifigHead character={r.character} size={r.me ? 34 : 26} />
+              {r.photo ? (
+                <>
+                  <clipPath id={`ta-clip-${i}`}>
+                    <circle cx={r.me ? 17 : 13} cy={r.me ? 17 : 13} r={r.me ? 17 : 13} />
+                  </clipPath>
+                  <circle cx={r.me ? 17 : 13} cy={r.me ? 17 : 13} r={(r.me ? 17 : 13) + 2} fill="#fff" />
+                  <image href={r.photo} width={r.me ? 34 : 26} height={r.me ? 34 : 26} clipPath={`url(#ta-clip-${i})`} preserveAspectRatio="xMidYMid slice" />
+                </>
+              ) : (
+                <MinifigHead character={r.character} size={r.me ? 34 : 26} />
+              )}
             </g>
           </g>
         );
