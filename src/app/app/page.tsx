@@ -105,6 +105,7 @@ export default function YouPage() {
                 <LegoWorld
                   // ponytail: house grows with rank tier until gold buys upgrades
                   houseLevel={rank.tierIndex + 1}
+                  name={profile.username}
                   streak={profile.streak_current}
                   className="absolute inset-0"
                 />

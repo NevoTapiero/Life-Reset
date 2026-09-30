@@ -76,12 +76,22 @@ console.log(`packed ${files.size} files, ${(out.length / 1e6).toFixed(2)} MB; ${
 // app never parses LDraw for a house: the house only (figures, vehicles and
 // animals dropped), turned to face the garden (+Z), left edge at x = 0, front
 // at z = 0, standing on y = 0; outlines dropped; meshopt-compressed.
+// Each level has one or more houses; a player gets one of their level's
+// houses by name, so neighbours on the same level usually differ. `turn`
+// (quarter turns) was checked by eye so the front faces the garden.
 const HOUSES = [
-  { id: "31009-1", name: "Small Cottage", turn: 3 },
-  { id: "1472-1", name: "Holiday Home", turn: 2 },
-  { id: "31025-1", name: "Mountain Hut", turn: 0 },
-  { id: "31048-1", name: "Lakeside Lodge", turn: 3 },
-  { id: "3315-1", name: "Olivia's House", turn: 2 },
+  { id: "31009-1", name: "Small Cottage", level: 1, turn: 3 },
+  { id: "349-1", name: "Swiss Chalet", level: 1, turn: 3 },
+  { id: "6365-1", name: "Summer Cottage", level: 1, turn: 1 },
+  { id: "1472-1", name: "Holiday Home", level: 2, turn: 2 },
+  { id: "1484-1", name: "Weetabix Town House", level: 2, turn: 2 },
+  { id: "346-2", name: "House with Car", level: 2, turn: 3 },
+  { id: "1854-1", name: "House with Roof Windows", level: 2, turn: 2 },
+  { id: "31025-1", name: "Mountain Hut", level: 3, turn: 0 },
+  { id: "31038-1", name: "Changing Seasons", level: 3, turn: 2 },
+  { id: "31048-1", name: "Lakeside Lodge", level: 4, turn: 3 },
+  { id: "31063-1", name: "Beachside Vacation", level: 4, turn: 0 },
+  { id: "3315-1", name: "Olivia's House", level: 5, turn: 2 },
 ];
 // the building in the middle of the town where you spend gold
 const SHOP = { id: "10190-1", name: "Market Street", turn: 2 };
@@ -90,7 +100,8 @@ const VEHICLES = [
   { id: "car-1", name: "Car", turn: 1, set: "1472-1", model: "1472 - car 1.ldr" },
   { id: "car-2", name: "Car", turn: 0, set: "1472-1", model: "1472 - car 2.ldr" },
 ];
-const EXTRAS = /minifig|car \d|trailer|boat|quad|moose|bird|4719c01|anna|olivia|peter/i;
+// people, animals and vehicles in a set's main model (not its buildings; "Car port" stays)
+const EXTRAS = /minifig|\bcar( \d)?\.ldr|smallcar|trailer|boat|quad|moose|bird|turtle|jetski|female|male|girl|guy|90397|4719c01|anna|olivia|peter/i;
 
 // GLTFExporter reads its Blobs with the browser's FileReader; Node only has Blob
 globalThis.FileReader ??= class {
@@ -115,7 +126,8 @@ mkdirSync(HOUSE_OUT, { recursive: true });
 const tmp = mkdtempSync(join(tmpdir(), "lego-"));
 const manifest = [];
 for (const { id, name, turn, set, model: sub } of [...HOUSES, SHOP, ...VEHICLES]) {
-  let text = readFileSync(`${SETS}${set ?? id}.mpd`, "utf8").replace(/\r/g, "");
+  // (some sets end lines with spaces: "0 FILE x.ldr " would never match a reference to x.ldr)
+  let text = readFileSync(`${SETS}${set ?? id}.mpd`, "utf8").replace(/\r/g, "").replace(/[ \t]+$/gm, "");
   if (sub) {
     // bake one sub-model: put its file first, so it's the one the loader builds
     const files = text.split(/\n(?=0 FILE )/);
@@ -160,7 +172,8 @@ for (const { id, name, turn, set, model: sub } of [...HOUSES, SHOP, ...VEHICLES]
   const raw = join(tmp, `${id}.glb`);
   writeFileSync(raw, Buffer.from(await new GLTFExporter().parseAsync(merged, { binary: true })));
   execFileSync("npx", ["-y", "@gltf-transform/cli@4", "meshopt", raw, `${HOUSE_OUT}${id}.glb`], { stdio: "ignore" });
-  manifest.push({ id, name, w, d, h });
+  const level = HOUSES.find((x) => x.id === id)?.level;
+  manifest.push({ id, name, w, d, h, ...(level && { level }) });
   console.log(`house ${id} ${name}: ${w}x${d} studs, ${(statSync(`${HOUSE_OUT}${id}.glb`).size / 1e6).toFixed(2)} MB`);
 }
 const isHouse = (m) => HOUSES.some((h) => h.id === m.id);

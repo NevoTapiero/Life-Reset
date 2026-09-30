@@ -40,7 +40,8 @@ const DEMO_TOWN = [
 ];
 
 export default function LegoPreview() {
-  const [level, setLevel] = useState<number | null>(null); // null = the town
+  const [house, setHouse] = useState<string | null>(null); // null = the town
+  const [spin, setSpin] = useState(0); // previews: turn the house to find its front
   const [time, setTime] = useState<string | undefined>(undefined); // undefined = your clock
   const [friends, setFriends] = useState(5); // how many friends live in the demo town
   // nevo already let you in, omer hasn't answered; a new knock is answered after a moment
@@ -79,7 +80,7 @@ export default function LegoPreview() {
   return (
     <main className="min-h-screen p-4">
       <div className="flex flex-wrap gap-2 mb-3">
-        <button onClick={() => setLevel(null)} className={button(level === null)}>
+        <button onClick={() => setHouse(null)} className={button(house === null)}>
           Town (demo)
         </button>
         {[0, 2, 5, 7].map((n) => (
@@ -92,13 +93,18 @@ export default function LegoPreview() {
             {t}
           </button>
         ))}
-        {HOUSES.map((h, i) => (
-          <button key={h.id} onClick={() => setLevel(i + 1)} className={button(level === i + 1)}>
-            Level {i + 1}: {h.name}
+        {house && (
+          <button onClick={() => setSpin((s) => (s + 1) % 4)} className={button(false)}>
+            Turn house ({spin})
+          </button>
+        )}
+        {HOUSES.map((h) => (
+          <button key={h.id} onClick={() => setHouse(h.id)} className={button(house === h.id)}>
+            L{h.level} {h.name}
           </button>
         ))}
       </div>
-      {level === null ? (
+      {house === null ? (
         <LegoTown
           residents={DEMO_TOWN.slice(0, friends + 1)}
           visits={visits}
@@ -123,7 +129,13 @@ export default function LegoPreview() {
           className="w-full h-[75vh] rounded overflow-hidden"
         />
       ) : (
-        <LegoWorld houseLevel={level} streak={12} className="w-full h-[75vh] rounded overflow-hidden" />
+        <LegoWorld
+          houseLevel={HOUSES.find((h) => h.id === house)?.level}
+          house={house}
+          spin={spin}
+          streak={12}
+          className="w-full h-[75vh] rounded overflow-hidden"
+        />
       )}
     </main>
   );

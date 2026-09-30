@@ -23,6 +23,7 @@ import {
   houseAt,
   houseFor,
   houseUrl,
+  houseById,
   houseSpec,
   minifigSpot,
   modelText,
@@ -186,8 +187,22 @@ function Building({ url, at, cut, lit = false }: { url: string; at: [number, num
 }
 
 // A house on its plot (in the plot's own frame).
-function House({ level, cut, lit }: { level: number; cut?: number; lit?: boolean }) {
-  return <Building url={houseUrl(houseFor(level))} at={houseAt(houseSpec(level))} cut={cut} lit={lit} />;
+// Previews only: a house turned about its own centre.
+function SpunHouse({ level, id, spin }: { level: number; id?: string; spin: number }) {
+  const house = (id && houseById(id)) || houseFor(level);
+  const [x, , z] = houseAt(houseSpec(level), house);
+  const c: [number, number, number] = [x + (house.w * 20) / 2, 0, z - (house.d * 20) / 2];
+  return (
+    <group position={c} rotation={[0, (spin * Math.PI) / 2, 0]}>
+      <Building url={houseUrl(house)} at={[-(house.w * 20) / 2, 0, (house.d * 20) / 2]} />
+    </group>
+  );
+}
+
+// A player's house on their plot: which of the level's houses is theirs comes from their name.
+function House({ level, name, id, cut, lit }: { level: number; name?: string; id?: string; cut?: number; lit?: boolean }) {
+  const house = (id && houseById(id)) || houseFor(level, name);
+  return <Building url={houseUrl(house)} at={houseAt(houseSpec(level), house)} cut={cut} lit={lit} />;
 }
 
 // `turn`: which way the figure faces (radians about the vertical, LDraw frame)
@@ -258,11 +273,20 @@ function FitCamera({ target, width, dir = FRONT_RIGHT }: { target: THREE.Vector3
 
 export default function LegoWorld({
   houseLevel = 1,
+  name,
+  house,
+  spin = 0,
   streak = 0,
   look = BASE_HUNTER,
   className,
 }: {
   houseLevel?: number;
+  /** whose house: picks which of the level's houses (same as in their town) */
+  name?: string;
+  /** show this exact house (an id from legoHouses.json), for previews */
+  house?: string;
+  /** previews only: extra quarter turns of the house, to find its front */
+  spin?: number;
   streak?: number;
   look?: MinifigLook;
   className?: string;
@@ -284,7 +308,7 @@ export default function LegoWorld({
   return (
     <Stage className={className} label="Your house and garden" target={target} width={Math.max(34, spec.w + 14)}>
       {world && <primitive object={world} />}
-      <House level={houseLevel} />
+      {spin ? <SpunHouse level={houseLevel} id={house} spin={spin} /> : <House level={houseLevel} name={name} id={house} />}
       <Minifig look={look} at={at} />
     </Stage>
   );
@@ -691,7 +715,7 @@ export function LegoTown({
         className="absolute inset-0"
         label="Your town"
         target={target}
-        width={inside === null ? (focus === SHOP_FOCUS ? 95 : 62) : houseFor(residents[inside].level).w + 10}
+        width={inside === null ? (focus === SHOP_FOCUS ? 95 : 62) : houseFor(residents[inside].level, residents[inside].name).w + 10}
         dir={dir}
         bounds={bounds}
         pan
@@ -735,7 +759,7 @@ export function LegoTown({
             return [
               {
                 key: res.name,
-                at: [x, houseFor(res.level).h * LDU + 3, z] as [number, number, number],
+                at: [x, houseFor(res.level, res.name).h * LDU + 3, z] as [number, number, number],
                 node: label(res.me ? "You" : res.name, !!res.me, () => go(i)),
               },
             ];
@@ -758,7 +782,7 @@ export function LegoTown({
         ))}
         {residents.map((res, i) => (
           <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
-            <House level={res.level} cut={i === inside ? CUT : undefined} lit={mood.night} />
+            <House level={res.level} name={res.name} cut={i === inside ? CUT : undefined} lit={mood.night} />
           </group>
         ))}
         {residents.map((res, i) => {

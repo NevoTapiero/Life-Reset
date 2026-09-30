@@ -84,23 +84,39 @@ function put(part: string, color: number, u: number, w: number, plates: number, 
 // baked by scripts/lego/pack.mjs into public/lego/houses/<id>.glb: turned to
 // face the garden (+Z), its left edge at x = 0, its front at z = 0, standing
 // on y = 0. HOUSES records each one's footprint in studs.
-export type House = { id: string; name: string; w: number; d: number; h: number };
-export const houseFor = (level: number): House => (HOUSES as House[])[Math.min(Math.max(level, 1), HOUSES.length) - 1];
+export type House = { id: string; name: string; w: number; d: number; h: number; level?: number };
+const levelOf = (level: number) => Math.min(Math.max(level, 1), 5);
+const housesAt = (level: number) => (HOUSES as House[]).filter((h) => h.level === levelOf(level));
+// Each level has a few official houses; a player's name picks theirs, so
+// neighbours on the same level usually differ and yours never changes.
+export function houseFor(level: number, name?: string): House {
+  const all = housesAt(level);
+  if (!name) return all[0];
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+  return all[Math.abs(hash) % all.length];
+}
+export const houseById = (id: string) => (HOUSES as House[]).find((h) => h.id === id);
 export const houseUrl = (h: House) => `/lego/houses/${h.id}.glb`;
 // the shop in the middle of the town (an official set too, baked the same way)
 export const SHOP_BUILDING = SHOP as House;
 
-// The house's footprint on the plot, in cells: centred left to right, as far
-// back as leaves the garden 12 rows (or against the back edge if it's deep).
+// The house's footprint on the plot, in cells: big enough for any of the
+// level's houses, centred left to right, as far back as leaves the garden 12
+// rows (or against the back edge if it's deep). Gardens, paths and the door
+// spot follow it, whichever of the level's houses stands there.
 export type HouseSpec = { x0: number; z0: number; w: number; d: number };
 export function houseSpec(level: number): HouseSpec {
-  const { w, d } = houseFor(level);
+  const all = housesAt(level);
+  const w = Math.max(...all.map((h) => h.w));
+  const d = Math.max(...all.map((h) => h.d));
   return { x0: Math.floor((PLOT - w) / 2), z0: Math.max(1, PLOT - d - 12), w, d };
 }
 
-// Where the house model goes (LDU): its left edge on x0, its front on the spec's front.
-export function houseAt(s: HouseSpec): [number, number, number] {
-  return [(s.x0 - PLOT / 2) * S, 0, (s.z0 + s.d - PLOT / 2) * S];
+// Where a house's model goes (LDU): centred on the footprint, its front on the
+// footprint's front (the glb's origin is its front-left corner).
+export function houseAt(s: HouseSpec, h: House): [number, number, number] {
+  return [(s.x0 + s.w / 2 - PLOT / 2) * S - (h.w * S) / 2, 0, (s.z0 + s.d - PLOT / 2) * S];
 }
 
 export function doorCells(s: HouseSpec) {
