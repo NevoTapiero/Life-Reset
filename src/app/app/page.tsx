@@ -19,7 +19,7 @@ import { brickSound } from "@/lib/brickSound";
 import { energyFrom, todayKey, type LedgerMeta } from "@/lib/energy";
 import { supabase } from "@/lib/supabase";
 import { useMissions } from "@/lib/useMissions";
-import { greeting, legoLevel, levelTitle } from "@/lib/brick";
+import { greeting, sleepyHour, legoLevel, levelTitle } from "@/lib/brick";
 import {
   CARD_DAYS,
   PERIODS,
@@ -231,7 +231,7 @@ export default function HomePage() {
       <section className="card tile-studs">
         <div className="flex items-end gap-2 px-4 pt-3">
           <Link href="/app/profile" aria-label="Your profile" className="player-stage flex-none -mb-1">
-            <Minifig character={p.archetype} level={legoLevel(rank.tierIndex)} size={104} alive />
+            <Minifig character={p.archetype} level={legoLevel(rank.tierIndex)} size={104} alive sleepy={sleepyHour()} />
           </Link>
           <div className="flex-1 min-w-0 pb-3">
             <div className="flex items-center justify-between gap-2">

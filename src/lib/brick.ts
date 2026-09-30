@@ -34,6 +34,12 @@ export function levelTitle(character: string | null | undefined, tierIndex: numb
 }
 
 // "Good morning" by the hour of the app day
+// bedtime in Israel: minifigs doze on Home
+export function sleepyHour(d = new Date()): boolean {
+  const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Jerusalem" }).format(d));
+  return h >= 23 || h < 5;
+}
+
 export function greeting(d = new Date()): string {
   const h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Jerusalem" }).format(d));
   if (h < 5) return "Still up";

@@ -39,6 +39,7 @@ export default function Minifig({
   size = 180,
   className,
   alive = false,
+  sleepy = false,
 }: {
   character?: string | null;
   level?: number;
@@ -47,6 +48,8 @@ export default function Minifig({
   className?: string;
   /** idle life: blinks, breathes, the item arm sways */
   alive?: boolean;
+  /** eyes shut and z's floating up (bedtime) */
+  sleepy?: boolean;
 }) {
   const o = OUTFITS[character ?? "warrior"] ?? OUTFITS.warrior;
   const id = useId().replace(/:/g, "");
@@ -129,12 +132,16 @@ export default function Minifig({
       {/* face: a two-sided head, like real minifigs. The calm side shows;
           the shocked side flashes while the minifig falls apart. */}
       <g className="mf-calm">
-        <g className="mf-eyes">
-          <ellipse cx="53" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
-          <ellipse cx="67" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
-          <circle cx="54" cy="30.8" r="1" fill="#fff" />
-          <circle cx="68" cy="30.8" r="1" fill="#fff" />
-        </g>
+        {sleepy ? (
+          <path d="M49.5 31.5c2 2.2 5 2.2 7 0M63.5 31.5c2 2.2 5 2.2 7 0" fill="none" stroke="#1b2a34" strokeWidth="2.2" strokeLinecap="round" />
+        ) : (
+          <g className="mf-eyes">
+            <ellipse cx="53" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
+            <ellipse cx="67" cy="32" rx="2.8" ry="3.4" fill="#1b2a34" />
+            <circle cx="54" cy="30.8" r="1" fill="#fff" />
+            <circle cx="68" cy="30.8" r="1" fill="#fff" />
+          </g>
+        )}
         <FacePrint character={character} />
       </g>
       <g className="mf-shock" style={{ display: "none" }}>
@@ -153,6 +160,13 @@ export default function Minifig({
         <path d="M44 6l5 7 5-9 6 9 6-9 5 9 5-7-2 12H46Z" fill={GOLD} stroke="#b88a06" strokeWidth="1.2" strokeLinejoin="round" transform={o.head === "hat" ? "translate(0 -10)" : o.head === "spikes" ? "translate(0 -6)" : undefined} />
       )}
       </g>
+      {sleepy && (
+        <g className="mf-zzz" fill="#0055bf" stroke="#fff" strokeWidth="3" paintOrder="stroke" fontFamily="var(--font-brick), sans-serif" fontWeight="700">
+          <text x="80" y="38" fontSize="26">z</text>
+          <text x="96" y="20" fontSize="20">z</text>
+          <text x="108" y="6" fontSize="15">z</text>
+        </g>
+      )}
     </svg>
   );
 }
