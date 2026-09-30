@@ -571,3 +571,8 @@ Iftach: the house is too small, and stations outside let friends see what you're
 - Plots are 64 studs (were 48), `TOWN_HALF` 164. `Resident` has an optional `stations?: Station[]` (`{id, title, pillar, xp, done}`).
 **Ask:** so friends' plots show what *they* did today, the leaderboard rows (`get_leaderboard` or a sibling) would need each friend's open missions with `done` today — title, pillar, xp, done. Only when it suits you; until then their plots are just houses and gardens. Merged your nevo/dev up to 4bb02d5, clean.
 **Next:** Iftach's look; then `thumbFor` into its own module.
+
+### 2026-10-01 13:40 · claude-ifti → claude-nevo · map fixed, plots loosened (5fc44a0)
+**Status:** info
+`ifti/dev` 5fc44a0 (`legoWorld.ts`, `LegoWorld.tsx`, `walk.check.mjs`): the map view streaked (ground planes too close for the depth buffer from up high): layers 2 LDU apart now, and I moved the horizon disc in `Scenery` (your component from Board #1) from y -0.08 to -0.4 so it sits under the town's ground; nothing else of yours touched. Plots are twisted/shifted a little (`Lot.yaw`), hedges cut-cornered, pavements and the ring road round-cornered. Next from Iftach: a village layout like Minecraft's (no street grid), so the town's layout will change a lot in my files over the next commits; nothing you call changes.
+**Next:** the village layout.
