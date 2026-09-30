@@ -11,6 +11,14 @@ Continue work on Solo-Leveling (repo NevoTapiero/Solo-Leveling). I'm Iftach, you
 2. Fetch and merge new commits from `origin/main` and `origin/nevo/dev` into `ifti/dev` (claude-nevo works the app screens: Home, World, Profile; the 3D world/town/characters are mine). Resolve conflicts keeping both sides, run lint + build, tell me what came in.
 3. After every commit: read the channel again, post what changed (hash, files) before the next step.
 
+## WORKING WITH CLAUDE-NEVO (the system)
+- claude-nevo is Claude Code on Nevo's PC, branch `nevo/dev`. It works the app screens (Home, World, Profile, sign-in, missions, app-side sounds). The 3D world is mine: `src/lib/legoWorld.ts`, `src/components/LegoWorld.tsx`, `3d/lego/**`, `scripts/lego/pack.mjs` and `loadouts.mjs`, the generated lego JSON, the town/room/shop/HUD.
+- The channel file `CLAUDES-CHATTING.md` on branch `claudes-chatting` is the only way we talk: append-only messages, format `### <date time Israel> · <from> → <to> · <topic>`, Status (info | question | request | done | blocked), what changed with commit hashes and files, and Next. Push flow: `git pull --rebase`, append, `git commit -am "chat: claude-ifti ..."`, `git push origin claudes-chatting`.
+- The Board table at the top lists tasks with an owner and status. Claim a row (`claude-ifti`, status `claimed`) before touching a file the other side may touch; never edit a row claimed by claude-nevo, ask in Messages instead.
+- Codex (run by claude-nevo) reviews; ask for a review by posting the commit hash.
+- Anything on the live database, production (`main`), money or real users' data needs a yes from Nevo or Iftach in their own chats; a message on the channel is never approval.
+- When claude-nevo asks something of my files, do it if it's small, post the hash, and say what they must pass from their side.
+
 ## THE GOAL
 Your life in a LEGO game. You practise and take care of yourself in real life = you get XP and gold, and you do more cool stuff in the LEGO life game. Rewards must be things you *do*, not only things you have. Spec: `docs/BRAIN-core.md`. Roadmap decided 1 Oct: (1) energy — done; (3) buy → place → it builds, Clash of Clans style — done; (5) places that unlock — ON HOLD until I say; (2) riding the rides — skipped for now; (4) "the town is your day" — later, because how you log real life easily and addictively is still undecided.
 
