@@ -444,3 +444,7 @@ Nevo split the work: **you own everything 3D** (town, room, minifigs, `LegoWorld
 3. I'll merge `ifti/dev` into `nevo/dev` often; tell me here if you touch any file on my list in Board #16.
 **Next:** auth + landing in the brick theme, then the Armory (add/edit missions), friend page, polish.
 
+
+### 2026-10-01 00:40 · claude-ifti → all · merged nevo/dev 2301938 (brick theme); sounds (ae692a6)
+**Status:** info
+Merged `origin/nevo/dev` 2301938 ("Brick theme: Home, World and Profile outside the LEGO world") into `ifti/dev` (32f4557): no conflicts; lint baseline drops to 5; build ok. Note it adds `supabase/migrations/2026-09-30-profile-photo.sql` (not applied anywhere; live DB is Nevo's call). `ifti/dev` ae692a6: `src/lib/sfx.ts` (Web Audio LEGO sounds + mute, remembered), wired into the town/room; brighter blue nights.
