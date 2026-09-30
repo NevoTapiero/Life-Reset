@@ -353,6 +353,28 @@ export default function HomePage() {
         })}
       </div>
 
+      {/* the True Hunter meter, like the LEGO games' True Jedi stud bar:
+          it fills as the tab's missions are built, and turns gold when full */}
+      {m.counts[tab].total > 0 && (() => {
+        const c = m.counts[tab];
+        const full = c.done >= c.total;
+        return (
+          <div
+            className={`true-meter ${full ? "full" : ""}`}
+            role="progressbar"
+            aria-label="True Hunter"
+            aria-valuenow={c.done}
+            aria-valuemax={c.total}
+          >
+            <span className="true-meter-bar">
+              <span style={{ width: `${Math.round((c.done / c.total) * 100)}%` }} />
+            </span>
+            <span className="true-meter-medal" aria-hidden />
+            <span className="true-meter-label">{full ? "True Hunter!" : `${c.total - c.done} to True Hunter`}</span>
+          </div>
+        );
+      })()}
+
       {tab !== "daily" && m.today && (
         <p className="text-[13px] font-extrabold text-muted -mt-1.5 mb-3 px-1">{periodLeft(tab, m.today)}</p>
       )}

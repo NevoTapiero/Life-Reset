@@ -91,6 +91,13 @@ function bell(a: AudioContext, dest: AudioNode, at: number, freq: number, gain: 
   ].forEach(([m, g]) => tone(a, dest, at, freq * m, freq * m, gain * g, len / m + 0.08));
 }
 
+// a tiny buzz with the sound, on phones that can (Android; iOS has no web vibration)
+function buzz(pattern: number | number[]) {
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {}
+}
+
 const last = new Map<string, number>();
 function throttled(name: string, gapMs: number) {
   const now = performance.now();
@@ -132,6 +139,7 @@ export const brickSound = {
     burst(a, out, t + 0.03, "bandpass", 2300, 8, 0.36, 0.014);
     tone(a, out, t + 0.02, 470, 400, 0.14, 0.07, "triangle", 0.002);
     tone(a, out, t + 0.02, 150, 110, 0.12, 0.08, "sine", 0.002);
+    buzz(12);
   },
   /** pulling a brick off: a pop */
   unsnap() {
@@ -160,6 +168,7 @@ export const brickSound = {
     const { a, out } = s;
     const t = a.currentTime;
     const notes = big ? [523, 659, 784, 1047, 1319] : [659, 784, 1047];
+    buzz(big ? [30, 70, 30, 70, 60] : [25, 60, 40]);
     notes.forEach((n, i) => {
       tone(a, out, t + i * 0.09, n, n, 0.1, 0.22, "square", 0.004);
       tone(a, out, t + i * 0.09, n, n, 0.12, 0.3, "triangle");
@@ -176,6 +185,7 @@ export const brickSound = {
     if (!s || throttled("scatter", 400)) return;
     const { a, out } = s;
     const t = a.currentTime;
+    buzz([18, 60, 10, 40, 8]);
     // the pop as the parts come off
     tone(a, out, t, 300, 720, 0.16, 0.09, "sine", 0.002);
     burst(a, out, t, "bandpass", 2600, 4, 0.3, 0.03);
@@ -204,6 +214,7 @@ export const brickSound = {
       burst(a, out, t + d, "bandpass", 3000 + i * 350, 9, 0.34, 0.012);
       tone(a, out, t + d, 380 + i * 70, 330 + i * 70, 0.11, 0.06, "triangle", 0.002);
     });
+    buzz([8, 60, 8, 50, 8, 40, 14]);
     bell(a, out, t + 0.27, 1568, 0.11, 0.5);
     bell(a, out, t + 0.33, 2093, 0.07, 0.45);
   },

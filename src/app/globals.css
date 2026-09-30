@@ -1559,3 +1559,38 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .mf-alive .mf-head, .mf-alive .mf-eyes, .mf-alive .mf-arm-l, .mf-alive .mf-arm-r, .mf-break .mf-head, .mf-break .mf-arm-l, .mf-break .mf-arm-r, .mf-break .mf-torso, .mf-break .mf-legs { animation: none !important; }
 }
+
+/* ---- True Hunter: a stud meter under the mission tabs ---- */
+.true-meter { display: flex; align-items: center; gap: 8px; margin: -4px 2px 14px; }
+.true-meter-bar {
+  position: relative; flex: 1; height: 16px; border-radius: 8px; overflow: hidden;
+  background: var(--panel-2); box-shadow: inset 0 2px 0 var(--line-strong), 0 2px 0 #fff;
+}
+.true-meter-bar > span {
+  position: absolute; inset: 0 auto 0 0; border-radius: 8px; min-width: 0;
+  background:
+    radial-gradient(circle at 50% 42%, #fff6c4 0 2px, transparent 2.5px) 0 0 / 16px 16px,
+    radial-gradient(circle at 50% 50%, var(--lego-yellow) 0 5px, var(--lego-yellow-edge) 5.5px 6px, transparent 6.5px) 0 0 / 16px 16px,
+    linear-gradient(var(--lego-yellow), #e0b21c);
+  box-shadow: inset 0 -3px 0 var(--lego-yellow-edge);
+  transition: width 600ms var(--ease-bounce);
+}
+.true-meter-medal {
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  background: #fff; box-shadow: inset 0 -3px 0 var(--line-strong), 0 0 0 2px var(--line-strong);
+}
+.true-meter.full .true-meter-medal {
+  background: radial-gradient(circle at 40% 35%, #fff6c4 0 22%, var(--lego-yellow) 52%, #c99a06 100%);
+  box-shadow: inset 0 -3px 0 var(--lego-yellow-edge), 0 0 0 2px var(--lego-yellow);
+  animation: medalSpin 1.2s var(--ease-bounce) 1;
+}
+.true-meter-label { flex: none; font-family: var(--font-brick); font-weight: 700; font-size: 12px; color: var(--muted); background: #fff; border-radius: 999px; padding: 2px 9px; box-shadow: 0 2px 0 var(--line-strong); }
+.true-meter.full .true-meter-label { color: var(--ink); background: var(--lego-yellow); box-shadow: 0 2px 0 var(--lego-yellow-edge); }
+.true-meter.full .true-meter-bar > span::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.75) 50%, transparent 70%);
+  transform: translateX(-100%); animation: meterShine 2.6s ease-in-out infinite;
+}
+@keyframes meterShine { 0% { transform: translateX(-100%); } 55%, 100% { transform: translateX(100%); } }
+@keyframes medalSpin { 0% { transform: rotateY(0) scale(0.6); } 60% { transform: rotateY(540deg) scale(1.2); } 100% { transform: rotateY(720deg) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .true-meter.full .true-meter-bar > span::after, .true-meter.full .true-meter-medal { animation: none; } .true-meter-bar > span { transition: none; } }
