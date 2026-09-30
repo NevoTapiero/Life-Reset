@@ -93,15 +93,18 @@ export function useStations() {
     })();
   }, []);
 
-  // do a mission; resolves with the XP it paid, or null if it didn't go through
-  async function complete(id: string): Promise<number | null> {
+  // do a mission; resolves with what it paid (the station's price, for the
+  // "+XP" float) and the server's profile afterwards, or null if it failed
+  async function complete(id: string): Promise<{ xp: number; profile: Profile } | null> {
     const st = stations?.find((s) => s.id === id);
     if (!st || !today) return null;
-    const { error } = await supabase.rpc("complete_quest_for", { p_quest_id: id, p_on: today });
-    if (error) return null;
+    const { data, error } = await supabase.rpc("complete_quest_for", { p_quest_id: id, p_on: today });
+    if (error || !data) return null;
+    const profile = data as Profile;
     setStations((all) => all?.map((s) => (s.id === id ? { ...s, done: true } : s)) ?? null);
-    setGold((g) => (g === null ? g : g + st.xp)); // missions pay gold too
-    return st.xp;
+    // gold is the server's, not a guess (missions pay gold once the chest migration is in)
+    if (profile.gold !== undefined) setGold(profile.gold);
+    return { xp: st.xp, profile };
   }
 
   // open the chest: everything waiting becomes XP, and the same in gold

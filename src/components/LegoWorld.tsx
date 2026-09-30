@@ -462,9 +462,15 @@ export function LegoTown({
   className?: string;
 }) {
   const residents = all.slice(0, MAX_RESIDENTS);
-  const town = useModel(useMemo(() => townText(residents), [residents]), true);
+  const town = useModel(
+    useMemo(() => townText(residents), [residents]),
+    true,
+  );
   const lots = useMemo(() => residents.map((_, i) => lotFor(i)), [residents]);
-  const meIndex = Math.max(0, residents.findIndex((r) => r.me));
+  const meIndex = Math.max(
+    0,
+    residents.findIndex((r) => r.me),
+  );
   const [focus, setFocus] = useState(meIndex);
   const [inside, setInside] = useState<number | null>(null);
   const [shopOpen, setShopOpen] = useState(false);
@@ -586,28 +592,47 @@ export function LegoTown({
         {residents.map((res, i) => {
           // you walk into the house you're visiting; everyone else stays at their door
           if (i === meIndex && inside !== null) {
-            const [x, y, z] = inLot(lots[inside], [centre(residents[inside].level)[0], -16, centre(residents[inside].level)[2] + 40]);
+            const [x, y, z] = inLot(lots[inside], [
+              centre(residents[inside].level)[0],
+              -16,
+              centre(residents[inside].level)[2] + 40,
+            ]);
             return <Minifig key={res.name} look={BASE_HUNTER} at={[x, y, z]} turn={turnRad(lots[inside].facing)} />;
           }
           return (
-            <Minifig key={res.name} look={BASE_HUNTER} at={inLot(lots[i], minifigSpot(houseSpec(res.level)))} turn={turnRad(lots[i].facing)} />
+            <Minifig
+              key={res.name}
+              look={BASE_HUNTER}
+              at={inLot(lots[i], minifigSpot(houseSpec(res.level)))}
+              turn={turnRad(lots[i].facing)}
+            />
           );
         })}
       </Stage>
 
       {note && !shopOpen && (
         <div className="absolute top-3 inset-x-0 flex justify-center pointer-events-none">
-          <span className="px-3 py-1.5 rounded-full text-sm font-semibold shadow" style={{ background: "rgba(20,18,16,0.85)", color: "#fff" }}>
+          <span
+            className="px-3 py-1.5 rounded-full text-sm font-semibold shadow"
+            style={{ background: "rgba(20,18,16,0.85)", color: "#fff" }}
+          >
             {note}
           </span>
         </div>
       )}
 
-      <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-2 px-3 pointer-events-none">
-        <div className="pointer-events-auto flex items-center gap-2">
-          <TownButton quiet onClick={() => step(-1)} label={`Walk to ${nameOf(stops[(stops.indexOf(focus) - 1 + stops.length) % stops.length])}`}>
+      {/* the arrows sit at the edges, so they never move when the middle button's text changes */}
+      <div className="absolute inset-x-0 bottom-3 flex items-center gap-2 px-3 pointer-events-none">
+        <div className="pointer-events-auto flex-none">
+          <TownButton
+            quiet
+            onClick={() => step(-1)}
+            label={`Walk to ${nameOf(stops[(stops.indexOf(focus) - 1 + stops.length) % stops.length])}`}
+          >
             ‹
           </TownButton>
+        </div>
+        <div className="flex-1 min-w-0 flex justify-center">
           {focus === SHOP_FOCUS ? (
             prices && <TownButton onClick={() => setShopOpen(true)}>Go into the shop</TownButton>
           ) : inside !== null ? (
@@ -619,6 +644,8 @@ export function LegoTown({
           ) : onKnock ? (
             <TownButton onClick={() => onKnock(r!.name)}>Knock on {r!.name}&apos;s door</TownButton>
           ) : null}
+        </div>
+        <div className="pointer-events-auto flex-none">
           <TownButton quiet onClick={() => step(1)} label={`Walk to ${nameOf(stops[(stops.indexOf(focus) + 1) % stops.length])}`}>
             ›
           </TownButton>
@@ -671,7 +698,7 @@ function TownButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className={`${quiet ? "w-10 h-10 text-xl" : "px-4 py-2.5 text-sm"} rounded-full font-semibold shadow-lg active:scale-95 transition-transform disabled:opacity-80`}
+      className={`${quiet ? "w-10 h-10 text-xl" : "px-4 py-2.5 text-sm"} pointer-events-auto rounded-full font-semibold shadow-lg active:scale-95 transition-transform disabled:opacity-80`}
       style={{ background: disabled || quiet ? "rgba(20,18,16,0.8)" : "#ff8a1f", color: "#fff" }}
     >
       {children}
@@ -718,7 +745,11 @@ function ShopSheet({
           </span>
         </div>
         <p className="text-xs text-muted mb-3">Furniture for your house. It&apos;s there when you get home.</p>
-        {error && <p className="text-sm mb-2" style={{ color: "#ff8a7a" }}>{error}</p>}
+        {error && (
+          <p className="text-sm mb-2" style={{ color: "#ff8a7a" }}>
+            {error}
+          </p>
+        )}
         <div className="flex flex-col gap-2">
           {DECOR.filter((d) => prices[d.id] !== undefined)
             .sort((a, b) => prices[a.id] - prices[b.id])
@@ -726,7 +757,11 @@ function ShopSheet({
               const price = prices[d.id];
               const short = price - (gold ?? 0);
               return (
-                <div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5" style={{ borderColor: "var(--line, #333)" }}>
+                <div
+                  key={d.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5"
+                  style={{ borderColor: "var(--line, #333)" }}
+                >
                   <span className="font-semibold text-sm">{d.name}</span>
                   {owned.includes(d.id) ? (
                     <span className="text-xs text-muted">In your house</span>
@@ -739,7 +774,11 @@ function ShopSheet({
                       onClick={() => buy(d.id, d.name)}
                       disabled={busy === d.id}
                       className="px-3 py-1.5 rounded-full text-xs font-bold active:scale-95 transition-transform"
-                      style={{ background: "linear-gradient(180deg,#ffd35c,#f0a818)", color: "#4a2a00", opacity: busy === d.id ? 0.7 : 1 }}
+                      style={{
+                        background: "linear-gradient(180deg,#ffd35c,#f0a818)",
+                        color: "#4a2a00",
+                        opacity: busy === d.id ? 0.7 : 1,
+                      }}
                     >
                       Buy · {price} gold
                     </button>
@@ -781,7 +820,19 @@ function studTexture() {
   studs.anisotropy = 8;
   return studs;
 }
-function StudGround({ at, size, color, y = 0, flat }: { at: [number, number]; size: number; color: string; y?: number; flat?: boolean }) {
+function StudGround({
+  at,
+  size,
+  color,
+  y = 0,
+  flat,
+}: {
+  at: [number, number];
+  size: number;
+  color: string;
+  y?: number;
+  flat?: boolean;
+}) {
   const map = useMemo(() => {
     if (flat) return null;
     const t = studTexture().clone();
@@ -891,64 +942,70 @@ export function LegoRoom({
         sky="#f4e9d6"
         pan
         bounds={ROOM_BOUNDS}
-        pins={stations.slice(0, MAX_STATIONS).map((st, i) => {
-          const [x, z] = stationSpot(i);
-          return {
-            key: st.id,
-            at: [x * LDU, 9, -z * LDU] as [number, number, number],
-            node: (
-              <button
-                onClick={() => tap(st)}
-                disabled={busy === st.id}
-                className="relative flex flex-col items-center max-w-[70px] px-2 py-0.5 rounded-lg leading-tight shadow-md active:scale-95 transition-transform"
-                style={{
-                  background: st.done ? "rgba(40,120,60,0.92)" : "#ff8a1f",
-                  color: "#fff",
-                  opacity: busy === st.id ? 0.7 : 1,
-                }}
-              >
-                <span className="text-[11px] font-bold">{st.done ? "✓" : `+${st.xp}`}</span>
-                <span className="w-full truncate text-center text-[9px] font-medium opacity-90">{st.title}</span>
-                {paid?.id === st.id && (
-                  <span
-                    className="xp-float absolute left-1/2 -top-5 w-40 -ml-20 text-center font-mono font-bold text-sm"
-                    style={{ color: "#ffb347" }}
-                  >
-                    {payout(paid.xp)}
-                  </span>
-                )}
-              </button>
-            ),
-          };
-        }).concat(
-          chest === null
-            ? []
-            : [
-                {
-                  key: "chest",
-                  at: [CHEST_SPOT[0] * LDU, 5, -CHEST_SPOT[1] * LDU] as [number, number, number],
-                  node: (
-                    <button
-                      onClick={open}
-                      disabled={!chest || busy === "chest"}
-                      className="relative px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap shadow-lg active:scale-95 transition-transform"
-                      style={
-                        chest
-                          ? { background: "linear-gradient(180deg,#ffd35c,#f0a818)", color: "#4a2a00" }
-                          : { background: "rgba(20,18,16,0.7)", color: "#fff" }
-                      }
+        pins={stations
+          .slice(0, MAX_STATIONS)
+          .map((st, i) => {
+            const [x, z] = stationSpot(i);
+            return {
+              key: st.id,
+              at: [x * LDU, 9, -z * LDU] as [number, number, number],
+              node: (
+                <button
+                  onClick={() => tap(st)}
+                  disabled={busy === st.id}
+                  className="relative flex flex-col items-center max-w-[70px] px-2 py-0.5 rounded-lg leading-tight shadow-md active:scale-95 transition-transform"
+                  style={{
+                    background: st.done ? "rgba(40,120,60,0.92)" : "#ff8a1f",
+                    color: "#fff",
+                    opacity: busy === st.id ? 0.7 : 1,
+                  }}
+                >
+                  <span className="text-[11px] font-bold">{st.done ? "✓" : `+${st.xp}`}</span>
+                  <span className="w-full truncate text-center text-[9px] font-medium opacity-90">{st.title}</span>
+                  {paid?.id === st.id && (
+                    <span
+                      className="xp-float absolute left-1/2 -top-5 w-40 -ml-20 text-center font-mono font-bold text-sm"
+                      style={{ color: "#ffb347" }}
                     >
-                      {chest ? `Collect +${chest}` : "Chest empty"}
-                      {paid?.id === "chest" && (
-                        <span className="xp-float absolute left-1/2 -top-6 w-44 -ml-22 text-center font-mono font-bold text-sm" style={{ color: "#ffb347" }}>
-                          {payout(paid.xp)}
-                        </span>
-                      )}
-                    </button>
-                  ),
-                },
-              ],
-        )}
+                      {payout(paid.xp)}
+                    </span>
+                  )}
+                </button>
+              ),
+            };
+          })
+          .concat(
+            chest === null
+              ? []
+              : [
+                  {
+                    key: "chest",
+                    at: [CHEST_SPOT[0] * LDU, 5, -CHEST_SPOT[1] * LDU] as [number, number, number],
+                    node: (
+                      <button
+                        onClick={open}
+                        disabled={!chest || busy === "chest"}
+                        className="relative px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap shadow-lg active:scale-95 transition-transform"
+                        style={
+                          chest
+                            ? { background: "linear-gradient(180deg,#ffd35c,#f0a818)", color: "#4a2a00" }
+                            : { background: "rgba(20,18,16,0.7)", color: "#fff" }
+                        }
+                      >
+                        {chest ? `Collect +${chest}` : "Chest empty"}
+                        {paid?.id === "chest" && (
+                          <span
+                            className="xp-float absolute left-1/2 -top-6 w-44 -ml-22 text-center font-mono font-bold text-sm"
+                            style={{ color: "#ffb347" }}
+                          >
+                            {payout(paid.xp)}
+                          </span>
+                        )}
+                      </button>
+                    ),
+                  },
+                ],
+          )}
       >
         {room && <primitive object={room} />}
         <Minifig look={look} at={[0, -16, 60]} />
@@ -959,7 +1016,10 @@ export function LegoRoom({
         </p>
       )}
       {gold !== null && (
-        <div className="absolute top-3 left-3 px-3 py-1.5 rounded-full text-sm font-bold shadow" style={{ background: "rgba(20,18,16,0.8)", color: "#ffd35c" }}>
+        <div
+          className="absolute top-3 left-3 px-3 py-1.5 rounded-full text-sm font-bold shadow"
+          style={{ background: "rgba(20,18,16,0.8)", color: "#ffd35c" }}
+        >
           {gold.toLocaleString()} gold
         </div>
       )}

@@ -84,10 +84,10 @@ export default function YouPage() {
               <LegoRoom
                 stations={stations ?? []}
                 onTap={async (id) => {
-                  const xp = await complete(id);
-                  // the XP bar and rank follow the payout
-                  if (xp !== null) setProfile((p) => (p ? { ...p, xp: p.xp + xp } : p));
-                  return xp;
+                  const r = await complete(id);
+                  // the XP bar and rank follow the server's result
+                  if (r) setProfile(r.profile);
+                  return r?.xp ?? null;
                 }}
                 chest={chest}
                 gold={gold}

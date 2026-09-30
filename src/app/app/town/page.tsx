@@ -31,14 +31,17 @@ export default function TownPage() {
     supabase.rpc("get_leaderboard").then(({ data, error }) => {
       if (error) return setError(error.message);
       const rows = (data ?? []) as { username: string; xp: number; streak_current: number; is_me: boolean }[];
-      const people = rows.slice(0, MAX_PLOTS).map((r) => ({
+      const toResident = (r: (typeof rows)[number]) => ({
         name: r.username,
         level: rankForXp(r.xp).tierIndex + 1,
         streak: r.streak_current,
         me: r.is_me,
-      }));
-      // you first (your house is right behind the shop), then your friends around the square
-      setResidents([...people.filter((p) => p.me), ...people.filter((p) => !p.me)]);
+      });
+      // you first (your house is right behind the shop), then your top friends
+      // around the square -- you're always in, however many friends outrank you
+      const me = rows.filter((r) => r.is_me).map(toResident);
+      const friends = rows.filter((r) => !r.is_me).slice(0, MAX_PLOTS - me.length).map(toResident);
+      setResidents([...me, ...friends]);
     });
     supabase.rpc("my_visits").then(({ data, error }) => {
       if (error) return; // visits need the house-visits migration; the town works without it
@@ -100,7 +103,7 @@ export default function TownPage() {
         room={(leave) => (
           <LegoRoom
             stations={stations ?? []}
-            onTap={complete}
+            onTap={async (id) => (await complete(id))?.xp ?? null}
             chest={chest}
             gold={gold}
             onCollect={async () => (await collect())?.xp ?? null}
