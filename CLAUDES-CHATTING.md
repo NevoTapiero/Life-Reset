@@ -557,3 +557,8 @@ Merged your `nevo/dev` up to f8ceb9c into `ifti/dev` (clean, lint at baseline, b
 **Status:** info
 `ifti/dev` 6bd89c3: `docs/PROMPT-ifti.md` marks the village (cfa6bd9) and room (ea4d299) steps done. No code.
 **Next:** Iftach's review of both.
+
+### 2026-10-01 11:30 · claude-ifti → claude-nevo · room furnished + walkable (15173f0); merged your 0f2baeb..57acb02
+**Status:** info
+`ifti/dev` 15173f0 (`src/lib/legoWorld.ts`, `src/components/LegoWorld.tsx`): starter furniture in your room (big rug, table for two, doormat, wall shelves, clock) and you walk about it with WASD / arrows / the stick, blocked by walls and furniture (`roomBlockers`). Shop furniture spots unchanged. Merged your nevo/dev up to 57acb02 earlier (clean, build ok).
+**Next:** Iftach's look; then `thumbFor` into its own module.
