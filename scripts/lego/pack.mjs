@@ -7,6 +7,10 @@
 // reference, as embedded "0 FILE" sections) and public/lego/LDConfig.ldr (colours).
 // Then bakes the official houses (scripts/lego/sets/) into public/lego/houses/
 // and writes their footprints to src/lib/legoHouses.json.
+// Also packs the character loadouts (src/lib/legoLoadouts.generated.json, made
+// by scripts/lego/loadouts.mjs) into public/lego/figures.mpd and their rides
+// into public/lego/rides.mpd, loaded only when a figure / ride needs them.
+// PARTS_ONLY=1 stops after the part packs (no house / vehicle / prop baking).
 // The library is CC BY 2.0; see public/lego/LICENSE.txt.
 import { readFileSync, writeFileSync, existsSync, mkdirSync, mkdtempSync, statSync } from "fs";
 import { tmpdir } from "os";
@@ -20,6 +24,7 @@ import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { fileURLToPath } from "url";
 import { LEGO_PARTS } from "../../src/lib/legoWorld.ts";
+import LOADOUTS from "../../src/lib/legoLoadouts.generated.json" with { type: "json" };
 
 const ROOT = process.env.LDRAW;
 if (!ROOT || !existsSync(`${ROOT}/parts`)) throw new Error("set LDRAW to the unzipped ldraw folder");
@@ -53,7 +58,8 @@ function collect(roots) {
     refs(text).forEach(add);
   };
   roots.forEach(add);
-  if (missing.size) console.warn("missing:", [...missing].join(", "));
+  // a missing part would ship a pack the browser can't finish loading
+  if (missing.size) throw new Error(`missing from ${ROOT}: ${[...missing].join(", ")}`);
   return files;
 }
 
@@ -66,9 +72,25 @@ const files = collect(LEGO_PARTS.map((p) => `${p}.dat`));
 const out = "0 FILE parts-index.ldr\n0 packed parts for the brick world\n0 NOFILE\n" + embed(files);
 writeFileSync(`${OUT}parts.mpd`, out);
 
+// Every parse carries its whole pack, so the character loadouts and the rides
+// get packs of their own instead of growing parts.mpd for every model:
+// figures.mpd (printed torsos, helmets, gear) for minifig parses, rides.mpd for
+// rides. Each holds only what the packs before it don't already have.
+const figureFiles = collect(LOADOUTS.parts.map((p) => `${p}.dat`));
+for (const name of files.keys()) figureFiles.delete(name);
+const figures = "0 FILE figures-index.ldr\n0 packed parts for the character loadouts\n0 NOFILE\n" + embed(figureFiles);
+writeFileSync(`${OUT}figures.mpd`, figures);
+
+// the rides (skateboard ... dragon)
+const rideFiles = collect(LOADOUTS.rideParts.map((p) => `${p}.dat`));
+for (const name of [...files.keys(), ...figureFiles.keys()]) rideFiles.delete(name);
+const rides = "0 FILE rides-index.ldr\n0 packed parts for the rides\n0 NOFILE\n" + embed(rideFiles);
+writeFileSync(`${OUT}rides.mpd`, rides);
+
 const colours = readFileSync(`${ROOT}/LDConfig.ldr`, "utf8").split(/\r?\n/).filter((l) => l.startsWith("0 !COLOUR")).join("\n");
 writeFileSync(`${OUT}LDConfig.ldr`, colours + "\n");
-console.log(`packed ${files.size} files, ${(out.length / 1e6).toFixed(2)} MB; ${colours.split("\n").length} colours`);
+console.log(`packed ${files.size} files, ${(out.length / 1e6).toFixed(2)} MB; figures ${figureFiles.size} files, ${(figures.length / 1e6).toFixed(2)} MB; rides ${rideFiles.size} files, ${(rides.length / 1e6).toFixed(2)} MB; ${colours.split("\n").length} colours`);
+if (process.env.PARTS_ONLY) process.exit(0);
 
 // ---- the houses ----------------------------------------------------------
 // House level 1..5 is an official set from scripts/lego/sets (LDraw Official
