@@ -1,4 +1,6 @@
-import { getIntegration, touchSync, awardXp, paidRefs, paidMeta, rescoreXp } from "./server";
+import { getIntegration, touchSync, awardXp, paidRefs, paidMeta, rescoreXp, recalcPlayer, ledgerTotal } from "./server";
+import { cardXp } from "@/lib/game";
+import { TrackedKind, sleepRated, stepsRated, workoutRated } from "@/lib/pricing";
 import { freshAccessToken as googleToken, completedTasksSince, judge, localDayRange, GTask, GEvent } from "./google";
 import { recentExercise, recentSleep as healthSleep, dailySteps, exerciseMinutes, pointId, workoutXp } from "./health";
 import {
@@ -96,11 +98,62 @@ export async function syncGoogle(uid: string): Promise<GoogleSync> {
   return { connected: true, newTasks, newEvents: 0, xpGained };
 }
 
+// --- watch items: the same price and the same card as a quest ---------------
+// A watch reports steps, sleep and workouts; each becomes a ledger row carrying
+// { kind, rated, day }. The database (recalc_player) pays it through the same
+// 7-day card as a quest, counting consecutive days of that kind, so 10,000
+// steps pays exactly what a "10k steps" quest pays on the same day of its run.
+
+type WatchItem = { source: string; kind: TrackedKind; ref: string; rated: number; day: string; reason: string; extra?: Record<string, unknown> };
+
+// Record (or re-price) watch items, then let the database run the cards.
+// Returns how many were new and how the player's XP from these sources moved.
+// `repriceOnly`: only bring already-paid rows onto the current rule, never add
+// new ones (a backfill must not pay for anything from before the connection).
+async function payWatchItems(
+  uid: string,
+  sources: string[],
+  items: WatchItem[],
+  repriceOnly = false,
+): Promise<{ newItems: number; xpGained: number }> {
+  const before = await ledgerTotal(uid, sources);
+  const paid = new Map<string, Record<string, unknown>>();
+  for (const s of sources) for (const [ref, meta] of await paidMeta(uid, s)) paid.set(`${s}|${ref}`, meta);
+
+  let newItems = 0;
+  let changed = false;
+  for (const it of items) {
+    if (it.rated <= 0) {
+      // below the habit's bar (e.g. under 6 hours of sleep): the quest would pay
+      // nothing, so the watch pays nothing. An older payout for it is zeroed.
+      const prev = paid.get(`${it.source}|${it.ref}`);
+      if (prev && prev.rated !== 0) {
+        await rescoreXp(uid, it.source, it.ref, 0, it.reason, { kind: it.kind, rated: 0, day: it.day });
+        changed = true;
+      }
+      continue;
+    }
+    const meta = { kind: it.kind, rated: it.rated, day: it.day, ...(it.extra ?? {}) };
+    const prev = paid.get(`${it.source}|${it.ref}`);
+    // the card fixes the amount right after; day 1 is a fair placeholder
+    const placeholder = cardXp(it.rated, 1);
+    if (!prev) {
+      if (repriceOnly) continue;
+      if (await awardXp(uid, it.source, it.ref, placeholder, it.reason, meta)) {
+        newItems++;
+        changed = true;
+      }
+    } else if (prev.rated !== it.rated || prev.day !== it.day || prev.kind !== it.kind) {
+      // paid under an older rule: bring it onto the shared price and card
+      await rescoreXp(uid, it.source, it.ref, placeholder, it.reason, meta);
+      changed = true;
+    }
+  }
+  if (changed) await recalcPlayer(uid);
+  return { newItems, xpGained: (await ledgerTotal(uid, sources)) - before };
+}
+
 // --- Google Health --------------------------------------------------------
-// Workouts pay by how hard they were (heart-rate zones, else Active Zone
-// Minutes, else calories), sleep by hours actually asleep, and steps by the
-// thousand, but only for finished days so a half-walked day is not locked in at
-// breakfast.
 
 export type HealthSync = { connected: boolean; newItems: number; xpGained: number; error?: string };
 
@@ -108,74 +161,83 @@ function ymd(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(d);
 }
 
-export async function syncHealth(uid: string): Promise<HealthSync> {
+// `sinceOverride` lets a one-time backfill re-price items older than the
+// connection window; normal syncs never pass it.
+export async function syncHealth(uid: string, sinceOverride?: Date, repriceOnly = false): Promise<HealthSync> {
   const empty = { connected: false, newItems: 0, xpGained: 0 };
   const row = await getIntegration(uid, "ghealth");
   if (!row) return empty;
   const token = await googleToken(uid, "ghealth");
   if (!token) return { ...empty, error: "reconnect" };
 
-  const from = countFrom(row);
+  const from = sinceOverride ?? countFrom(row);
   const since = from.toISOString();
   const today = ymd(new Date());
   // steps are whole days: count from the day of connection, finished days only
   const firstDay = ymd(from);
 
-  const [workouts, sleeps, steps, paidWorkouts] = await Promise.all([
+  const [workouts, sleeps, steps] = await Promise.all([
     recentExercise(token, since),
     healthSleep(token, since), // sessions that ended after connecting
     firstDay < today ? dailySteps(token, firstDay, today) : Promise.resolve([]), // end exclusive: today left out
-    paidMeta(uid, "health_workout"),
   ]);
 
-  let xpGained = 0;
-  let newItems = 0;
-  const grant = async (source: string, ref: string, xp: number, reason: string) => {
-    if (xp === 0) return; // negative is a penalty, still recorded
-    if (await awardXp(uid, source, ref, xp, reason)) {
-      xpGained += xp;
-      newItems++;
-    }
-  };
-
+  const items: WatchItem[] = [];
+  // Iftach's penalties live in their own rows (<source>_penalty), so the shared
+  // price table and card never overwrite them and they never overwrite a payout.
+  const penalties: { source: string; ref: string; xp: number; reason: string }[] = [];
   for (const w of workouts) {
     const minutes = exerciseMinutes(w);
     if (minutes < 10) continue; // a walk to the car is not a workout
     const label = w.exercise?.displayName || prettyType(w.exercise?.exerciseType) || "Workout";
-    const ref = `workout:${pointId(w.name)}`;
-    const { xp, basis } = workoutXp(w);
-    const reason = `${label} · ${minutes} min · ${basis}`;
-    const meta = { scoring: "intensity-v2", basis };
-    const paidBefore = paidWorkouts.get(ref);
-    if (paidBefore && paidBefore.scoring !== "intensity-v2") {
-      // paid under the old minutes-only rule: re-price it by intensity once
-      const delta = await rescoreXp(uid, "health_workout", ref, xp, reason, meta);
-      xpGained += delta;
-      continue;
-    }
-    if (paidBefore) continue;
-    if (xp > 0 && (await awardXp(uid, "health_workout", ref, xp, reason, meta))) {
-      xpGained += xp;
-      newItems++;
-    }
+    const { xp: score, basis } = workoutXp(w);
+    items.push({
+      source: "health_workout",
+      kind: "workout",
+      ref: `workout:${pointId(w.name)}`,
+      rated: workoutRated(score),
+      day: ymd(new Date(w.exercise?.interval?.startTime ?? Date.now())),
+      reason: `${label} · ${minutes} min · ${basis}`,
+      extra: { scoring: "intensity-v2", basis },
+    });
   }
   for (const s of sleeps) {
-    const asleep = Number(s.sleep?.summary?.minutesAsleep ?? 0);
-    if (asleep < 180) continue; // a nap is not a night
-    const hours = asleep / 60;
-    // 7 to 9 hours is the target band; a short night is a penalty, not a
-    // smaller prize. ponytail: fixed steps, make it continuous if it lands
-    const xp = hours >= 7 && hours <= 9 ? 15 : hours >= 6 ? 8 : -10;
-    const note = xp < 0 ? "short night, you're running tired" : xp < 15 ? "a bit short" : "in the zone";
-    await grant("health_sleep", `sleep:${pointId(s.name)}`, xp, `Slept ${hours.toFixed(1)} h · ${note}`);
+    const hours = Number(s.sleep?.summary?.minutesAsleep ?? 0) / 60;
+    const ref = `sleep:${pointId(s.name)}`;
+    items.push({
+      source: "health_sleep",
+      kind: "sleep",
+      ref,
+      rated: sleepRated(hours), // under 6 hours pays nothing, like the quest
+      day: ymd(new Date(s.sleep?.interval?.endTime ?? Date.now())), // the morning you woke up
+      reason: `Slept ${hours.toFixed(1)} h`,
+    });
+    // a real night (3 h+) under 6 hours is a penalty on top, not just no prize
+    if (hours >= 3 && hours < 6)
+      penalties.push({ source: "health_sleep_penalty", ref, xp: -10, reason: `Slept ${hours.toFixed(1)} h · short night, you're running tired` });
   }
   for (const d of steps) {
-    if (d.date < firstDay || d.date >= today || d.steps < 3000) continue;
-    await grant("health_steps", `steps:${d.date}`, Math.min(25, Math.floor(d.steps / 1000)), `${d.steps.toLocaleString("en-US")} steps`);
+    if (d.date < firstDay || d.date >= today) continue;
+    items.push({
+      source: "health_steps",
+      kind: "steps",
+      ref: `steps:${d.date}`,
+      rated: stepsRated(d.steps),
+      day: d.date,
+      reason: `${d.steps.toLocaleString("en-US")} steps`,
+    });
   }
 
+  const r = await payWatchItems(uid, ["health_workout", "health_sleep", "health_steps"], items, repriceOnly);
+  if (!repriceOnly) {
+    for (const pen of penalties)
+      if (await awardXp(uid, pen.source, pen.ref, pen.xp, pen.reason)) {
+        r.xpGained += pen.xp;
+        r.newItems++;
+      }
+  }
   await touchSync(uid, "ghealth");
-  return { connected: true, newItems, xpGained };
+  return { connected: true, ...r };
 }
 
 function prettyType(t: string | undefined): string {
@@ -201,35 +263,61 @@ export async function syncWhoop(uid: string): Promise<WhoopSync> {
     recentWorkouts(token, since),
   ]);
 
-  let xpGained = 0;
-  let newItems = 0;
-  const grant = async (source: string, ref: string, xp: number, reason: string) => {
-    if (xp === 0) return; // negative is a penalty, still recorded
-    if (await awardXp(uid, source, ref, xp, reason)) {
-      xpGained += xp;
-      newItems++;
-    }
-  };
-
+  // Sleep and workouts are quest kinds: same price and card as a quest.
+  const items: WatchItem[] = [];
+  const penalties: { source: string; ref: string; xp: number; reason: string }[] = [];
   for (const s of sleeps) {
     if (s.nap || s.score_state !== "SCORED") continue;
+    const st = s.score?.stage_summary;
+    const hours =
+      ((st?.total_light_sleep_time_milli ?? 0) + (st?.total_slow_wave_sleep_time_milli ?? 0) + (st?.total_rem_sleep_time_milli ?? 0)) /
+      3_600_000;
+    items.push({
+      source: "whoop_sleep",
+      kind: "sleep",
+      ref: `sleep:${s.id}`,
+      rated: sleepRated(hours),
+      day: ymd(new Date(s.end ?? Date.now())),
+      reason: `Slept ${hours.toFixed(1)} h`,
+    });
+    // WHOOP's own sleep performance under 50% costs XP: 0% -> -20
     const perf = s.score?.sleep_performance_percentage ?? 0;
-    // 100% -> +20, 50% -> 0, 0% -> -20: same ceiling as before, but a poor
-    // night is a loss rather than a small prize
-    const xp = Math.round((perf - 50) / 2.5);
-    await grant("whoop_sleep", `sleep:${s.id}`, xp, `Sleep ${Math.round(perf)}%${xp < 0 ? " · you're running tired" : ""}`);
-  }
-  for (const r of recoveries) {
-    if (r.score_state !== "SCORED") continue;
-    const rec = r.score?.recovery_score ?? 0;
-    // zero at 33, WHOOP's own red/yellow line: green pays up to +20, red costs up to -10
-    const xp = Math.round((rec - 33) / 3.35);
-    await grant("whoop_recovery", `recovery:${r.cycle_id}`, xp, `Recovery ${Math.round(rec)}%${xp < 0 ? " · in the red" : ""}`);
+    if (perf < 50)
+      penalties.push({ source: "whoop_sleep_penalty", ref: `sleep:${s.id}`, xp: Math.round((perf - 50) / 2.5), reason: `Sleep ${Math.round(perf)}% · you're running tired` });
   }
   for (const w of workouts) {
     if (w.score_state !== "SCORED") continue;
-    await grant("whoop_workout", `workout:${w.id}`, Math.round((w.score?.strain ?? 0) * 2), w.sport_name ?? "Workout");
+    // strain runs 0 to 21; a hard session (~12) lands where a hard run does
+    items.push({
+      source: "whoop_workout",
+      kind: "workout",
+      ref: `workout:${w.id}`,
+      rated: workoutRated((w.score?.strain ?? 0) * 3),
+      day: ymd(new Date(w.start ?? Date.now())),
+      reason: `${w.sport_name ?? "Workout"} · strain ${(w.score?.strain ?? 0).toFixed(1)}`,
+    });
   }
+  const r = await payWatchItems(uid, ["whoop_sleep", "whoop_workout"], items);
+
+  // Recovery has no quest twin: it keeps its own payout. Zero at 33, WHOOP's
+  // own red/yellow line: green pays up to +20, red costs up to -10.
+  let xpGained = r.xpGained;
+  let newItems = r.newItems;
+  for (const rec of recoveries) {
+    if (rec.score_state !== "SCORED") continue;
+    const score = rec.score?.recovery_score ?? 0;
+    const xp = Math.round((score - 33) / 3.35);
+    const reason = `Recovery ${Math.round(score)}%${xp < 0 ? " · in the red" : ""}`;
+    if (xp !== 0 && (await awardXp(uid, "whoop_recovery", `recovery:${rec.cycle_id}`, xp, reason))) {
+      xpGained += xp;
+      newItems++;
+    }
+  }
+  for (const pen of penalties)
+    if (await awardXp(uid, pen.source, pen.ref, pen.xp, pen.reason)) {
+      xpGained += pen.xp;
+      newItems++;
+    }
 
   await touchSync(uid, "whoop");
   return { connected: true, newItems, xpGained };

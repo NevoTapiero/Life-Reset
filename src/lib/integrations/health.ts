@@ -27,7 +27,7 @@ export type HealthExercise = {
 
 // How hard a workout was, from the richest signal the watch recorded:
 // minutes in each heart-rate zone, else Active Zone Minutes, else calories,
-// else plain duration. Returns the XP (capped at 40, the old workout maximum)
+// else plain duration. Returns a rated value on the quest scale (1 to 50)
 // and how it was measured, so a hard 30-minute run outscores a relaxed hour in
 // the gym. A peak-zone minute is worth nine light ones.
 export function workoutXp(w: HealthExercise): { xp: number; basis: string } {
@@ -39,7 +39,7 @@ export function workoutXp(w: HealthExercise): { xp: number; basis: string } {
     vigorous: durationMinutes(z?.vigorousTime),
     peak: durationMinutes(z?.peakTime),
   };
-  const cap = (x: number) => Math.max(0, Math.min(40, Math.round(x)));
+  const cap = (x: number) => Math.max(0, Math.min(50, Math.round(x))); // the quest scale (1-50)
   if (zone.light + zone.moderate + zone.vigorous + zone.peak > 0) {
     const xp = zone.light * 0.25 + zone.moderate * 0.75 + zone.vigorous * 1.5 + zone.peak * 2.25;
     return { xp: cap(xp), basis: `heart zones ${zone.moderate}/${zone.vigorous}/${zone.peak} min` };
