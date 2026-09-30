@@ -761,9 +761,10 @@ export function townDecorText(): string {
 
 // ---- walking round town ----
 // You walk the inner streets round the plaza (x or z = +-ST; the cars keep to
-// the ring road). Every plot's front faces one of them, so a walk is: out of
-// where you are to your street, along the streets (round a corner, or across
-// one if the streets are parallel), and in to where you're going.
+// the ring road). Every plot's front faces one of them. A place is a chain of
+// points from its street (first) to where you stand (last), so a walk is: back
+// along your chain to where it meets the new one (the street, if they share
+// nothing), along the streets if need be, and on down the new chain.
 export type P3 = [number, number, number];
 const ST = (PITCH / 2) * S;
 /** from the street to your spot at a lot's door; `side` steps along the door (so you stand beside its owner) */
@@ -771,10 +772,28 @@ export function doorWalk(lot: Lot, level: number, side = 0): P3[] {
   const [u, y, w] = minifigSpot(houseSpec(level));
   return [inLot(lot, [u + side, 0, ST]), inLot(lot, [u + side, y, w])];
 }
+/** where a house's rooms are on its plot (LDU, plot frame): their middle, and the z of their front wall */
+export type Rooms = { x: number; z: number; front: number };
+/** on from the door, across the garden, in through the front wall and on to the middle of the room (the roof comes off).
+ *  `rooms`: measured from the house model; without it, the middle of the footprint. */
+export function insideWalk(lot: Lot, level: number, side = 0, rooms?: Rooms): P3[] {
+  const s = houseSpec(level);
+  const [u, y, w] = minifigSpot(s);
+  const r = rooms ?? { x: (s.x0 + s.w / 2 - PLOT / 2) * S, z: (s.z0 + s.d / 2 - PLOT / 2) * S + 40, front: (s.z0 + s.d - PLOT / 2) * S };
+  const floor = -2 * PLATE;
+  return [
+    ...doorWalk(lot, level, side),
+    inLot(lot, [u, y, w]),
+    inLot(lot, [r.x, y, r.front + S]),
+    inLot(lot, [r.x, floor, r.front - 2 * S]),
+    inLot(lot, [r.x, floor, r.z]),
+  ];
+}
 /** from the street on the plaza's left, between the planters and the bench, to the shop's front */
 export const SHOP_WALK: P3[] = [[-ST, 0, 290], [-150, 0, 290], [-120, 0, 250]];
 const onX = (p: P3) => Math.abs(Math.abs(p[0]) - ST) < 1; // on a street running along z
 const onZ = (p: P3) => Math.abs(Math.abs(p[2]) - ST) < 1;
+const same = (p: P3, q: P3) => Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2]) < 1;
 /** the corners between two points on the streets */
 export function streetLink(p: P3, q: P3): P3[] {
   if ((onX(p) && onX(q) && Math.abs(p[0] - q[0]) < 1) || (onZ(p) && onZ(q) && Math.abs(p[2] - q[2]) < 1)) return [];
@@ -789,20 +808,29 @@ export function streetLink(p: P3, q: P3): P3[] {
   const c = cross(p[0], q[0]);
   return [[c, 0, p[2]], [c, 0, q[2]]];
 }
-/** a walk: `lead` (ending on a street), then the streets, then `to` (street first, spot last); `enter` is where `to` starts */
-export function walkRoute(lead: P3[], to: P3[]) {
-  const link = streetLink(lead[lead.length - 1], to[0]);
-  return { pts: [...lead, ...link, ...to], leave: lead.length - 1, enter: lead.length + link.length };
+/** a walk: its points, and for each the chain from the street that leads to it (length 1: on the street) */
+export type Route = { pts: P3[]; chains: P3[][] };
+export function walkRoute(from: P3[], to: P3[]): Route {
+  let c = 0;
+  while (c < from.length && c < to.length && same(from[c], to[c])) c++;
+  const back = from.slice(Math.max(c - 1, 0)).reverse();
+  const link = c ? [] : streetLink(from[0], to[0]);
+  const fwd = to.slice(c);
+  return {
+    pts: [...back, ...link, ...fwd],
+    chains: [
+      ...back.map((_, j) => from.slice(0, from.length - j)),
+      ...link.map((p) => [p]),
+      ...fwd.map((_, k) => to.slice(0, c + k + 1)),
+    ],
+  };
 }
-/** turn round mid-walk at `pos` on segment `i` of `r`: first back to the street (or on along it), then to `to` */
-export function rerouteFrom(r: { pts: P3[]; leave: number; enter: number }, i: number, pos: P3, to: P3[]) {
-  const lead =
-    i < r.leave
-      ? [pos, ...r.pts.slice(i + 1, r.leave + 1)] // still coming out: carry on out to the street
-      : i < r.enter
-        ? [pos] // on the streets
-        : [pos, ...r.pts.slice(r.enter, i + 1).reverse()]; // going in: back out to the street
-  return walkRoute(lead, to);
+/** turn round mid-walk at `pos` on segment `i` of `r` */
+export function rerouteFrom(r: Route, i: number, pos: P3, to: P3[]): Route {
+  const [a, b] = [r.chains[i], r.chains[i + 1]];
+  // on the street, or somewhere down the chain nearer the street
+  const here = a.length === 1 && b.length === 1 ? [pos] : [...(a.length < b.length ? a : b), pos];
+  return walkRoute(here, to);
 }
 
 // Small official sets placed as props (baked glbs, see PROPS in pack.mjs):

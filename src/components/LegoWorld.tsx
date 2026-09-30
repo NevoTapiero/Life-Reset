@@ -34,10 +34,12 @@ import {
   houseSpec,
   minifigSpot,
   doorWalk,
+  insideWalk,
   SHOP_WALK,
   walkRoute,
   rerouteFrom,
   type P3,
+  type Route,
   modelText,
   CHEST_SPOT,
   DECOR,
@@ -241,8 +243,47 @@ const gltf = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const houses = new Map<string, Promise<THREE.Object3D>>();
 function loadHouse(url: string) {
   let p = houses.get(url);
-  if (!p) houses.set(url, (p = gltf.loadAsync(url).then((g) => finish(g.scene))));
+  if (!p)
+    houses.set(
+      url,
+      (p = gltf.loadAsync(url).then((g) => {
+        rooms.set(url, measureRooms(g.scene));
+        return finish(g.scene);
+      })),
+    );
   return p;
+}
+
+// Where a set's rooms are: official sets come with yards, decks and porches,
+// so the building isn't simply the middle of the model. The cells (1 stud)
+// where the model rises past half its height are the building; their middle is
+// the room, and going forward from there, where they end is the front wall. In the glb's own frame
+// (LDU, origin its front-left corner, -Y up); filled in as each house loads.
+const rooms = new Map<string, { x: number; z: number; front: number }>();
+function measureRooms(scene: THREE.Object3D) {
+  scene.updateMatrixWorld(true);
+  const top = new Map<string, number>();
+  const v = new THREE.Vector3();
+  let highest = 0;
+  scene.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const pos = mesh.geometry.getAttribute("position");
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      const k = `${Math.floor(v.x / 20)},${Math.floor(v.z / 20)}`;
+      top.set(k, Math.max(top.get(k) ?? 0, -v.y));
+      highest = Math.max(highest, -v.y);
+    }
+  });
+  const tall = [...top].filter(([, h]) => h > highest / 2).map(([k]) => k.split(",").map(Number));
+  if (!tall.length) return { x: 0, z: 0, front: 0 };
+  const cx = Math.floor(tall.reduce((a, [x]) => a + x, 0) / tall.length);
+  const cz = Math.floor(tall.reduce((a, [, z]) => a + z, 0) / tall.length);
+  const isTall = new Set(tall.map(([x, z]) => `${x},${z}`));
+  let front = cz;
+  while (isTall.has(`${cx},${front + 1}`)) front++;
+  return { x: (cx + 0.5) * 20, z: (cz + 0.5) * 20, front: (front + 1) * 20 };
 }
 
 // A baked building placed at `at` (LDU). `cut`: a height (three's y) above
@@ -1025,19 +1066,22 @@ export function LegoTown({
           </group>
         ))}
         {residents.map((res, i) => {
-          // you walk into the house you're visiting; everyone else stays at their door
-          if (i === meIndex && inside !== null) {
-            const [x, y, z] = inLot(lots[inside], [
-              centre(residents[inside].level)[0],
-              -16,
-              centre(residents[inside].level)[2] + 40,
-            ]);
-            return <Minifig key={res.name} look={BASE_HUNTER} at={[x, y, z]} turn={turnRad(lots[inside].facing)} />;
-          }
+          // you walk to where you last looked, and into the house you're visiting; everyone else stays at their door
           if (i === meIndex) {
             // you walk to wherever you last looked (the whole-town view doesn't move you)
             const shop = dest === SHOP_FOCUS || !residents[dest];
-            const to = shop ? SHOP_WALK : doorWalk(lots[dest], residents[dest].level, dest === meIndex ? 0 : 40);
+            let to = SHOP_WALK;
+            if (!shop) {
+              const { level, name } = residents[dest];
+              const side = dest === meIndex ? 0 : 40;
+              const house = houseFor(level, name);
+              const r = rooms.get(houseUrl(house));
+              const [hx, , hz] = houseAt(houseSpec(level), house);
+              to =
+                inside === dest
+                  ? insideWalk(lots[dest], level, side, r && { x: hx + r.x, z: hz + r.z, front: hz + r.front })
+                  : doorWalk(lots[dest], level, side);
+            }
             return <Walker key="me" look={BASE_HUNTER} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
           }
           return (
@@ -1354,14 +1398,14 @@ function Walker({ look, to, turn }: { look: MinifigLook; to: P3[]; turn: number 
   const root = useRef<THREE.Group>(null);
   const walking = useRef(false);
   const key = JSON.stringify(to);
-  const state = useRef<{ from: P3[]; pos: P3; walk: { r: ReturnType<typeof walkRoute>; i: number; f: number } | null }>(null);
+  const state = useRef<{ from: P3[]; pos: P3; walk: { r: Route; i: number; f: number } | null }>(null);
   useEffect(() => {
     const dest: P3[] = JSON.parse(key);
     const s = state.current;
     if (!s) state.current = { from: dest, pos: dest[dest.length - 1], walk: null };
     else {
-      const r = s.walk ? rerouteFrom(s.walk.r, s.walk.i, s.pos, dest) : walkRoute([...s.from].reverse(), dest);
-      s.walk = { r, i: 0, f: 0 };
+      const r = s.walk ? rerouteFrom(s.walk.r, s.walk.i, s.pos, dest) : walkRoute(s.from, dest);
+      s.walk = r.pts.length > 1 ? { r, i: 0, f: 0 } : null;
       s.from = dest;
     }
   }, [key]);
