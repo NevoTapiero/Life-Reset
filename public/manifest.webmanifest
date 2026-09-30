@@ -31,6 +31,16 @@
   ],
   "shortcuts": [
     {
+      "name": "Build your day",
+      "url": "/app?build=1",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
       "name": "Missions",
       "url": "/app",
       "icons": [

@@ -9,6 +9,7 @@ import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
 import MinifigPicker from "@/components/MinifigPicker";
 import FirstTips from "@/components/FirstTips";
 import TellTheJudge from "@/components/TellTheJudge";
+import BuildYourDay from "@/components/BuildYourDay";
 import Minifig from "@/components/Minifig";
 import RankUp, { BrickBurst } from "@/components/RankUp";
 import { brickSound } from "@/lib/brickSound";
@@ -38,6 +39,12 @@ export default function HomePage() {
   const m = useMissions();
   const [tab, setTab] = useState<Period>("daily");
   const [showYesterday, setShowYesterday] = useState(false);
+  // the evening recap (also opened by the app shortcut /app?build=1)
+  const [building, setBuilding] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the address once
+    if (new URLSearchParams(window.location.search).get("build") === "1") setBuilding(true);
+  }, []);
   // null until the first load, then whether today's daily missions were all done
   const [wasCleared, setWasCleared] = useState<boolean | null>(null);
   const [justCleared, setJustCleared] = useState(false);
@@ -114,6 +121,7 @@ export default function HomePage() {
   const tabQuests = m.inPeriod(tab);
   const daily = m.counts.daily;
   const clearedAll = daily.total > 0 && daily.done === daily.total;
+  const evening = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Jerusalem" }).format(new Date())) >= 17;
   if (m.days && clearedAll !== wasCleared) {
     // cleared just now (not already cleared when the page opened): celebrate
     if (clearedAll && wasCleared === false) setJustCleared(true);
@@ -124,6 +132,18 @@ export default function HomePage() {
   return (
     <div className="slide-in">
       {!p.archetype && <MinifigPicker onPicked={m.setProfile} />}
+      {building && (
+        <BuildYourDay
+          quests={m.inPeriod("daily").filter((q) => !trackedBy(q, m.trackers))}
+          isDone={(q) => m.isDoneOn(q, m.today)}
+          pendingId={m.pendingId}
+          onCheck={(q, from) => {
+            flyStuds(from);
+            m.toggle(q);
+          }}
+          onClose={() => setBuilding(false)}
+        />
+      )}
       {flying.map((f) => (
         <span
           key={f.id}
@@ -287,6 +307,17 @@ export default function HomePage() {
             <span className="text-sm font-bold opacity-75">The streak holds. See you tomorrow.</span>
           </span>
         </div>
+      )}
+
+      {evening && daily.total > daily.done && tab === "daily" && (
+        <button className="card w-full mt-4 px-4 py-3.5 flex items-center gap-3 text-left active:translate-y-[2px] transition-transform" onClick={() => setBuilding(true)}>
+          <LegoIcon name="home" color="orange" size={42} />
+          <span className="flex-1">
+            <span className="display block text-[17px]">Build your day</span>
+            <span className="text-[13px] font-bold text-muted">{daily.total - daily.done} still open. A quick evening check.</span>
+          </span>
+          <Icon name="chevron-right" size={18} strokeWidth={2.4} className="text-muted" />
+        </button>
       )}
 
       {/* yesterday: one day of grace to log what you forgot */}
