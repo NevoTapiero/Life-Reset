@@ -679,6 +679,7 @@ function Minifig({
   walking,
   wave = false,
   stride = 10,
+  jumpRef,
 }: {
   /** four colours (townsfolk) or a whole figure (a character's loadout) */
   look: MinifigLook | Figure;
@@ -690,6 +691,8 @@ function Minifig({
   wave?: boolean;
   /** how fast the legs go while walking (running: faster) */
   stride?: number;
+  /** bumped to jump (the Jump button, Space) */
+  jumpRef?: React.RefObject<number>;
 }) {
   const [model, setModel] = useState<THREE.Object3D | null>(null);
   const key = JSON.stringify("parts" in look ? { parts: look.parts, gear: look.gear, shoes: look.shoes } : figureOf(look));
@@ -706,6 +709,8 @@ function Minifig({
   const taps = useRef(0); // bumped by a tap
   const seen = useRef(0);
   const hopAt = useRef(-10); // frame-clock time the current hop started
+  const hopBig = useRef(false); // a jump, not a little hop
+  const jumpsSeen = useRef(0);
   const base = useRef<THREE.Quaternion[]>([]);
   const limbs = useRef<THREE.Quaternion[]>([]);
   const gait = useRef({ blend: 0, phase: 0 }); // 0 standing .. 1 walking; where it is in the step
@@ -748,11 +753,20 @@ function Minifig({
     if (taps.current !== seen.current) {
       seen.current = taps.current;
       hopAt.current = t;
+      hopBig.current = false;
+    }
+    if (jumpRef && jumpRef.current !== jumpsSeen.current) {
+      jumpsSeen.current = jumpRef.current;
+      if (t - hopAt.current > 0.5) {
+        hopAt.current = t;
+        hopBig.current = true;
+      }
     }
     const h = t - hopAt.current;
+    const [hopTime, hopHeight] = hopBig.current ? [0.62, 44] : [0.45, 14];
     // a bounce on every step and a waddle from foot to foot (LDraw is -Y up)
     const bounce = Math.abs(s) * (1.5 + stride * 0.15) * g.blend;
-    root.current.position.y = at[1] - bounce - (h < 0.45 ? Math.sin((h / 0.45) * Math.PI) * 14 : 0);
+    root.current.position.y = at[1] - bounce - (h < hopTime ? Math.sin((h / hopTime) * Math.PI) * hopHeight : 0);
     root.current.rotation.z = s * 0.075 * g.blend;
     root.current.rotation.y = turn + Math.sin(t * 0.3) * 0.25 * (1 - g.blend);
   });
@@ -1347,7 +1361,8 @@ export function LegoTown({
   // the whole-town view and being inside a house frame the scene instead
   const following = focus !== OVERVIEW && inside === null;
   const stick = useRef({ x: 0, y: 0 });
-  useKeysToStick(stick);
+  const jumps = useRef(0);
+  useKeysToStick(stick, jumps);
   const me3 = useRef(new THREE.Vector3());
   const blockers = useMemo(() => townBlockers(residents), [residents]);
   const [goes, setGoes] = useState(0); // bumped by every "walk there", so the same place twice still walks
@@ -1423,6 +1438,48 @@ export function LegoTown({
       {text}
     </button>
   );
+  // playing: just the name of the place you're standing at, over it
+  const nearPin = (i: number) => {
+    if (i === SHOP_FOCUS)
+      return {
+        key: "shop",
+        at: [0, SHOP_BUILDING.h * LDU + 3, -(SHOP_FRONT - (SHOP_BUILDING.d / 2) * 20) * LDU] as [number, number, number],
+        node: <span className="lego lego-sm lego-white">Market Street</span>,
+      };
+    const [x, , z] = toThree(houseCentre(i));
+    const res = residents[i];
+    return {
+      key: res.name,
+      at: [x, houseFor(res.level, res.name).h * LDU + 3, z] as [number, number, number],
+      node: <span className={`lego lego-sm ${res.me ? "" : "lego-white"}`}>{res.me ? "Your house" : `${res.name}'s house`}</span>,
+    };
+  };
+  // what the big round button does where you are
+  const action: { icon: keyof typeof ICONS; text: string; onClick?: () => void; tone?: "" | "dark" | "yellow" | "green" } | null =
+    here === null || here === OVERVIEW
+      ? null
+      : here === SHOP_FOCUS
+        ? prices
+          ? { icon: "shop", text: "Shop", onClick: () => setShopOpen(true), tone: "yellow" }
+          : null
+        : inside !== null
+          ? { icon: "out", text: "Step outside", onClick: () => setInside(null) }
+          : access === "allowed"
+            ? {
+                icon: "door",
+                text: r!.me ? "Go inside" : `Visit ${r!.name}`,
+                onClick: () => {
+                  setFocus(here);
+                  setInside(here);
+                },
+                tone: "green",
+              }
+            : access === "knocked"
+              ? { icon: "wait", text: `Waiting for ${r!.name}…`, tone: "dark" }
+              : onKnock
+                ? { icon: "knock", text: `Knock`, onClick: () => onKnock(r!.name) }
+                : null;
+  const me = residents[meIndex];
 
   return (
     <div className={`relative ${className ?? ""}`}>
@@ -1463,7 +1520,7 @@ export function LegoTown({
             ))}
           </>
         }
-        pins={[
+        pins={following ? (near === null ? [] : [nearPin(near)]) : [
           {
             key: "shop",
             at: [0, SHOP_BUILDING.h * LDU + 3, -(SHOP_FRONT - (SHOP_BUILDING.d / 2) * 20) * LDU] as [number, number, number],
@@ -1548,7 +1605,7 @@ export function LegoTown({
             }
             // you wave at the friend you've come to see, or at one who's come round to yours
             const wave = inside === null && !shop && (dest !== meIndex || visited(meIndex));
-            return <Walker key="me" wave={wave} go={goes} input={stick} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
+            return <Walker key="me" wave={wave} go={goes} input={stick} jumpRef={jumps} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
           }
           // friends: at their door, at the shop, or on a neighbour's step, turned to them
           const out = outing(i);
@@ -1586,10 +1643,35 @@ export function LegoTown({
         <span className="lego lego-white text-sm">Building your town…</span>
       </div>
 
-      {focus !== OVERVIEW && inside === null && (
-        <button onClick={() => go(OVERVIEW)} className="lego lego-sm lego-dark absolute top-3 right-3">
-          Whole town
-        </button>
+      {/* the HUD, LEGO-game style. Top left: you (head, name, level, gold). */}
+      {me && (
+        <div className="absolute top-2 left-3 pointer-events-none">
+          <div className="lego-hud">
+            <HeadIcon />
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <span className="text-[13px] font-extrabold leading-tight truncate max-w-[110px]">{me.name}</span>
+              <div className="flex items-center gap-1">
+                <span className="lego-chip level">Lv {me.level}</span>
+                {gold !== null && (
+                  <span className="lego-chip gold">
+                    <span className="stud-icon" />
+                    {gold.toLocaleString()}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* top right: the map (the whole town), and from it, back to playing */}
+      {inside === null && (
+        <div className="absolute top-3 right-3">
+          {following ? (
+            <RoundAction icon="map" text="Map" tone="dark" small onClick={() => go(OVERVIEW)} />
+          ) : (
+            <RoundAction icon="play" text="Play" small onClick={() => setFocus(dest)} />
+          )}
+        </div>
       )}
       {note && !shopOpen && (
         <div className="absolute top-3 inset-x-0 flex justify-center pointer-events-none">
@@ -1600,29 +1682,16 @@ export function LegoTown({
         </div>
       )}
 
-      {/* LEGO-game controls: the stick bottom left (while you're out and about), the action
-          button bottom right -- what you can do where you're standing */}
+      {/* bottom left: the stick (while you're out and about); bottom right: what you can do
+          where you're standing (the big round button) and Jump */}
       <div className="absolute inset-x-0 bottom-3 flex items-end justify-between gap-2 px-3 pointer-events-none">
         <div className="flex-none">{following && <Joystick outRef={stick} />}</div>
-        <div className="min-w-0 flex justify-end pb-1">
-          {here === null || here === OVERVIEW ? null : here === SHOP_FOCUS ? (
-            prices && <TownButton onClick={() => setShopOpen(true)}>Go into the shop</TownButton>
-          ) : inside !== null ? (
-            <TownButton onClick={() => setInside(null)}>Step outside</TownButton>
-          ) : access === "allowed" ? (
-            <TownButton
-              onClick={() => {
-                setFocus(here);
-                setInside(here);
-              }}
-            >
-              {r!.me ? "Go inside" : `Go inside ${r!.name}'s house`}
-            </TownButton>
-          ) : access === "knocked" ? (
-            <TownButton disabled>Knocked. Waiting for {r!.name}…</TownButton>
-          ) : onKnock ? (
-            <TownButton onClick={() => onKnock(r!.name)}>Knock on {r!.name}&apos;s door</TownButton>
-          ) : null}
+        {focus === OVERVIEW && (
+          <span className="lego lego-sm lego-white mb-2 self-center">Tap a place to walk there</span>
+        )}
+        <div className="flex items-end gap-3">
+          {following && <RoundAction icon="jump" text="Jump" tone="dark" small onClick={() => jumps.current++} />}
+          {action && <RoundAction icon={action.icon} text={action.text} onClick={action.onClick} disabled={!action.onClick} tone={action.tone} />}
         </div>
       </div>
 
@@ -1709,7 +1778,7 @@ function Joystick({ outRef }: { outRef: React.RefObject<{ x: number; y: number }
 }
 
 // WASD or the arrow keys walk you too (on a computer)
-function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>) {
+function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>, jumpRef?: React.RefObject<number>) {
   useEffect(() => {
     const down = new Set<string>();
     const set = () => {
@@ -1719,6 +1788,11 @@ function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>) {
     const on = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest?.("input, textarea, select")) return;
       const key = e.key.toLowerCase();
+      if (key === " " && jumpRef) {
+        e.preventDefault();
+        if (e.type === "keydown" && !e.repeat) jumpRef.current++;
+        return;
+      }
       if (!["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) return;
       e.preventDefault();
       if (e.type === "keydown") down.add(key);
@@ -1731,7 +1805,7 @@ function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>) {
       window.removeEventListener("keydown", on);
       window.removeEventListener("keyup", on);
     };
-  }, [outRef]);
+  }, [outRef, jumpRef]);
 }
 
 // Which place you're standing at (a door, the shop), for the action button:
@@ -1760,6 +1834,66 @@ function Near({
     }
   });
   return null;
+}
+
+// ---- the HUD ----
+// Simple, chunky icons for the round buttons (24x24, drawn in currentColor).
+const ICONS: Record<string, React.ReactNode> = {
+  door: <path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17M3 21h18M14 12.5h.01" strokeWidth="2.4" />,
+  knock: <path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V11m0-4.5a1.5 1.5 0 0 1 3 0V11m0-3a1.5 1.5 0 0 1 3 0v6a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3.6 14a1.5 1.5 0 0 1 2.4-1.8L8 14" strokeWidth="2" />,
+  shop: <path d="M5 8h14l-1.2 11.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9L5 8Zm4 0V6a3 3 0 0 1 6 0v2" strokeWidth="2.2" />,
+  out: <path d="M14 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 16l-4-4 4-4M6 12h10" strokeWidth="2.4" />,
+  wait: <path d="M12 6v6l4 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" strokeWidth="2.2" />,
+  jump: <path d="M12 19V6M6 11l6-6 6 6" strokeWidth="2.8" />,
+  map: <path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4Zm0 0v13.5m6-11v13.5" strokeWidth="2" />,
+  play: <path d="M12 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm-4 16v-5a4 4 0 0 1 8 0v5" strokeWidth="2.4" />,
+};
+function Icon({ name }: { name: keyof typeof ICONS }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {ICONS[name]}
+    </svg>
+  );
+}
+
+// A round LEGO button with an icon, and what it does written under it.
+function RoundAction({
+  icon,
+  text,
+  onClick,
+  disabled,
+  tone = "",
+  small,
+}: {
+  icon: keyof typeof ICONS;
+  text?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  tone?: "" | "dark" | "yellow" | "green";
+  small?: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 pointer-events-auto">
+      <button onClick={onClick} disabled={disabled} aria-label={text} className={`lego-round ${tone} ${small ? "small" : ""}`}>
+        <Icon name={icon} />
+      </button>
+      {text && <span className="lego-chip max-w-[120px] truncate" style={{ background: "rgba(20,18,16,0.72)", color: "#fff" }}>{text}</span>}
+    </div>
+  );
+}
+
+// Your minifig's head, for the player card: yellow, a stud on top, a smile.
+function HeadIcon() {
+  return (
+    <svg viewBox="0 0 40 44" width="38" height="42" aria-hidden>
+      <rect x="14" y="1" width="12" height="7" rx="2" fill="#f2cd37" stroke="#b58f12" strokeWidth="1.2" />
+      <rect x="5" y="7" width="30" height="33" rx="9" fill="#f5d33f" stroke="#b58f12" strokeWidth="1.4" />
+      <rect x="9" y="10" width="7" height="26" rx="3.5" fill="#fff" opacity="0.28" />
+      <circle cx="15" cy="21" r="2.4" fill="#1b1b1b" />
+      <circle cx="25" cy="21" r="2.4" fill="#1b1b1b" />
+      <path d="M13 28c4 4 10 4 14 0" fill="none" stroke="#1b1b1b" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 // A handful of little LEGO bricks bursting out of the middle of whatever it's
@@ -2039,12 +2173,14 @@ function Walker({
   input,
   blockers,
   where,
+  jumpRef,
 }: {
   look: MinifigLook | Figure;
   to: P3[];
   turn: number;
   wave?: boolean;
   go?: number;
+  jumpRef?: React.RefObject<number>;
   input?: React.RefObject<{ x: number; y: number }>;
   blockers?: Blocker[];
   where?: React.RefObject<THREE.Vector3>;
@@ -2131,7 +2267,7 @@ function Walker({
   });
   return (
     <group ref={root}>
-      <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} stride={16} />
+      <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} stride={16} jumpRef={jumpRef} />
     </group>
   );
 }

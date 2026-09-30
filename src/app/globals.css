@@ -740,3 +740,78 @@ body {
   box-shadow: 0 4px 0 #b35a00, 0 6px 10px rgba(0, 0, 0, 0.35);
   pointer-events: none;
 }
+
+/* ---- the town HUD, LEGO-game style ---- */
+/* round action buttons: the top of a round 2x2 brick, an icon on it */
+.lego-round {
+  --brick: #fe8a18;
+  --brick-edge: #b35a00;
+  --size: 70px;
+  position: relative;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 calc(var(--size) * 0.36), rgba(255, 255, 255, 0.18) calc(var(--size) * 0.36 + 1px) calc(var(--size) * 0.36 + 3px), transparent calc(var(--size) * 0.36 + 4px)),
+    radial-gradient(circle at 40% 32%, color-mix(in srgb, var(--brick) 70%, #fff) 0 12%, var(--brick) 55%, color-mix(in srgb, var(--brick) 85%, #000) 100%);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.45), 0 5px 0 var(--brick-edge), 0 8px 14px rgba(0, 0, 0, 0.35);
+  transition: transform 90ms ease-out, box-shadow 90ms ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+.lego-round:active:not(:disabled) { transform: translateY(4px); box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.45), 0 1px 0 var(--brick-edge), 0 2px 5px rgba(0, 0, 0, 0.3); }
+.lego-round:disabled { filter: saturate(0.5) brightness(0.9); }
+.lego-round:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.lego-round svg { width: 46%; height: 46%; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.25)); }
+.lego-round.small { --size: 54px; }
+.lego-round.dark { --brick: #4d5155; --brick-edge: #26292b; }
+.lego-round.yellow { --brick: #f5cd2f; --brick-edge: #b88a06; color: #3b2800; }
+.lego-round.green { --brick: #4b9f4a; --brick-edge: #256a2b; }
+
+/* the player card, top left: a white tile with your minifig's head, name, level and gold */
+.lego-hud {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  padding: 5px 10px 5px 5px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff, #efefea);
+  color: #243322;
+  box-shadow: inset 0 1.5px 0 #fff, 0 4px 0 #b7b9b2, 0 7px 12px rgba(0, 0, 0, 0.25);
+}
+.lego-hud::before { /* studs along the top */
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: -5px;
+  height: 7px;
+  background-image: radial-gradient(circle at 50% 42%, #fff 0 2.4px, #e4e5e0 2.9px 4px, transparent 4.4px);
+  background-size: 14px 8px;
+  background-repeat: space no-repeat;
+}
+.lego-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.lego-chip.level { background: #0055bf; color: #fff; box-shadow: inset 0 -2px 0 #003a85; }
+.lego-chip.gold { background: #fff4c2; color: #6b4b00; box-shadow: inset 0 -2px 0 #e7cf6a; }
+/* a gold stud, the currency icon */
+.stud-icon {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fff2a8 0 18%, #f5cd2f 40%, #c99a06 100%);
+  box-shadow: inset 0 0 0 2px #e0b313;
+}
