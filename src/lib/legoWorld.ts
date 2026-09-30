@@ -1142,6 +1142,16 @@ export function firstFreeSpot(item: string, level: number, streak: number, place
   return null;
 }
 
+/** a shop item on its own at the origin (LDraw lines), for its picture: a garden thing's
+ *  pieces or a piece of room furniture; null for an official set (a baked prop) */
+export function itemPreviewLines(id: string): string[] | null {
+  const g = gardenItem(id);
+  if (g) return g.pieces ? place(g.pieces, 0, 0, ROT[0], 0) : null;
+  if (id === "indoor-trees") return place([["3941", COL.darkOrange, 0, 0, 0], ["2435", COL.green, 0, 24, 0]], 0, 0, ROT[0], 0); // the room plants them itself
+  const d = DECOR.find((x) => x.id === id);
+  return d ? place(d.pieces, 0, 0, ROT[0], 0) : null;
+}
+
 // Small official sets placed as props (baked glbs, see PROPS in pack.mjs):
 // where they stand (LDU, centre) and their quarter turns. The ice cream cart
 // is on the plaza, by the shop; a burger stand is in every empty-plot park
