@@ -8,10 +8,10 @@ import Icon from "@/components/Icon";
 import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
 import MinifigPicker from "@/components/MinifigPicker";
 import FirstTips from "@/components/FirstTips";
-import PlayerAvatar from "@/components/PlayerAvatar";
+import Minifig from "@/components/Minifig";
 import RankUp from "@/components/RankUp";
 import { useMissions } from "@/lib/useMissions";
-import { greeting, legoLevel, levelTitle, photoOf } from "@/lib/brick";
+import { greeting, legoLevel, levelTitle } from "@/lib/brick";
 import {
   CARD_DAYS,
   PERIODS,
@@ -72,40 +72,44 @@ export default function HomePage() {
       {!p.archetype && <MinifigPicker onPicked={m.setProfile} />}
       {m.rankUp && <RankUp rank={m.rankUp.rank} previousTier={m.rankUp.previousTier} character={p.archetype} onClose={m.dismissRankUp} />}
 
-      {/* you, today */}
-      <section className="card tile-studs p-4">
-        <div className="flex items-center gap-3.5">
-          <Link href="/app/profile" aria-label="Your profile">
-            <PlayerAvatar photo={photoOf(p)} character={p.archetype} size={58} />
+      {/* you, today: a LEGO-game player card */}
+      <section className="card tile-studs">
+        <div className="flex items-end gap-2 px-4 pt-3">
+          <Link href="/app/profile" aria-label="Your profile" className="player-stage flex-none -mb-1">
+            <Minifig character={p.archetype} level={legoLevel(rank.tierIndex)} size={104} />
           </Link>
-          <div className="flex-1 min-w-0">
-            <div className="hud-label">{greeting()}</div>
-            <div className="display text-[24px] truncate">{p.username}</div>
-          </div>
-          <div className="flex flex-col items-end gap-1.5">
-            <span className="chip chip-orange" title="Days in a row">
-              <Icon name="flame" size={14} strokeWidth={2.2} />
-              {p.streak_current}
-            </span>
-            <span className="chip chip-yellow" title="Gold">
-              <span className="stud-icon" aria-hidden />
-              {(p.gold ?? 0).toLocaleString()}
-            </span>
+          <div className="flex-1 min-w-0 pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="hud-label">{greeting()}</div>
+              <span className="stud-counter" title="Gold studs">
+                <span className="stud-spin" aria-hidden />
+                {(p.gold ?? 0).toLocaleString()}
+              </span>
+            </div>
+            <div className="display text-[25px] truncate leading-tight mt-0.5">{p.username}</div>
+            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+              <span className="chip chip-blue">Lv {legoLevel(rank.tierIndex)}</span>
+              <span className="text-[14px] font-extrabold">{levelTitle(p.archetype, rank.tierIndex)}</span>
+              <span className="chip chip-orange ml-auto" title="Days in a row">
+                <Icon name="flame" size={13} strokeWidth={2.4} />
+                {p.streak_current}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-2.5">
-          <span className="chip chip-blue">Level {legoLevel(rank.tierIndex)}</span>
-          <span className="display text-[15px]">{levelTitle(p.archetype, rank.tierIndex)}</span>
-          <span className="ml-auto hud-label">{rank.label}</span>
-        </div>
-        <div className="bar-seg mt-2.5" role="progressbar" aria-valuenow={rank.xpIntoStage} aria-valuemax={rank.xpForStage}>
-          <i style={{ width: `${Math.round(rank.progress * 100)}%` }} />
-          <b />
-        </div>
-        <div className="mt-1.5 flex justify-between text-[12.5px] font-bold text-muted">
-          <span>{p.xp.toLocaleString()} XP</span>
-          <span>{next ? `${rank.xpForStage - rank.xpIntoStage} XP to ${next}` : "Top rank"}</span>
+        <div className="px-4 pb-4 pt-3 rounded-b-[18px]" style={{ background: "var(--panel-2)" }}>
+          <div className="flex items-center justify-between text-[12.5px] font-extrabold">
+            <span>{rank.label}</span>
+            <span className="text-muted">{next ? `${rank.xpForStage - rank.xpIntoStage} XP to ${next}` : "Top rank"}</span>
+          </div>
+          <div className="xp-bricks mt-2" role="progressbar" aria-label="XP to the next rank" aria-valuenow={rank.xpIntoStage} aria-valuemax={rank.xpForStage}>
+            {Array.from({ length: 10 }, (_, i) => {
+              const fill = Math.min(1, Math.max(0, rank.progress * 10 - i));
+              return <span key={i} className={fill >= 1 ? "on" : fill > 0 ? "part" : ""} style={{ "--fill": `${Math.round(fill * 100)}%` } as React.CSSProperties} />;
+            })}
+          </div>
+          <div className="mt-1.5 text-[12px] font-extrabold text-muted">{p.xp.toLocaleString()} XP total</div>
         </div>
       </section>
 
