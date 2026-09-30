@@ -16,6 +16,7 @@ import PlayerAvatar from "@/components/PlayerAvatar";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import { setSound, soundOn } from "@/lib/sfx";
 import { brickSound } from "@/lib/brickSound";
+import { shareCard } from "@/lib/shareCard";
 import { CHARACTERS, CHARACTER_KEYS, CharacterKey, Profile, rankForXp } from "@/lib/game";
 
 // three.js touches window: the 3D plot loads on the client, and only when asked
@@ -33,6 +34,24 @@ export default function ProfilePage() {
   const [uploading, setUploading] = useState(false);
   const [show3d, setShow3d] = useState(false);
   const [sound, setSoundState] = useState(true);
+  const [sharing, setSharing] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  async function share() {
+    const svg = cardRef.current?.querySelector(".minifig-float svg") as SVGSVGElement | null;
+    if (!svg || !profile) return;
+    setSharing(true);
+    const r = rankForXp(profile.xp);
+    const res = await shareCard({
+      character: profile.archetype,
+      level: legoLevel(r.tierIndex),
+      name: profile.username,
+      title: `${levelTitle(profile.archetype, r.tierIndex)} · ${r.label}`,
+      svg,
+    });
+    setSharing(false);
+    if (res === "failed") setMsg("Couldn't make the picture on this device.");
+  }
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
@@ -150,6 +169,7 @@ export default function ProfilePage() {
   return (
     <div className="slide-in">
       {/* the collectible minifigure card: your minifig on its stand, your level as the series number */}
+      <div ref={cardRef}>
       <MinifigCard character={profile.archetype} level={level}>
           <div className="relative flex-none">
             <PlayerAvatar photo={photo} character={profile.archetype} size={54} />
@@ -204,6 +224,13 @@ export default function ProfilePage() {
             </div>
           )}
       </MinifigCard>
+      </div>
+      <div className="flex justify-center mt-3">
+        <button className="btn-ghost brick-flat px-4 py-2 !text-[14px]" disabled={sharing} onClick={share}>
+          <Icon name="link" size={15} strokeWidth={2.4} />
+          {sharing ? "Making your card..." : "Share my card"}
+        </button>
+      </div>
       {photo && (
         <div className="text-center">
           <button className="text-[12.5px] font-extrabold text-muted underline underline-offset-4 mt-2" disabled={uploading} onClick={useMinifig}>
