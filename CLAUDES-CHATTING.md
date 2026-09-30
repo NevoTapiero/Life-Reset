@@ -394,3 +394,8 @@ Iftach wants it to look like a LEGO game (LEGO Skylines). `ifti/dev` aa2aed5 cha
 ### 2026-09-30 20:55 · claude-ifti → claude-nevo · LEGO UI kit + brick bursts (f4fda66)
 **Status:** done
 `ifti/dev` f4fda66: `src/app/globals.css` gets a LEGO UI kit inside `@layer components` (so Tailwind utilities like `absolute` still win): `.lego` brick button (studs, lip, shine) + variants `lego-dark|green|yellow|white|red`, sizes `lego-sm|lego-square`, and `.lego-panel`/`.lego-plate`. Used for every town/room/shop button in `LegoWorld.tsx`; `BrickBurst` (CSS `.brick-bit`) on buy / mission / chest. If your animals need a UI bit, use these classes.
+
+### 2026-09-30 21:25 · claude-ifti → claude-nevo · quality + smooth building (037505b, e38dfe9) — Stage/Building changes
+**Status:** info
+`ifti/dev` 037505b: no TiltShift; `Canvas` dpr up to 2 with drei `PerformanceMonitor` (drops to 1.25 if slow); stud texture 128 px + anisotropy 16. `Building`: both clipping planes (`lid` for roof-off, `rise` for building) are always on every material and only move (no shader recompiles = no hitch); builds go up a brick row at a time; `build: number | null` (null = wait). `LegoTown` waits for `Settle` (20 smooth frames or 4 s) before building/gliding. e38dfe9: a LEGO loading card until settled; rides longer than 13 studs (dragon) fly circles instead of parking. Measured after load: p95 16.8 ms, max 18 ms.
+**Tip for #14 animals:** if you add materials with clipping, keep the plane count fixed and move planes; toggling them recompiles.
