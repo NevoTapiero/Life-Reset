@@ -13,9 +13,12 @@ import { resetTheme } from "@/lib/theme";
 function AuthForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [mode, setMode] = useState<"signup" | "signin">(
-    searchParams.get("mode") === "signin" ? "signin" : "signup"
-  );
+  // "newpass": back from a password-reset email, choosing a new password
+  const [mode, setMode] = useState<"signup" | "signin" | "newpass">(() => {
+    if (typeof window !== "undefined" && /type=recovery/.test(window.location.hash)) return "newpass";
+    const m = searchParams.get("mode");
+    return m === "signin" ? "signin" : m === "newpass" ? "newpass" : "signup";
+  });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -24,15 +27,36 @@ function AuthForm() {
   const proceeding = useRef(false);
 
   useEffect(() => {
-    // auth screens keep the original orange theme, never the character color
     resetTheme();
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session && !proceeding.current) {
-        proceeding.current = true;
-        router.replace("/app");
-      }
+    // a recovery link signs you in just to set a new password: stay here
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setMode("newpass");
     });
+    if (mode !== "newpass") {
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session && !proceeding.current && !/type=recovery/.test(window.location.hash)) {
+          proceeding.current = true;
+          router.replace("/app");
+        }
+      });
+    }
+    return () => sub.subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
   }, [router]);
+
+  async function forgot() {
+    setError(null);
+    setNotice(null);
+    if (!/.+@.+..+/.test(email)) {
+      setError("Type your email above first, then tap Forgot password.");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth?mode=newpass` });
+    setBusy(false);
+    if (error) setError(error.message);
+    else setNotice("Check your inbox: we sent a link to choose a new password.");
+  }
 
   async function googleSignIn() {
     setError(null);
@@ -49,6 +73,12 @@ function AuthForm() {
     setError(null);
     setNotice(null);
     try {
+      if (mode === "newpass") {
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
+        router.replace("/app");
+        return;
+      }
       if (mode === "signup") {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
@@ -74,9 +104,9 @@ function AuthForm() {
     <div className="rise my-auto">
       <div className="text-center">
         <BrickLogo size={0.8} />
-        <h1 className="display text-[30px] mt-6">{mode === "signup" ? "Join the town" : "Welcome back"}</h1>
+        <h1 className="display text-[30px] mt-6">{mode === "signup" ? "Join the town" : mode === "newpass" ? "A new password" : "Welcome back"}</h1>
         <p className="text-[14px] font-bold text-muted mt-1">
-          {mode === "signup" ? "Make your minifig and start building." : "Your town missed you."}
+          {mode === "signup" ? "Make your minifig and start building." : mode === "newpass" ? "Choose one, then you're straight back in." : "Your town missed you."}
         </p>
       </div>
 
@@ -84,47 +114,59 @@ function AuthForm() {
         <Minifig character={mode === "signup" ? "wizard" : "warrior"} level={3} size={96} />
       </div>
       <section className="card tile-studs p-5">
-        <button className="btn-ghost w-full py-3.5 gap-2.5" onClick={googleSignIn}>
-          <GoogleMark />
-          Continue with Google
-        </button>
+        {mode !== "newpass" && (
+          <>
+            <button className="btn-ghost w-full py-3.5 gap-2.5" onClick={googleSignIn}>
+              <GoogleMark />
+              Continue with Google
+            </button>
 
-        <div className="flex items-center gap-3 mt-5">
-          <span className="flex-1 h-[2px] rounded" style={{ background: "var(--line)" }} />
-          <span className="hud-label">or with email</span>
-          <span className="flex-1 h-[2px] rounded" style={{ background: "var(--line)" }} />
-        </div>
+            <div className="flex items-center gap-3 mt-5">
+              <span className="flex-1 h-[2px] rounded" style={{ background: "var(--line)" }} />
+              <span className="hud-label">or with email</span>
+              <span className="flex-1 h-[2px] rounded" style={{ background: "var(--line)" }} />
+            </div>
+          </>
+        )}
 
-        <form onSubmit={submit} className="mt-4 flex flex-col gap-3">
-          <input
-            type="email"
-            required
-            placeholder="Email"
-            aria-label="Email"
-            value={email}
-            autoComplete="email"
-            onChange={(e) => setEmail(e.target.value)}
-            className="field px-4 py-3.5 text-[16px]"
-          />
+        <form onSubmit={submit} className={`${mode === "newpass" ? "" : "mt-4"} flex flex-col gap-3`}>
+          {mode !== "newpass" && (
+            <input
+              type="email"
+              required
+              placeholder="Email"
+              aria-label="Email"
+              value={email}
+              autoComplete="email"
+              onChange={(e) => setEmail(e.target.value)}
+              className="field px-4 py-3.5 text-[16px]"
+            />
+          )}
           <input
             type="password"
             required
             minLength={6}
-            placeholder="Password (6+ characters)"
-            aria-label="Password"
+            placeholder={mode === "newpass" ? "New password (6+ characters)" : "Password (6+ characters)"}
+            aria-label={mode === "newpass" ? "New password" : "Password"}
             value={password}
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            autoComplete={mode === "signin" ? "current-password" : "new-password"}
             onChange={(e) => setPassword(e.target.value)}
             className="field px-4 py-3.5 text-[16px]"
           />
+          {mode === "signin" && (
+            <button type="button" className="self-end text-[13px] font-extrabold underline underline-offset-4 -mt-1" style={{ color: "var(--lego-blue)" }} onClick={forgot} disabled={busy}>
+              Forgot password?
+            </button>
+          )}
           {error && <p className="text-sm font-bold px-1" style={{ color: "var(--danger)" }}>{error}</p>}
           {notice && <p className="chip chip-green !whitespace-normal !py-1.5">{notice}</p>}
           <button type="submit" className="btn-primary py-4 mt-3 !text-[18px]" disabled={busy}>
-            {busy ? "One moment..." : mode === "signup" ? "Create my account" : "Sign in"}
+            {busy ? "One moment..." : mode === "signup" ? "Create my account" : mode === "newpass" ? "Save and go in" : "Sign in"}
           </button>
         </form>
       </section>
 
+      {mode !== "newpass" && (
       <button
         className="text-[14px] font-extrabold mt-6 py-2 underline underline-offset-4 w-full text-center"
         style={{ color: "var(--lego-blue)" }}
@@ -135,6 +177,7 @@ function AuthForm() {
       >
         {mode === "signup" ? "I already have an account" : "I need a new account"}
       </button>
+      )}
     </div>
   );
 }
