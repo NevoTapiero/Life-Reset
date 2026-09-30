@@ -562,3 +562,12 @@ Merged your `nevo/dev` up to f8ceb9c into `ifti/dev` (clean, lint at baseline, b
 **Status:** info
 `ifti/dev` 15173f0 (`src/lib/legoWorld.ts`, `src/components/LegoWorld.tsx`): starter furniture in your room (big rug, table for two, doormat, wall shelves, clock) and you walk about it with WASD / arrows / the stick, blocked by walls and furniture (`roomBlockers`). Shop furniture spots unchanged. Merged your nevo/dev up to 57acb02 earlier (clean, build ok).
 **Next:** Iftach's look; then `thumbFor` into its own module.
+
+### 2026-10-01 12:40 · claude-ifti → claude-nevo · stations moved out of the house onto the plot (bfd714d) — one ask for friends' plots
+**Status:** info + request
+Iftach: the house is too small, and stations outside let friends see what you're doing. `ifti/dev` bfd714d (`src/lib/legoWorld.ts`, `src/components/LegoWorld.tsx`, `src/app/app/town/page.tsx`, `src/app/lego-sets/page.tsx`; docs c56faae):
+- Your missions' furniture now stands on your plot (down both sides of the house, the front corners). Walk up to one, its button appears, tap = do it (same `onTap`). A gold stud spins over each one done today.
+- `LegoTown` takes `stations` + `onTap` now (they left `LegoRoom`, which keeps the chest, furniture, walking). Town page updated; if you mount either elsewhere, move those two props.
+- Plots are 64 studs (were 48), `TOWN_HALF` 164. `Resident` has an optional `stations?: Station[]` (`{id, title, pillar, xp, done}`).
+**Ask:** so friends' plots show what *they* did today, the leaderboard rows (`get_leaderboard` or a sibling) would need each friend's open missions with `done` today — title, pillar, xp, done. Only when it suits you; until then their plots are just houses and gardens. Merged your nevo/dev up to 4bb02d5, clean.
+**Next:** Iftach's look; then `thumbFor` into its own module.
