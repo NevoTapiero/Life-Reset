@@ -120,6 +120,10 @@ def build_level(lv, x0, parent):
     plate_root.location.z -= hi.z - lo.z - 0.017    # sink plate so its studs' base is z=0
     root, fig = import_ldr(LEGO / "ldr" / f"{CHARACTER}_L{lv['level']}.ldr", col)
     place(root, fig, x0 - 1.9, -0.6)
+    # stand on the feet, not on whatever reaches lowest (a spear or staff tip can)
+    legs = [o for o in fig if o.type == "MESH" and o.name.startswith("3815")]
+    if legs:
+        root.location.z -= bounds(legs)[0].z - PLATE_TOP
     paint_shoes(fig, lv["shoes"]["color"], lv["shoes"]["finish"])
     rroot, ride = import_ldr(LEGO / "rides" / lv["ride"]["file"], col)
     place(rroot, ride, x0, 0.1, turn_deg=lv["ride"].get("turn", -70))  # default: side-on, head toward the character

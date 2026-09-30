@@ -1,18 +1,78 @@
 {
   "description": "The 7 customizable slots every character has. Each slot holds one item; items are unlocked by level and bought with coins.",
   "slots": [
-    { "id": "head",   "name": "Head",             "what": "Face print (expression, scars, war paint)" },
-    { "id": "hair",   "name": "Hair / Helmet",    "what": "Hairpiece, hat, helmet or crown (sits on the head)" },
-    { "id": "torso",  "name": "Torso",            "what": "Printed torso with arms and hands (clothes, armor)" },
-    { "id": "legs",   "name": "Legs",             "what": "Hips and legs (trousers, armor)" },
-    { "id": "shoes",  "name": "Shoes",            "what": "Colour/material of the feet (boots, steel, gold). Painted onto the foot area of the legs" },
-    { "id": "gear",   "name": "Gear",             "what": "Right-hand weapon, left-hand shield/tool, neck piece (shoulder armor or cape)" },
-    { "id": "ride",   "name": "Ride / Companion", "what": "Vehicle or creature next to the character (skateboard up to dragon / spaceship)" }
+    {
+      "id": "head",
+      "name": "Head",
+      "what": "Face print (expression, scars, war paint)"
+    },
+    {
+      "id": "hair",
+      "name": "Hair / Helmet",
+      "what": "Hairpiece, hat, helmet or crown (sits on the head)"
+    },
+    {
+      "id": "torso",
+      "name": "Torso",
+      "what": "Printed torso with arms and hands (clothes, armor)"
+    },
+    {
+      "id": "legs",
+      "name": "Legs",
+      "what": "Hips and legs (trousers, armor)"
+    },
+    {
+      "id": "shoes",
+      "name": "Shoes",
+      "what": "Colour/material of the feet (boots, steel, gold). Painted onto the foot area of the legs"
+    },
+    {
+      "id": "gear",
+      "name": "Gear",
+      "what": "Right-hand weapon, left-hand shield/tool, neck piece (shoulder armor or cape)"
+    },
+    {
+      "id": "ride",
+      "name": "Ride / Companion",
+      "what": "Vehicle or creature next to the character (skateboard up to dragon / spaceship)"
+    }
   ],
   "ldraw_colors": {
-    "Black": 0, "Blue": 1, "Green": 2, "Red": 4, "Brown_old": 6, "White": 15, "Tan": 19, "Orange": 25, "Dark_Tan": 28,
-    "Reddish_Brown": 70, "Light_Bluish_Grey": 71, "Dark_Bluish_Grey": 72, "Pearl_Dark_Grey": 148, "Flat_Silver": 179,
-    "Dark_Blue": 272, "Pearl_Gold": 297, "Dark_Brown": 308, "Dark_Red": 320, "Dark_Orange": 484, "Yellow": 14,
-    "Trans_Orange": 57, "Trans_Red": 36
+    "Black": 0,
+    "Blue": 1,
+    "Green": 2,
+    "Red": 4,
+    "Brown_old": 6,
+    "White": 15,
+    "Tan": 19,
+    "Orange": 25,
+    "Dark_Tan": 28,
+    "Reddish_Brown": 70,
+    "Light_Bluish_Grey": 71,
+    "Dark_Bluish_Grey": 72,
+    "Pearl_Dark_Grey": 148,
+    "Flat_Silver": 179,
+    "Dark_Blue": 272,
+    "Pearl_Gold": 297,
+    "Dark_Brown": 308,
+    "Dark_Red": 320,
+    "Dark_Orange": 484,
+    "Yellow": 14,
+    "Trans_Orange": 57,
+    "Trans_Red": 36,
+    "Bright_Green": 10,
+    "Purple": 22,
+    "Magenta": 26,
+    "Medium_Lavender": 30,
+    "Lavender": 31,
+    "Trans_Dark_Blue": 33,
+    "Trans_Light_Blue": 43,
+    "Trans_Purple": 52,
+    "Medium_Blue": 73,
+    "Metallic_Gold": 82,
+    "Dark_Green": 288,
+    "Dark_Azure": 321,
+    "Medium_Azure": 322,
+    "Sand_Green": 378
   }
 }

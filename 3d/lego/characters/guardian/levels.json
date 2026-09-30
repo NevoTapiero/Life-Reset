@@ -1,0 +1,220 @@
+{
+  "character": "guardian",
+  "stat": "CON",
+  "identity": "Steady protector: green bandana, armoured collar, spear and shield",
+  "levels": [
+    {
+      "level": 1,
+      "title": "Keeper",
+      "head": {
+        "part": "3626bp05",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "30133",
+        "color": "Green",
+        "name": "Bandana"
+      },
+      "torso": {
+        "part": "973",
+        "color": "Green",
+        "arms": "Green",
+        "hands": "Yellow"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Tan"
+      },
+      "shoes": {
+        "color": "Reddish_Brown",
+        "finish": "leather"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "4497",
+          "color": "Reddish_Brown",
+          "name": "Wooden spear"
+        }
+      },
+      "ride": {
+        "file": "skateboard_green.ldr",
+        "name": "Skateboard"
+      }
+    },
+    {
+      "level": 2,
+      "title": "Ranger",
+      "head": {
+        "part": "3626bp05",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "30133",
+        "color": "Dark_Green",
+        "name": "Bandana"
+      },
+      "torso": {
+        "part": "76382p0049",
+        "color": "Dark_Green"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Reddish_Brown"
+      },
+      "shoes": {
+        "color": "Dark_Brown",
+        "finish": "leather"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "4499",
+          "color": "Reddish_Brown",
+          "name": "Bow"
+        }
+      },
+      "ride": {
+        "file": "wolf.ldr",
+        "name": "Wolf"
+      }
+    },
+    {
+      "level": 3,
+      "title": "Sentinel",
+      "head": {
+        "part": "3626bp05",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "3896",
+        "color": "Flat_Silver",
+        "name": "Helmet with chin guard"
+      },
+      "torso": {
+        "part": "76382p0049",
+        "color": "Dark_Green"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Dark_Green"
+      },
+      "shoes": {
+        "color": "Dark_Bluish_Grey",
+        "finish": "iron"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "4497",
+          "color": "Flat_Silver",
+          "name": "Iron spear"
+        },
+        "left_hand": {
+          "part": "2586",
+          "color": "Dark_Green",
+          "name": "Round shield"
+        },
+        "neck": {
+          "part": "11097",
+          "color": "Flat_Silver",
+          "name": "Armoured collar"
+        }
+      },
+      "ride": {
+        "file": "motorcycle_green.ldr",
+        "name": "Racing motorcycle"
+      }
+    },
+    {
+      "level": 4,
+      "title": "Warden",
+      "head": {
+        "part": "3626bp05",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "3844",
+        "color": "Flat_Silver",
+        "name": "Helmet with neck guard"
+      },
+      "torso": {
+        "part": "76382p2z",
+        "color": "Dark_Green"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Dark_Green"
+      },
+      "shoes": {
+        "color": "Flat_Silver",
+        "finish": "steel"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "43899",
+          "color": "Flat_Silver",
+          "name": "War spear"
+        },
+        "left_hand": {
+          "part": "18836",
+          "color": "Dark_Green",
+          "name": "Tower shield"
+        },
+        "neck": {
+          "part": "15086",
+          "color": "Pearl_Dark_Grey",
+          "name": "Shoulder armour"
+        }
+      },
+      "ride": {
+        "file": "horse_green.ldr",
+        "name": "Horse in green barding"
+      }
+    },
+    {
+      "level": 5,
+      "title": "Aegis",
+      "head": {
+        "part": "3626bp05",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "48493",
+        "color": "Pearl_Gold",
+        "name": "Golden helmet"
+      },
+      "torso": {
+        "part": "76382p2z",
+        "color": "Dark_Green"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Dark_Green"
+      },
+      "shoes": {
+        "color": "Pearl_Gold",
+        "finish": "gold"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "43899",
+          "color": "Pearl_Gold",
+          "name": "Golden spear"
+        },
+        "left_hand": {
+          "part": "18836",
+          "color": "Pearl_Gold",
+          "name": "Golden tower shield"
+        },
+        "neck": {
+          "part": "12618",
+          "color": "Pearl_Gold",
+          "name": "Spiked golden pauldrons"
+        }
+      },
+      "ride": {
+        "file": "dragon_green.ldr",
+        "name": "Green dragon",
+        "turn": -35
+      }
+    }
+  ]
+}

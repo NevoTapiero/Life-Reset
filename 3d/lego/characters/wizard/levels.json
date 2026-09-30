@@ -1,0 +1,209 @@
+{
+  "character": "wizard",
+  "stat": "WIS",
+  "identity": "Young sage: platinum hair, navy star hat, books, wands and staffs",
+  "levels": [
+    {
+      "level": 1,
+      "title": "Apprentice",
+      "head": {
+        "part": "3626bp0i",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "10048",
+        "color": "Light_Bluish_Grey"
+      },
+      "torso": {
+        "part": "973",
+        "color": "Dark_Blue",
+        "arms": "Dark_Blue",
+        "hands": "Yellow"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Dark_Blue"
+      },
+      "shoes": {
+        "color": "Reddish_Brown",
+        "finish": "leather"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "33009-f1",
+          "color": "Dark_Blue",
+          "name": "Spell book"
+        }
+      },
+      "ride": {
+        "file": "skateboard_blue.ldr",
+        "name": "Skateboard"
+      }
+    },
+    {
+      "level": 2,
+      "title": "Scholar",
+      "head": {
+        "part": "3626bp0i",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "17349",
+        "color": "Dark_Blue",
+        "name": "Wizard hat"
+      },
+      "torso": {
+        "part": "76382pd99",
+        "color": "Dark_Blue"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Dark_Blue"
+      },
+      "shoes": {
+        "color": "Reddish_Brown",
+        "finish": "leather"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "28681",
+          "color": "Reddish_Brown",
+          "name": "Wooden wand"
+        }
+      },
+      "ride": {
+        "file": "cat_black.ldr",
+        "name": "Black cat"
+      }
+    },
+    {
+      "level": 3,
+      "title": "Mage",
+      "head": {
+        "part": "3626bp0i",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "17349",
+        "color": "Dark_Blue",
+        "name": "Wizard hat"
+      },
+      "torso": {
+        "part": "76382p5p",
+        "color": "Dark_Blue"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Dark_Blue"
+      },
+      "shoes": {
+        "color": "Black",
+        "finish": "leather"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "2714a",
+          "color": "Reddish_Brown",
+          "name": "Staff"
+        },
+        "left_hand": {
+          "part": "33009-f1",
+          "color": "Dark_Blue",
+          "name": "Spell book"
+        }
+      },
+      "ride": {
+        "file": "motorcycle_blue.ldr",
+        "name": "Racing motorcycle"
+      }
+    },
+    {
+      "level": 4,
+      "title": "Archmage",
+      "head": {
+        "part": "3626bp0i",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "17349",
+        "color": "Medium_Blue",
+        "name": "Wizard hat"
+      },
+      "torso": {
+        "part": "76382p5p",
+        "color": "Dark_Blue"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Dark_Blue"
+      },
+      "shoes": {
+        "color": "Flat_Silver",
+        "finish": "steel"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "2714a",
+          "color": "Pearl_Gold",
+          "name": "Golden staff"
+        },
+        "neck": {
+          "part": "38301c01",
+          "color": "Dark_Blue",
+          "name": "Scalloped cape"
+        }
+      },
+      "ride": {
+        "file": "horse_blue.ldr",
+        "name": "Horse in blue barding"
+      }
+    },
+    {
+      "level": 5,
+      "title": "Sage",
+      "head": {
+        "part": "3626bp0i",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "17349",
+        "color": "Pearl_Gold",
+        "name": "Golden wizard hat"
+      },
+      "torso": {
+        "part": "76382p5p",
+        "color": "Dark_Blue"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Dark_Blue"
+      },
+      "shoes": {
+        "color": "Pearl_Gold",
+        "finish": "gold"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "2714a",
+          "color": "Pearl_Gold",
+          "name": "Golden staff"
+        },
+        "left_hand": {
+          "part": "28681",
+          "color": "Trans_Light_Blue",
+          "name": "Ice wand"
+        },
+        "neck": {
+          "part": "20551c01",
+          "color": "Dark_Blue",
+          "name": "Sage cape"
+        }
+      },
+      "ride": {
+        "file": "dragon_blue.ldr",
+        "name": "Blue dragon",
+        "turn": -35
+      }
+    }
+  ]
+}

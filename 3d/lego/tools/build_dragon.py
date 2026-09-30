@@ -1,6 +1,7 @@
 """Generate rides/dragon.ldr: a brick-built dragon around the real Lego dragon head (24196).
 
-Usage: python build_dragon.py ../rides/dragon.ldr
+Usage: python build_dragon.py ../rides/dragon.ldr [body belly horn]
+  colours are LDraw codes, default 320 25 297 (Dark Red, Orange, Pearl Gold)
 LDU: -Y up, front of the dragon = -Z, dragon's left = +X.
 """
 import sys
@@ -9,7 +10,7 @@ I = "1 0 0 0 1 0 0 0 1"
 RY90 = "0 0 1 0 1 0 -1 0 0"                      # long axis along Z
 WING_L = "0 0.766 0.643 0 0.643 -0.766 -1 0 0"    # wing spans out to +X, tip raised 50 deg
 WING_R = "0 -0.766 -0.643 0 0.643 -0.766 1 0 0"   # wing spans out to -X, tip raised 50 deg
-BODY, BELLY, HORN = 320, 25, 297                  # Dark Red, Orange, Pearl Gold
+BODY, BELLY, HORN = (int(c) for c in (sys.argv[2:5] if len(sys.argv) >= 5 else (320, 25, 297)))
 
 lines = ["0 Ride - Dragon (brick-built, real Lego dragon head)", "0 Name: dragon.ldr"]
 

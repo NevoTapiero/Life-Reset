@@ -1,0 +1,210 @@
+{
+  "character": "shadow",
+  "stat": "DIS",
+  "identity": "Silent and exact: black spikes, blue mask, katanas that glow",
+  "levels": [
+    {
+      "level": 1,
+      "title": "Initiate",
+      "head": {
+        "part": "3626bp6w",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "18228",
+        "color": "Black",
+        "name": "Spiked hair"
+      },
+      "torso": {
+        "part": "973",
+        "color": "Black",
+        "arms": "Black",
+        "hands": "Yellow"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Black"
+      },
+      "shoes": {
+        "color": "Dark_Bluish_Grey",
+        "finish": "leather"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "10053",
+          "color": "Flat_Silver",
+          "name": "Short curved blade"
+        }
+      },
+      "ride": {
+        "file": "skateboard_black.ldr",
+        "name": "Skateboard"
+      }
+    },
+    {
+      "level": 2,
+      "title": "Stalker",
+      "head": {
+        "part": "3626bp6w",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "30177",
+        "color": "Black",
+        "name": "Ninja wrap"
+      },
+      "torso": {
+        "part": "76382pn5",
+        "color": "Black"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Black"
+      },
+      "shoes": {
+        "color": "Black",
+        "finish": "leather"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "21459",
+          "color": "Flat_Silver",
+          "name": "Katana"
+        }
+      },
+      "ride": {
+        "file": "bat.ldr",
+        "name": "Bat"
+      }
+    },
+    {
+      "level": 3,
+      "title": "Phantom",
+      "head": {
+        "part": "3626bp6w",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "30177",
+        "color": "Black",
+        "name": "Ninja wrap"
+      },
+      "torso": {
+        "part": "76382pn7",
+        "color": "Black"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Black"
+      },
+      "shoes": {
+        "color": "Dark_Bluish_Grey",
+        "finish": "iron"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "21459",
+          "color": "Flat_Silver",
+          "name": "Katana"
+        },
+        "left_hand": {
+          "part": "21459",
+          "color": "Flat_Silver",
+          "name": "Second katana"
+        }
+      },
+      "ride": {
+        "file": "motorcycle_black.ldr",
+        "name": "Racing motorcycle"
+      }
+    },
+    {
+      "level": 4,
+      "title": "Reaper",
+      "head": {
+        "part": "3626bp6w",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "30381",
+        "color": "Black",
+        "name": "Hood"
+      },
+      "torso": {
+        "part": "76382pn6",
+        "color": "Black"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Black"
+      },
+      "shoes": {
+        "color": "Flat_Silver",
+        "finish": "steel"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "21459",
+          "color": "Pearl_Gold",
+          "name": "Golden katana"
+        },
+        "neck": {
+          "part": "38301c01",
+          "color": "Black",
+          "name": "Scalloped cape"
+        }
+      },
+      "ride": {
+        "file": "horse_shadow.ldr",
+        "name": "Black horse"
+      }
+    },
+    {
+      "level": 5,
+      "title": "Sovereign",
+      "head": {
+        "part": "3626bp6v",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "30381",
+        "color": "Black",
+        "name": "Hood"
+      },
+      "torso": {
+        "part": "76382pn6",
+        "color": "Black"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Black"
+      },
+      "shoes": {
+        "color": "Black",
+        "finish": "steel"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "21459",
+          "color": "Trans_Light_Blue",
+          "name": "Glowing katana"
+        },
+        "left_hand": {
+          "part": "21459",
+          "color": "Trans_Light_Blue",
+          "name": "Glowing katana"
+        },
+        "neck": {
+          "part": "20551c01",
+          "color": "Black",
+          "name": "Sovereign cape"
+        }
+      },
+      "ride": {
+        "file": "dragon_black.ldr",
+        "name": "Black dragon",
+        "turn": -35
+      }
+    }
+  ]
+}

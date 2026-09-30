@@ -1,0 +1,201 @@
+{
+  "character": "mentalist",
+  "stat": "FOC",
+  "identity": "Calm reader of minds: lavender hair, purple hoods, books and wands",
+  "levels": [
+    {
+      "level": 1,
+      "title": "Novice",
+      "head": {
+        "part": "3626bp05",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "10048",
+        "color": "Lavender"
+      },
+      "torso": {
+        "part": "76382p0j",
+        "color": "Medium_Lavender"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Dark_Bluish_Grey"
+      },
+      "shoes": {
+        "color": "White",
+        "finish": "leather"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "33009-f1",
+          "color": "Reddish_Brown",
+          "name": "Closed book"
+        }
+      },
+      "ride": {
+        "file": "skateboard_purple.ldr",
+        "name": "Skateboard"
+      }
+    },
+    {
+      "level": 2,
+      "title": "Seeker",
+      "head": {
+        "part": "3626bp05",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "30381",
+        "color": "Purple",
+        "name": "Hood"
+      },
+      "torso": {
+        "part": "76382p0j",
+        "color": "Purple"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Black"
+      },
+      "shoes": {
+        "color": "Purple",
+        "finish": "leather"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "33009-f1",
+          "color": "Purple",
+          "name": "Purple book"
+        }
+      },
+      "ride": {
+        "file": "owl.ldr",
+        "name": "Owl"
+      }
+    },
+    {
+      "level": 3,
+      "title": "Mind Reader",
+      "head": {
+        "part": "3626bp05",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "30381",
+        "color": "Purple",
+        "name": "Hood"
+      },
+      "torso": {
+        "part": "76382pd99",
+        "color": "Purple"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Black"
+      },
+      "shoes": {
+        "color": "Black",
+        "finish": "leather"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "28681",
+          "color": "Trans_Purple",
+          "name": "Crystal wand"
+        }
+      },
+      "ride": {
+        "file": "motorcycle_purple.ldr",
+        "name": "Racing motorcycle"
+      }
+    },
+    {
+      "level": 4,
+      "title": "Oracle",
+      "head": {
+        "part": "3626bp05",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "10048",
+        "color": "Lavender"
+      },
+      "torso": {
+        "part": "76382p5p",
+        "color": "Purple"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Purple"
+      },
+      "shoes": {
+        "color": "Flat_Silver",
+        "finish": "steel"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "28681",
+          "color": "Pearl_Gold",
+          "name": "Gold wand"
+        },
+        "neck": {
+          "part": "38301c01",
+          "color": "Magenta",
+          "name": "Scalloped cape"
+        }
+      },
+      "ride": {
+        "file": "horse_purple.ldr",
+        "name": "Horse in purple barding"
+      }
+    },
+    {
+      "level": 5,
+      "title": "Mastermind",
+      "head": {
+        "part": "3626bp05",
+        "color": "Yellow"
+      },
+      "hair": {
+        "part": "30381",
+        "color": "Trans_Purple",
+        "name": "Glowing hood"
+      },
+      "torso": {
+        "part": "76382p5p",
+        "color": "Purple"
+      },
+      "legs": {
+        "part": "3815c01",
+        "color": "Purple"
+      },
+      "shoes": {
+        "color": "Pearl_Gold",
+        "finish": "gold"
+      },
+      "gear": {
+        "right_hand": {
+          "part": "28681",
+          "color": "Trans_Purple",
+          "name": "Crystal wand"
+        },
+        "left_hand": {
+          "part": "33009-f1",
+          "color": "Pearl_Gold",
+          "name": "Golden book"
+        },
+        "neck": {
+          "part": "20551c01",
+          "color": "Purple",
+          "name": "Mastermind cape"
+        }
+      },
+      "ride": {
+        "file": "dragon_purple.ldr",
+        "name": "Purple dragon",
+        "turn": -35
+      }
+    }
+  ]
+}
