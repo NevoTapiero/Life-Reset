@@ -350,7 +350,13 @@ function Podium({ rows, score, onOpen }: { rows: Row[]; score: (r: Row) => numbe
               </span>
               <span className="text-[12.5px] font-extrabold text-muted">{score(r).toLocaleString()} XP</span>
               <span className="mt-1 relative z-10 -mb-2">
-                <Minifig character={r.archetype} level={legoLevel(rankForXp(r.xp).tierIndex)} size={place[i] === 1 ? 108 : 92} />
+                <Minifig
+                  character={r.archetype}
+                  level={legoLevel(rankForXp(r.xp).tierIndex)}
+                  size={place[i] === 1 ? 108 : 92}
+                  alive
+                  className={place[i] === 1 ? "mf-cheer" : undefined}
+                />
               </span>
               <span
                 className="podium-col w-full grid place-items-start justify-center pt-3"
