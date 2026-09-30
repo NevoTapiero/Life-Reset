@@ -1801,3 +1801,9 @@ body {
 }
 @keyframes foilSweep { 0% { transform: translateX(-70%); } 22%, 100% { transform: translateX(70%); } }
 @media (prefers-reduced-motion: reduce) { .minifig-card::after { animation: none; display: none; } }
+
+/* a mission's reward shown as a stud pickup, coloured by value */
+.xp-stud { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-brick); font-weight: 700; font-size: 12.5px; color: var(--ink); }
+.xp-stud i { width: 13px; height: 13px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--lego-black); background: radial-gradient(circle at 42% 38%, #fff6c4 0 18%, var(--lego-yellow) 45%, #c99a06 100%); }
+.xp-stud[data-kind="silver"] i { background: radial-gradient(circle at 42% 38%, #fff 0 18%, #d7dde2 45%, var(--lego-dark-grey) 100%); }
+.xp-stud[data-kind="blue"] i { background: radial-gradient(circle at 42% 38%, #d8ebff 0 18%, var(--lego-azure) 45%, var(--lego-blue-edge) 100%); }
