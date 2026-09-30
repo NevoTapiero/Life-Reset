@@ -1777,3 +1777,13 @@ body {
 .day-complete-stud { width: 30px; height: 30px; border-radius: 50%; flex: none; background: radial-gradient(circle at 42% 38%, #fff6c4 0 16%, var(--lego-yellow) 40%, #c99a06 100%); box-shadow: inset 0 0 0 3px #e0b313, 0 0 0 2px var(--lego-black); }
 @keyframes rowIn { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .day-complete-rows li { animation: none; } }
+
+/* the collectible card's foil: a sheen sweeps across now and then */
+.minifig-card::after {
+  content: ""; position: absolute; inset: -20%; pointer-events: none; z-index: 4;
+  background: linear-gradient(115deg, transparent 38%, rgb(255 255 255 / 0.28) 46%, rgb(255 255 255 / 0.05) 52%, transparent 60%);
+  transform: translateX(-70%);
+  animation: foilSweep 7s ease-in-out infinite 1.2s;
+}
+@keyframes foilSweep { 0% { transform: translateX(-70%); } 22%, 100% { transform: translateX(70%); } }
+@media (prefers-reduced-motion: reduce) { .minifig-card::after { animation: none; display: none; } }
