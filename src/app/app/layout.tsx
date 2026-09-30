@@ -20,6 +20,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [authed, setAuthed] = useState<boolean | null>(null);
+  // friends knocking on your door, shown as a badge on World
+  const [knocks, setKnocks] = useState(0);
 
   useEffect(() => {
     resetTheme();
@@ -44,6 +46,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     });
     return () => sub.subscription.unsubscribe();
   }, [router]);
+
+  // re-count on every screen change, so answering a knock clears the badge
+  useEffect(() => {
+    if (!authed) return;
+    supabase.rpc("my_visits").then(({ data }) => {
+      const rows = (data as { knocked_by_me: boolean; allowed: boolean }[] | null) ?? [];
+      setKnocks(rows.filter((v) => !v.knocked_by_me && !v.allowed).length);
+    });
+  }, [authed, pathname]);
 
   if (!authed) {
     return (
@@ -81,7 +92,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               const on = t.match(pathname);
               return (
                 <Link key={t.href} href={t.href} className={on ? "on" : ""} aria-current={on ? "page" : undefined}>
-                  <Icon name={t.icon} size={22} strokeWidth={on ? 2.3 : 2} />
+                  <span className="relative">
+                    <Icon name={t.icon} size={22} strokeWidth={on ? 2.3 : 2} />
+                    {t.href === "/app/world" && knocks > 0 && (
+                      <span className="absolute -right-2 -top-1.5 min-w-[17px] h-[17px] px-1 rounded-full grid place-items-center text-[10px] font-black text-white" style={{ background: "var(--lego-red)", boxShadow: "0 0 0 2px #fff" }} aria-label={`${knocks} knocking`}>
+                        {knocks}
+                      </span>
+                    )}
+                  </span>
                   {t.label}
                 </Link>
               );
