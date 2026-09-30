@@ -7,6 +7,7 @@ import Link from "next/link";
 import BrickLoader from "@/components/BrickLoader";
 import Icon from "@/components/Icon";
 import LegoIcon, { BrickColor, PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
+import CharacterFile from "@/components/CharacterFile";
 import MinifigCard from "@/components/MinifigCard";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
@@ -94,7 +95,23 @@ export default function FriendProfilePage() {
       </button>
 
       <div className="mt-4">
-        <MinifigCard character={file.archetype} level={legoLevel(rank.tierIndex)} size={230} tap>
+        <MinifigCard
+          character={file.archetype}
+          level={legoLevel(rank.tierIndex)}
+          size={230}
+          tap
+          back={
+            <CharacterFile
+              name={file.username}
+              character={file.archetype}
+              level={legoLevel(rank.tierIndex)}
+              title={levelTitle(file.archetype, rank.tierIndex)}
+              stats={file.stats}
+              bestStreak={best}
+              since={file.member_since}
+            />
+          }
+        >
           <PlayerAvatar photo={photoOf(file)} character={file.archetype} size={54} />
           <span className="flex-1 min-w-0">
             <span className="display block text-[24px] truncate">{file.username}</span>
