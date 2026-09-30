@@ -232,7 +232,14 @@ export default function HomePage() {
       <section className="card tile-studs">
         <div className="flex items-end gap-2 px-4 pt-3">
           <Link href="/app/profile" aria-label="Your profile" className="player-stage flex-none -mb-1">
-            <Minifig character={p.archetype} level={legoLevel(rank.tierIndex)} size={104} alive sleepy={sleepyHour()} />
+            <Minifig
+              character={p.archetype}
+              level={legoLevel(rank.tierIndex)}
+              size={104}
+              alive
+              sleepy={!clearedAll && sleepyHour()}
+              className={clearedAll ? "mf-cheer" : undefined}
+            />
           </Link>
           <div className="flex-1 min-w-0 pb-3">
             <div className="flex items-center justify-between gap-2">

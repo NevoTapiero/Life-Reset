@@ -116,7 +116,11 @@ export default function Minifig({
         <path d="M44 60c-6 1-9 4-11 10l-5 20 9 3 5-18c1-5 2-9 2-15Z" fill={o.torso} />
         <path d="M44 60c-6 1-9 4-11 10l-5 20 9 3 5-18c1-5 2-9 2-15Z" fill="#fff" opacity="0.14" />
         <Hand x={31} y={96} />
-        {level >= 2 && <Item kind={o.item} extra={o.extra} blade={`url(#${id}-blade)`} />}
+        {level >= 2 && (
+          <g className="mf-item">
+            <Item kind={o.item} extra={o.extra} blade={`url(#${id}-blade)`} />
+          </g>
+        )}
       </g>
       <g className="mf-arm-r">
         <path d="M76 60c6 1 9 4 11 10l5 20-9 3-5-18c-1-5-2-9-2-15Z" fill={o.torso} />

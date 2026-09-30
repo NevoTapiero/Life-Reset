@@ -1676,3 +1676,15 @@ body {
 /* the stud counter while it rolls up */
 .stud-rolling { display: inline-block; color: var(--lego-yellow); animation: studRoll 180ms ease-in-out infinite alternate; }
 @keyframes studRoll { from { transform: scale(1); } to { transform: scale(1.12); } }
+
+/* the day is fully built: arms up, item raised, a little hop */
+.mf-cheer { animation: mfHop 1.4s ease-in-out infinite; }
+.mf-cheer .mf-arm-l { animation: mfCheerL 1.4s ease-in-out infinite !important; }
+.mf-cheer .mf-arm-r { animation: mfCheerR 1.4s ease-in-out infinite !important; }
+@keyframes mfHop { 0%, 40%, 100% { transform: none; } 20% { transform: translateY(-6px); } }
+@keyframes mfCheerL { 0%, 100% { transform: rotate(135deg); } 50% { transform: rotate(150deg); } }
+@keyframes mfCheerR { 0%, 100% { transform: rotate(-135deg); } 50% { transform: rotate(-150deg); } }
+@media (prefers-reduced-motion: reduce) { .mf-cheer, .mf-cheer .mf-arm-l, .mf-cheer .mf-arm-r { animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-fill-mode: forwards !important; } }
+.mf-cheer .mf-item { transform-box: view-box; transform-origin: 31px 96px; animation: mfCheerItem 1.4s ease-in-out infinite; }
+@keyframes mfCheerItem { 0%, 100% { transform: rotate(-150deg); } 50% { transform: rotate(-165deg); } }
+@media (prefers-reduced-motion: reduce) { .mf-cheer .mf-item { animation-duration: 1ms; animation-iteration-count: 1; animation-fill-mode: forwards; } }
