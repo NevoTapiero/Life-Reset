@@ -242,7 +242,7 @@ export function modelText(lines: string[], name = "model.ldr"): string {
 // ---- the town -------------------------------------------------------------
 
 // A resident's plot: their house by level, their garden by streak.
-export type Resident = { name: string; level: number; streak: number; me?: boolean };
+export type Resident = { name: string; level: number; streak: number; me?: boolean; /** their character (archetype key); none: the Warrior */ character?: string | null };
 
 // The town is a square: the shop on a plaza in the middle, up to eight houses
 // around it on 48x48 plots, every one facing the plaza, 16-stud streets

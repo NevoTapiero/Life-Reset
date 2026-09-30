@@ -32,12 +32,13 @@ export default function TownPage() {
   useEffect(() => {
     supabase.rpc("get_leaderboard").then(({ data, error }) => {
       if (error) return setError(error.message);
-      const rows = (data ?? []) as { username: string; xp: number; streak_current: number; is_me: boolean }[];
+      const rows = (data ?? []) as { username: string; archetype: string | null; xp: number; streak_current: number; is_me: boolean }[];
       const toResident = (r: (typeof rows)[number]) => ({
         name: r.username,
         level: rankForXp(r.xp).tierIndex + 1,
         streak: r.streak_current,
         me: r.is_me,
+        character: r.archetype,
       });
       // you first (your house is right behind the shop), then your top friends
       // around the square -- you're always in, however many friends outrank you
@@ -112,6 +113,7 @@ export default function TownPage() {
             owned={owned}
             onLeave={leave}
             level={residents.find((r) => r.me)?.level}
+            character={residents.find((r) => r.me)?.character}
             className="w-full h-full"
           />
         )}

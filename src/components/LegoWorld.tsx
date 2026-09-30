@@ -1185,7 +1185,7 @@ export function LegoTown({
           <Stroller key={i} {...p} />
         ))}
         {residents.map((res, i) => (
-          <Ride key={res.name} ride={loadoutFor(res.level).ride} at={rideSpot(lots[i], res.level)} turn={turnRad(lots[i].facing)} />
+          <Ride key={res.name} ride={loadoutFor(res.level, res.character ?? undefined).ride} at={rideSpot(lots[i], res.level)} turn={turnRad(lots[i].facing)} />
         ))}
         {residents.map((res, i) => (
           <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
@@ -1209,12 +1209,12 @@ export function LegoTown({
                   ? insideWalk(lots[dest], level, side, r && { x: hx + r.x, z: hz + r.z, front: hz + r.front })
                   : doorWalk(lots[dest], level, side);
             }
-            return <Walker key="me" look={loadoutFor(res.level)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
+            return <Walker key="me" look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
           }
           return (
             <Minifig
               key={res.name}
-              look={loadoutFor(res.level)}
+              look={loadoutFor(res.level, res.character ?? undefined)}
               at={inLot(lots[i], minifigSpot(houseSpec(res.level)))}
               turn={turnRad(lots[i].facing)}
             />
@@ -1873,6 +1873,7 @@ export function LegoRoom({
   onLeave,
   look = BASE_HUNTER,
   level,
+  character,
   className,
 }: {
   stations: Station[];
@@ -1890,6 +1891,8 @@ export function LegoRoom({
   look?: MinifigLook;
   /** your level: you wear your character's loadout for it (instead of `look`) */
   level?: number;
+  /** your character (archetype key); none: the Warrior */
+  character?: string | null;
   className?: string;
 }) {
   // roomText only reads each station's id and pillar (and what you own), so doing one doesn't rebuild the room
@@ -1997,7 +2000,7 @@ export function LegoRoom({
           )}
       >
         {room && <primitive object={room} />}
-        <Minifig look={level ? loadoutFor(level) : look} at={[0, -16, 60]} />
+        <Minifig look={level ? loadoutFor(level, character ?? undefined) : look} at={[0, -16, 60]} />
       </Stage>
       {stations.length === 0 && (
         <p className="absolute inset-x-0 top-4 text-center text-sm font-semibold" style={{ color: "#3a3a3a" }}>

@@ -99,6 +99,7 @@ export default function YouPage() {
                 owned={owned}
                 onLeave={() => setInside(false)}
                 level={rank.tierIndex + 1}
+                character={profile.archetype}
                 className="absolute inset-0"
               />
             ) : (

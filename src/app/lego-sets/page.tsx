@@ -30,14 +30,14 @@ const DEMO_STATIONS = [
 
 // a sample street (the real one is /app/town, from your friends list)
 const DEMO_TOWN = [
-  { name: "ifti", level: 5, streak: 24, me: true },
-  { name: "nevo", level: 3, streak: 6 },
-  { name: "dana", level: 1, streak: 2 },
-  { name: "omer", level: 2, streak: 0 },
-  { name: "maya", level: 4, streak: 30 },
-  { name: "tal", level: 1, streak: 9 },
-  { name: "noa", level: 2, streak: 4 },
-  { name: "ben", level: 3, streak: 1 },
+  { name: "ifti", level: 5, streak: 24, me: true, character: "warrior" },
+  { name: "nevo", level: 3, streak: 6, character: "wizard" },
+  { name: "dana", level: 1, streak: 2, character: "mentalist" },
+  { name: "omer", level: 2, streak: 0, character: "guardian" },
+  { name: "maya", level: 4, streak: 30, character: "shadow" },
+  { name: "tal", level: 1, streak: 9, character: "wizard" },
+  { name: "noa", level: 2, streak: 4, character: "guardian" },
+  { name: "ben", level: 3, streak: 1, character: "mentalist" },
 ];
 
 export default function LegoPreview() {
