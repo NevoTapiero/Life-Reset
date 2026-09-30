@@ -58,10 +58,12 @@ export default function HomePage() {
   const [justCleared, setJustCleared] = useState(false);
   // studs flying from a checked mission into the XP bar
   const counterRef = useRef<HTMLDivElement>(null);
-  const [flying, setFlying] = useState<{ id: number; x: number; y: number; dx: number; dy: number; delay: number }[]>([]);
+  const [flying, setFlying] = useState<{ id: number; x: number; y: number; dx: number; dy: number; delay: number; kind: string }[]>([]);
   const [bump, setBump] = useState(false);
   const flyId = useRef(0);
-  function flyStuds(from: DOMRect) {
+  // studs are worth more by colour, like the LEGO games: silver, gold, blue
+  function flyStuds(from: DOMRect, xp = 0) {
+    const kind = xp >= 16 ? "blue" : xp >= 8 ? "" : "silver";
     const to = counterRef.current?.getBoundingClientRect();
     if (!to) return;
     // aim at the XP bar's first empty brick
@@ -71,7 +73,7 @@ export default function HomePage() {
     const studs = Array.from({ length: 7 }, (_, i) => {
       const x = from.right - 40 - (i % 3) * 14;
       const y = from.top + from.height / 2 + ((i * 7) % 11) - 5;
-      return { id: base + i, x, y, dx: tx - x, dy: ty - y, delay: i * 55 };
+      return { id: base + i, x, y, dx: tx - x, dy: ty - y, delay: i * 55, kind };
     });
     setFlying((f) => [...f, ...studs]);
     setTimeout(() => setBump(true), 620);
@@ -209,7 +211,7 @@ export default function HomePage() {
           isDone={(q) => m.isDoneOn(q, m.today)}
           pendingId={m.pendingId}
           onCheck={(q, from) => {
-            if (m.canToggle(q)) flyStuds(from);
+            if (m.canToggle(q)) flyStuds(from, cardXp(q.xp, m.cardDayOf(q)));
             m.toggle(q);
           }}
           onClose={() => setBuilding(false)}
@@ -218,7 +220,7 @@ export default function HomePage() {
       {flying.map((f) => (
         <span
           key={f.id}
-          className="flying-stud"
+          className={`flying-stud ${f.kind}`}
           aria-hidden
           style={{ left: f.x, top: f.y, "--dx": `${f.dx}px`, "--dy": `${f.dy}px`, animationDelay: `${f.delay}ms` } as React.CSSProperties}
         />
@@ -328,7 +330,7 @@ export default function HomePage() {
             const el = document.querySelector(`[data-quest="${CSS.escape(id)}"]`);
             if (el) {
               el.scrollIntoView({ block: "nearest", behavior: "smooth" });
-              flyStuds(el.getBoundingClientRect());
+              flyStuds(el.getBoundingClientRect(), cardXp(q.xp, m.cardDayOf(q)));
             }
             if (await m.toggle(q)) saved.push(id);
             await new Promise((r) => setTimeout(r, 450));
@@ -396,7 +398,7 @@ export default function HomePage() {
             pending={m.pendingId === q.id}
             xpFloat={m.xpFloat?.id === q.id ? m.xpFloat.amount : null}
             onToggle={(from) => {
-              if (!m.isDoneOn(q, m.today) && m.canToggle(q)) flyStuds(from);
+              if (!m.isDoneOn(q, m.today) && m.canToggle(q)) flyStuds(from, cardXp(q.xp, m.cardDayOf(q)));
               m.toggle(q);
             }}
           />
