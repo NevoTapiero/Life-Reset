@@ -255,7 +255,7 @@ export default function WorldPage() {
           <Podium rows={podium} score={score} onOpen={(r) => !r.is_me && router.push(`/app/friend/${encodeURIComponent(r.username)}`)} />
           <div className="flex flex-col gap-2.5 mt-4 stagger">
             {rest.map((r, i) => (
-              <div key={r.username} className="card px-3 py-2.5 flex items-center gap-3" style={r.is_me ? { boxShadow: "0 0 0 3px var(--lego-blue), 0 5px 0 3px var(--lego-blue-edge)" } : undefined}>
+              <div key={r.username} className="card px-3 py-2.5 flex items-center gap-3" style={r.is_me ? { boxShadow: "inset 0 0 0 3px var(--lego-blue), 0 0 0 var(--ol) var(--ol-c), 0 5px 0 var(--ol) var(--ol-c)" } : undefined}>
                 <span className="w-7 text-center display text-[17px] text-muted flex-none">{i + 4}</span>
                 <span className="relative flex-none -my-1">
                   <Minifig character={r.archetype} level={legoLevel(rankForXp(r.xp).tierIndex)} size={54} alive phase={(i * 1.7) % 5} />

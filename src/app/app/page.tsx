@@ -313,7 +313,7 @@ export default function HomePage() {
       </section>
 
       {chest > 0 && (
-        <Link href="/app/town" className="card mt-4 px-4 py-3 flex items-center gap-3 active:translate-y-[2px] transition-transform" style={{ background: "var(--lego-yellow)", boxShadow: "0 4px 0 var(--lego-yellow-edge)" }}>
+        <Link href="/app/town" className="card mt-4 px-4 py-3 flex items-center gap-3 active:translate-y-[2px] transition-transform" style={{ background: "var(--lego-yellow)" }}>
           <span className="chest-wobble flex-none">
             <LegoIcon name="chest" color="orange" size={40} />
           </span>
