@@ -429,11 +429,35 @@ function measureRooms(scene: THREE.Object3D) {
 // which it is clipped away -- the roof comes off and you look down into the
 // rooms, dollhouse style.
 // `lit`: after dark the window glass glows warm -- somebody's home.
-function Building({ url, at, cut, lit = false }: { url: string; at: [number, number, number]; cut?: number; lit?: boolean }) {
+// `build`: it builds itself (after this many seconds): it rises from the
+// ground up while bricks shower down onto it -- when the town opens, and
+// again whenever the house changes (a level up).
+const BUILD_TIME = 2.2;
+function Building({
+  url,
+  at,
+  cut,
+  lit = false,
+  build,
+}: {
+  url: string;
+  at: [number, number, number];
+  cut?: number;
+  lit?: boolean;
+  build?: number;
+}) {
   const [model, setModel] = useState<{
     url: string;
     obj: THREE.Object3D;
+    /** its box in its own frame (LDU, -Y up) */
+    box: THREE.Box3;
   } | null>(null);
+  // the house that has finished building (none yet: this one still has to go up)
+  const [built, setBuilt] = useState<string | null>(build === undefined ? url : null);
+  const building = build !== undefined && built !== url;
+  const rise = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), -1), []);
+  const progress = useRef(0);
+  const started = useRef<number | null>(null);
   useEffect(() => {
     let live = true;
     let own: THREE.Material[] = [];
@@ -448,7 +472,7 @@ function Building({ url, at, cut, lit = false }: { url: string; at: [number, num
           mesh.material = (mesh.material as THREE.Material).clone();
           own.push(mesh.material);
         });
-        setModel({ url, obj });
+        setModel({ url, obj, box: new THREE.Box3().setFromObject(obj) });
       })
       .catch((e) => console.error("house:", e));
     return () => {
@@ -460,7 +484,7 @@ function Building({ url, at, cut, lit = false }: { url: string; at: [number, num
   }, [url]);
   useEffect(() => {
     if (!model) return;
-    const planes = cut === undefined ? [] : [new THREE.Plane(new THREE.Vector3(0, -1, 0), cut)];
+    const planes = [...(cut === undefined ? [] : [new THREE.Plane(new THREE.Vector3(0, -1, 0), cut)]), ...(building ? [rise] : [])];
     model.obj.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -469,7 +493,20 @@ function Building({ url, at, cut, lit = false }: { url: string; at: [number, num
       m.clipShadows = true;
       m.needsUpdate = true;
     });
-  }, [model, cut]);
+  }, [model, cut, building, rise]);
+  // going up: everything below the rising plane is there (three's y; the LDraw
+  // group is scaled by LDU and -Y up, so the model's top is -box.min.y * LDU)
+  useFrame(({ clock }) => {
+    if (!building || !model || model.url !== url) return;
+    started.current ??= clock.elapsedTime + (build ?? 0);
+    const k = Math.min(1, Math.max(0, (clock.elapsedTime - started.current) / BUILD_TIME));
+    progress.current = k;
+    rise.set(rise.normal, k === 0 ? -1 : k * (-model.box.min.y * LDU + 0.5));
+    if (k === 1) {
+      started.current = null;
+      setBuilt(url);
+    }
+  });
   useEffect(() => {
     if (!model) return;
     model.obj.traverse((o) => {
@@ -481,7 +518,68 @@ function Building({ url, at, cut, lit = false }: { url: string; at: [number, num
     });
   }, [model, lit]);
   if (!model || model.url !== url) return null;
-  return <primitive object={model.obj} position={at} />;
+  return (
+    <>
+      <primitive object={model.obj} position={at} />
+      {building && (
+        <group position={at}>
+          <BrickShower box={model.box} progress={progress} />
+        </group>
+      )}
+    </>
+  );
+}
+
+// Bricks raining down onto a house while it builds: each one falls from high
+// above to the height the house has reached when it lands, and is gone into
+// the wall. LDraw frame (LDU, -Y up), in the house model's own frame.
+const SHOWER = 44;
+const hash = (n: number) => {
+  const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+const SHOWER_COLOURS = ["#c91a09", "#0055bf", "#f2cd37", "#237841", "#ffffff", "#fe8a18", "#a0a5a9", "#582a12"];
+function BrickShower({ box, progress }: { box: THREE.Box3; progress: React.RefObject<number> }) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const bricks = useMemo(
+    () =>
+      Array.from({ length: SHOWER }, (_, i) => ({
+        x: box.min.x + hash(i * 4) * (box.max.x - box.min.x),
+        z: box.min.z + hash(i * 4 + 1) * (box.max.z - box.min.z),
+        at: (i + hash(i * 4 + 2)) / SHOWER, // when it lands, as a share of the build
+        turn: hash(i * 4 + 3) * Math.PI,
+      })),
+    [box],
+  );
+  useEffect(() => {
+    if (!mesh.current) return;
+    const c = new THREE.Color();
+    bricks.forEach((_, i) => mesh.current!.setColorAt(i, c.set(SHOWER_COLOURS[i % SHOWER_COLOURS.length])));
+    mesh.current.instanceColor!.needsUpdate = true;
+  }, [bricks]);
+  const o = useMemo(() => new THREE.Object3D(), []);
+  useFrame(() => {
+    if (!mesh.current) return;
+    const k = progress.current ?? 0;
+    const top = -box.min.y;
+    bricks.forEach((b, i) => {
+      const fall = 0.12; // share of the build a brick spends falling
+      const f = (k - (b.at - fall)) / fall; // 0 when it starts falling, 1 when it lands
+      const on = k > 0 && f > 0 && f < 1;
+      o.position.set(b.x, on ? -(b.at * top + (1 - f * f) * 500) : 1e5, b.z);
+      o.rotation.set(0, b.turn + f * 2, 0);
+      o.updateMatrix();
+      mesh.current!.setMatrixAt(i, o.matrix);
+    });
+    mesh.current.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, SHOWER]} frustumCulled={false}>
+      {/* a 2x4 brick: 80 x 24 x 40 LDU */}
+      <boxGeometry args={[80, 24, 40]} />
+      <meshStandardMaterial roughness={0.35} />
+    </instancedMesh>
+  );
 }
 
 // A house on its plot (in the plot's own frame).
@@ -498,9 +596,9 @@ function SpunHouse({ level, id, spin }: { level: number; id?: string; spin: numb
 }
 
 // A player's house on their plot: which of the level's houses is theirs comes from their name.
-function House({ level, name, id, cut, lit }: { level: number; name?: string; id?: string; cut?: number; lit?: boolean }) {
+function House({ level, name, id, cut, lit, build }: { level: number; name?: string; id?: string; cut?: number; lit?: boolean; build?: number }) {
   const house = (id && houseById(id)) || houseFor(level, name);
-  return <Building url={houseUrl(house)} at={houseAt(houseSpec(level), house)} cut={cut} lit={lit} />;
+  return <Building url={houseUrl(house)} at={houseAt(houseSpec(level), house)} cut={cut} lit={lit} build={build} />;
 }
 
 // `turn`: which way the figure faces (radians about the vertical, LDraw frame)
@@ -707,7 +805,7 @@ export default function LegoWorld({
 // ponytail: four fixed moods; blend between them if the switch ever jars
 export type Mood = { name: string; top: string; horizon: string; sun: number; sunColor: string; ambient: number; night: boolean };
 const MOODS: Record<string, Mood> = {
-  day: { name: "day", top: "#2f86ea", horizon: "#bfe3ff", sun: 2.7, sunColor: "#fff0d8", ambient: 1, night: false },
+  day: { name: "day", top: "#2f86ea", horizon: "#bfe3ff", sun: 2.6, sunColor: "#fff8ee", ambient: 1, night: false },
   golden: { name: "golden", top: "#5a86d6", horizon: "#ffc98a", sun: 2.1, sunColor: "#ffae66", ambient: 0.8, night: false },
   dusk: { name: "dusk", top: "#26356a", horizon: "#e58a6c", sun: 0.7, sunColor: "#ff9a6a", ambient: 0.45, night: true },
   night: { name: "night", top: "#070d26", horizon: "#1d2a52", sun: 0.35, sunColor: "#9fb4ff", ambient: 0.28, night: true },
@@ -968,8 +1066,8 @@ function Stage({
               <Vignette offset={0.35} darkness={0.28} />
               <ToneMapping mode={ToneMappingMode.NEUTRAL} />
               {/* toy-box colour: a touch more saturation and contrast than life */}
-              <HueSaturation saturation={0.14} />
-              <BrightnessContrast contrast={0.08} />
+              <HueSaturation saturation={0.05} />
+              <BrightnessContrast contrast={0.06} />
             </EffectComposer>
           )}
         </Canvas>
@@ -1235,7 +1333,7 @@ export function LegoTown({
         <Falling season={season} />
         {/* the shop, its front to the camera's side of the plaza */}
         {/* the shop at the back of the plaza, the fountain and the rest of the square in front of it */}
-        <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} lit={mood.night} />
+        <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} lit={mood.night} build={0.3} />
         {plaza && <primitive object={plaza} />}
         {decor && <primitive object={decor} />}
         <Slabs slabs={FLATS} />
@@ -1262,7 +1360,8 @@ export function LegoTown({
         ))}
         {residents.map((res, i) => (
           <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
-            <House level={res.level} name={res.name} cut={i === inside ? CUT : undefined} lit={mood.night} />
+            {/* the town builds itself as it opens: the shop, then each house in turn */}
+            <House level={res.level} name={res.name} cut={i === inside ? CUT : undefined} lit={mood.night} build={0.9 + i * 0.45} />
           </group>
         ))}
         {residents.map((res, i) => {
