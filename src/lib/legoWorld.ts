@@ -619,6 +619,22 @@ function villageTrees(): string[] {
     const part = rnd() < 0.72 ? "2435" : rnd() < 0.5 ? "3471" : "3470";
     out.push(line(part === "3471" ? COL.darkGreen : COL.green, Math.round(x / S) * S, -BOTTOM[part], Math.round(z / S) * S, ROT[0], part));
   }
+  // leafy trees lining both sides of the roads out, every 16 studs, as far as the woods' edge
+  for (const road of ROADS)
+    for (let k = 0; k + 1 < road.length; k++) {
+      const [a, b] = [road[k], road[k + 1]];
+      const [dx, dz] = [b[0] - a[0], b[2] - a[2]];
+      const len = Math.hypot(dx, dz) || 1;
+      const [nx, nz] = [-dz / len, dx / len];
+      for (let d = 8 * S; d < len; d += 16 * S)
+        for (const side of [-1, 1]) {
+          const x = a[0] + (dx * d) / len + nx * side * (ROAD_OUT / 2 + 4) * S;
+          const z = a[2] + (dz * d) / len + nz * side * (ROAD_OUT / 2 + 4) * S;
+          if (Math.hypot(x, z) > WOODS_FROM * S || lots.some((lot) => nearLot(x, z, lot, 4 * S))) continue;
+          if (Math.hypot(x - ROUNDABOUT[0], z - ROUNDABOUT[1]) < ROUND_R + (ROAD_OUT + 6) * S) continue;
+          out.push(line(COL.green, Math.round(x / S) * S, -BOTTOM["2435"], Math.round(z / S) * S, ROT[0], "2435"));
+        }
+    }
   return out;
 }
 
@@ -1046,6 +1062,17 @@ export function townFlats(): Slab[] {
   return out;
 }
 
+// A hot-air balloon: rings of round bricks in red and white, a basket under it (LDU, about its
+// own centre at the basket's bottom); the renderer drifts it slowly round over the village.
+export function balloonSlabs(): Slab[] {
+  const out: Slab[] = [];
+  const rings = [60, 110, 150, 175, 185, 185, 175, 150, 110, 60];
+  rings.forEach((r, k) => out.push({ x: 0, z: 0, w: 0, d: 0, r, h: 30, y: 180 + k * 30, color: k % 2 ? "#f2f2ee" : "#c4281c" }));
+  out.push({ x: 0, z: 0, w: 70, d: 70, h: 50, y: 0, color: "#a0703c", studs: true });
+  for (const [dx, dz] of [[-25, -25], [25, -25], [-25, 25], [25, 25]]) out.push({ x: dx, z: dz, w: 6, d: 6, h: 130, y: 50, color: "#3b2a1a" });
+  return out;
+}
+
 // Clouds: plate-shaped slabs stacked into puffs, three times LEGO size, in a
 // ring over the hills.
 export function townClouds(): Slab[] {
@@ -1077,6 +1104,21 @@ export function townDecorText(): string {
   const out: string[] = [];
   for (const [x, z] of STREET_LAMPS) out.push(...place(lamp, x, z, ROT[0], 0));
   out.push(...place(SIGNPOST, PLAZA_SIGN[0], PLAZA_SIGN[1], ROT[0], 0), ...place(SIGNPOST, SHOP_SIGN[0], SHOP_SIGN[1], ROT[0], 0));
+  // life round the ring: a bench facing the plaza and a pot of flowers just outside the ring path,
+  // between the paths in (never on one)
+  const paths = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotPath(lotFor(i), 3));
+  const busy = (x: number, z: number) => paths.some((pth) => toPath(x, z, pth) < 7 * S) || toPath(x, z, TRACK) < 7 * S;
+  for (let k = 0; k < 12; k++) {
+    const a = ((k + 0.5) / 12) * Math.PI * 2;
+    const r = (RING + PATH_W / 2 + 3) * S;
+    const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
+    if (busy(x, z)) continue;
+    const facing = yawMat(a + Math.PI); // its front to the plaza
+    out.push(...place(k % 2 ? bench : flowerPot([COL.red, COL.yellow, COL.pink][k % 3]), x, z, facing, 0));
+  }
+  // ducks on the lake
+  for (const [dx, dz, turn] of [[-120, 60, 0], [40, -150, 90], [180, 90, 180], [-60, -40, 270]] as [number, number, 0 | 90 | 180 | 270][])
+    out.push(...place([["49661", COL.yellow, 0, -2, 0]], LAKE.x + dx, LAKE.z + dz, ROT[turn], 0));
   return modelText(out, "town-decor.ldr");
 }
 

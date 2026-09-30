@@ -93,6 +93,8 @@ import {
   forestTrees,
   carLoop,
   townClouds,
+  balloonSlabs,
+  RING,
   type Slab,
   emptyLotsText,
   ICE_CREAM_CART,
@@ -2874,6 +2876,23 @@ function roundedRect(w: number, d: number, r: number): THREE.Shape {
 }
 const FLATS = townFlats();
 const HEDGES = plotHedges();
+const BALLOON = balloonSlabs();
+// the balloon drifts round the village at a walking pace, high over the houses, bobbing a little
+function Balloon() {
+  const g = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    if (!g.current) return;
+    const a = t * 0.02;
+    const r = (RING + 90) * 20;
+    g.current.position.set(Math.sin(a) * r, -1300 - Math.sin(t * 0.5) * 30, Math.cos(a) * r);
+  });
+  return (
+    <group ref={g}>
+      <Slabs slabs={BALLOON} shadows={false} />
+    </group>
+  );
+}
 const CLOUDS = townClouds();
 
 // ---- traffic: official LEGO cars driving in on one road, round the roundabout, out the other ----
@@ -3297,6 +3316,7 @@ function DriftingClouds() {
   useFrame((_, dt) => void g.current?.rotateY(dt * 0.0035));
   return (
     <group ref={g}>
+      <Balloon />
       <Slabs slabs={CLOUDS} shadows={false} />
     </group>
   );
