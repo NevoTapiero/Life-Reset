@@ -320,7 +320,7 @@ export default function QuestManager() {
                 className={`option-row px-1 py-2.5 flex flex-col items-center gap-1.5 ${form.pillar === p ? "selected" : ""}`}
                 onClick={() => setForm({ ...form, pillar: p })}
               >
-                <Icon name={PILLAR_ICONS[p]} size={21} />
+                <LegoIcon name={PILLAR_ICONS[p]} color={form.pillar === p ? PILLAR_BRICK_COLOR[p] : "grey"} size={34} />
                 <span className="hud-label !text-ink">{PILLAR_STAT[p]}</span>
               </button>
             ))}
