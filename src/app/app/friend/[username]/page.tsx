@@ -7,7 +7,7 @@ import Avatar from "@/components/Avatar";
 import Icon from "@/components/Icon";
 import Radar from "@/components/Radar";
 import RankBadge from "@/components/RankBadge";
-import { CharacterKey, PILLAR_ICONS, STAT_ICONS, STAT_KEYS, Stats, characterOf, formatDate, questBase, rankForXp } from "@/lib/game";
+import { CharacterKey, PERIOD_LABEL, PILLAR_ICONS, Period, STAT_ICONS, STAT_KEYS, Stats, characterOf, formatDate, questBase, rankForXp } from "@/lib/game";
 import { characterVars } from "@/lib/theme";
 
 type FriendQuest = {
@@ -16,7 +16,8 @@ type FriendQuest = {
   pillar: string;
   xp: number;
   icon: string;
-  done_today: boolean;
+  done_today: boolean; // this week or month for a weekly or monthly quest
+  period?: Period;
 };
 
 type FriendFile = {
@@ -172,7 +173,10 @@ export default function FriendProfilePage() {
               <span className={`block text-[15px] truncate ${q.done_today ? "text-muted line-through" : ""}`}>
                 {q.title}
               </span>
-              <span className="hud-label mt-1">{q.pillar} · +{questBase(q.xp)} XP</span>
+              <span className="hud-label mt-1">
+                {q.period && q.period !== "daily" ? `${PERIOD_LABEL[q.period]} · ` : ""}
+                {q.pillar} · +{questBase(q.xp)} XP
+              </span>
             </span>
             {q.done_today && (
               <span className="hud-label flex-none" style={{ color: "var(--accent)" }}>
