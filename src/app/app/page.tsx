@@ -5,6 +5,7 @@ import Link from "next/link";
 import AppActivity from "@/components/AppActivity";
 import BrickLoader from "@/components/BrickLoader";
 import Icon from "@/components/Icon";
+import MinifigPicker from "@/components/MinifigPicker";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import RankBadge from "@/components/RankBadge";
 import { useMissions } from "@/lib/useMissions";
@@ -56,6 +57,7 @@ export default function HomePage() {
 
   return (
     <div className="slide-in">
+      {!p.archetype && <MinifigPicker onPicked={m.setProfile} />}
       {m.rankUp && (
         <div className="rankup-backdrop" onClick={m.dismissRankUp}>
           <div className="relative flex items-center justify-center">
