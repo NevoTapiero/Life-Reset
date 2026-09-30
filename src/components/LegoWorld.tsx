@@ -602,6 +602,8 @@ function Stage({
   fov = 32,
   sky = "#bfe3ff",
   mood,
+  far = 500,
+  maxDistance = 110,
   bounds,
   onPick,
   overlay,
@@ -619,6 +621,9 @@ function Stage({
   /** outdoors: the time of day -- a gradient sky, the sun (or moon), stars at night.
    *  Without it the scene sits in a plain `sky` colour (the room). */
   mood?: Mood;
+  /** how far the camera sees, and how far out you may pull it (the town overview needs more) */
+  far?: number;
+  maxDistance?: number;
   /** the colour beyond the scene: sky outside, a warm ceiling glow inside */
   sky?: string;
   /** the camera's target stays inside this box (three's space) */
@@ -649,12 +654,13 @@ function Stage({
         <Canvas
           shadows
           dpr={[1, 1.5]}
-          camera={{ fov, near: 1, far: 500 }}
+          camera={{ fov, near: 1, far: far }}
           gl={{ antialias: true }}
           onCreated={({ gl }) => (gl.localClippingEnabled = true)}
         >
           <color attach="background" args={[mood?.horizon ?? sky]} />
-          <fog attach="fog" args={[mood?.horizon ?? sky, 140, 330]} />
+          {/* the haze scales with how much is in view: a house, the shop, or the whole town */}
+          <fog attach="fog" args={[mood?.horizon ?? sky, Math.max(140, width * 2.3), Math.max(330, width * 5.3)]} />
           {mood && <SkyDome mood={mood} />}
           <hemisphereLight args={["#fff8ef", "#5a7a4a", mood?.ambient ?? 0.9]} />
           <primitive object={sun} position={[target.x, 0, target.z]} />
@@ -710,7 +716,7 @@ function Stage({
               touches: { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE },
             })}
             minDistance={fov > 40 ? 6 : 14}
-            maxDistance={110}
+            maxDistance={maxDistance}
             minPolarAngle={0.45}
             maxPolarAngle={1.25}
           />
@@ -745,6 +751,8 @@ function Stage({
 // for your house.
 export type Visit = "allowed" | "knocked";
 const SHOP_FOCUS = -1;
+const OVERVIEW = -2; // the whole town from above
+const LOOK_DOWN = new THREE.Vector3(0.25, 1.35, -0.75).normalize();
 const turnRad = (facing: number) => (facing * Math.PI) / 180;
 const toThree = ([x, y, z]: [number, number, number]): [number, number, number] => [x * LDU, y, -z * LDU];
 
@@ -799,7 +807,14 @@ export function LegoTown({
     0,
     residents.findIndex((r) => r.me),
   );
-  const [focus, setFocus] = useState(meIndex);
+  // the town opens on the whole square, then (once it's built) glides down to your house
+  const [focus, setFocus] = useState(OVERVIEW);
+  const built = !!town;
+  useEffect(() => {
+    if (!built) return;
+    const t = setTimeout(() => setFocus((f) => (f === OVERVIEW ? meIndex : f)), 1800);
+    return () => clearTimeout(t);
+  }, [built, meIndex]);
   const [inside, setInside] = useState<number | null>(null);
   const [shopOpen, setShopOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -813,6 +828,7 @@ export function LegoTown({
 
   const target = useMemo(() => {
     // the shop and the fountain in front of it, looking up at the building
+    if (focus === OVERVIEW) return new THREE.Vector3(0, 0, 0);
     if (focus === SHOP_FOCUS) return new THREE.Vector3(0, 10, -((SHOP_FRONT + FOUNTAIN[1]) / 2) * LDU);
     const [x, , z] = toThree(houseCentre(focus));
     return new THREE.Vector3(x, inside === null ? 3 : 2, z);
@@ -821,6 +837,7 @@ export function LegoTown({
   // look at a house from its front: turn the view with the lot
   const dir = useMemo(() => {
     const base = inside === null ? FRONT_RIGHT : LOOK_IN;
+    if (focus === OVERVIEW) return LOOK_DOWN;
     if (focus === SHOP_FOCUS) return base;
     return base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -turnRad(lots[focus].facing));
   }, [focus, inside, lots]);
@@ -836,7 +853,8 @@ export function LegoTown({
   // the stops along the way, for the arrows: the shop, then every house
   const stops = [SHOP_FOCUS, ...residents.map((_, i) => i)];
   const step = (by: number) => go(stops[(stops.indexOf(focus) + by + stops.length) % stops.length]);
-  const nameOf = (i: number) => (i === SHOP_FOCUS ? "the shop" : residents[i].me ? "your house" : residents[i].name);
+  const nameOf = (i: number) =>
+    i === SHOP_FOCUS ? "the shop" : i === OVERVIEW ? "the whole town" : residents[i].me ? "your house" : residents[i].name;
 
   // a tap on the ground: go to whatever is nearest -- the plaza or a lot
   const pick = (p: THREE.Vector3) => {
@@ -856,7 +874,7 @@ export function LegoTown({
 
   if (room && inside === meIndex) return <div className={className}>{room(() => setInside(null))}</div>;
 
-  const r = focus === SHOP_FOCUS ? null : residents[focus];
+  const r = focus < 0 ? null : residents[focus]; // the shop and the overview are nobody's house
   const access = r && (r.me ? "allowed" : visits[r.name]);
   const label = (text: string, me: boolean, onClick: () => void) => (
     <button
@@ -874,7 +892,17 @@ export function LegoTown({
         className="absolute inset-0"
         label="Your town"
         target={target}
-        width={inside === null ? (focus === SHOP_FOCUS ? 95 : 62) : houseFor(residents[inside].level, residents[inside].name).w + 10}
+        width={
+          inside !== null
+            ? houseFor(residents[inside].level, residents[inside].name).w + 10
+            : focus === OVERVIEW
+              ? 230
+              : focus === SHOP_FOCUS
+                ? 95
+                : 62
+        }
+        far={1500}
+        maxDistance={600}
         dir={dir}
         bounds={bounds}
         pan
@@ -969,6 +997,15 @@ export function LegoTown({
         })}
       </Stage>
 
+      {focus !== OVERVIEW && inside === null && (
+        <button
+          onClick={() => go(OVERVIEW)}
+          className="absolute top-3 right-3 px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg active:scale-95 transition-transform"
+          style={{ background: "rgba(20,18,16,0.8)", color: "#fff" }}
+        >
+          Whole town
+        </button>
+      )}
       {note && !shopOpen && (
         <div className="absolute top-3 inset-x-0 flex justify-center pointer-events-none">
           <span
@@ -992,7 +1029,7 @@ export function LegoTown({
           </TownButton>
         </div>
         <div className="flex-1 min-w-0 flex justify-center">
-          {focus === SHOP_FOCUS ? (
+          {focus === OVERVIEW ? null : focus === SHOP_FOCUS ? (
             prices && <TownButton onClick={() => setShopOpen(true)}>Go into the shop</TownButton>
           ) : inside !== null ? (
             <TownButton onClick={() => setInside(null)}>Step outside</TownButton>
@@ -1453,17 +1490,17 @@ function Hills() {
     const out: { p: [number, number, number]; r: number }[] = [];
     let seed = 3;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    const far = (TOWN_HALF + 48) * 20 * LDU + 40; // beyond the forest
+    const far = (TOWN_HALF + 48) * 20 * LDU + 90; // well beyond the forest
     for (let a = 0; a < Math.PI * 2; a += 0.28 + rnd() * 0.2) {
       const d = far + rnd() * 60;
-      out.push({ p: [Math.cos(a) * d, 0, Math.sin(a) * d], r: 45 + rnd() * 45 });
+      out.push({ p: [Math.cos(a) * d, 0, Math.sin(a) * d], r: 40 + rnd() * 40 });
     }
     return out;
   }, []);
   return (
     <>
       {hills.map((h, i) => (
-        <mesh key={i} position={h.p} scale={[h.r, h.r * 0.26, h.r]}>
+        <mesh key={i} position={h.p} scale={[h.r, h.r * 0.2, h.r]}>
           <sphereGeometry args={[1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
           <meshStandardMaterial color={i % 3 ? "#5f9e46" : "#6aa84f"} roughness={1} />
         </mesh>
