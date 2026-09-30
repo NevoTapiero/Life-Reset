@@ -64,7 +64,7 @@ export default function RankUp({
         <BrickBurst count={newLevel ? 30 : 18} />
         <div className="rankup-badge">
           {newLevel ? (
-            <Minifig character={character} level={legoLevel(rank.tierIndex)} size={210} />
+            <Minifig character={character} level={legoLevel(rank.tierIndex)} size={210} alive className="mf-cheer" />
           ) : (
             <LegoIcon name="star" color={TIER_BRICK[rank.tierIndex] ?? "yellow"} size={130} />
           )}
@@ -72,7 +72,7 @@ export default function RankUp({
       </div>
       <div className="rankup-title text-center mt-8 px-6">
         <div className="chip chip-yellow !text-[13px]">{newLevel ? `Level ${legoLevel(rank.tierIndex)}` : "Rank up"}</div>
-        <div className="display-hero text-[40px] mt-3" style={{ textShadow: "0 3px 0 rgb(0 0 0 / 0.2)" }}>
+        <div className="display-hero tt-text text-[42px] mt-3">
           {newLevel ? levelTitle(character, rank.tierIndex) : rank.label}
         </div>
         <p className="text-[15px] font-extrabold mt-2 text-white/90">

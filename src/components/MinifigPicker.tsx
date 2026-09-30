@@ -6,6 +6,7 @@ import Icon from "@/components/Icon";
 import Minifig from "@/components/Minifig";
 import MinifigCard from "@/components/MinifigCard";
 import { BIO } from "@/components/CharacterFile";
+import CharTile from "@/components/CharTile";
 import { CHARACTERS, CHARACTER_KEYS, CharacterKey, Profile } from "@/lib/game";
 
 // First run: pick the minifig you'll be in the LEGO world. Shown on Home while
@@ -51,18 +52,15 @@ export default function MinifigPicker({ onPicked }: { onPicked: (p: Profile) => 
             </MinifigCard>
           </div>
 
-          <div className="grid grid-cols-5 gap-2 mt-4">
+          <div className="grid grid-cols-5 gap-2.5 mt-5">
             {CHARACTER_KEYS.map((key) => (
-              <button
+              <CharTile
                 key={key}
-                onClick={() => setPick(key)}
-                aria-pressed={pick === key}
-                aria-label={CHARACTERS[key].name}
-                className={`option-row !p-1.5 flex flex-col items-center gap-1 ${pick === key ? "selected" : ""}`}
-              >
-                <Minifig character={key} level={2} size={64} />
-                <span className="text-[10px] font-extrabold leading-tight">{CHARACTERS[key].name.replace("The ", "")}</span>
-              </button>
+                character={key}
+                level={2}
+                on={pick === key}
+                onPick={() => setPick(key)}
+              />
             ))}
           </div>
 

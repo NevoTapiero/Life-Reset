@@ -51,7 +51,8 @@ export default function RedBricks({ gold }: { gold: number | null }) {
                 <span className={`block font-extrabold text-[15px] ${open ? "" : "text-muted"}`}>{x.name}</span>
                 <span className="block text-[12.5px] font-bold text-muted">{open ? x.what : `Unlocks at ${x.need} gold bricks`}</span>
               </span>
-              {open ? (
+              {/* an extra that's on keeps its switch even if it locks again */}
+              {open || on.has(x.id) ? (
                 <button className={`switch ${on.has(x.id) ? "on" : ""}`} role="switch" aria-checked={on.has(x.id)} aria-label={x.name} onClick={() => flip(x.id)} />
               ) : (
                 <span className="chip !text-[11px]">

@@ -29,7 +29,7 @@ export default function Landing() {
     <main className="flex-1 flex flex-col py-8">
       <div className="text-center rise">
         <BrickLogo />
-        <p className="mt-5 display text-[20px]">Real habits build your LEGO world.</p>
+        <p className="mt-5 display tt-text text-[23px] leading-tight text-balance">Real habits build your LEGO world.</p>
       </div>
 
       <div className="mt-6 rise" style={{ animationDelay: "80ms" }}>
@@ -37,8 +37,12 @@ export default function Landing() {
       </div>
 
       <div className="flex flex-col gap-2.5 mt-6 stagger">
-        {STEPS.map((s) => (
-          <div key={s.title} className="card px-4 py-3 flex items-center gap-3.5">
+        {STEPS.map((s, i) => (
+          <div key={s.title} className="card px-4 py-3 flex items-center gap-3">
+            {/* numbered like a page of building instructions */}
+            <span className="display tt-text text-[30px] w-6 text-center flex-none" aria-hidden>
+              {i + 1}
+            </span>
             <LegoIcon name={s.icon} color={s.color} size={44} />
             <span>
               <span className="display block text-[17px]">{s.title}</span>

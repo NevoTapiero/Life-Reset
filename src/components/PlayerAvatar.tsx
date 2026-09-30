@@ -110,7 +110,8 @@ export default function PlayerAvatar({
       style={{
         width: size,
         height: size,
-        boxShadow: `0 0 0 ${w}px ${rim ?? "#fff"}, 0 ${w + 2}px 0 ${w}px ${rim ? "rgb(27 42 52 / 0.25)" : look.ring}`,
+        // a white rim and a thick dark outline, like a LEGO game portrait
+        boxShadow: `0 0 0 ${w}px ${rim ?? "#fff"}, 0 0 0 ${w + 2}px var(--lego-black), 0 ${w + 3}px 0 ${w + 2}px var(--lego-black)`,
         background: look.bg,
       }}
     >

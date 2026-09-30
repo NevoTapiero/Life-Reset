@@ -646,20 +646,26 @@ body {
 }
 
 /* segmented brick tabs */
+/* tabs like a LEGO game menu bar: a dark blue studded plate, the chosen tab a
+   yellow brick, the others white outlined letters */
 .brick-tabs {
   display: grid;
   gap: 6px;
   padding: 5px;
   border-radius: 16px;
-  background: color-mix(in srgb, var(--lego-blue) 16%, var(--panel));
-  box-shadow: inset 0 2px 0 rgb(27 42 52 / 0.08);
+  background:
+    radial-gradient(circle, rgb(255 255 255 / 0.1) 0 3px, transparent 3.5px) 0 0 / 14px 14px,
+    var(--lego-blue-edge);
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.25), 0 3px 0 var(--lego-black);
 }
 .brick-tab {
   padding: 8px 6px;
   border-radius: 11px;
-  font-weight: 800;
-  font-size: 13px;
-  color: var(--muted);
+  font-family: var(--font-brick), sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -667,9 +673,10 @@ body {
   transition: background 150ms ease, color 150ms ease, transform 120ms var(--ease-strong);
 }
 .brick-tab.on {
-  background: var(--panel);
-  color: var(--ink);
-  box-shadow: 0 3px 0 var(--lip);
+  background: linear-gradient(var(--lego-yellow), #e8bd25);
+  color: var(--lego-black);
+  text-shadow: none;
+  box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.45), 0 3px 0 var(--lego-yellow-edge);
 }
 .brick-tab:active { transform: translateY(1px); }
 .count-chip {
@@ -678,10 +685,11 @@ body {
   border-radius: 999px;
   font-size: 11px;
   line-height: 18px;
-  background: var(--panel-2);
-  color: var(--muted);
+  background: rgb(255 255 255 / 0.18);
+  color: #fff;
+  text-shadow: none;
 }
-.brick-tab.on .count-chip { background: var(--lego-yellow); color: var(--lego-black); }
+.brick-tab.on .count-chip { background: var(--lego-black); color: var(--lego-yellow); }
 
 /* small stat chips (streak, gold, level) */
 .chip {
@@ -1715,3 +1723,74 @@ body {
 .hearts svg.full:nth-child(5) { animation-delay: 0.48s; }
 @keyframes heartBeat { 0%, 70%, 100% { transform: none; } 78% { transform: scale(1.16); } 86% { transform: scale(0.96); } }
 @media (prefers-reduced-motion: reduce) { .hearts svg.full { animation: none; } }
+
+/* character select, LEGO-game style: square portrait tiles */
+.char-tile { display: flex; flex-direction: column; align-items: center; gap: 11px; min-width: 0; -webkit-tap-highlight-color: transparent; }
+.char-tile-face {
+  position: relative; width: 100%; aspect-ratio: 1; border-radius: 12px; overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 30%, rgb(255 255 255 / 0.35), transparent 60%),
+    radial-gradient(circle, rgb(255 255 255 / 0.14) 0 3px, transparent 3.5px) 0 0 / 12px 12px,
+    linear-gradient(170deg, var(--card), var(--card-2));
+  box-shadow: 0 0 0 2.5px var(--lego-black), 0 4px 0 2.5px var(--lego-black);
+  transition: transform 200ms var(--ease-bounce), box-shadow 200ms ease;
+}
+.char-tile-fig { position: absolute; left: 50%; top: 8%; transform: translateX(-50%); }
+.char-tile.on .char-tile-face {
+  transform: translateY(-4px) scale(1.06);
+  box-shadow: 0 0 0 4px var(--lego-yellow), 0 0 0 6.5px var(--lego-black), 0 6px 0 6.5px var(--lego-black);
+}
+.char-tile:not(.on) .char-tile-face { filter: saturate(0.75) brightness(0.92); }
+.char-tile-name {
+  font-family: var(--font-brick); font-weight: 700; font-size: clamp(8.5px, 2.45vw, 11px); letter-spacing: -0.01em; line-height: 1.1; color: #fff; text-align: center; white-space: nowrap;
+  max-width: 100%;
+  /* a thinner outline at this size, so the letters stay open */
+  text-shadow: 1.4px 0 0 var(--lego-black), -1.4px 0 0 var(--lego-black), 0 1.4px 0 var(--lego-black), 0 -1.4px 0 var(--lego-black), 1px 1px 0 var(--lego-black), -1px 1px 0 var(--lego-black), 1px -1px 0 var(--lego-black), -1px -1px 0 var(--lego-black), 0 2.5px 0 var(--lego-black);
+}
+.char-tile:focus-visible { outline: none; }
+.char-tile:focus-visible .char-tile-face { outline: 3px solid var(--lego-yellow); outline-offset: 5px; }
+.char-tile.on .char-tile-name { color: var(--lego-yellow); }
+
+/* loading: studs lighting up in a row, one after another */
+.load-studs { display: inline-flex; gap: 6px; }
+.load-studs span {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; box-shadow: 0 0 0 2px var(--lego-black), 0 2px 0 2px var(--lego-black);
+  animation: loadStud 1.1s ease-in-out infinite;
+}
+@keyframes loadStud {
+  0%, 60%, 100% { background: #fff; transform: none; }
+  20% { background: radial-gradient(circle at 42% 38%, #fff6c4 0 18%, var(--lego-yellow) 45%, #c99a06 100%); transform: translateY(-4px); }
+}
+@media (prefers-reduced-motion: reduce) { .load-studs span { animation: none; } }
+
+/* Day complete: a LEGO game results screen */
+.day-complete {
+  border-radius: 20px; padding: 16px 16px 14px; color: #fff;
+  background:
+    radial-gradient(circle at 80% 0%, rgb(255 255 255 / 0.18), transparent 55%),
+    radial-gradient(circle, rgb(255 255 255 / 0.08) 0 3px, transparent 3.5px) 0 0 / 16px 16px,
+    linear-gradient(160deg, var(--lego-blue), var(--lego-blue-edge));
+  box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.2), 0 5px 0 var(--lego-black);
+}
+.day-complete-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.day-complete-rows li {
+  display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border-radius: 12px;
+  background: rgb(0 0 0 / 0.22); font-weight: 800; font-size: 14.5px;
+  animation: rowIn 420ms var(--ease-bounce) both;
+}
+.day-complete-rows li > span:nth-child(2) { flex: 1; }
+.day-complete-rows li b { font-family: var(--font-brick); font-weight: 700; font-size: 18px; text-shadow: var(--tt-shadow); }
+.day-complete-stud { width: 30px; height: 30px; border-radius: 50%; flex: none; background: radial-gradient(circle at 42% 38%, #fff6c4 0 16%, var(--lego-yellow) 40%, #c99a06 100%); box-shadow: inset 0 0 0 3px #e0b313, 0 0 0 2px var(--lego-black); }
+@keyframes rowIn { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .day-complete-rows li { animation: none; } }
+
+/* the collectible card's foil: a sheen sweeps across now and then */
+.minifig-card::after {
+  content: ""; position: absolute; inset: -20%; pointer-events: none; z-index: 4;
+  background: linear-gradient(115deg, transparent 38%, rgb(255 255 255 / 0.28) 46%, rgb(255 255 255 / 0.05) 52%, transparent 60%);
+  transform: translateX(-70%);
+  animation: foilSweep 7s ease-in-out infinite 1.2s;
+}
+@keyframes foilSweep { 0% { transform: translateX(-70%); } 22%, 100% { transform: translateX(70%); } }
+@media (prefers-reduced-motion: reduce) { .minifig-card::after { animation: none; display: none; } }
