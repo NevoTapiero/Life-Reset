@@ -306,7 +306,9 @@ function MissionTile({
       className={`card relative w-full text-left flex items-center gap-3 ${small ? "px-3 py-2.5" : "px-3 py-3"} transition-transform duration-100 active:translate-y-[2px]`}
       style={{ opacity: paidBy ? 0.8 : 1 }}
     >
-      <LegoIcon name={PILLAR_ICONS[q.pillar as keyof typeof PILLAR_ICONS] ?? "sparkle"} color={PILLAR_BRICK_COLOR[q.pillar] ?? "blue"} size={small ? 38 : 44} />
+      <span className={done && xpFloat !== null ? "brick-snap" : undefined}>
+        <LegoIcon name={PILLAR_ICONS[q.pillar as keyof typeof PILLAR_ICONS] ?? "sparkle"} color={PILLAR_BRICK_COLOR[q.pillar] ?? "blue"} size={small ? 38 : 44} />
+      </span>
       <span className="flex-1 min-w-0">
         <span className={`block font-extrabold ${small ? "text-[15px]" : "text-[16px]"} truncate ${done ? "line-through text-muted" : ""}`}>{q.title}</span>
         {paidBy ? (
