@@ -135,7 +135,69 @@ export type Quest = {
   benefits: string[];
   sort: number;
   user_id: string | null;
+  period?: Period; // missing on rows cached before 30.9: treat as daily
+  tracks?: TrackedKind | null;
 };
+
+// ---------- quest periods: daily, weekly, monthly ----------
+// Mirrors public.period_start / period_index in the database. Weeks run Sunday
+// to Saturday. A weekly or monthly quest is checked once per period and its
+// 7-step card counts periods in a row.
+export type Period = "daily" | "weekly" | "monthly";
+export const PERIODS: Period[] = ["daily", "weekly", "monthly"];
+export const PERIOD_LABEL: Record<Period, string> = { daily: "Daily", weekly: "Weekly", monthly: "Monthly" };
+export const PERIOD_UNIT: Record<Period, string> = { daily: "Day", weekly: "Week", monthly: "Month" };
+export const PERIOD_XP_CAP: Record<Period, number> = { daily: 60, weekly: 100, monthly: 200 };
+
+export function periodOf(q: Pick<Quest, "period">): Period {
+  return q.period ?? "daily";
+}
+
+// First day (YYYY-MM-DD) of the period containing `ymd`.
+export function periodStart(period: Period, ymd: string): string {
+  if (period === "daily") return ymd;
+  const d = new Date(ymd + "T00:00:00Z");
+  if (period === "weekly") return shiftDay(ymd, -d.getUTCDay());
+  return ymd.slice(0, 8) + "01";
+}
+
+function prevPeriodStart(period: Period, start: string): string {
+  if (period === "daily") return shiftDay(start, -1);
+  if (period === "weekly") return shiftDay(start, -7);
+  return periodStart("monthly", shiftDay(start, -1));
+}
+
+// Whether any date in `dates` falls in the period containing `ymd`.
+export function doneInPeriod(dates: Set<string>, period: Period, ymd: string): boolean {
+  const start = periodStart(period, ymd);
+  for (const d of dates) if (periodStart(period, d) === start) return true;
+  return false;
+}
+
+// The card step a check in the period containing `on` counts as, for any period.
+export function cardStepOn(dates: Set<string>, period: Period, on: string): number {
+  if (period === "daily") return cardDayOn(dates, on);
+  const starts = new Set([...dates].map((d) => periodStart(period, d)));
+  let run = 0;
+  for (let p = prevPeriodStart(period, periodStart(period, on)); starts.has(p); p = prevPeriodStart(period, p)) run++;
+  return (run % CARD_DAYS) + 1;
+}
+
+// ---------- quests a connected watch already pays for ----------
+// Mirrors public.tracked_by(): these can't be checked by hand while connected.
+export type TrackedKind = "steps" | "sleep" | "workout";
+const TRACKERS: Record<TrackedKind, string[]> = {
+  steps: ["ghealth"],
+  sleep: ["ghealth", "whoop"],
+  workout: ["ghealth", "whoop"],
+};
+export const TRACKER_NAME: Record<string, string> = { ghealth: "Google Health", whoop: "WHOOP" };
+
+// The connection that pays for this quest automatically, or null.
+export function trackedBy(q: Pick<Quest, "tracks">, providers: string[]): string | null {
+  if (!q.tracks) return null;
+  return TRACKERS[q.tracks].find((p) => providers.includes(p)) ?? null;
+}
 
 // ---------- ranks: 6 tiers x 3 stages, ascending, rising XP cost ----------
 // Costs doubled on 30.9 (players reached Silver II on day three).

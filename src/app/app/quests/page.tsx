@@ -3,10 +3,28 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
-import { PILLARS, PILLAR_ICONS, PILLAR_STAT, Pillar, Quest, cardXp, questBase } from "@/lib/game";
+import {
+  PERIODS,
+  PERIOD_LABEL,
+  PERIOD_UNIT,
+  PERIOD_XP_CAP,
+  PILLARS,
+  PILLAR_ICONS,
+  PILLAR_STAT,
+  Period,
+  Pillar,
+  Quest,
+  TRACKER_NAME,
+  TrackedKind,
+  cardXp,
+  periodOf,
+  questBase,
+  trackedBy,
+} from "@/lib/game";
 
-type FormState = { id: string | null; title: string; pillar: Pillar };
-const EMPTY_FORM: FormState = { id: null, title: "", pillar: "Strength" };
+type FormState = { id: string | null; title: string; pillar: Pillar; period: Period };
+const EMPTY_FORM: FormState = { id: null, title: "", pillar: "Strength", period: "daily" };
+type Rating = { xp: number; reason: string; icon: string; tracks: TrackedKind | null };
 const NONSENSE_MSG = "This quest doesn't make sense or can't be done. Rewrite it and try again.";
 
 // screen time: tighter limit, bigger reward
@@ -23,7 +41,9 @@ export default function QuestManager() {
   const [uid, setUid] = useState<string | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [stForm, setStForm] = useState<{ app: string; minutes: number } | null>(null);
-  const [verdict, setVerdict] = useState<{ title: string; xp: number; reason: string } | null>(null);
+  const [verdict, setVerdict] = useState<{ title: string; xp: number; reason: string; period: Period } | null>(null);
+  // connected apps that measure things on their own (steps, sleep, workouts)
+  const [trackers, setTrackers] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -33,11 +53,13 @@ export default function QuestManager() {
     const userId = userData.user?.id ?? null;
     setUid(userId);
     if (!userId) return;
-    const [{ data: qs }, { data: uq }] = await Promise.all([
+    const [{ data: qs }, { data: uq }, { data: tr }] = await Promise.all([
       supabase.from("quests").select("*").eq("archived", false).order("sort").order("title"),
       supabase.from("user_quests").select("quest_id, active").eq("user_id", userId),
+      supabase.rpc("my_trackers"),
     ]);
     setQuests((qs as Quest[]) ?? []);
+    setTrackers((tr as string[]) ?? []);
     setActiveIds(
       new Set(
         ((uq as { quest_id: string; active: boolean }[]) ?? [])
@@ -75,29 +97,32 @@ export default function QuestManager() {
   async function rateQuest(
     title: string,
     pillar: Pillar,
-  ): Promise<{ xp: number; reason: string; icon: string } | "nonsense"> {
+    period: Period,
+  ): Promise<Rating | "nonsense" | { tracked: string }> {
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token ?? "";
       const r = await fetch("/api/rate-quest", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ title, pillar }),
+        body: JSON.stringify({ title, pillar, period }),
       });
       if (r.ok) {
         const data = await r.json();
         if (data?.nonsense === true) return "nonsense";
+        if (typeof data?.tracked === "string") return { tracked: data.tracked };
         const xp = Number(data?.xp);
-        if (Number.isFinite(xp) && xp >= 1 && xp <= 50) {
+        if (Number.isFinite(xp) && xp >= 1 && xp <= PERIOD_XP_CAP[period]) {
           return {
             xp: Math.round(xp),
             reason: String(data.reason ?? ""),
             icon: typeof data.icon === "string" ? data.icon : "custom",
+            tracks: ["steps", "sleep", "workout"].includes(data.tracks) ? (data.tracks as TrackedKind) : null,
           };
         }
       }
     } catch {}
-    return { xp: 10, reason: "Standard daily effort.", icon: "custom" };
+    return { xp: 10, reason: "Standard effort.", icon: "custom", tracks: null };
   }
 
   async function saveForm() {
@@ -105,10 +130,16 @@ export default function QuestManager() {
     setBusy(true);
     setError(null);
     setVerdict(null);
-    const rating = await rateQuest(form.title, form.pillar);
+    const rating = await rateQuest(form.title, form.pillar, form.period);
     if (rating === "nonsense") {
       setBusy(false);
       setError(NONSENSE_MSG);
+      return;
+    }
+    if ("tracked" in rating) {
+      // the same activity would pay twice: once from the watch, once from here
+      setBusy(false);
+      setError(`${rating.tracked} already tracks this and pays for it automatically. No quest needed.`);
       return;
     }
     const { error } = form.id
@@ -118,19 +149,22 @@ export default function QuestManager() {
           p_pillar: form.pillar,
           p_xp: rating.xp,
           p_icon: rating.icon,
+          p_tracks: rating.tracks,
         })
       : await supabase.rpc("create_custom_quest", {
           p_title: form.title,
           p_pillar: form.pillar,
           p_xp: rating.xp,
           p_icon: rating.icon,
+          p_period: form.period,
+          p_tracks: rating.tracks,
         });
     setBusy(false);
     if (error) {
       setError(error.message);
       return;
     }
-    setVerdict({ title: form.title, xp: rating.xp, reason: rating.reason });
+    setVerdict({ title: form.title, xp: rating.xp, reason: rating.reason, period: form.period });
     setForm(null);
     load();
   }
@@ -241,7 +275,8 @@ export default function QuestManager() {
             <span className="display text-[16px]" style={{ color: "var(--accent)" }}>+{questBase(verdict.xp)} XP</span>
           </p>
           <p className="text-xs text-muted mt-1">
-            Pays more each day in a row, up to +{cardXp(verdict.xp, 7)} XP on day 7.
+            Pays more each {PERIOD_UNIT[verdict.period].toLowerCase()} in a row, up to +{cardXp(verdict.xp, 7)} XP on{" "}
+            {PERIOD_UNIT[verdict.period].toLowerCase()} 7.
           </p>
           {verdict.reason && <p className="text-xs text-muted mt-1.5">{verdict.reason}</p>}
           <button className="hud-label mt-2.5 underline underline-offset-4" onClick={() => setVerdict(null)}>
@@ -273,7 +308,27 @@ export default function QuestManager() {
               </button>
             ))}
           </div>
-          <p className="hud-label mt-4">The judge sets the XP · 1 to 50</p>
+          <div className="hud-label mt-4 mb-2">How often</div>
+          {form.id ? (
+            // changing the period would re-price its whole history
+            <p className="text-sm text-muted">{PERIOD_LABEL[form.period]}</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-1.5">
+              {PERIODS.map((p) => (
+                <button
+                  key={p}
+                  className={`option-row px-1 py-2.5 flex flex-col items-center gap-0.5 ${form.period === p ? "selected" : ""}`}
+                  onClick={() => setForm({ ...form, period: p })}
+                >
+                  <span className="text-sm font-semibold">{PERIOD_LABEL[p]}</span>
+                  <span className="hud-label !text-[9px]">
+                    {p === "daily" ? "every day" : p === "weekly" ? "once a week" : "once a month"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="hud-label mt-4">The judge sets the XP</p>
           <div className="flex gap-2.5 mt-4">
             <button className="btn-ghost flex-1 py-3" onClick={() => setForm(null)}>
               Cancel
@@ -299,12 +354,20 @@ export default function QuestManager() {
               </button>
               <button className="flex-1 text-left min-w-0" onClick={() => toggleActive(q)}>
                 <span className={`block text-[15px] truncate ${on ? "" : "text-muted"}`}>{q.title}</span>
-                <span className="hud-label mt-0.5">{q.pillar} · +{questBase(q.xp)} XP {on ? "· active" : ""}</span>
+                <span className="hud-label mt-0.5">
+                  {periodOf(q) !== "daily" ? `${PERIOD_LABEL[periodOf(q)]} · ` : ""}
+                  {q.pillar} · +{questBase(q.xp)} XP {on ? "· active" : ""}
+                </span>
+                {trackedBy(q, trackers) && (
+                  <span className="hud-label mt-0.5 block" style={{ color: "var(--accent)" }}>
+                    Paid by {TRACKER_NAME[trackedBy(q, trackers)!]}
+                  </span>
+                )}
               </button>
               <button
                 className="icon-tile !w-9 !h-9 !rounded-[10px] active:scale-95 transition-transform"
                 aria-label="Edit"
-                onClick={() => setForm({ id: q.id, title: q.title, pillar: q.pillar })}
+                onClick={() => setForm({ id: q.id, title: q.title, pillar: q.pillar, period: periodOf(q) })}
               >
                 <Icon name="pen" size={15} />
               </button>
@@ -342,6 +405,11 @@ export default function QuestManager() {
               <span className="flex-1 text-left min-w-0">
                 <span className={`block text-[15px] truncate ${on ? "" : "text-muted"}`}>{q.title}</span>
                 <span className="hud-label mt-0.5">{q.pillar} · +{questBase(q.xp)} XP</span>
+                {trackedBy(q, trackers) && (
+                  <span className="hud-label mt-0.5 block" style={{ color: "var(--accent)" }}>
+                    Paid by {TRACKER_NAME[trackedBy(q, trackers)!]}
+                  </span>
+                )}
               </span>
               <span
                 className="hud-label flex-none"

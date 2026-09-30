@@ -1,6 +1,6 @@
 -- ============ the chest: collect what your watch earned ============
--- Apply AFTER 2026-09-29-xp-penalties.sql, 2026-09-30-streak-cards.sql and
--- 2026-09-30-recalc-floor.sql.
+-- Apply AFTER 2026-09-30-streak-cards.sql and 2026-09-30-periods-and-tracked.sql
+-- (it calls their recalc_player). The penalties migration is no longer needed.
 --
 -- What your watch / band earns while you're away (steps, sleep, recovery,
 -- workouts) now waits in a chest in your house instead of landing straight
