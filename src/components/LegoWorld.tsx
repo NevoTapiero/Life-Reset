@@ -257,18 +257,40 @@ function loadRide(ride: Loadout["ride"]) {
 // Anything longer than this (the dragon) doesn't park: it flies slow circles
 // above its owner's street, wings and all.
 const PARKS_UP_TO = 260; // LDU, 13 studs
+const BODY_AXIS = new THREE.Vector3(0, 0, 1); // a ride's long axis, as it was built (along z)
+const NOSE_X = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2); // laid along x: nose to +Z
 function Ride({ ride, at, turn }: { ride: Loadout["ride"]; at: P3; turn: number }) {
   const [model, setModel] = useState<THREE.Object3D | null>(null);
   const flier = useRef<THREE.Group>(null);
   const flies = (model?.userData.length ?? 0) > PARKS_UP_TO;
+  // flying about its middle, not the corner it parks by
+  const middle = useMemo(() => (model ? new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3()).negate() : null), [model]);
+  const path = useMemo(
+    () => (t: number) => {
+      // big lazy loops round its owner's street, swinging wide and back, high over the roofs;
+      // each wingbeat lifts it a little
+      const a = t * 0.2 + at[0] * 0.001;
+      const r = 420 + 140 * Math.sin(t * 0.13);
+      return new THREE.Vector3(at[0] + Math.cos(a) * r, -700 - Math.sin(t * 1.5) * 26 - Math.sin(t * 0.3) * 80, at[2] + Math.sin(a) * r);
+    },
+    [at],
+  );
+  // its wings (the big wedge plates) beat: found once by part name, each turned about the
+  // body's long axis from where it was built -- down to a spread, then up and down
+  const wings = useMemo(() => {
+    const out: { o: THREE.Object3D; base: THREE.Quaternion; side: number }[] = [];
+    model?.traverse((o) => {
+      if (/^3035[56]\.dat$/i.test(o.name)) out.push({ o, base: o.quaternion.clone(), side: Math.sign(o.position.x) || 1 });
+    });
+    return out;
+  }, [model]);
+  const beat = useMemo(() => new THREE.Quaternion(), []);
   useFrame(({ clock }) => {
     if (!flies || !flier.current) return;
-    const a = clock.elapsedTime * 0.25 + at[0] * 0.001;
-    const r = 320;
-    // round the spot, high over the rooftops (LDraw: -Y up), bobbing as it beats its wings
-    flier.current.position.set(at[0] + Math.cos(a) * r, -620 - Math.sin(clock.elapsedTime * 1.6) * 18, at[2] + Math.sin(a) * r);
-    // nose along the circle (the model runs along x), banking into the turn
-    flier.current.rotation.set(0, -a - Math.PI, 0.25);
+    const t = clock.elapsedTime;
+    fly(flier.current, path, t, NOSE_X);
+    const flap = 0.55 + Math.sin(t * 3) * 0.45; // radians down from how it was built
+    for (const w of wings) w.o.quaternion.copy(w.base).premultiply(beat.setFromAxisAngle(BODY_AXIS, flap * w.side));
   });
   useEffect(() => {
     let live = true;
@@ -283,7 +305,7 @@ function Ride({ ride, at, turn }: { ride: Loadout["ride"]; at: P3; turn: number 
   if (flies)
     return (
       <group ref={flier}>
-        <primitive object={model} />
+        <primitive object={model} position={middle ?? undefined} />
       </group>
     );
   return <primitive object={model} position={at} rotation={[0, turn, 0]} />;
@@ -817,6 +839,18 @@ function FitCamera({
   return null;
 }
 
+// The lens can change (a wider one while playing); before FitCamera frames anything.
+function FovSync({ fov }: { fov: number }) {
+  const { camera } = useThree();
+  useLayoutEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera;
+    if (Math.abs(cam.fov - fov) < 0.01) return;
+    // (the same as setting fov; it updates the projection too)
+    cam.setFocalLength((0.5 * cam.getFilmHeight()) / Math.tan(THREE.MathUtils.degToRad(fov) / 2));
+  }, [camera, fov]);
+  return null;
+}
+
 // The LEGO-game camera: once you're being followed, the view keeps you in
 // frame as you move -- eased, not rigid -- at whatever angle and distance you
 // have swung it to.
@@ -1157,6 +1191,7 @@ function Stage({
             maxPolarAngle={1.25}
           />
           {/* after the controls, so it can move them */}
+          <FovSync fov={fov} />
           <FitCamera target={target} width={width} dir={dir} controls={controls} follow={follow} flyingRef={flying} />
           {follow && <Chase follow={follow} controls={controls} flying={flying} />}
           {/* outdoors: lamps and lit windows glowing after dark, a soft vignette. Everything
@@ -1205,9 +1240,13 @@ const OVERVIEW = -2; // the whole town from above
 const LOOK_DOWN = new THREE.Vector3(0.25, 1.35, -0.75).normalize();
 // playing: the camera behind and above you, looking down at about 40 degrees, close
 // enough that you're the star (LEGO-game style); you can swing it round with a drag
-const CHASE_DIR = new THREE.Vector3(0.12, 0.66, -0.78).normalize();
-const CHASE_WIDTH = 22;
+const CHASE_DIR = new THREE.Vector3(0.1, 0.44, -0.9).normalize(); // about 25 degrees down: the horizon shows
+const CHASE_WIDTH = 18;
+const CHASE_FOV = 50; // a game camera's wider lens (the diorama views keep a narrow one)
 const STILL = new THREE.Vector3(); // a target that never changes (the camera follows you instead)
+// where the sun hangs in the sky (three's space): where the sunlight comes from
+// (up, to the right and behind the usual view), just inside the sky dome
+const SUN_AT = new THREE.Vector3(18, 30, -14).normalize().multiplyScalar(420);
 const turnRad = (facing: number) => (facing * Math.PI) / 180;
 const toThree = ([x, y, z]: [number, number, number]): [number, number, number] => [x * LDU, y, -z * LDU];
 
@@ -1409,11 +1448,12 @@ export function LegoTown({
         bounds={bounds}
         pan={!following}
         follow={following ? me3 : undefined}
+        fov={following ? CHASE_FOV : 32}
         mood={mood}
         onPick={following ? undefined : pick}
         overlay={
           <>
-            <Hills color={grass} />
+            <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} />
             {/* the ground: grass everywhere, the smooth grey street square, the plaza and each plot */}
             <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.03} />
             <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#5d6166" y={-0.015} flat />
@@ -2126,7 +2166,32 @@ function Prop({ id, at, turn, lot }: { id: string; at: [number, number]; turn: n
   );
 }
 
-// ---- seagulls circling over the square ----
+// ---- flying: birds and dragons ----
+// A flier follows a path (LDraw frame: -Y up) and faces where it's actually
+// going: nose along its velocity, pitching up as it climbs, banking into its
+// turns by how hard it's turning. `pre` turns the model so its nose points
+// along +Z first (a gull's beak is -Z, the dragon runs along X).
+const UP = new THREE.Vector3(0, -1, 0);
+const flyTmp = { f: new THREE.Vector3(), u: new THREE.Vector3(), x: new THREE.Vector3(), a: new THREE.Vector3(), m: new THREE.Matrix4(), q: new THREE.Quaternion() };
+function fly(o: THREE.Object3D, path: (t: number) => THREE.Vector3, t: number, pre: THREE.Quaternion, roll = 0) {
+  const h = 0.08;
+  const [p0, p1, p2] = [path(t), path(t + h), path(t + 2 * h)];
+  const { f, u, x, a, m, q } = flyTmp;
+  f.subVectors(p1, p0).normalize();
+  a.subVectors(p2, p1).sub(p1.clone().sub(p0)).divideScalar(h * h); // acceleration
+  u.copy(UP).addScaledVector(f, -UP.dot(f)).normalize();
+  x.crossVectors(f, u); // the flier's side
+  // a basis with the nose on +Z and the model's up (-Y in LDraw) on the world's up
+  m.makeBasis(x, u.clone().negate(), f); // right-handed: (-u) x f = f x u = x
+  q.setFromRotationMatrix(m);
+  // bank into the turn: lean the up towards where it's being pulled
+  const bank = THREE.MathUtils.clamp(x.dot(a) * 0.04, -0.6, 0.6) + roll;
+  o.position.copy(p0);
+  o.quaternion.setFromAxisAngle(f, bank).multiply(q).multiply(pre);
+}
+
+// seagulls wheeling over the town: wide loops that breathe in and out and
+// rise and fall, each its own way round
 const GULLS = [
   { r: 700, y: 520, speed: 0.12, start: 0 },
   { r: 900, y: 640, speed: 0.1, start: 2 },
@@ -2134,18 +2199,26 @@ const GULLS = [
   { r: 1100, y: 700, speed: 0.08, start: 1 },
   { r: 800, y: 580, speed: -0.1, start: 5 },
 ];
+const BEAK_BACK = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI); // its beak is -Z
 function Seagulls() {
   const gull = useModel(useMemo(() => modelText(["1 15 0 0 0 1 0 0 0 1 0 0 0 1 12891p01.dat"], "gull.ldr"), []), true);
   const flock = useMemo(() => (gull ? GULLS.map(() => gull.clone()) : []), [gull]);
   const refs = useRef<(THREE.Group | null)[]>([]);
+  const paths = useMemo(
+    () =>
+      GULLS.map((g, i) => (t: number) => {
+        const a = g.start + t * g.speed;
+        const r = g.r * (1 + 0.22 * Math.sin(t * 0.21 + i));
+        return new THREE.Vector3(FOUNTAIN[0] + Math.cos(a) * r, -g.y - Math.sin(t * 0.4 + i * 2) * 60, FOUNTAIN[1] + Math.sin(a) * r);
+      }),
+    [],
+  );
   useFrame(({ clock }) => {
-    GULLS.forEach((g, i) => {
+    const t = clock.elapsedTime;
+    GULLS.forEach((_, i) => {
       const o = refs.current[i];
-      if (!o) return;
-      const a = g.start + clock.elapsedTime * g.speed;
-      o.position.set(FOUNTAIN[0] + Math.cos(a) * g.r, -g.y - Math.sin(clock.elapsedTime * 1.3 + i) * 20, FOUNTAIN[1] + Math.sin(a) * g.r);
-      // beak along the flight: the part's beak points -Z, so face the tangent and turn round
-      o.rotation.set(0, Math.atan2(-Math.sin(a) * g.speed, Math.cos(a) * g.speed) + Math.PI, Math.sign(g.speed) * 0.35);
+      // a little rock from wing to wing as it flaps
+      if (o) fly(o, paths[i], t, BEAK_BACK, Math.sin(t * 5 + i) * 0.1);
     });
   });
   return (
@@ -2309,25 +2382,58 @@ function StudGround({
 // The grass by season: fresh in spring, LEGO green in summer, olive in autumn, snow in winter.
 const GRASS: Record<Season, string> = { spring: "#58ab41", summer: "#4b9f4a", autumn: "#80a83e", winter: "#eef2f6" };
 
-// Hills beyond the forest, built the LEGO way: terraces of stacked layers,
-// each a little smaller than the one below (like plates stepped up into a
-// hill), fading into the haze. The land goes on, you just can't get there.
-function Hills({ color }: { color: string }) {
-  const hills = useMemo(() => {
-    const out: { p: [number, number, number]; r: number; turn: number; layers: number }[] = [];
+// The world beyond the town, built the LEGO way: the land runs on to the
+// horizon; terraced hills (stepped layers, each a shade lighter) with little
+// LEGO trees on top; beyond them a ring of stepped grey mountains with white
+// snow caps (deeper in winter); and a round LEGO sun in the sky. All plain
+// shapes: from this far off they read as bricks without costing any.
+function Scenery({ color, season, sunAt }: { color: string; season: Season; sunAt?: THREE.Vector3 }) {
+  const { hills, peaks, trees } = useMemo(() => {
     let seed = 3;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const far = (TOWN_HALF + 48) * 20 * LDU + 90; // well beyond the forest
+    const hills: { p: [number, number, number]; r: number; turn: number; layers: number }[] = [];
     for (let a = 0; a < Math.PI * 2; a += 0.28 + rnd() * 0.2) {
       const d = far + rnd() * 60;
-      out.push({ p: [Math.cos(a) * d, 0, Math.sin(a) * d], r: 40 + rnd() * 40, turn: rnd() * Math.PI, layers: 3 + Math.floor(rnd() * 3) });
+      hills.push({ p: [Math.cos(a) * d, 0, Math.sin(a) * d], r: 40 + rnd() * 40, turn: rnd() * Math.PI, layers: 3 + Math.floor(rnd() * 3) });
     }
-    return out;
+    const trees: [number, number, number, number][] = []; // x, y, z, size
+    for (const h of hills)
+      for (let k = 0; k < 3; k++) {
+        const a = rnd() * Math.PI * 2;
+        const d = rnd() * h.r * 0.45;
+        trees.push([h.p[0] + Math.cos(a) * d, h.r * 0.07 * h.layers, h.p[2] + Math.sin(a) * d, 5 + rnd() * 4]);
+      }
+    const peaks: { p: [number, number, number]; w: number; steps: number; turn: number }[] = [];
+    for (let a = 0.1; a < Math.PI * 2; a += 0.38 + rnd() * 0.25) {
+      const d = far + 150 + rnd() * 60;
+      peaks.push({ p: [Math.cos(a) * d, 0, Math.sin(a) * d], w: 70 + rnd() * 60, steps: 7 + Math.floor(rnd() * 4), turn: rnd() * Math.PI });
+    }
+    return { hills, peaks, trees };
   }, []);
   // each terrace a shade lighter than the one below: the steps read even far off
   const shades = useMemo(() => [0.86, 0.93, 1, 1.07, 1.14].map((k) => new THREE.Color(color).multiplyScalar(k)), [color]);
+  const snowLine = season === "winter" ? 0.45 : 0.72; // share of a mountain's steps below the snow
+  const treeMesh = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const m = treeMesh.current;
+    if (!m) return;
+    const o = new THREE.Object3D();
+    trees.forEach(([x, y, z, sz], i) => {
+      o.position.set(x, y + sz * 0.9, z);
+      o.scale.set(sz, sz * 1.8, sz);
+      o.updateMatrix();
+      m.setMatrixAt(i, o.matrix);
+    });
+    m.instanceMatrix.needsUpdate = true;
+  }, [trees]);
   return (
     <>
+      {/* the land goes on to the horizon */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, 0]} receiveShadow>
+        <circleGeometry args={[900, 64]} />
+        <meshStandardMaterial color={color} roughness={0.6} />
+      </mesh>
       {hills.map((h, i) => (
         <group key={i} position={h.p} rotation={[0, h.turn, 0]}>
           {Array.from({ length: h.layers }, (_, k) => {
@@ -2342,6 +2448,33 @@ function Hills({ color }: { color: string }) {
           })}
         </group>
       ))}
+      {/* LEGO pine trees on the hilltops (a plain cone reads as the 3471 from here) */}
+      <instancedMesh ref={treeMesh} args={[undefined, undefined, trees.length]}>
+        <coneGeometry args={[1, 1, 8]} />
+        <meshStandardMaterial color={season === "winter" ? "#e9eef3" : "#237841"} roughness={0.5} />
+      </instancedMesh>
+      {peaks.map((pk, i) => (
+        <group key={`p${i}`} position={pk.p} rotation={[0, pk.turn, 0]}>
+          {Array.from({ length: pk.steps }, (_, k) => {
+            const w = pk.w * (1 - k / pk.steps);
+            const t = pk.w * 0.11;
+            const snow = k >= pk.steps * snowLine;
+            return (
+              <mesh key={k} position={[0, t * (k + 0.5), 0]}>
+                <boxGeometry args={[w, t, w * 0.85]} />
+                <meshStandardMaterial color={snow ? "#f4f6f8" : k % 2 ? "#a0a5a9" : "#8c9196"} roughness={0.6} />
+              </mesh>
+            );
+          })}
+        </group>
+      ))}
+      {/* the sun: a round yellow plate, bright enough to glow */}
+      {sunAt && (
+        <mesh position={sunAt}>
+          <sphereGeometry args={[20, 24, 16]} />
+          <meshBasicMaterial color="#fff3b0" toneMapped={false} fog={false} />
+        </mesh>
+      )}
     </>
   );
 }
