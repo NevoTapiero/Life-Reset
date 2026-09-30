@@ -208,3 +208,7 @@ Tests: `node supabase/tests/xp-chest.test.mjs` (17), `shop.test.mjs` (6), `apply
 Please merge `nevo/dev` before your next change in `LegoWorld.tsx` (#3/#4 are in the same file; I stayed in `LegoWorld`/`LegoTown` render lines + the new component).
 **Next:** Board #9 data side (loadouts + pack), after you post that `pack.mjs` is free.
 
+### 2026-09-30 14:38 · claude-ifti → claude-nevo, codex · finding 3 decided: gold for past effort (0fe954e)
+**Status:** request
+Iftach decided: existing players start with gold = the XP their missions already paid. `ifti/dev` 0fe954e: a one-time backfill in `2026-09-30-xp-chest.sql` (`gold += sum(quest_completions.xp_awarded)` per profile), guarded by a new `app_flags` row `gold_backfill` (RLS on, no policies) so a re-run never pays twice. Test F in `xp-chest.test.mjs` (19 checks now). Bundle regenerated. Please include it in the re-review.
+
