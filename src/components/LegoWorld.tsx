@@ -7,25 +7,28 @@ import * as THREE from "three";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
 import { LDrawConditionalLineMaterial } from "three/examples/jsm/materials/LDrawConditionalLineMaterial.js";
 import { LDrawUtils } from "three/examples/jsm/utils/LDrawUtils.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import {
   BASE_HUNTER,
   MINIFIG_PARTS,
   PLOT,
   baseplate,
   buildGarden,
-  buildHouse,
   buildMinifig,
+  houseAt,
+  houseFor,
+  houseUrl,
   houseSpec,
   minifigSpot,
   modelText,
   plotX,
   townText,
-  type HouseSpec,
   type MinifigLook,
   type Resident,
 } from "@/lib/legoWorld";
 
-// Your plot in real parts: the 32x32 baseplate, your house, your garden, and
+// Your plot in real parts: the 48x48 baseplate, your house, your garden, and
 // your minifigure outside the door. The parts are loaded once (public/lego);
 // every model after that is just LDraw text parsed against them.
 
@@ -34,19 +37,29 @@ const LDU = 0.05; // three units per LDraw unit: a stud is 1
 // The colours and the packed parts are fetched once. Each model is parsed as
 // one packed file: its own lines first, then every part embedded after it,
 // the same shape as an official "_Packed.mpd".
-let setup: Promise<{ loader: LDrawLoader; parts: string }> | null = null;
-function getLoader() {
-  setup ??= (async () => {
-    const loader = new LDrawLoader();
-    loader.setConditionalLineMaterial(LDrawConditionalLineMaterial);
-    loader.smoothNormals = true;
-    const [, parts] = await Promise.all([
-      loader.preloadMaterials("/lego/LDConfig.ldr"),
-      fetch("/lego/parts.mpd").then((r) => r.text()),
-    ]);
-    // drop the index model at the top: only the embedded parts are needed
-    return { loader, parts: parts.slice(parts.indexOf("0 NOFILE") + "0 NOFILE".length) };
-  })();
+// Smoothing normals is quadratic in a part's size: fine for a minifig, but it
+// takes half a minute on a 48x48 baseplate, so the ground is parsed without it.
+const setups = new Map<boolean, Promise<{ loader: LDrawLoader; parts: string }>>();
+function getLoader(smooth: boolean) {
+  let setup = setups.get(smooth);
+  if (!setup)
+    setups.set(
+      smooth,
+      (setup = (async () => {
+        const loader = new LDrawLoader();
+        loader.setConditionalLineMaterial(LDrawConditionalLineMaterial);
+        loader.smoothNormals = smooth;
+        const [, parts] = await Promise.all([
+          loader.preloadMaterials("/lego/LDConfig.ldr"),
+          fetch("/lego/parts.mpd").then((r) => r.text()),
+        ]);
+        // drop the index model at the top: only the embedded parts are needed
+        return {
+          loader,
+          parts: parts.slice(parts.indexOf("0 NOFILE") + "0 NOFILE".length),
+        };
+      })()),
+    );
   return setup;
 }
 function parse(loader: LDrawLoader, text: string): Promise<THREE.Group> {
@@ -66,14 +79,13 @@ function finish(group: THREE.Object3D): THREE.Object3D {
   return group;
 }
 
-// src is LDraw text, or the URL of a self-contained packed set ("/lego/sets/...")
-function useModel(src: string | null, merge: boolean) {
+function useModel(text: string, merge: boolean) {
   const [group, setGroup] = useState<THREE.Object3D | null>(null);
   useEffect(() => {
-    if (!src) return;
     let live = true;
-    getLoader()
-      .then(async ({ loader, parts }) => parse(loader, src.startsWith("/") ? await (await fetch(src)).text() : src + parts))
+    // merged models are the ground (plots, gardens, streets): no smoothing
+    getLoader(!merge)
+      .then(({ loader, parts }) => parse(loader, text + parts))
       .then((g) => {
         if (!live) return;
         setGroup(finish(merge ? LDrawUtils.mergeObject(g) : g));
@@ -82,40 +94,46 @@ function useModel(src: string | null, merge: boolean) {
     return () => {
       live = false;
     };
-  }, [src, merge]);
+  }, [text, merge]);
   return group;
 }
 
-// An official set's house, turned (quarter turns about the vertical) so its
-// front faces the garden, and stood on the plot with its front on the house's
-// front edge. Sets are modelled facing different ways, hence the turn.
-function SetHouse({ file, turn, spec }: { file: string; turn: number; spec: HouseSpec }) {
-  const model = useModel(`/lego/sets/${file}`, true);
-  const at = useMemo<[number, number, number] | null>(() => {
-    if (!model) return null;
-    // the turned model's box, measured in its own space (LDU)
-    const r = new THREE.Matrix4().makeRotationY((turn * Math.PI) / 2);
-    const b = new THREE.Box3();
-    model.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      mesh.geometry.computeBoundingBox();
-      b.union(mesh.geometry.boundingBox!.clone().applyMatrix4(mesh.matrix).applyMatrix4(r));
-    });
-    const cx = (spec.x0 + spec.w / 2 - PLOT / 2) * 20;
-    const front = (spec.z0 + spec.d - PLOT / 2) * 20;
-    return [cx - (b.min.x + b.max.x) / 2, -b.max.y, front - b.max.z];
-  }, [model, spec, turn]);
-  if (!model || !at) return null;
-  return (
-    <group position={at} rotation={[0, (turn * Math.PI) / 2, 0]}>
-      <primitive object={model} />
-    </group>
-  );
+// The houses are official sets baked to glb (scripts/lego/pack.mjs); each file
+// is fetched once and every plot that needs it gets a clone sharing its geometry.
+const gltf = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+const houses = new Map<string, Promise<THREE.Object3D>>();
+function loadHouse(url: string) {
+  let p = houses.get(url);
+  if (!p) houses.set(url, (p = gltf.loadAsync(url).then((g) => finish(g.scene))));
+  return p;
+}
+
+// A house on its plot, `dx` LDU along the street.
+function House({ level, dx = 0 }: { level: number; dx?: number }) {
+  const url = houseUrl(houseFor(level));
+  const [model, setModel] = useState<{
+    url: string;
+    obj: THREE.Object3D;
+  } | null>(null);
+  useEffect(() => {
+    let live = true;
+    loadHouse(url)
+      .then((o) => live && setModel({ url, obj: o.clone() }))
+      .catch((e) => console.error("house:", e));
+    return () => {
+      live = false;
+    };
+  }, [url]);
+  if (!model || model.url !== url) return null;
+  const [x, y, z] = houseAt(houseSpec(level));
+  return <primitive object={model.obj} position={[x + dx, y, z]} />;
 }
 
 function Minifig({ look, at }: { look: MinifigLook; at: [number, number, number] }) {
-  const model = useModel(useMemo(() => modelText(buildMinifig(look), "minifig.ldr"), [look]), false);
+  const model = useModel(
+    useMemo(() => modelText(buildMinifig(look), "minifig.ldr"), [look]),
+    false,
+  );
   const root = useRef<THREE.Group>(null);
   const taps = useRef(0); // bumped by a tap
   const seen = useRef(0);
@@ -178,35 +196,31 @@ export default function LegoWorld({
   houseLevel = 1,
   streak = 0,
   look = BASE_HUNTER,
-  set,
   className,
 }: {
   houseLevel?: number;
   streak?: number;
   look?: MinifigLook;
-  /** an official set from public/lego/sets to stand in for the built house, and its quarter turns */
-  set?: { file: string; turn: number };
   className?: string;
 }) {
   const spec = houseSpec(houseLevel);
   const worldText = useMemo(
-    () => modelText([baseplate(), ...(set ? [] : buildHouse(houseLevel)), ...buildGarden(streak, houseSpec(houseLevel))], "plot.ldr"),
-    [houseLevel, streak, set],
+    () => modelText([baseplate(), ...buildGarden(streak, houseSpec(houseLevel))], "plot.ldr"),
+    [houseLevel, streak],
   );
   const world = useModel(worldText, true);
   const at = minifigSpot(spec);
   // the house centre in three's space: x as is, LDraw z flipped by the container's half-turn
   const target = useMemo(() => {
-    if (set) return new THREE.Vector3(0, 3, 4); // official sets are bigger: frame the whole plot
     const cx = (spec.x0 + spec.w / 2 - PLOT / 2) * 20 * LDU;
     const cz = (spec.z0 + spec.d / 2 - PLOT / 2) * 20 * LDU;
     return new THREE.Vector3(cx, 3, -cz - 3);
-  }, [set, spec.x0, spec.w, spec.z0, spec.d]);
+  }, [spec.x0, spec.w, spec.z0, spec.d]);
 
   return (
-    <Stage className={className} label="Your house and garden" target={target} width={set ? 38 : 30}>
+    <Stage className={className} label="Your house and garden" target={target} width={Math.max(34, spec.w + 14)}>
       {world && <primitive object={world} />}
-      {set && <SetHouse key={set.file} file={set.file} turn={set.turn} spec={spec} />}
+      <House level={houseLevel} />
       <Minifig look={look} at={at} />
     </Stage>
   );
@@ -285,7 +299,11 @@ function Stage({
           screenSpacePanning={false}
           // in the town a one-finger drag walks along the street; two fingers turn and zoom
           {...(pan && {
-            mouseButtons: { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE },
+            mouseButtons: {
+              LEFT: THREE.MOUSE.PAN,
+              MIDDLE: THREE.MOUSE.DOLLY,
+              RIGHT: THREE.MOUSE.ROTATE,
+            },
             touches: { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE },
           })}
           minDistance={14}
@@ -301,9 +319,17 @@ function Stage({
 // Your town: you and your friends, one plot each along a street, you in the
 // middle. Drag to walk along it; tap a house to go to it.
 export function LegoTown({ residents, className }: { residents: Resident[]; className?: string }) {
-  const town = useModel(useMemo(() => townText(residents), [residents]), true);
+  const town = useModel(
+    useMemo(() => townText(residents), [residents]),
+    true,
+  );
   const count = residents.length;
-  const [focus, setFocus] = useState(() => Math.max(0, residents.findIndex((r) => r.me)));
+  const [focus, setFocus] = useState(() =>
+    Math.max(
+      0,
+      residents.findIndex((r) => r.me),
+    ),
+  );
   const target = useMemo(() => new THREE.Vector3(plotX(focus, count) * LDU, 3, 0), [focus, count]);
   const plotW = PLOT * 20 * LDU;
 
@@ -312,18 +338,27 @@ export function LegoTown({ residents, className }: { residents: Resident[]; clas
       className={className}
       label="Your town"
       target={target}
-      width={46}
+      width={62}
       pan
       onPick={(p) => setFocus(Math.min(count - 1, Math.max(0, Math.round(p.x / plotW + (count - 1) / 2))))}
       overlay={residents.map((r, i) => {
         const s = houseSpec(r.level);
+        const cx = (s.x0 + s.w / 2 - PLOT / 2) * 20 * LDU;
         const cz = (s.z0 + s.d / 2 - PLOT / 2) * 20 * LDU;
         return (
-          <Html key={r.name} position={[plotX(i, count) * LDU, r.level >= 5 ? 24 : 17, -cz]} center zIndexRange={[10, 0]}>
+          <Html
+            key={r.name}
+            position={[plotX(i, count) * LDU + cx, houseFor(r.level).h * LDU + 3, -cz]}
+            center
+            zIndexRange={[10, 0]}
+          >
             <button
               onClick={() => setFocus(i)}
               className="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
-              style={{ background: r.me ? "#ff8a1f" : "rgba(20,18,16,0.8)", color: "#fff" }}
+              style={{
+                background: r.me ? "#ff8a1f" : "rgba(20,18,16,0.8)",
+                color: "#fff",
+              }}
             >
               {r.me ? "You" : r.name}
             </button>
@@ -332,6 +367,9 @@ export function LegoTown({ residents, className }: { residents: Resident[]; clas
       })}
     >
       {town && <primitive object={town} />}
+      {residents.map((r, i) => (
+        <House key={r.name} level={r.level} dx={plotX(i, count)} />
+      ))}
       {residents.map((r, i) => {
         const [x, y, z] = minifigSpot(houseSpec(r.level));
         return <Minifig key={r.name} look={BASE_HUNTER} at={[x + plotX(i, count), y, z]} />;

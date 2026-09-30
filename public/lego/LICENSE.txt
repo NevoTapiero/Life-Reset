@@ -8,7 +8,7 @@ ship publicly with these parts until it is licensed.
 
 Regenerate with: LDRAW=/path/to/ldraw node scripts/lego/pack.mjs
 
-sets/*.mpd are official LEGO set models from the LDraw Official Model Repository
+houses/*.glb are official LEGO set models from the LDraw Official Model Repository
 (https://library.ldraw.org/omr), redistributable under CCAL 2.0 (CC BY 2.0);
 authors are named in each file's header. The designs themselves are the LEGO
 Group's, so these need the licence too before shipping.

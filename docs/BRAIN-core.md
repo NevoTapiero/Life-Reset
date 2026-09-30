@@ -10,17 +10,18 @@ shelved (the world prototype lives on branch `ifti/world-prototype`).
 
 A LEGO world built from real parts: the LDraw library (community models of
 every LEGO element, CC BY 2.0), rendered in the browser with three's
-LDrawLoader. `src/lib/legoWorld.ts` writes the plot as LDraw text -- a 32x32
-baseplate, a house (white brick walls, running bond, real door and windows,
-45-degree red slope roof with a ridge), a garden (tile path, flower stems,
-round-brick hedge, trees), and your minifigure -- and
-`components/LegoWorld.tsx` renders it. Upgrades are more parts: the house by
-level, the garden by streak, the minifig by swapping parts and colours.
-`scripts/lego/pack.mjs` packs exactly the parts used into `public/lego/`
-(0.43 MB).
+LDrawLoader. `src/lib/legoWorld.ts` writes each plot as LDraw text -- a 48x48
+baseplate, a garden that grows with your streak (tile path, flowers, hedge,
+trees) and your minifigure -- and `components/LegoWorld.tsx` renders it.
+The house is an official LEGO set, one per level (Small Cottage, Holiday
+Home, Mountain Hut, Lakeside Lodge, Olivia's House), from the LDraw Official
+Model Repository. `scripts/lego/pack.mjs` packs the parts the plot uses into
+`public/lego/parts.mpd` and bakes each house to a small glb in
+`public/lego/houses/` (turned to face the garden, outlines dropped, meshopt).
+The Town tab lays you and your friends' plots along one street.
 
 **Licensing:** the geometry is free, but LEGO and the minifigure are LEGO
-Group trademarks. This must not ship publicly (merge to `main` auto-deploys)
+Group trademarks, and the houses are LEGO's own set designs. This must not ship publicly (merge to `main` auto-deploys)
 until the licence is in place.
 
 ## The screen

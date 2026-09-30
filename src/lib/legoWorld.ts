@@ -1,13 +1,15 @@
+import HOUSES from "./legoHouses.json" with { type: "json" };
+
 // The plot, built from real LDraw parts (the community library that models
 // every LEGO element). This file only writes LDraw text: which part, which
 // colour, where. The renderer (components/LegoWorld.tsx) parses it with three's
 // LDrawLoader against the parts packed by scripts/lego/pack.mjs.
 //
 // LDraw units: 1 stud = 20 LDU, 1 plate = 8, 1 brick = 24, and -Y is up.
-// The plot is a 32x32 baseplate; cell (i, j) is a stud, 0..31 on x and z.
+// The plot is a 48x48 baseplate; cell (i, j) is a stud, 0..47 on x and z.
 // The front of the house and the garden face +Z.
 
-export const PLOT = 32;
+export const PLOT = 48;
 const S = 20;
 const PLATE = 8;
 
@@ -32,17 +34,13 @@ export const COL = {
 // How far below its origin each part reaches (its bottom), measured from the
 // LDraw geometry: the part's origin sits this far above whatever it stands on.
 const BOTTOM: Record<string, number> = {
-  "3005": 24, "3004": 24, "3622": 24, "3010": 24, "3062b": 24,
-  "3040b": 24, "3044b": 24,
-  "3068b": 8, "3069b": 8, "3070b": 8,
-  "60596": 144, "60592": 48, "3741ac05": 12, "3470": 8, "2435": 8,
+  "3062b": 24, "3068b": 8, "3069b": 8, "3741ac05": 12, "3470": 8, "2435": 8,
 };
 
-// every part the world can use; scripts/lego/pack.mjs packs exactly these
+// every part the plot and the minifig use; scripts/lego/pack.mjs packs exactly
+// these (the houses are official sets, baked separately into public/lego/houses)
 export const LEGO_PARTS = [
-  "3811", "3005", "3004", "3622", "3010", "3062b", "3040b", "3044b",
-  "3068b", "3069b", "3070b", "60596", "60623", "60592", "60601",
-  "3741ac05", "3470", "2435",
+  "4186", "91405", "3062b", "3068b", "3069b", "3741ac05", "3470", "2435",
   "973", "3818", "3819", "3820", "3815", "3816", "3817", "3626cp01", "53981",
 ];
 
@@ -66,154 +64,33 @@ function put(part: string, color: number, u: number, w: number, plates: number, 
   return line(color, (u - (PLOT - 1) / 2) * S, -plates * PLATE - bottom, (w - (PLOT - 1) / 2) * S, ROT[rot], part);
 }
 
-const BRICK_1XN: Record<number, string> = { 1: "3005", 2: "3004", 3: "3622", 4: "3010" };
+// ---- the house -------------------------------------------------------------
 
-// split consecutive cells into 1xN bricks, staggering the joints on odd layers
-function runs(cells: number[]): number[][] {
-  const out: number[][] = [];
-  let cur: number[] = [];
-  for (const c of cells) {
-    if (cur.length && c !== cur[cur.length - 1] + 1) {
-      out.push(cur);
-      cur = [];
-    }
-    cur.push(c);
-  }
-  if (cur.length) out.push(cur);
-  return out;
-}
-function chunk(len: number, odd: boolean): number[] {
-  const out: number[] = [];
-  let left = len;
-  let first = true;
-  while (left > 0) {
-    let take = left >= 4 ? 4 : left;
-    if (first && odd && left >= 3) take = 2;
-    else if (left === 5) take = 3;
-    out.push(take);
-    left -= take;
-    first = false;
-  }
-  return out;
-}
+// House level 1..5 is an official LEGO set (LDraw Official Model Repository),
+// baked by scripts/lego/pack.mjs into public/lego/houses/<id>.glb: turned to
+// face the garden (+Z), its left edge at x = 0, its front at z = 0, standing
+// on y = 0. HOUSES records each one's footprint in studs.
+export type House = { id: string; name: string; w: number; d: number; h: number };
+export const houseFor = (level: number): House => (HOUSES as House[])[Math.min(Math.max(level, 1), HOUSES.length) - 1];
+export const houseUrl = (h: House) => `/lego/houses/${h.id}.glb`;
 
-export type HouseSpec = { x0: number; z0: number; w: number; d: number; floors: number };
-
-// House level 1..5. w and d stay even so the floor tiles and the roof ridge fit.
+// The house's footprint on the plot, in cells: centred left to right, as far
+// back as leaves the garden 12 rows (or against the back edge if it's deep).
+export type HouseSpec = { x0: number; z0: number; w: number; d: number };
 export function houseSpec(level: number): HouseSpec {
-  if (level >= 5) return { x0: 9, z0: 4, w: 14, d: 10, floors: 2 };
-  if (level >= 3) return { x0: 10, z0: 5, w: 12, d: 10, floors: 1 };
-  return { x0: 11, z0: 6, w: 10, d: 8, floors: 1 };
+  const { w, d } = houseFor(level);
+  return { x0: Math.floor((PLOT - w) / 2), z0: Math.max(1, PLOT - d - 12), w, d };
+}
+
+// Where the house model goes (LDU): its left edge on x0, its front on the spec's front.
+export function houseAt(s: HouseSpec): [number, number, number] {
+  return [(s.x0 - PLOT / 2) * S, 0, (s.z0 + s.d - PLOT / 2) * S];
 }
 
 export function doorCells(s: HouseSpec) {
-  const dx = s.x0 + s.w / 2 - 2;
+  const dx = s.x0 + Math.floor(s.w / 2) - 2;
   return [dx, dx + 1, dx + 2, dx + 3];
 }
-
-export function buildHouse(level: number): string[] {
-  const s = houseSpec(level);
-  const out: string[] = [];
-  const { x0, z0, w, d } = s;
-  const front = z0 + d - 1;
-  const back = z0;
-  const left = x0;
-  const right = x0 + w - 1;
-  const door = doorCells(s);
-  const layers = 6 * s.floors;
-
-  // windows: [wall, first cell, layer] -- each is 2 cells wide and 2 bricks tall
-  const windows: { wall: "front" | "back" | "left" | "right"; at: number; layer: number }[] = [];
-  for (let f = 0; f < s.floors; f++) {
-    const L = f * 6 + 2;
-    windows.push({ wall: "front", at: x0 + 1, layer: L }, { wall: "front", at: right - 2, layer: L });
-    if (f > 0) windows.push({ wall: "front", at: door[1], layer: L });
-    windows.push({ wall: "back", at: x0 + 2, layer: L }, { wall: "back", at: right - 3, layer: L });
-    windows.push({ wall: "left", at: z0 + d / 2 - 1, layer: L }, { wall: "right", at: z0 + d / 2 - 1, layer: L });
-  }
-  const inWindow = (wall: string, cell: number, L: number) =>
-    windows.some((o) => o.wall === wall && L >= o.layer && L < o.layer + 2 && cell >= o.at && cell < o.at + 2);
-
-  // floor: 2x2 tiles over the inside
-  for (let x = x0 + 1; x < right; x += 2) for (let z = z0 + 1; z < front; z += 2) out.push(put("3068b", COL.tan, x + 0.5, z + 0.5, 0));
-
-  for (let L = 0; L < layers; L++) {
-    const odd = L % 2 === 1;
-    const colour = L === 0 ? COL.lightGrey : COL.white;
-    const plates = L * 3;
-    // corners interlock: front/back own them on even layers, the sides on odd ones
-    const xs: number[] = [];
-    for (let x = odd ? x0 + 1 : x0; x <= (odd ? right - 1 : right); x++) xs.push(x);
-    const zs: number[] = [];
-    for (let z = odd ? back : back + 1; z <= (odd ? front : front - 1); z++) zs.push(z);
-
-    for (const [wall, zRow] of [["front", front], ["back", back]] as const) {
-      const cells = xs.filter((x) => !inWindow(wall, x, L) && !(wall === "front" && L < 6 && door.includes(x)));
-      for (const r of runs(cells)) {
-        let at = r[0];
-        for (const len of chunk(r.length, odd)) {
-          out.push(put(BRICK_1XN[len], colour, at + (len - 1) / 2, zRow, plates));
-          at += len;
-        }
-      }
-    }
-    for (const [wall, xCol] of [["left", left], ["right", right]] as const) {
-      const cells = zs.filter((z) => !inWindow(wall, z, L));
-      for (const r of runs(cells)) {
-        let at = r[0];
-        for (const len of chunk(r.length, !odd)) {
-          out.push(put(BRICK_1XN[len], colour, xCol, at + (len - 1) / 2, plates, 90));
-          at += len;
-        }
-      }
-    }
-  }
-
-  // door frame and door; parts face -Z, the house faces +Z, so both turn 180
-  const doorU = door[0] + 1.5;
-  const frame = put("60596", COL.white, doorU, front, 0, 180);
-  out.push(frame);
-  const fy = Number(frame.split(" ")[3]);
-  out.push(line(COL.reddishBrown, (doorU - (PLOT - 1) / 2) * S + 30, fy, (front - (PLOT - 1) / 2) * S, ROT[180], "60623"));
-
-  // windows with glass, facing outwards
-  const facing = { front: 180, back: 0, left: 90, right: 270 } as const;
-  for (const o of windows) {
-    const alongX = o.wall === "front" || o.wall === "back";
-    const u = alongX ? o.at + 0.5 : o.wall === "left" ? left : right;
-    const v = alongX ? (o.wall === "front" ? front : back) : o.at + 0.5;
-    const frameLine = put("60592", COL.white, u, v, o.layer * 3, facing[o.wall]);
-    out.push(frameLine, frameLine.replace(/^1 \d+ /, `1 ${COL.transClear} `).replace("60592.dat", "60601.dat")); // the glass shares the frame's origin
-  }
-
-  // roof: 45-degree slopes stepping in one stud and up one brick per course,
-  // a double slope on the ridge; the gable ends are filled with bricks
-  const top = layers * 3;
-  const courses = (d - 2) / 2;
-  for (let k = 0; k <= courses; k++) {
-    const plates = top + k * 3;
-    for (let x = x0; x <= right; x++) {
-      out.push(put("3040b", COL.red, x, front - k, plates, 180));
-      out.push(put("3040b", COL.red, x, back + k, plates, 0));
-    }
-    // gable fill between the two high cells, on both side walls
-    const zs: number[] = [];
-    for (let z = back + k + 1; z <= front - k - 1; z++) zs.push(z);
-    for (const xCol of [left, right])
-      for (const r of runs(zs)) {
-        let at = r[0];
-        for (const len of chunk(r.length, k % 2 === 1)) {
-          out.push(put(BRICK_1XN[len], COL.white, xCol, at + (len - 1) / 2, plates, 90));
-          at += len;
-        }
-      }
-  }
-  for (let x = x0; x <= right; x++) out.push(put("3044b", COL.red, x, back + courses + 0.5, top + (courses + 1) * 3));
-  return out;
-}
-
-// 3040b's origin is its high (studded) cell and it slopes down towards -Z; at
-// 180 degrees it slopes towards +Z. Either way `put` centres on the high cell.
 
 const FLOWER_COLOURS = [COL.red, COL.yellow, COL.white, COL.pink, COL.blue, COL.mediumLavender];
 
@@ -243,7 +120,7 @@ export function buildGarden(streak: number, s: HouseSpec): string[] {
 }
 
 export function baseplate(): string {
-  return line(COL.green, 0, 0, 0, ROT[0], "3811");
+  return line(COL.green, 0, 0, 0, ROT[0], "4186");
 }
 
 // ---- the minifigure --------------------------------------------------------
@@ -304,15 +181,15 @@ export type Resident = { name: string; level: number; streak: number; me?: boole
 export const plotX = (i: number, n: number) => (i - (n - 1) / 2) * PLOT * S;
 
 // The town as one LDraw file: each plot is its own submodel, placed along x,
-// with a grey street of baseplates running in front of them (+Z).
+// with a grey street of 16x16 plates, flush with the baseplates, in front (+Z).
 export function townText(residents: Resident[]): string {
   const count = residents.length;
   const main = residents.flatMap((_, i) => [
     `1 16 ${n(plotX(i, count))} 0 0 1 0 0 0 1 0 0 0 1 plot-${i}.ldr`,
-    line(COL.darkGrey, plotX(i, count), 0, PLOT * S, ROT[0], "3811"),
+    ...[-16, 0, 16].map((dx) => line(COL.darkGrey, plotX(i, count) + dx * S, 0, (PLOT / 2 + 8) * S, ROT[0], "91405")),
   ]);
   const plots = residents.map((r, i) =>
-    modelText([baseplate(), ...buildHouse(r.level), ...buildGarden(r.streak, houseSpec(r.level))], `plot-${i}.ldr`),
+    modelText([baseplate(), ...buildGarden(r.streak, houseSpec(r.level))], `plot-${i}.ldr`),
   );
   return [modelText(main, "town.ldr"), ...plots].join("");
 }
