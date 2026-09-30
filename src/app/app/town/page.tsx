@@ -111,6 +111,7 @@ export default function TownPage() {
             onCollect={async () => (await collect())?.xp ?? null}
             owned={owned}
             onLeave={leave}
+            level={residents.find((r) => r.me)?.level}
             className="w-full h-full"
           />
         )}

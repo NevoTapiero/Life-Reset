@@ -1,5 +1,6 @@
 import HOUSES from "./legoHouses.json" with { type: "json" };
 import SHOP from "./legoShop.json" with { type: "json" };
+import LOADOUTS from "./legoLoadouts.generated.json" with { type: "json" };
 
 // The plot, built from real LDraw parts (the community library that models
 // every LEGO element). This file only writes LDraw text: which part, which
@@ -180,18 +181,50 @@ const MINIFIG: { name: string; part: string; slot: keyof MinifigLook; at: [numbe
 export const MINIFIG_PARTS = MINIFIG.map((p) => p.name);
 const FEET = 72; // torso top to the soles
 
+// What a minifig wears: a part and colour for each MINIFIG slot, the gear it
+// holds or wears (placed in the same torso frame as MINIFIG, on a MINIFIG part:
+// `attach`), and its shoes (no LDraw part: the renderer tints the feet).
+export type Figure = {
+  parts: Record<string, { part: string; color: number }>;
+  gear?: { part: string; color: number; attach: string; at: number[]; m: number[] }[];
+  shoes?: { color: number; finish: string };
+};
+/** a plain figure in four colours (the townsfolk) */
+export const figureOf = (look: MinifigLook): Figure => ({
+  parts: Object.fromEntries(MINIFIG.map((p) => [p.name, { part: p.part, color: look[p.slot] }])),
+});
+// The characters' levels (3d/lego/characters, via scripts/lego/loadouts.mjs):
+// clothes, gear, shoes and a ride per level. Only the Warrior has them so far.
+export type Loadout = (typeof LOADOUTS.characters.warrior.levels)[number];
+export function loadoutFor(level: number, character = "warrior"): Loadout {
+  const levels = (LOADOUTS.characters as Record<string, { levels: Loadout[] }>)[character]?.levels ?? LOADOUTS.characters.warrior.levels;
+  return levels[Math.min(Math.max(Math.round(level), 1), levels.length) - 1];
+}
+
+// ponytail: the shields the loadouts use (2586 ovoid, 18836 triangular), by part; a name/category field if more come
+const SHIELD = /^(2586|18836)/;
+
 // A standalone minifig model, torso origin at 0, soles at y = 0, facing +Z.
-// Its lines come out in MINIFIG_PARTS order so the renderer can find the head.
-export function buildMinifig(look: MinifigLook): string[] {
+// Its lines come out in MINIFIG_PARTS order, then its gear, so the renderer can find each part.
+export function buildMinifig(fig: Figure): string[] {
   const R = ROT[180];
-  return MINIFIG.map(({ part, slot, at, m }) => {
-    const [x, y, z] = at;
-    // turn the whole figure 180 degrees about Y: rotate the offset and the matrix
-    const p: [number, number, number] = [R[0] * x + R[2] * z, y - FEET, R[6] * x + R[8] * z];
+  // turn the whole figure 180 degrees about Y: rotate the offset and the matrix
+  const put = (part: string, color: number, [x, y, z]: number[], m: number[]) => {
     const mm: Mat = [0, 0, 0, 0, 0, 0, 0, 0, 0];
     for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) mm[i * 3 + j] = R[i * 3] * m[j] + R[i * 3 + 1] * m[3 + j] + R[i * 3 + 2] * m[6 + j];
-    return line(look[slot], p[0], p[1], p[2], mm, part);
-  });
+    return line(color, R[0] * x + R[2] * z, y - FEET, R[6] * x + R[8] * z, mm, part);
+  };
+  return [
+    ...MINIFIG.map(({ name, part, at, m }) => {
+      const p = fig.parts[name] ?? { part, color: COL.yellow };
+      return put(p.part, p.color, at, m);
+    }),
+    ...(fig.gear ?? []).map(({ part, color, at, m }) =>
+      // a shield's face is its XY plane, handle at the origin: on the grip as is it lies flat, so turn
+      // it a quarter about its handle (m * Ry(-90)) to face out from the arm
+      put(part, color, at, SHIELD.test(part) ? [m[2], m[1], -m[0], m[5], m[4], -m[3], m[8], m[7], -m[6]] : m),
+    ),
+  ];
 }
 
 // Where the figure stands: on the path, just outside the door (LDraw units, top of the path tiles).
