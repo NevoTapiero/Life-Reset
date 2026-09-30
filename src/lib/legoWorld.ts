@@ -380,13 +380,6 @@ function seeded(seed: number) {
   };
 }
 
-const TREES = [
-  { part: "3471", color: COL.darkGreen },
-  { part: "3471", color: COL.green },
-  { part: "3470", color: COL.green },
-  { part: "2435", color: COL.darkGreen },
-  { part: "2417", color: COL.brightGreen },
-];
 
 // The ground itself is drawn flat by the renderer (smooth grey streets, like
 // LEGO road plates, and grass beyond); studded plates there would be about
@@ -403,10 +396,11 @@ export const ROAD_OUT = 16; // the roads out of town, studs wide, at x = 0
 export const RIVER_Z = -(TOWN_HALF + VERGE + FOREST_DEPTH / 2); // through the north forest, studs
 export const RIVER_W = 16; // studs
 export const ROAD_END = TOWN_HALF + VERGE + FOREST_DEPTH + 70; // where the roads out fade into the hills
-const PINES = [TREES[0], TREES[1]];
-const BROADLEAF = [TREES[3], TREES[4]];
-export function townLand(): string[] {
-  const out: string[] = [];
+/** the forest belt: where each tree stands (LDU), how tall (LDU), and whether it's a pine.
+ *  Drawn as plain cones and balls by the renderer (Scenery): from the town they read as
+ *  LEGO trees, and the real 3,500-triangle pine part times 300 was what made the map view crawl. */
+export function forestTrees(): { x: number; z: number; h: number; pine: boolean }[] {
+  const out: { x: number; z: number; h: number; pine: boolean }[] = [];
   const rnd = seeded(7);
   const from = TOWN_HALF + VERGE;
   const to = from + FOREST_DEPTH;
@@ -415,12 +409,13 @@ export function townLand(): string[] {
       if (Math.abs(i) < from && Math.abs(j) < from) continue; // the town
       if (Math.abs(i) < ROAD_OUT / 2 + 6) continue; // the roads out
       if (Math.abs(j - RIVER_Z) < RIVER_W / 2 + 6) continue; // the river
-      const t = rnd() < 0.82 ? PINES[Math.floor(rnd() * 2)] : BROADLEAF[Math.floor(rnd() * 2)];
-      const x = Math.round(i + (rnd() - 0.5) * 6) * S;
-      const z = Math.round(j + (rnd() - 0.5) * 6) * S;
-      out.push(line(t.color, x, -BOTTOM[t.part], z, ROT[([0, 90, 180, 270] as const)[Math.floor(rnd() * 4)]], t.part));
+      const pine = rnd() < 0.82;
+      out.push({ x: Math.round(i + (rnd() - 0.5) * 6) * S, z: Math.round(j + (rnd() - 0.5) * 6) * S, h: (pine ? 110 : 80) + rnd() * 50, pine });
     }
-  return [...out, ...avenueTrees()];
+  return out;
+}
+export function townLand(): string[] {
+  return avenueTrees();
 }
 // Leafy trees in rows along the pavements of every street (three a block
 // side, clear of the corner lamps), the plaza block excepted: it has its own.
