@@ -21,6 +21,9 @@ export const COL = {
   darkGreen: 288,
   orange: 25,
   darkTan: 28,
+  darkRed: 320,
+  darkOrange: 484,
+  transLightBlue: 43,
   purple: 22,
   brightGreen: 10,
   red: 4,
@@ -47,6 +50,7 @@ const BOTTOM: Record<string, number> = {
 export const LEGO_PARTS = [
   "4186", "91405", "3062b", "3068b", "3069b", "3741ac05", "3470", "2435", "3471", "2417", "30055",
   "3031", "3754", "3003", "29592", "62698-f2", "33051", "14769p0f", "1", "60594", "60603", "3010", "3005", "87079",
+  "3001", "3002", "3004", "3009", "3020", "3022", "3023b", "3032", "3036", "3795", "3666", "3710", "2431", "3941", "4589", "4079", "3068bp0t", "3068bp71", "3068bp74",
   "973", "3818", "3819", "3820", "3815", "3816", "3817", "3626cp01", "53981",
 ];
 
@@ -282,23 +286,125 @@ function turnMat(facing: Mat, m: Mat): Mat {
   return out;
 }
 
-// Each pillar's station: a 4x4 plate in its colour with a prop on top, turned
-// to face into the room. `top` is the plate's upper surface (LDraw -Y is up).
-const LAY_FLAT: Mat = [0, -1, 0, 1, 0, 0, 0, 0, 1]; // a quarter turn about Z
-type Place = (color: number, dx: number, y: number, dz: number, m: Mat, part: string) => string;
-const STATION_LOOK: Record<string, { colour: number; props: (put: Place, top: number) => string[] }> = {
-  Strength: { colour: COL.red, props: (put, top) => [put(COL.darkGrey, 0, top - 11, 0, LAY_FLAT, "29592")] },
-  Focus: {
-    colour: COL.blue,
-    props: (put, top) => [put(COL.darkGrey, 0, top - 24, 0, ROT[0], "3003"), put(COL.lightGrey, 0, top - 25, 0, ROT[180], "62698-f2")],
-  },
-  Constitution: { colour: COL.green, props: (put, top) => [put(COL.red, 6, top, 0, ROT[0], "33051")] },
-  Discipline: {
-    colour: COL.orange,
-    props: (put, top) => [put(COL.white, 0, top - 24, 0, ROT[0], "3003"), put(COL.white, 0, top - 32, 0, ROT[0], "14769p0f")],
-  },
-  Wisdom: { colour: COL.purple, props: (put, top) => [put(COL.reddishBrown, 0, top - 96, 10, ROT[180], "1")] },
+// ---- furniture ----
+// A piece of furniture is a list of parts in its own frame: x along the wall,
+// +z out into the room, `h` how high the part's bottom sits above the floor
+// (LDU). Every part here has its origin on top, HEIGHT above its bottom.
+const HEIGHT: Record<string, number> = {
+  "3001": 24, "3003": 24, "3004": 24, "3005": 24, "3010": 24, "3062b": 24, "3941": 24, "4589": 24,
+  "3020": 8, "3022": 8, "3023b": 8, "3031": 8, "3032": 8, "3036": 8, "3795": 8, "3710": 8,
+  "3068b": 8, "87079": 8, "2431": 8, "14769p0f": 8, "4079": 8, "3741ac05": 12,
+  "29592": 11, "62698-f2": 1, "33051": 0, "1": 96,
 };
+type Piece = [part: string, color: number, dx: number, h: number, dz: number, m?: Mat];
+const FLOOR = -8; // top of the planks
+
+const LAY_FLAT: Mat = [0, -1, 0, 1, 0, 0, 0, 0, 1]; // a quarter turn about Z
+const ALONG_Z = ROT[90]; // a part's long side pointing out into the room
+const stack = (part: string, color: number, dx: number, dz: number, n: number, from = 0): Piece[] =>
+  Array.from({ length: n }, (_, k) => [part, color, dx, from + k * HEIGHT[part], dz]);
+
+// Each pillar's furniture; a second mission of the same pillar gets the next variant.
+const FURNITURE: Record<string, Piece[][]> = {
+  Strength: [
+    // a weight rack with the barbell across it, and a bench
+    [
+      ...stack("3062b", COL.darkGrey, -30, -30, 3),
+      ...stack("3062b", COL.darkGrey, 30, -30, 3),
+      ["29592", COL.darkGrey, 0, 72, -30, LAY_FLAT],
+      ["3005", COL.black, 0, 0, 10],
+      ["3005", COL.black, 0, 0, 50],
+      ["3020", COL.red, 0, 24, 30, ALONG_Z],
+    ],
+    // a treadmill
+    [
+      ["3795", COL.darkGrey, 0, 0, 10, ALONG_Z],
+      ["87079", COL.black, 0, 8, 20, ALONG_Z],
+      ...stack("3062b", COL.lightGrey, -30, -40, 3),
+      ...stack("3062b", COL.lightGrey, 30, -40, 3),
+      ["2431", COL.red, 0, 72, -40],
+    ],
+  ],
+  Focus: [
+    // a desk with the laptop and a lamp, a chair pulled up to it
+    [
+      ...[-50, 50].flatMap((dx) => [...stack("3005", COL.white, dx, -50, 2), ...stack("3005", COL.white, dx, 10, 2)]),
+      ["3032", COL.white, 0, 48, -20],
+      ["62698-f2", COL.lightGrey, -10, 56, -25, ROT[180]],
+      ["3062b", COL.black, 45, 56, -45],
+      ["4589", COL.yellow, 45, 80, -45],
+      ["3062b", COL.darkGrey, 0, 0, 50],
+      ["4079", COL.blue, 0, 24, 50],
+    ],
+  ],
+  Constitution: [
+    // the kitchen: a fridge, a counter with a water bottle and an apple
+    [
+      ...stack("3003", COL.white, -50, -30, 4),
+      ["3068b", COL.lightGrey, -50, 96, -30],
+      ...stack("3001", COL.white, 20, -30, 2),
+      ["87079", COL.lightGrey, 20, 48, -30],
+      ...stack("3062b", COL.transLightBlue, 45, -30, 2, 56),
+      ["33051", COL.red, 0, 56, -30],
+    ],
+    // a counter with fruit and a plant
+    [
+      ...stack("3001", COL.white, 0, -30, 2),
+      ["87079", COL.lightGrey, 0, 48, -30],
+      ["33051", COL.red, -20, 56, -30],
+      ["3941", COL.darkOrange, 45, 0, 20],
+      ["3741ac05", COL.yellow, 45, 24, 20],
+    ],
+  ],
+  Discipline: [
+    // a bed, with a nightstand and the alarm clock
+    [
+      ...[-30, 30].flatMap((dx) => [["3005", COL.reddishBrown, dx, 0, -50], ["3005", COL.reddishBrown, dx, 0, 50]] as Piece[]),
+      ["3032", COL.reddishBrown, 0, 24, 0, ALONG_Z],
+      ["3032", COL.white, 0, 32, 0, ALONG_Z],
+      ["3068b", COL.white, 0, 40, -40],
+      ["87079", COL.blue, -20, 40, 20, ALONG_Z],
+      ["87079", COL.blue, 20, 40, 20, ALONG_Z],
+      ...stack("3010", COL.reddishBrown, 0, -70, 3),
+      ["3003", COL.reddishBrown, 60, 0, -50],
+      ["14769p0f", COL.white, 60, 24, -50],
+    ],
+    // a clock on a stand and a chair: sit, no phone
+    [
+      ...stack("3003", COL.white, -30, -30, 2),
+      ["14769p0f", COL.white, -30, 48, -30],
+      ["3062b", COL.darkGrey, 30, 0, 20],
+      ["4079", COL.orange, 30, 24, 20],
+    ],
+  ],
+  Wisdom: [
+    // the bookcase and an armchair
+    [
+      ["1", COL.reddishBrown, -20, 0, -30, ROT[180]],
+      ["3022", COL.darkRed, 45, 0, 30],
+      ["4079", COL.darkRed, 45, 8, 30],
+    ],
+    // a bookcase and a plant
+    [
+      ["1", COL.reddishBrown, 0, 0, -30, ROT[180]],
+      ["3941", COL.darkOrange, 55, 0, 10],
+      ["3741ac05", COL.red, 55, 24, 10],
+    ],
+  ],
+};
+
+// Parts placed at (x, z) on the floor, turned by `f`.
+function place(pieces: Piece[], x: number, z: number, f: Mat): string[] {
+  return pieces.map(([part, color, dx, h, dz, m]) =>
+    line(color, x + f[0] * dx + f[2] * dz, FLOOR - h - HEIGHT[part], z + f[6] * dx + f[8] * dz, turnMat(f, m ?? ROT[0]), part),
+  );
+}
+
+// Pictures hang flat on a wall: a tile turned to face out of it (f is the wall's facing).
+const ON_WALL: Mat = [1, 0, 0, 0, 0, 1, 0, -1, 0];
+function picture(tile: string, x: number, z: number, f: Mat): string {
+  return line(COL.white, x, -170, z, turnMat(f, ON_WALL), tile);
+}
 
 // The room is 32x32 studs with walls ten bricks high -- about two and a half
 // minifigs, a real ceiling height -- on the back and both sides; the front is
@@ -348,14 +454,18 @@ export function roomText(stations: Station[]): string {
       const z = -ROOM + 60 + k * 120;
       out.push(line(COL.tan, side * (ROOM - 10), -120, z, ROT[90], "3754"), line(COL.white, side * (ROOM - 10), -WALL, z, ROT[90], "3754"));
     }
+  // the starter house: a rug in the middle, plants in the front corners, pictures on the walls
+  out.push(line(COL.darkRed, 0, FLOOR - 8, 40, ROT[0], "3036"));
+  for (const side of [-1, 1]) out.push(...place([["3941", COL.darkOrange, 0, 0, 0], ["3741ac05", side < 0 ? COL.pink : COL.yellow, 0, 24, 0]], side * 265, 275, ROT[0]));
+  out.push(picture("3068bp0t", 0, -ROOM + 28, ROT[0]), picture("3068bp71", -ROOM + 28, 30, ROT[90]), picture("3068bp74", ROOM - 28, 30, ROT[270]));
+
+  // a piece of furniture per mission
+  const seen: Record<string, number> = {};
   stations.slice(0, MAX_STATIONS).forEach((st, i) => {
     const [x, z] = stationSpot(i);
-    const f = stationFacing(i);
-    const look = STATION_LOOK[st.pillar] ?? STATION_LOOK.Discipline;
-    // place a prop at an offset from the station's centre, turned with it
-    const put: Place = (color, dx, y, dz, m, part) => line(color, x + f[0] * dx + f[2] * dz, y, z + f[6] * dx + f[8] * dz, turnMat(f, m), part);
-    // a rug in the pillar's colour on the planks, the prop on it
-    out.push(line(look.colour, x, -16, z, ROT[0], "3031"), ...look.props(put, -16));
+    const kinds = FURNITURE[st.pillar] ?? FURNITURE.Discipline;
+    const n = (seen[st.pillar] = (seen[st.pillar] ?? -1) + 1);
+    out.push(...place(kinds[n % kinds.length], x, z, stationFacing(i)));
   });
   return modelText(out, "room.ldr");
 }

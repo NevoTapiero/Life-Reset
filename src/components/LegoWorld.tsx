@@ -672,20 +672,20 @@ export function LegoRoom({
           const [x, z] = stationSpot(i);
           return {
             key: st.id,
-            at: [x * LDU, 7, -z * LDU] as [number, number, number],
+            at: [x * LDU, 9, -z * LDU] as [number, number, number],
             node: (
               <button
                 onClick={() => tap(st)}
                 disabled={busy === st.id}
-                className="relative flex flex-col items-center w-[84px] px-1.5 py-1 rounded-xl leading-tight shadow-md active:scale-95 transition-transform"
+                className="relative flex flex-col items-center max-w-[70px] px-2 py-0.5 rounded-lg leading-tight shadow-md active:scale-95 transition-transform"
                 style={{
                   background: st.done ? "rgba(40,120,60,0.92)" : "#ff8a1f",
                   color: "#fff",
                   opacity: busy === st.id ? 0.7 : 1,
                 }}
               >
-                <span className="w-full truncate text-center text-[10px] font-semibold">{st.title}</span>
-                <span className="text-[11px] font-bold">{st.done ? "✓ done" : `+${st.xp} XP`}</span>
+                <span className="text-[11px] font-bold">{st.done ? "✓" : `+${st.xp}`}</span>
+                <span className="w-full truncate text-center text-[9px] font-medium opacity-90">{st.title}</span>
                 {paid?.id === st.id && (
                   <span
                     className="xp-float absolute inset-x-0 -top-5 text-center font-mono font-bold text-sm"
@@ -700,7 +700,7 @@ export function LegoRoom({
         })}
       >
         {room && <primitive object={room} />}
-        <Minifig look={look} at={[0, -8, 60]} />
+        <Minifig look={look} at={[0, -16, 60]} />
       </Stage>
       {stations.length === 0 && (
         <p className="absolute inset-x-0 top-4 text-center text-sm font-semibold" style={{ color: "#3a3a3a" }}>
