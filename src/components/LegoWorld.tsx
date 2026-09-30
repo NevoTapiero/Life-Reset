@@ -1251,11 +1251,7 @@ export function LegoTown({
   const r = focus < 0 ? null : residents[focus]; // the shop and the overview are nobody's house
   const access = r && (r.me ? "allowed" : visits[r.name]);
   const label = (text: string, me: boolean, onClick: () => void) => (
-    <button
-      onClick={onClick}
-      className="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
-      style={{ background: me ? "#ff8a1f" : "rgba(20,18,16,0.8)", color: "#fff" }}
-    >
+    <button onClick={onClick} className={`lego lego-sm ${me ? "" : "lego-white"}`}>
       {text}
     </button>
   );
@@ -1305,12 +1301,7 @@ export function LegoTown({
             key: `empty-${k}`,
             at: [lot.x * LDU, 6, -lot.z * LDU] as [number, number, number],
             node: (
-              <button
-                onClick={onInvite}
-                disabled={!onInvite}
-                className="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
-                style={{ background: "rgba(255,255,255,0.85)", color: "#2a5a1f" }}
-              >
+              <button onClick={onInvite} disabled={!onInvite} className="lego lego-sm lego-green">
                 {onInvite ? "Free plot · invite a friend" : "Free plot"}
               </button>
             ),
@@ -1408,21 +1399,15 @@ export function LegoTown({
       </Stage>
 
       {focus !== OVERVIEW && inside === null && (
-        <button
-          onClick={() => go(OVERVIEW)}
-          className="absolute top-3 right-3 px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg active:scale-95 transition-transform"
-          style={{ background: "rgba(20,18,16,0.8)", color: "#fff" }}
-        >
+        <button onClick={() => go(OVERVIEW)} className="lego lego-sm lego-dark absolute top-3 right-3">
           Whole town
         </button>
       )}
       {note && !shopOpen && (
         <div className="absolute top-3 inset-x-0 flex justify-center pointer-events-none">
-          <span
-            className="px-3 py-1.5 rounded-full text-sm font-semibold shadow"
-            style={{ background: "rgba(20,18,16,0.85)", color: "#fff" }}
-          >
+          <span className="lego lego-green text-sm">
             {note}
+            <BrickBurst count={26} />
           </span>
         </div>
       )}
@@ -1485,6 +1470,35 @@ const ROOM_BOUNDS = new THREE.Box3(new THREE.Vector3(-8, 0, -8), new THREE.Vecto
 // how high (three units, about four bricks) the walls stay when you're inside
 const CUT = 4.6;
 
+// A handful of little LEGO bricks bursting out of the middle of whatever it's
+// inside (a button, the screen) and tumbling down: something good happened.
+const BURST_COLOURS = ["#d01012", "#0055bf", "#f5cd2f", "#4b9f4a", "#fe8a18", "#ffffff", "#a0a5a9"];
+function BrickBurst({ count = 16 }: { count?: number }) {
+  return (
+    <span className="absolute left-1/2 top-1/2 pointer-events-none" aria-hidden>
+      {Array.from({ length: count }, (_, i) => {
+        const a = (i / count) * Math.PI * 2 + hash(i) * 0.6;
+        const r = 38 + hash(i + 40) * 46;
+        return (
+          <span
+            key={i}
+            className="brick-bit"
+            style={
+              {
+                "--c": BURST_COLOURS[i % BURST_COLOURS.length],
+                "--dx": `${Math.cos(a) * r}px`,
+                "--dy": `${Math.sin(a) * r - 30}px`,
+                "--spin": `${(hash(i + 80) - 0.5) * 540}deg`,
+                animationDelay: `${hash(i + 120) * 90}ms`,
+              } as React.CSSProperties
+            }
+          />
+        );
+      })}
+    </span>
+  );
+}
+
 function TownButton({
   children,
   onClick,
@@ -1504,8 +1518,7 @@ function TownButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className={`${quiet ? "w-10 h-10 text-xl" : "px-4 py-2.5 text-sm"} pointer-events-auto rounded-full font-semibold shadow-lg active:scale-95 transition-transform disabled:opacity-80`}
-      style={{ background: disabled || quiet ? "rgba(20,18,16,0.8)" : "#ff8a1f", color: "#fff" }}
+      className={`lego pointer-events-auto ${quiet ? "lego-square lego-dark" : `text-sm ${disabled ? "lego-dark" : ""}`}`}
     >
       {children}
     </button>
@@ -1540,19 +1553,18 @@ function ShopSheet({
   return (
     <div className="absolute inset-0 flex items-end" style={{ background: "rgba(0,0,0,0.35)" }} onClick={() => onClose()}>
       <div
-        className="w-full max-h-[70%] overflow-y-auto rounded-t-2xl p-4 slide-in"
-        style={{ background: "var(--panel, #1b1916)", color: "var(--ink, #fff)" }}
+        className="lego-panel w-full max-h-[70%] overflow-y-auto rounded-t-2xl p-4 slide-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-1">
           <span className="display text-[17px]">Market Street</span>
-          <span className="text-sm font-bold" style={{ color: "#ffd35c" }}>
-            {(gold ?? 0).toLocaleString()} gold
-          </span>
+          <span className="lego lego-sm lego-yellow">{(gold ?? 0).toLocaleString()} gold</span>
         </div>
-        <p className="text-xs text-muted mb-3">Furniture for your house. It&apos;s there when you get home.</p>
+        <p className="text-xs mb-3" style={{ color: "#5d625a" }}>
+          Furniture for your house. It&apos;s there when you get home.
+        </p>
         {error && (
-          <p className="text-sm mb-2" style={{ color: "#ff8a7a" }}>
+          <p className="text-sm mb-2 font-semibold" style={{ color: "#b3140f" }}>
             {error}
           </p>
         )}
@@ -1563,29 +1575,18 @@ function ShopSheet({
               const price = prices[d.id];
               const short = price - (gold ?? 0);
               return (
-                <div
-                  key={d.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5"
-                  style={{ borderColor: "var(--line, #333)" }}
-                >
+                <div key={d.id} className="lego-plate flex items-center justify-between gap-3 px-3 py-2.5">
                   <span className="font-semibold text-sm">{d.name}</span>
                   {owned.includes(d.id) ? (
-                    <span className="text-xs text-muted">In your house</span>
+                    <span className="text-xs font-semibold" style={{ color: "#256a2b" }}>
+                      In your house
+                    </span>
                   ) : short > 0 ? (
-                    <span className="text-xs text-muted">
+                    <span className="text-xs" style={{ color: "#5d625a" }}>
                       {price} gold · need {short} more
                     </span>
                   ) : (
-                    <button
-                      onClick={() => buy(d.id, d.name)}
-                      disabled={busy === d.id}
-                      className="px-3 py-1.5 rounded-full text-xs font-bold active:scale-95 transition-transform"
-                      style={{
-                        background: "linear-gradient(180deg,#ffd35c,#f0a818)",
-                        color: "#4a2a00",
-                        opacity: busy === d.id ? 0.7 : 1,
-                      }}
-                    >
+                    <button onClick={() => buy(d.id, d.name)} disabled={busy === d.id} className="lego lego-sm lego-yellow">
                       Buy · {price} gold
                     </button>
                   )}
@@ -2166,19 +2167,15 @@ export function LegoRoom({
                 <button
                   onClick={() => tap(st)}
                   disabled={busy === st.id}
-                  className="relative flex flex-col items-center max-w-[70px] px-2 py-0.5 rounded-lg leading-tight shadow-md active:scale-95 transition-transform"
-                  style={{
-                    background: st.done ? "rgba(40,120,60,0.92)" : "#ff8a1f",
-                    color: "#fff",
-                    opacity: busy === st.id ? 0.7 : 1,
-                  }}
+                  className={`lego lego-sm flex-col !gap-0 max-w-[76px] ${st.done ? "lego-green" : ""}`}
                 >
                   <span className="text-[11px] font-bold">{st.done ? "✓" : `+${st.xp}`}</span>
-                  <span className="w-full truncate text-center text-[9px] font-medium opacity-90">{st.title}</span>
+                  <span className="w-full truncate text-center text-[9px] font-semibold opacity-90">{st.title}</span>
+                  {paid?.id === st.id && <BrickBurst />}
                   {paid?.id === st.id && (
                     <span
                       className="xp-float absolute left-1/2 -top-5 w-40 -ml-20 text-center font-mono font-bold text-sm"
-                      style={{ color: "#ffb347" }}
+                      style={{ color: "#e8650c", textShadow: "0 0 3px #fff, 0 0 3px #fff, 0 1px 0 #fff" }}
                     >
                       {payout(paid.xp)}
                     </span>
@@ -2195,21 +2192,13 @@ export function LegoRoom({
                     key: "chest",
                     at: [CHEST_SPOT[0] * LDU, 5, -CHEST_SPOT[1] * LDU] as [number, number, number],
                     node: (
-                      <button
-                        onClick={open}
-                        disabled={!chest || busy === "chest"}
-                        className="relative px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap shadow-lg active:scale-95 transition-transform"
-                        style={
-                          chest
-                            ? { background: "linear-gradient(180deg,#ffd35c,#f0a818)", color: "#4a2a00" }
-                            : { background: "rgba(20,18,16,0.7)", color: "#fff" }
-                        }
-                      >
+                      <button onClick={open} disabled={!chest || busy === "chest"} className={`lego lego-sm ${chest ? "lego-yellow" : "lego-dark"}`}>
                         {chest ? `Collect +${chest}` : "Chest empty"}
+                        {paid?.id === "chest" && <BrickBurst />}
                         {paid?.id === "chest" && (
                           <span
                             className="xp-float absolute left-1/2 -top-6 w-44 -ml-22 text-center font-mono font-bold text-sm"
-                            style={{ color: "#ffb347" }}
+                            style={{ color: "#e8650c", textShadow: "0 0 3px #fff, 0 0 3px #fff, 0 1px 0 #fff" }}
                           >
                             {payout(paid.xp)}
                           </span>
@@ -2229,12 +2218,7 @@ export function LegoRoom({
         </p>
       )}
       {gold !== null && (
-        <div
-          className="absolute top-3 left-3 px-3 py-1.5 rounded-full text-sm font-bold shadow"
-          style={{ background: "rgba(20,18,16,0.8)", color: "#ffd35c" }}
-        >
-          {gold.toLocaleString()} gold
-        </div>
+        <div className="lego lego-yellow text-sm absolute top-3 left-3">{gold.toLocaleString()} gold</div>
       )}
       {onLeave && (
         <div className="absolute inset-x-0 bottom-3 flex justify-center">
