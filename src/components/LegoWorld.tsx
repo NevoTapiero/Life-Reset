@@ -76,8 +76,9 @@ import {
   stationSpots,
   stationAt,
   PLAZA,
+  TOWN_ROUND,
+  BLOCK_ROUND,
   TOWN_HALF,
-  PITCH,
   BLOCK,
   MAX_RESIDENTS,
   SHOP_BUILDING,
@@ -1154,7 +1155,7 @@ export type Pin = { key: string; at: [number, number, number] | (() => [number, 
 // low-poly cylinders, laid out again whenever you've moved a few studs.
 const STUD_REACH = 16; // studs from you
 const STUD_MAX = (2 * STUD_REACH + 1) ** 2;
-function NearStuds({ follow, grass }: { follow: React.RefObject<THREE.Vector3>; grass: string }) {
+function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vector3>; grass: string; lots: Lot[] }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const laid = useRef({ x: 1e9, z: 1e9 });
   const o = useMemo(() => new THREE.Object3D(), []);
@@ -1168,21 +1169,23 @@ function NearStuds({ follow, grass }: { follow: React.RefObject<THREE.Vector3>; 
     if (Math.abs(px - laid.current.x) < 3 && Math.abs(pz - laid.current.z) < 3) return;
     laid.current = { x: px, z: pz };
     let n = 0;
-    for (let x = px - STUD_REACH; x <= px + STUD_REACH; x++)
-      for (let z = pz - STUD_REACH; z <= pz + STUD_REACH; z++) {
-        // three's z is -LDraw z; the blocks are PITCH studs apart, PLOT wide
-        const bx = Math.round(x / PITCH_STUDS);
-        const bz = Math.round(-z / PITCH_STUDS);
-        if (Math.abs(bx) > 1 || Math.abs(bz) > 1) continue;
-        const dx = x - bx * PITCH_STUDS;
-        const dz = -z - bz * PITCH_STUDS;
-        if (Math.abs(dx) >= PLOT / 2 || Math.abs(dz) >= PLOT / 2) continue; // the street
-        o.position.set(x + 0.5, 0.085, z + 0.5);
-        o.updateMatrix();
-        m.setMatrixAt(n, o.matrix);
-        m.setColorAt(n, bx === 0 && bz === 0 ? grey : green);
-        n++;
-      }
+    // each plot's studs in its own (turned) frame: the plaza first, then the plots
+    for (const lot of [PLAZA_LOT, ...lots]) {
+      const size = lot === PLAZA_LOT ? PLAZA : PLOT;
+      const [u, v] = fromLot(lot, [px * 20, -pz * 20]); // studs from the plot's centre, its frame (LDraw z)
+      const [cu, cv] = [Math.round(u / 20), Math.round(v / 20)];
+      if (Math.abs(cu) > size / 2 + STUD_REACH || Math.abs(cv) > size / 2 + STUD_REACH) continue;
+      for (let i = cu - STUD_REACH; i <= cu + STUD_REACH; i++)
+        for (let k = cv - STUD_REACH; k <= cv + STUD_REACH; k++) {
+          if (Math.abs(i + 0.5) >= size / 2 || Math.abs(k + 0.5) >= size / 2 || n >= STUD_MAX) continue;
+          const [x, , z] = inLot(lot, [(i + 0.5) * 20, 0, (k + 0.5) * 20]);
+          o.position.set(x * LDU, 0.085, -z * LDU);
+          o.updateMatrix();
+          m.setMatrixAt(n, o.matrix);
+          m.setColorAt(n, lot === PLAZA_LOT ? grey : green);
+          n++;
+        }
+    }
     m.count = n;
     m.instanceMatrix.needsUpdate = true;
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
@@ -1194,7 +1197,7 @@ function NearStuds({ follow, grass }: { follow: React.RefObject<THREE.Vector3>; 
     </instancedMesh>
   );
 }
-const PITCH_STUDS = PITCH;
+const PLAZA_LOT: Lot = { x: 0, z: 0, bx: 0, bz: 0, facing: 0, yaw: 0 };
 
 // Following someone round the town, the sunlight (and its shadow area, only
 // ~44 units across) goes with them, so you and what's around you always cast shadows.
@@ -1473,7 +1476,6 @@ const STILL = new THREE.Vector3(); // a target that never changes (the camera fo
 // where the sun hangs in the sky (three's space): where the sunlight comes from
 // (up, to the right and behind the usual view), just inside the sky dome
 const SUN_AT = new THREE.Vector3(18, 30, -14).normalize().multiplyScalar(420);
-const turnRad = (facing: number) => (facing * Math.PI) / 180;
 const toThree = ([x, y, z]: [number, number, number]): [number, number, number] => [x * LDU, y, -z * LDU];
 
 export function LegoTown({
@@ -1696,11 +1698,11 @@ export function LegoTown({
   // look at a house from its front: turn the view with the lot
   const dir = useMemo(() => {
     if (following) return CHASE_DIR;
-    if (isPlacing) return LOOK_DOWN.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -turnRad(lots[meIndex].facing));
+    if (isPlacing) return LOOK_DOWN.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -lots[meIndex].yaw);
     const base = inside === null ? FRONT_RIGHT : LOOK_IN;
     if (focus === OVERVIEW) return LOOK_DOWN;
     if (focus === SHOP_FOCUS) return base;
-    return base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -turnRad(lots[focus].facing));
+    return base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -lots[focus].yaw);
   }, [focus, inside, lots, following, isPlacing, meIndex]);
   const bounds = useMemo(() => {
     const h = (TOWN_HALF - 8) * 20 * LDU;
@@ -1862,17 +1864,18 @@ export function LegoTown({
         overlay={
           <>
             <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} />
-            {following && <NearStuds follow={me3} grass={grass} />}
-            {/* the ground: grass everywhere, the smooth grey street square, the plaza (paved out to its
-                pavement) and each plot on its lawn */}
-            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.03} flat />
-            <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#43474c" y={-0.015} flat />
-            <StudGround at={[0, 0]} size={BLOCK} color="#a3a7ad" y={-0.008} flat />
-            <StudGround at={[0, 0]} size={PLAZA} color="#a3a7ad" />
+            {following && <NearStuds follow={me3} grass={grass} lots={[...lots, ...emptyLots]} />}
+            {/* the ground: grass everywhere, the smooth grey street square with round corners, the plaza
+                (paved out to its pavement) and each plot, turned a little, on its block's lawn. The
+                layers sit 0.1 apart (two LDU): the map camera's depth buffer can't tell closer ones apart. */}
+            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.3} flat />
+            <StudGround at={[0, 0]} size={TOWN_HALF * 2} color="#43474c" y={-0.2} flat radius={TOWN_ROUND} />
+            <StudGround at={[0, 0]} size={BLOCK} color="#a3a7ad" y={-0.1} flat radius={BLOCK_ROUND} />
+            <StudGround at={[0, 0]} size={PLAZA} color="#a3a7ad" radius={8} />
             {[...lots, ...emptyLots].map((lot, i) => (
               <group key={i}>
-                <StudGround at={[lot.x * LDU, -lot.z * LDU]} size={BLOCK} color={grass} y={-0.008} flat />
-                <StudGround at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} />
+                <StudGround at={[lot.bx * LDU, -lot.bz * LDU]} size={BLOCK} color={grass} y={-0.1} flat radius={BLOCK_ROUND} />
+                <StudGround at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} yaw={-lot.yaw} />
               </group>
             ))}
           </>
@@ -1947,7 +1950,7 @@ export function LegoTown({
             <Jogger key={i} id={`jogger-${i}`} {...p} />
           ))}
         {residents.map((res, i) => (
-          <Ride key={res.name} ride={loadoutFor(res.level, res.character ?? undefined).ride} at={rideSpot(lots[i], res.level)} turn={turnRad(lots[i].facing)} />
+          <Ride key={res.name} ride={loadoutFor(res.level, res.character ?? undefined).ride} at={rideSpot(lots[i], res.level)} turn={lots[i].yaw} />
         ))}
         {/* a spinning gold stud over every station done today, seen from the street: what you did */}
         {residents.flatMap((r, i) => {
@@ -1981,7 +1984,7 @@ export function LegoTown({
           </>
         )}
         {residents.map((res, i) => (
-          <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, turnRad(lots[i].facing), 0]}>
+          <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, lots[i].yaw, 0]}>
             {/* the town builds itself once it's loaded (not while it's still loading, which made
                 it stutter): the shop, then each house in turn */}
             <House level={res.level} name={res.name} cut={i === inside ? CUT : undefined} lit={mood.night} build={settled ? 0.5 + i * 0.35 : null} />
@@ -2006,7 +2009,7 @@ export function LegoTown({
             }
             // you wave at the friend you've come to see, or at one who's come round to yours
             const wave = inside === null && !shop && (dest !== meIndex || visited(meIndex));
-            return <Walker key="me" id="me" wave={wave} go={goes} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : turnRad(lots[dest].facing)} />;
+            return <Walker key="me" id="me" wave={wave} go={goes} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : lots[dest].yaw} />;
           }
           // friends: at their door, at the shop, or on a neighbour's step, turned to them
           const out = outing(i);
@@ -2025,7 +2028,7 @@ export function LegoTown({
                     ? doorWalk(lots[host], residents[host].level, -40)
                     : doorWalk(lots[i], res.level)
               }
-              turn={out === "shop" ? Math.PI : host !== null ? turnRad(lots[host].facing) + Math.PI / 2 : turnRad(lots[i].facing)}
+              turn={out === "shop" ? Math.PI : host !== null ? lots[host].yaw + Math.PI / 2 : lots[i].yaw}
             />
           );
         })}
@@ -2732,8 +2735,19 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
   const meshes = useMemo(() => {
     const byColor = new Map<string, THREE.BufferGeometry[]>();
     for (const b of slabs) {
-      const g = b.r ? new THREE.CylinderGeometry(b.r, b.r, b.h, 48) : new THREE.BoxGeometry(b.w, b.h, b.d);
-      g.translate(b.x, -(b.y ?? 0) - b.h / 2, b.z);
+      let g: THREE.BufferGeometry;
+      if (b.radius) {
+        // a rounded rectangle (a ring, when it has a border), extruded down into the ground
+        const shape = roundedRect(b.w, b.d, b.radius);
+        if (b.border) shape.holes.push(roundedRect(b.w - 2 * b.border, b.d - 2 * b.border, b.radius - b.border));
+        g = new THREE.ExtrudeGeometry(shape, { depth: b.h, bevelEnabled: false });
+        g.rotateX(Math.PI / 2); // the shape's plane (x, y) flat on the ground (x, z), extruded downwards (+y in LDraw)
+        g.translate(b.x, -(b.y ?? 0) - b.h, b.z);
+      } else {
+        g = b.r ? new THREE.CylinderGeometry(b.r, b.r, b.h, 48) : new THREE.BoxGeometry(b.w, b.h, b.d);
+        if (b.yaw) g.rotateY(b.yaw);
+        g.translate(b.x, -(b.y ?? 0) - b.h / 2, b.z);
+      }
       if (!byColor.has(b.color)) byColor.set(b.color, []);
       byColor.get(b.color)!.push(g);
     }
@@ -2750,6 +2764,21 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
     </>
   );
 }
+// a rounded rectangle, centred, in the shape's own plane
+function roundedRect(w: number, d: number, r: number): THREE.Shape {
+  const [x, y] = [-w / 2, -d / 2];
+  const shape = new THREE.Shape();
+  shape.moveTo(x + r, y);
+  shape.lineTo(x + w - r, y);
+  shape.absarc(x + w - r, y + r, r, -Math.PI / 2, 0, false);
+  shape.lineTo(x + w, y + d - r);
+  shape.absarc(x + w - r, y + d - r, r, 0, Math.PI / 2, false);
+  shape.lineTo(x + r, y + d);
+  shape.absarc(x + r, y + d - r, r, Math.PI / 2, Math.PI, false);
+  shape.lineTo(x, y + r);
+  shape.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false);
+  return shape;
+}
 const FLATS = townFlats();
 const HEDGES = plotHedges();
 const CLOUDS = townClouds();
@@ -2758,7 +2787,7 @@ const CLOUDS = townClouds();
 // The loop is a rounded square down the ring road's outer lane (LDraw frame),
 // sampled once into points with their distance along it.
 const LANE = (TOWN_HALF - 4) * 20; // the ring road's outer lane, LDU from the centre
-const CORNER = 160; // corner radius, LDU
+const CORNER = (TOWN_ROUND - 4) * 20; // corner radius, LDU: round with the road's outer edge
 const LOOP = (() => {
   const pts: { x: number; z: number; d: number }[] = [];
   const s = LANE - CORNER;
@@ -3053,7 +3082,7 @@ function Prop({ id, at, turn, lot, build }: { id: string; at: [number, number]; 
   const prop = (PROPS as Baked[]).find((p) => p.id === id);
   if (!prop) return null;
   const [x, , z] = lot ? inLot(lot, [at[0], 0, at[1]]) : [at[0], 0, at[1]];
-  const facing = (lot ? turnRad(lot.facing) : 0) + (turn * Math.PI) / 2;
+  const facing = (lot ? lot.yaw : 0) + (turn * Math.PI) / 2;
   return (
     <group position={[x, 0, z]} rotation={[0, facing, 0]}>
       <Building url={houseUrl(prop)} at={[-prop.w * 10, 0, prop.d * 10]} build={build} />
@@ -3068,7 +3097,7 @@ function PlacedThing({ lot, placed, fresh = false }: { lot: Lot; placed: Placed;
   const g = gardenItem(placed.item);
   if (!g) return null;
   return (
-    <group position={[lot.x, 0, lot.z]} rotation={[0, turnRad(lot.facing), 0]}>
+    <group position={[lot.x, 0, lot.z]} rotation={[0, lot.yaw, 0]}>
       {g.prop ? (
         <Prop id={g.prop} at={gardenPropAt(placed)} turn={placed.turn} build={fresh ? 0 : undefined} />
       ) : (
@@ -3131,7 +3160,7 @@ function Footprint({ lot, placed, ok }: { lot: Lot; placed: Placed; ok: boolean 
   if (!g) return null;
   const { w, d } = footprint(g, placed.turn);
   return (
-    <group position={[lot.x, 0, lot.z]} rotation={[0, turnRad(lot.facing), 0]}>
+    <group position={[lot.x, 0, lot.z]} rotation={[0, lot.yaw, 0]}>
       <mesh position={[(placed.x + w / 2 - PLOT / 2) * 20, -1.5, (placed.z + d / 2 - PLOT / 2) * 20]}>
         <boxGeometry args={[w * 20, 3, d * 20]} />
         <meshStandardMaterial color={ok ? "#4b9f4a" : "#d01012"} transparent opacity={0.55} />
@@ -3341,24 +3370,31 @@ function StudGround({
   color,
   y = 0,
   flat,
+  radius,
+  yaw = 0,
 }: {
   at: [number, number];
   size: number;
   color: string;
   y?: number;
   flat?: boolean;
+  /** round corners, studs */
+  radius?: number;
+  /** turned about Y (three's space, radians) */
+  yaw?: number;
 }) {
   const map = useMemo(() => {
     if (flat) return null;
     const t = studTexture().clone();
-    t.repeat.set(size, size);
+    t.repeat.set(radius ? 1 : size, radius ? 1 : size); // a shape's UVs are its coordinates (one stud a unit); a plane's run 0..1
     t.needsUpdate = true;
     return t;
-  }, [size, flat]);
+  }, [size, flat, radius]);
   const w = size * 20 * LDU;
+  const geometry = useMemo(() => (radius ? new THREE.ShapeGeometry(roundedRect(w, w, radius * 20 * LDU)) : new THREE.PlaneGeometry(w, w)), [w, radius]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   return (
-    <mesh position={[at[0], y, at[1]]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-      <planeGeometry args={[w, w]} />
+    <mesh position={[at[0], y, at[1]]} rotation={[-Math.PI / 2, yaw, 0]} geometry={geometry} receiveShadow>
       <meshStandardMaterial color={color} map={map} roughness={0.5} />
     </mesh>
   );
@@ -3468,7 +3504,7 @@ function Scenery({ color, season, sunAt }: { color: string; season: Season; sunA
   return (
     <>
       {/* the land goes on to the horizon */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]} receiveShadow>
         <circleGeometry args={[900, 64]} />
         <meshStandardMaterial color={color} roughness={0.6} />
       </mesh>

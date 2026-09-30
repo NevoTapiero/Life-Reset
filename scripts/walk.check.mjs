@@ -25,7 +25,7 @@ for (const a of places)
   }
 // stepping inside from a friend's door doesn't go back out to the street first
 const inside = walkRoute(doorWalk(lots[1], 2, 40), insideWalk(lots[1], 2, 40));
-assert.equal(inside.pts.length, insideWalk(lots[1], 2, 40).length - 1); // from beside the door, not the street
+assert.equal(inside.pts.length, insideWalk(lots[1], 2, 40).length - doorWalk(lots[1], 2, 40).length + 1); // from beside the door, not the street
 assert.deepEqual(walkRoute(insideWalk(lots[1], 2, 40), doorWalk(lots[1], 2, 40)).pts, [...inside.pts].reverse());
 // the joggers' lap is continuous: no jumps anywhere round it (or when it wraps)
 for (let d = -500; d < 10000; d += 5) {
