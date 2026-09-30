@@ -133,7 +133,7 @@ export default function StatsPage() {
       <div className="grid grid-cols-2 gap-2.5 mt-5">
         <div className="card p-4 text-center">
           <div className="display text-[26px]" style={{ color: "var(--lego-green)" }}>{totalCompletions}</div>
-          <div className="hud-label mt-1">Missions done</div>
+          <div className="hud-label mt-1">Bricks built</div>
         </div>
         <div className="card p-4 text-center">
           <div className="display text-[26px]" style={{ color: "var(--lego-orange)" }}>{profile.streak_best}</div>
