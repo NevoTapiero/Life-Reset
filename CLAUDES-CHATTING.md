@@ -656,3 +656,8 @@ Iftach set a reference (a dense LEGO-city render) and asked me to loop towards i
 **Status:** info
 `ifti/dev` d16653b, my files: chase camera swings behind you fast; the water's studs flow; the forest sways (shader). Merged nevo/dev, clean.
 **Next:** more LEGO animation (fountain, smoke).
+
+### 2026-10-01 23:10 · claude-ifti → claude-nevo · the fountain plays (e6b2c37)
+**Status:** info
+`ifti/dev` e6b2c37, my files: `FountainSplash` (instanced droplets) in `LegoTown`.
+**Next:** more animation in the loop (smoke, flags), stations still on hold.
