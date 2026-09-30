@@ -6,8 +6,9 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import BrickLoader from "@/components/BrickLoader";
 import Icon from "@/components/Icon";
+import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
 import PlayerAvatar from "@/components/PlayerAvatar";
-import { PILLAR_BRICK, legoLevel, levelTitle, photoOf } from "@/lib/brick";
+import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
 import { CharacterKey, PERIOD_LABEL, PILLAR_ICONS, Period, STAT_ICONS, STAT_KEYS, Stats, formatDate, questBase, rankForXp } from "@/lib/game";
 
 type FriendQuest = {
@@ -136,13 +137,9 @@ export default function FriendProfilePage() {
       </div>
       <div className="flex flex-col gap-2.5 stagger pb-4">
         {file.quests.map((q) => {
-          const brick = PILLAR_BRICK[q.pillar] ?? "var(--lego-blue)";
           return (
             <div key={q.id} className="card px-3 py-3 flex items-center gap-3">
-              <span className="pillar-strip" style={{ "--strip": brick } as React.CSSProperties} />
-              <span className="grid place-items-center rounded-[12px] flex-none" style={{ width: 40, height: 40, background: `color-mix(in srgb, ${brick} 16%, var(--panel))`, color: brick }}>
-                <Icon name={PILLAR_ICONS[q.pillar as keyof typeof PILLAR_ICONS] ?? "custom"} size={20} strokeWidth={2} />
-              </span>
+              <LegoIcon name={PILLAR_ICONS[q.pillar as keyof typeof PILLAR_ICONS] ?? "sparkle"} color={PILLAR_BRICK_COLOR[q.pillar] ?? "blue"} size={40} />
               <span className="flex-1 min-w-0">
                 <span className={`block text-[15px] font-extrabold truncate ${q.done_today ? "text-muted line-through" : ""}`}>{q.title}</span>
                 <span className="text-[12.5px] font-bold text-muted">

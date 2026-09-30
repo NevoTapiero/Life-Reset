@@ -6,14 +6,15 @@ import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { resetTheme } from "@/lib/theme";
 import Icon from "@/components/Icon";
+import LegoIcon, { BrickColor } from "@/components/LegoIcon";
 import BrickLoader from "@/components/BrickLoader";
 
 // Three screens outside the LEGO world: Home (your missions and apps), World
 // (the board and the door into the 3D town) and Profile (the dry stuff).
 const TABS = [
-  { href: "/app", label: "Home", icon: "home", match: (p: string) => p === "/app" || p.startsWith("/app/quests") || p.startsWith("/app/missions") },
-  { href: "/app/world", label: "World", icon: "globe", match: (p: string) => p.startsWith("/app/world") || p.startsWith("/app/leaderboard") },
-  { href: "/app/profile", label: "Profile", icon: "user", match: (p: string) => p.startsWith("/app/profile") || p.startsWith("/app/stats") },
+  { href: "/app", label: "Home", icon: "home", color: "blue", match: (p: string) => p === "/app" || p.startsWith("/app/quests") || p.startsWith("/app/missions") },
+  { href: "/app/world", label: "World", icon: "globe", color: "green", match: (p: string) => p.startsWith("/app/world") || p.startsWith("/app/leaderboard") },
+  { href: "/app/profile", label: "Profile", icon: "user", color: "yellow", match: (p: string) => p.startsWith("/app/profile") || p.startsWith("/app/stats") },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -97,7 +98,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               return (
                 <Link key={t.href} href={t.href} className={on ? "on" : ""} aria-current={on ? "page" : undefined}>
                   <span className="relative">
-                    <Icon name={t.icon} size={22} strokeWidth={on ? 2.3 : 2} />
+                    <LegoIcon name={t.icon} color={on ? (t.color as BrickColor) : "grey"} size={on ? 36 : 32} />
                     {t.href === "/app/world" && knocks > 0 && (
                       <span className="absolute -right-2 -top-1.5 min-w-[17px] h-[17px] px-1 rounded-full grid place-items-center text-[10px] font-black text-white" style={{ background: "var(--lego-red)", boxShadow: "0 0 0 2px #fff" }} aria-label={`${knocks} knocking`}>
                         {knocks}

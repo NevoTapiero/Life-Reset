@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import BrickLogo from "@/components/BrickLogo";
 import Icon from "@/components/Icon";
+import LegoIcon from "@/components/LegoIcon";
 import TownArt from "@/components/TownArt";
 import { resetTheme } from "@/lib/theme";
 
@@ -19,9 +20,9 @@ const DEMO = [
 ];
 
 const STEPS = [
-  { icon: "check", brick: "var(--lego-green)", title: "Do your missions", body: "Real habits: training, sleep, reading, your tasks." },
-  { icon: "home", brick: "var(--lego-orange)", title: "Build your world", body: "XP levels up your minifig, your house and your ride." },
-  { icon: "users", brick: "var(--lego-blue)", title: "Play with friends", body: "One LEGO town, everyone's progress, one leaderboard." },
+  { icon: "check", color: "green" as const, title: "Do your missions", body: "Real habits: training, sleep, reading, your tasks." },
+  { icon: "home", color: "orange" as const, title: "Build your world", body: "XP levels up your minifig, your house and your ride." },
+  { icon: "users", color: "blue" as const, title: "Play with friends", body: "One LEGO town, everyone's progress, one leaderboard." },
 ];
 
 export default function Landing() {
@@ -47,9 +48,7 @@ export default function Landing() {
       <div className="flex flex-col gap-2.5 mt-6 stagger">
         {STEPS.map((s) => (
           <div key={s.title} className="card px-4 py-3 flex items-center gap-3.5">
-            <span className="grid place-items-center rounded-[12px] flex-none text-white" style={{ width: 42, height: 42, background: s.brick, boxShadow: "inset 0 -3px 0 rgb(0 0 0 / 0.2)" }}>
-              <Icon name={s.icon} size={20} strokeWidth={2.4} />
-            </span>
+            <LegoIcon name={s.icon} color={s.color} size={44} />
             <span>
               <span className="display block text-[17px]">{s.title}</span>
               <span className="block text-[13px] font-bold text-muted">{s.body}</span>
