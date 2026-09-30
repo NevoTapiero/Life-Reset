@@ -8,8 +8,8 @@ import BrickLoader from "@/components/BrickLoader";
 import Connections from "@/components/Connections";
 import Icon from "@/components/Icon";
 import LegoIcon, { BrickColor } from "@/components/LegoIcon";
-import Minifig from "@/components/Minifig";
 import CharacterFile from "@/components/CharacterFile";
+import CharTile from "@/components/CharTile";
 import MinifigCard from "@/components/MinifigCard";
 import GoldBricks from "@/components/GoldBricks";
 import RedBricks from "@/components/RedBricks";
@@ -347,22 +347,10 @@ export default function ProfilePage() {
         Your minifig
       </h2>
       <p className="text-[13px] font-bold text-muted mb-3">Who you are in the LEGO world. Each one dresses up as you level.</p>
-      <div className="grid grid-cols-5 gap-2">
-        {CHARACTER_KEYS.map((key) => {
-          const on = (profile.archetype ?? "warrior") === key;
-          return (
-            <button
-              key={key}
-              className={`option-row !p-1.5 flex flex-col items-center gap-1 ${on ? "selected" : ""}`}
-              onClick={() => chooseCharacter(key)}
-              aria-pressed={on}
-              aria-label={CHARACTERS[key].name}
-            >
-              <Minifig character={key} level={level} size={78} />
-              <span className="text-[10px] font-extrabold leading-tight">{CHARACTERS[key].name.replace("The ", "")}</span>
-            </button>
-          );
-        })}
+      <div className="grid grid-cols-5 gap-2.5 pt-1">
+        {CHARACTER_KEYS.map((key) => (
+          <CharTile key={key} character={key} level={level} on={(profile.archetype ?? "warrior") === key} onPick={() => chooseCharacter(key)} />
+        ))}
       </div>
 
         </div>
