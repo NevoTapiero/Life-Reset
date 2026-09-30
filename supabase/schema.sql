@@ -530,8 +530,9 @@ begin
   on conflict (user_id, source, ref) do nothing;
 
   update public.profiles
-     set xp = coalesce((select sum(xp_awarded) from public.quest_completions where user_id = p_uid), 0)
-            + coalesce((select sum(xp) from public.xp_ledger where user_id = p_uid), 0)
+     set xp = greatest(0,   -- penalties (short night, red recovery) never take the total below zero
+                coalesce((select sum(xp_awarded) from public.quest_completions where user_id = p_uid), 0)
+              + coalesce((select sum(xp) from public.xp_ledger where user_id = p_uid), 0))
    where id = p_uid;
 end $$;
 revoke all on function public.recalc_player(uuid) from public, anon, authenticated;
