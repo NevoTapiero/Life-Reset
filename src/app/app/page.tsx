@@ -338,6 +338,10 @@ export default function HomePage() {
         })}
       </div>
 
+      {tab !== "daily" && m.today && (
+        <p className="text-[13px] font-extrabold text-muted -mt-1.5 mb-3 px-1">{periodLeft(tab, m.today)}</p>
+      )}
+
       {m.error && (
         <p className="card px-4 py-3 mb-3 text-sm font-bold" style={{ color: "var(--danger)" }}>
           {m.error}
@@ -533,4 +537,16 @@ function MissionTile({
       {xpFloat !== null && <span className="xp-float absolute right-4 -top-2 text-[15px]">+{xpFloat} XP</span>}
     </button>
   );
+}
+
+// "3 days left this week (ends Saturday)" / "12 days left this month"
+function periodLeft(period: Period, today: string): string {
+  const d = new Date(today + "T00:00:00Z");
+  if (period === "weekly") {
+    const left = 6 - d.getUTCDay(); // weeks run Sunday to Saturday
+    return left === 0 ? "Last day of the week: check your weekly missions today." : `${left + 1} days left this week (ends Saturday).`;
+  }
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  const left = last - d.getUTCDate();
+  return left === 0 ? "Last day of the month: check your monthly missions today." : `${left + 1} days left this month.`;
 }
