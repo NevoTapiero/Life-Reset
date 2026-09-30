@@ -4,6 +4,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ContactShadows, Environment, Lightformer, OrbitControls } from "@react-three/drei";
+import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, TiltShift2, ToneMapping, Vignette } from "@react-three/postprocessing";
+import { ToneMappingMode } from "postprocessing";
 import * as THREE from "three";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
 import { LDrawConditionalLineMaterial } from "three/examples/jsm/materials/LDrawConditionalLineMaterial.js";
@@ -705,8 +707,8 @@ export default function LegoWorld({
 // ponytail: four fixed moods; blend between them if the switch ever jars
 export type Mood = { name: string; top: string; horizon: string; sun: number; sunColor: string; ambient: number; night: boolean };
 const MOODS: Record<string, Mood> = {
-  day: { name: "day", top: "#4f9be6", horizon: "#cfe8ff", sun: 2.3, sunColor: "#fff4e2", ambient: 0.9, night: false },
-  golden: { name: "golden", top: "#6f8fd0", horizon: "#ffcf96", sun: 1.7, sunColor: "#ffb070", ambient: 0.7, night: false },
+  day: { name: "day", top: "#2f86ea", horizon: "#bfe3ff", sun: 2.7, sunColor: "#fff0d8", ambient: 1, night: false },
+  golden: { name: "golden", top: "#5a86d6", horizon: "#ffc98a", sun: 2.1, sunColor: "#ffae66", ambient: 0.8, night: false },
   dusk: { name: "dusk", top: "#26356a", horizon: "#e58a6c", sun: 0.7, sunColor: "#ff9a6a", ambient: 0.45, night: true },
   night: { name: "night", top: "#070d26", horizon: "#1d2a52", sun: 0.35, sunColor: "#9fb4ff", ambient: 0.28, night: true },
 };
@@ -882,13 +884,19 @@ function Stage({
           dpr={[1, 1.5]}
           camera={{ fov, near: 1, far: far }}
           gl={{ antialias: true }}
-          onCreated={({ gl }) => (gl.localClippingEnabled = true)}
+          onCreated={({ gl }) => {
+            gl.localClippingEnabled = true;
+            // LEGO colours stay LEGO colours: the neutral curve keeps hue and saturation
+            // where the default filmic one washes bright plastic out
+            gl.toneMapping = THREE.NeutralToneMapping;
+            gl.toneMappingExposure = 1.05;
+          }}
         >
           <color attach="background" args={[mood?.horizon ?? sky]} />
           {/* the haze scales with how much is in view: a house, the shop, or the whole town */}
-          <fog attach="fog" args={[mood?.horizon ?? sky, Math.max(140, width * 2.3), Math.max(330, width * 5.3)]} />
+          <fog attach="fog" args={[mood?.horizon ?? sky, Math.max(200, width * 3.2), Math.max(520, width * 8)]} />
           {mood && <SkyDome mood={mood} />}
-          <hemisphereLight args={["#fff8ef", "#5a7a4a", mood?.ambient ?? 0.9]} />
+          <hemisphereLight args={["#fff8ef", "#6f8f55", mood?.ambient ?? 0.9]} />
           <primitive object={sun} position={[target.x, 0, target.z]} />
           <directionalLight
             target={sun}
@@ -905,8 +913,10 @@ function Stage({
             shadow-bias={-0.0004}
           />
           <Environment resolution={256}>
-            <Lightformer intensity={2 * (mood?.ambient ?? 1)} position={[0, 10, 10]} scale={[20, 8, 1]} />
-            <Lightformer intensity={1 * (mood?.ambient ?? 1)} position={[-10, 4, -6]} scale={[8, 8, 1]} />
+            {/* soft studio panels: the glossy highlights that make it read as plastic */}
+            <Lightformer intensity={2.6 * (mood?.ambient ?? 1)} position={[0, 10, 10]} scale={[20, 8, 1]} />
+            <Lightformer intensity={1.4 * (mood?.ambient ?? 1)} position={[-10, 4, -6]} scale={[8, 8, 1]} />
+            <Lightformer intensity={1.2 * (mood?.ambient ?? 1)} position={[10, 6, -8]} scale={[10, 6, 1]} />
           </Environment>
 
           {/* LDraw is -Y up: a half-turn about X stands it upright */}
@@ -948,6 +958,20 @@ function Stage({
           />
           {/* after the controls, so it can move them */}
           <FitCamera target={target} width={width} dir={dir} controls={controls} />
+          {/* outdoors, a toy on the table: tilt-shift blur above and below the middle band,
+              lamps and lit windows glowing after dark, a soft vignette. (The effects draw off
+              screen, so the neutral tone mapping moves in here.) */}
+          {mood && (
+            <EffectComposer multisampling={4}>
+              <TiltShift2 blur={0.12} taper={0.55} start={[0, 0.5]} end={[1, 0.5]} samples={8} />
+              <Bloom luminanceThreshold={0.85} luminanceSmoothing={0.2} intensity={mood.night ? 1.1 : 0.25} mipmapBlur />
+              <Vignette offset={0.35} darkness={0.28} />
+              <ToneMapping mode={ToneMappingMode.NEUTRAL} />
+              {/* toy-box colour: a touch more saturation and contrast than life */}
+              <HueSaturation saturation={0.14} />
+              <BrightnessContrast contrast={0.08} />
+            </EffectComposer>
+          )}
         </Canvas>
         {/* pinned buttons: plain DOM over the canvas, moved every frame by PinTracker */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -1862,13 +1886,13 @@ function StudGround({
   return (
     <mesh position={[at[0], y, at[1]]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
       <planeGeometry args={[w, w]} />
-      <meshStandardMaterial color={color} map={map} roughness={0.8} />
+      <meshStandardMaterial color={color} map={map} roughness={0.5} />
     </mesh>
   );
 }
 
 // The grass by season: fresh in spring, LEGO green in summer, olive in autumn, snow in winter.
-const GRASS: Record<Season, string> = { spring: "#58a843", summer: "#4b9b3c", autumn: "#8a9a3e", winter: "#e9eef3" };
+const GRASS: Record<Season, string> = { spring: "#58ab41", summer: "#4b9f4a", autumn: "#80a83e", winter: "#eef2f6" };
 
 // What drifts down over the town: blossom in spring, leaves in autumn, snow in
 // winter (summer is clear). Small flat tiles tumbling and swaying as they fall,
@@ -1922,27 +1946,38 @@ function Falling({ season }: { season: Season }) {
   );
 }
 
-// Soft green hills beyond the forest, fading into the haze: the land goes on,
-// you just can't get there.
+// Hills beyond the forest, built the LEGO way: terraces of stacked layers,
+// each a little smaller than the one below (like plates stepped up into a
+// hill), fading into the haze. The land goes on, you just can't get there.
 function Hills({ color }: { color: string }) {
   const hills = useMemo(() => {
-    const out: { p: [number, number, number]; r: number }[] = [];
+    const out: { p: [number, number, number]; r: number; turn: number; layers: number }[] = [];
     let seed = 3;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const far = (TOWN_HALF + 48) * 20 * LDU + 90; // well beyond the forest
     for (let a = 0; a < Math.PI * 2; a += 0.28 + rnd() * 0.2) {
       const d = far + rnd() * 60;
-      out.push({ p: [Math.cos(a) * d, 0, Math.sin(a) * d], r: 40 + rnd() * 40 });
+      out.push({ p: [Math.cos(a) * d, 0, Math.sin(a) * d], r: 40 + rnd() * 40, turn: rnd() * Math.PI, layers: 3 + Math.floor(rnd() * 3) });
     }
     return out;
   }, []);
+  // each terrace a shade lighter than the one below: the steps read even far off
+  const shades = useMemo(() => [0.86, 0.93, 1, 1.07, 1.14].map((k) => new THREE.Color(color).multiplyScalar(k)), [color]);
   return (
     <>
       {hills.map((h, i) => (
-        <mesh key={i} position={h.p} scale={[h.r, h.r * 0.2, h.r]}>
-          <sphereGeometry args={[1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshStandardMaterial color={color} roughness={1} />
-        </mesh>
+        <group key={i} position={h.p} rotation={[0, h.turn, 0]}>
+          {Array.from({ length: h.layers }, (_, k) => {
+            const w = h.r * 2 * (1 - k / (h.layers + 0.6));
+            const t = h.r * 0.07;
+            return (
+              <mesh key={k} position={[(k % 2) * h.r * 0.08, t * (k + 0.5), -(k % 3) * h.r * 0.05]}>
+                <boxGeometry args={[w, t, w * 0.8]} />
+                <meshStandardMaterial color={shades[k]} roughness={0.55} />
+              </mesh>
+            );
+          })}
+        </group>
       ))}
     </>
   );
