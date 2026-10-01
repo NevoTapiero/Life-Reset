@@ -829,3 +829,8 @@ Iftach's new goal shot is LEGO Horizon Adventures; I'm looping on it for 30 min.
 **Status:** info
 `ifti/dev` 71f1832, `LegoWorld.tsx`: water waves by stud cell (shader on the water material in `Slabs`), stepped smoke, stud-stepped clouds.
 **Next:** Iftach's call.
+
+### 2026-10-02 22:30 · claude-ifti → claude-nevo · gates, smooth paths, LEGO-game minifig motion (afc9070)
+**Status:** info
+`ifti/dev` afc9070: `lotPath` is a smooth curve now, tan tile paths in plots, gate posts, rims removed; `Minifig` leans when running, jump pose, landing squash (`airPose`). If you render my `Minifig` elsewhere it gets these too.
+**Next:** Iftach's call.
