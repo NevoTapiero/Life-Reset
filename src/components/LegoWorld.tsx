@@ -3473,12 +3473,10 @@ function Walker({
     }
   }, [key]);
   const look3 = useMemo(() => new THREE.Vector3(), []);
-  // the camera's forward when you first pushed the stick: your directions keep to it until you
-  // let go, so the camera can come round behind you without turning you round with it
-  const frame = useRef<{ fx: number; fz: number } | null>(null);
-  // your velocity (LDU a second, LDraw x/z): it eases toward where the stick points and eases off
-  // when you let go, so you speed up and slow down instead of snapping
-  const vel = useRef({ x: 0, z: 0 });
+  // driving yourself, the LEGO-game way: the stick points across the screen (the camera keeps its
+  // angle and follows), you turn on the spot to it at once, and only your speed eases: a quick
+  // speed-up and a short slide to a stop. `dir` (LDraw x/z, unit) is where you're heading, `sp` how fast
+  const vel = useRef({ dx: 0, dz: 1, sp: 0 });
   const off = useMemo(() => ({ x: 0, z: 0 }), []); // sidestepping someone
   const stepped = useRef({ x: 0, z: 0, d: 0 }); // for your footsteps
   const [running, setRunning] = useState(false);
@@ -3488,9 +3486,9 @@ function Walker({
     const o = root.current;
     if (!s || !o) return;
     // turn quickly but smoothly (never snap round a corner), the short way round
-    const face = (yaw: number) => {
+    const face = (yaw: number, rate = 12) => {
       const d = Math.atan2(Math.sin(yaw - o.rotation.y), Math.cos(yaw - o.rotation.y));
-      o.rotation.y += d * Math.min(1, dt * 12);
+      o.rotation.y += d * Math.min(1, dt * rate);
     };
     // stand where the path puts you, stepped aside for anyone in the way; tell everyone
     const report = (dodge = true) => {
@@ -3525,29 +3523,21 @@ function Walker({
       if (run) energyRef.current = Math.max(0, energyRef.current - RUN_COST * dt);
       else energyRef.current = Math.min(ENERGY_MAX, energyRef.current + TRICKLE * dt);
     }
-    if (!stick || push <= 0.15) frame.current = null;
-    // where the stick wants you to go (LDU a second), eased into: a quick speed-up, a short slide to a stop
-    let [tx, tz] = [0, 0];
-    if (stick && push > 0.15) {
-      if (!frame.current) {
-        camera.getWorldDirection(look3);
-        const f = Math.hypot(look3.x, look3.z) || 1;
-        frame.current = { fx: look3.x / f, fz: look3.z / f }; // forward on the ground, three's space
-      }
-      const { fx, fz } = frame.current;
+    const v = vel.current;
+    const pushing = !!stick && push > 0.15;
+    if (pushing) {
+      camera.getWorldDirection(look3);
+      const f = Math.hypot(look3.x, look3.z) || 1;
+      const [fx, fz] = [look3.x / f, look3.z / f]; // the camera's forward on the ground, three's space
       const mx = fx * stick.y - fz * stick.x;
       const mz = fz * stick.y + fx * stick.x;
       const m = Math.hypot(mx, mz) || 1;
-      const speed = DRIVE_SPEED * (run ? 1.8 : push);
-      [tx, tz] = [(mx / m) * speed, (-mz / m) * speed]; // LDraw: z is flipped
+      [v.dx, v.dz] = [mx / m, -mz / m]; // LDraw: z is flipped
     }
-    const v = vel.current;
-    const ease = Math.min(1, dt * (tx || tz ? 9 : 12));
-    v.x += (tx - v.x) * ease;
-    v.z += (tz - v.z) * ease;
-    if (Math.hypot(v.x, v.z) > 6 && (tx || tz || !s.walk)) {
-      const sp = Math.hypot(v.x, v.z);
-      const [dx, dz] = [v.x / sp, v.z / sp];
+    const target = pushing ? DRIVE_SPEED * (run ? 1.8 : push) : 0;
+    v.sp += (target - v.sp) * Math.min(1, dt * (pushing ? 10 : 12));
+    if (v.sp > 6 && (pushing || !s.walk)) {
+      const { sp, dx, dz } = v;
       const len = sp * Math.min(dt, 0.1);
       // start from where you're actually standing (if you'd stepped aside for someone)
       const [ox, oz] = [s.pos[0] + off.x, s.pos[2] + off.z];
@@ -3558,17 +3548,16 @@ function Walker({
         else if (!intoSomeone(id, ox, oz, ox, z)) x = ox;
         else [x, z] = [ox, oz];
       }
-      if (x === ox && z === oz) [v.x, v.z] = [0, 0]; // against a wall: stop, don't keep pushing
+      if (x === ox && z === oz) v.sp = 0; // against a wall: stop, don't keep pushing
       s.walk = null;
       s.from = null;
       s.pos = [x, 0, z];
       walking.current = sp > 40;
-      face(Math.atan2(dx, dz));
-      if (tx || tz) behind(dx, dz); // the camera comes round behind you whichever way you go: you see where you're walking
+      face(Math.atan2(dx, dz), 22); // round on the spot, the LEGO way
       report(false);
       return;
     }
-    [v.x, v.z] = [0, 0];
+    v.sp = 0;
     const w = s.walk;
     walking.current = !!w;
     if (!w) {
