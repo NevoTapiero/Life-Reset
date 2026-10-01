@@ -849,7 +849,7 @@ function Minifig({
     root.current.rotation.z = s * 0.075 * g.blend;
     root.current.rotation.y = turn; // standing, it stands put (only the head looks about)
     // leaning into it: a little when walking, well forward when running (its front is +z)
-    root.current.rotation.x = -(stride > 20 ? 0.17 : 0.05) * g.blend;
+    root.current.rotation.x = -(stride > 15 ? 0.17 : 0.05) * g.blend;
     // and a squash on landing from a jump: down and out for a moment, then back
     const land = h - hopTime;
     const squash = hopBig.current && land > 0 && land < 0.16 ? Math.sin((land / 0.16) * Math.PI) : 0;
@@ -3423,12 +3423,13 @@ function Jogger({ id, look, speed, start }: (typeof JOGGERS)[number] & { id: str
 
 // You, walking round town to wherever you look: your door, a friend's door
 // (beside them), the shop. Change your mind mid-walk and you turn round there.
-const WALK_SPEED = 180; // LDU a second: brisk, with legs that keep up (stride 16)
+const WALK_SPEED = 150; // LDU a second: an easy walk, with legs that keep up (stride 13)
 // You can also drive yourself about (joystick or keys): `input` is where the
 // stick points (x right, y up the screen), `blockers` what you can't walk
 // through; `where` gets your position (three's space) every frame, for the
 // camera to follow. A new `go` (the same place again included) walks you there.
-const DRIVE_SPEED = 200; // LDU a second at full stick
+const DRIVE_SPEED = 150; // LDU a second at full stick, walking (running: RUN times that)
+const RUN = 1.5; // fast reads wrong on a minifig: a run is a brisk trot, not a sprint
 function Walker({
   id,
   look,
@@ -3483,7 +3484,7 @@ function Walker({
   const stepped = useRef({ x: 0, z: 0, d: 0 }); // for your footsteps
   // the legs' pace, kept with your speed so your feet never slide: running, walking, or strolling
   // (Shift, or the stick pushed only part way) at about 0.6 of the walk
-  const [stride, setStride] = useState(16);
+  const [stride, setStride] = useState(13);
   useEffect(() => () => void CROWD.delete(id), [id]);
   useFrame(({ camera }, dt) => {
     const s = state.current;
@@ -3522,7 +3523,8 @@ function Walker({
     // running: the stick pushed right out (or Shift), while you have the energy for it
     const e = energyRef?.current;
     const run = push > 0.85 && (e === undefined || e >= CAN_RUN_AT);
-    const pace = run ? 24 : push > 0.15 && push < 0.75 ? 10 : 16;
+    // (a step's length is about 2 x leg x sin(swing): these keep each speed's feet planted)
+    const pace = run ? 17 : push > 0.15 && push < 0.75 ? 9 : 13;
     if (pace !== stride) setStride(pace);
     if (energyRef) {
       if (run) energyRef.current = Math.max(0, energyRef.current - RUN_COST * dt);
@@ -3539,7 +3541,7 @@ function Walker({
       const m = Math.hypot(mx, mz) || 1;
       [v.dx, v.dz] = [mx / m, -mz / m]; // LDraw: z is flipped
     }
-    const target = pushing ? DRIVE_SPEED * (run ? 1.8 : push) : 0;
+    const target = pushing ? DRIVE_SPEED * (run ? RUN : push) : 0;
     v.sp += (target - v.sp) * Math.min(1, dt * (pushing ? 10 : 12));
     if (v.sp > 6 && (pushing || !s.walk)) {
       const { sp, dx, dz } = v;
