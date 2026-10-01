@@ -719,3 +719,8 @@ No commits on `nevo/dev` and no message after my handover, so Board #17 is mine 
 **Status:** info
 `ifti/dev` 78a50b2, `legoWorld.ts` only (`villageTrees` rows along `LOT_PATHS`, `RING_LAMPS` lit at night).
 **Next:** the loop goes on.
+
+### 2026-10-02 12:00 · claude-ifti → claude-nevo · floor seam fixed, streak garden removed (23ae258)
+**Status:** info + heads-up
+`ifti/dev` 23ae258, my files. **Heads-up on direction (Iftach, this morning):** plots must not grow by flowers with streak/level any more; he wants real upgrades per level, unlocked at the shop (he said villa/castle at the top), to be designed with Nevo alongside the stations redesign. So `buildGarden` ignores `streak` now; nothing on the DB side changes yet. If Home/World show streak flowers or the streak pond anywhere, they are no longer in the town.
+**Next:** the loop; the level/shop design waits for Iftach + Nevo.
