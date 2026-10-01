@@ -633,6 +633,25 @@ function villageTrees(): string[] {
     const part = rnd() < 0.72 ? "2435" : rnd() < 0.5 ? "3471" : "3470";
     out.push(line(part === "3471" ? COL.darkGreen : COL.green, Math.round(x / S) * S, -BOTTOM[part], Math.round(z / S) * S, ROT[0], part));
   }
+  // leafy trees in rows along both sides of every gravel path (the way a city lines its streets),
+  // from the ring out to the gate, clear of the plots and the ring's benches
+  for (const path of paths)
+    for (let k = 0; k + 1 < path.length; k++) {
+      const [a, b] = [path[k], path[k + 1]];
+      const [dx, dz] = [b[0] - a[0], b[2] - a[2]];
+      const len = Math.hypot(dx, dz) || 1;
+      const [nx, nz] = [-dz / len, dx / len];
+      for (let d = 12 * S; d < len - 4 * S; d += 14 * S)
+        for (const side of [-1, 1]) {
+          const x = a[0] + (dx * d) / len + nx * side * (PATH_W / 2 + 3) * S;
+          const z = a[2] + (dz * d) / len + nz * side * (PATH_W / 2 + 3) * S;
+          if (Math.hypot(x, z) < (RING + 9) * S || lots.some((lot) => nearLot(x, z, lot, 3 * S))) continue;
+          if (paths.some((other) => other !== path && toPath(x, z, other) < 6 * S)) continue;
+          if (taken.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 6 * S)) continue;
+          taken.push([x, z]);
+          out.push(line(COL.green, Math.round(x / S) * S, -BOTTOM["2435"], Math.round(z / S) * S, ROT[0], "2435"));
+        }
+    }
   // wildflowers in clusters of three in the gaps, never on a plot or a path (gone in winter, like every flower)
   for (let tries = 0; tries < 400 && out.length < 190; tries++) {
     const a = rnd() * Math.PI * 2;
@@ -928,6 +947,12 @@ const STREET_LAMPS: [number, number][] = Array.from({ length: MAX_RESIDENTS }, (
   const r = Math.hypot(end[0], end[2]) || 1;
   return [end[0] + (end[0] / r) * 4 * S + (-dz / len) * 6 * S, end[2] + (end[2] / r) * 4 * S + (dx / len) * 6 * S] as [number, number];
 });
+// and round the ring, between the seats, just outside the path
+const RING_LAMPS: [number, number][] = Array.from({ length: 12 }, (_, k) => {
+  const a = (k / 12) * Math.PI * 2;
+  const r = (RING + PATH_W / 2 + 3) * S;
+  return [Math.sin(a) * r, Math.cos(a) * r] as [number, number];
+}).filter(([x, z]) => !STREET_LAMPS.some(([lx, lz]) => Math.hypot(lx - x, lz - z) < 14 * S) && !Array.from({ length: MAX_RESIDENTS }, (_, i) => lotPath(lotFor(i), 3)).some((p) => toPath(x, z, p) < 8 * S));
 // and along the roads out, every 40 studs, sides alternating, as far as the woods
 const ROAD_LAMPS: [number, number][] = ROADS.flatMap((road) => {
   const out: [number, number][] = [];
@@ -949,7 +974,7 @@ const ROAD_LAMPS: [number, number][] = ROADS.flatMap((road) => {
   }
   return out;
 });
-export const STREET_LAMP_LIGHTS: [number, number, number][] = [...STREET_LAMPS, ...ROAD_LAMPS].map(([x, z]) => [x, -(168 + 14), z]);
+export const STREET_LAMP_LIGHTS: [number, number, number][] = [...STREET_LAMPS, ...RING_LAMPS, ...ROAD_LAMPS].map(([x, z]) => [x, -(168 + 14), z]);
 const bench: Piece[] = [
   ["3005", COL.darkGrey, -30, 0, 0],
   ["3005", COL.darkGrey, 30, 0, 0],
@@ -1183,7 +1208,7 @@ export function townClouds(): Slab[] {
 // The lampposts on the pavement corners that face the plaza (LDraw).
 export function townDecorText(): string {
   const out: string[] = [];
-  for (const [x, z] of [...STREET_LAMPS, ...ROAD_LAMPS]) out.push(...place(lamp, x, z, ROT[0], 0));
+  for (const [x, z] of [...STREET_LAMPS, ...RING_LAMPS, ...ROAD_LAMPS]) out.push(...place(lamp, x, z, ROT[0], 0));
   out.push(...place(SIGNPOST, PLAZA_SIGN[0], PLAZA_SIGN[1], ROT[0], 0), ...place(SIGNPOST, SHOP_SIGN[0], SHOP_SIGN[1], ROT[0], 0));
   // life round the ring: a bench facing the plaza and a pot of flowers just outside the ring path,
   // between the paths in (never on one)
@@ -1290,7 +1315,7 @@ export const RING_SEATS: { x: number; z: number; yaw: number; bench: boolean; k:
     const a = ((k + 0.5) / 12) * Math.PI * 2;
     const r = (RING + PATH_W / 2 + 3) * S;
     const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
-    if (!busy(x, z)) out.push({ x, z, yaw: a + Math.PI, bench: k % 2 === 1, k });
+    if (!busy(x, z) && !RING_LAMPS.some(([lx, lz]) => Math.hypot(lx - x, lz - z) < 5 * S)) out.push({ x, z, yaw: a + Math.PI, bench: k % 2 === 1, k });
   }
   return out;
 })();
