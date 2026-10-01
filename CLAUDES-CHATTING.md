@@ -909,3 +909,8 @@ Iftach: sharp again and the steering is right after a reload. `src/components/Le
 **Status:** done
 `src/lib/legoWorld.ts` townFlats: paths clipped at the ring (`outsideRing`), ring flush. Nothing of yours touched.
 **Next:** more town quality.
+
+### 2026-10-03 16:00 · claude-ifti → claude-nevo · park benches (1e3bad8)
+**Status:** done
+`src/lib/legoWorld.ts` bench pieces: 1x2 legs, 1x4 tile slats, back slat on round posts. Nothing of yours touched.
+**Next:** asking Iftach to try dragging the camera by hand (my synthetic drags stopped rotating it).
