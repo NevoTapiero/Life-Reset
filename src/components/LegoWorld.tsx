@@ -1305,6 +1305,9 @@ const PLAZA_LOT: Lot = { x: 0, z: 0, yaw: 0, a: 0, r: 0 };
 
 // Following someone round the town, the sunlight (and its shadow area, only
 // ~44 units across) goes with them, so you and what's around you always cast shadows.
+// the sun's direction from what it lights (three's space): lower than noon, so shadows run long
+// and every brick stands out, the way the LEGO games light a scene
+const SUN_FROM: [number, number, number] = [22, 22, -18];
 function SunFollows({
   follow,
   sun,
@@ -1317,7 +1320,7 @@ function SunFollows({
   useFrame(() => {
     const p = follow.current;
     sun.position.set(p.x, 0, p.z);
-    light.current?.position.set(p.x + 18, 30, p.z - 14);
+    light.current?.position.set(p.x + SUN_FROM[0], SUN_FROM[1], p.z + SUN_FROM[2]);
   });
   return null;
 }
@@ -1365,7 +1368,7 @@ function Stage({
   pins = [],
   follow,
   aim,
-  sunFrom = [18, 30, -14],
+  sunFrom = SUN_FROM,
   children,
 }: {
   className?: string;
@@ -1583,7 +1586,7 @@ const CHASE_FOV = 62; // a game camera's wide lens: you see well ahead and to th
 const STILL = new THREE.Vector3(); // a target that never changes (the camera follows you instead)
 // where the sun hangs in the sky (three's space): where the sunlight comes from
 // (up, to the right and behind the usual view), just inside the sky dome
-const SUN_AT = new THREE.Vector3(18, 30, -14).normalize().multiplyScalar(420);
+const SUN_AT = new THREE.Vector3(...SUN_FROM).normalize().multiplyScalar(420);
 const toThree = ([x, y, z]: [number, number, number]): [number, number, number] => [x * LDU, y, -z * LDU];
 
 export function LegoTown({
