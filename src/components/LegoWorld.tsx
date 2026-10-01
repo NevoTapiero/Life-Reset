@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { ContactShadows, Environment, Lightformer, OrbitControls, PerformanceMonitor, Sky } from "@react-three/drei";
@@ -784,7 +784,10 @@ function Minifig({
   const jumpsSeen = useRef(0);
   const base = useRef<THREE.Quaternion[]>([]);
   const limbs = useRef<THREE.Quaternion[]>([]);
-  const gait = useRef({ blend: 0, phase: 0 }); // 0 standing .. 1 walking; where it is in the step
+  const gait = useRef({ blend: 0, phase: 0, still: 0 }); // 0 standing .. 1 walking; where it is in the step; when it last stopped
+  // each figure fidgets on its own clock (an offset from its id), so the town never moves in step
+  const id = useId();
+  const fidgetOffset = useMemo(() => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 9973, 7) / 9973 * FIDGET_EVERY, [id]);
 
   useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime;
@@ -793,6 +796,7 @@ function Minifig({
     const g = gait.current;
     g.blend += ((walking?.current ? 1 : 0) - g.blend) * Math.min(1, dt * 10);
     g.phase += dt * stride * (0.4 + 0.6 * g.blend);
+    if (walking?.current) g.still = t;
     // the head and hair turn together, glancing around while standing; on the move they look
     // straight ahead, where they're going (a face looking one way while the legs go another reads wrong)
     const head = model.getObjectByName("head");
@@ -811,6 +815,19 @@ function Minifig({
     if (parts.every(Boolean)) {
       if (!limbs.current.length) limbs.current = parts.map((p) => p!.quaternion.clone());
       const swing = sit ? [-1.5, -1.5, 0, 0] : [s * reach, -s * reach, -s * reach * 0.8, s * reach * 0.8]; // legL legR armL armR
+      // standing a while, it fidgets the LEGO-game way, now and then: checks its wrist, swings its
+      // arms, taps a foot (each eased in and out, then a rest)
+      if (!sit && !(wave && t % 5 < 3) && g.blend < 0.05 && t - g.still > 2) {
+        const it = t + fidgetOffset;
+        const u = (it % FIDGET_EVERY) / 1.6;
+        if (u < 1) {
+          const env = Math.sin(u * Math.PI);
+          const kind = Math.floor(it / FIDGET_EVERY) % 3;
+          if (kind === 0) swing[3] += 1.3 * env; // the right arm up in front: a look at the watch
+          else if (kind === 1) [swing[2], swing[3]] = [Math.sin(it * 7) * 0.45 * env, -Math.sin(it * 7) * 0.45 * env]; // arms swinging, bored
+          else swing[1] += Math.max(0, Math.sin(it * 16)) * 0.35 * env; // a foot tapping
+        }
+      }
       // in the air (a jump, the LEGO-game way): arms flung up, legs split, eased in and out
       const air = airPose(t - hopAt.current, hopBig.current);
       if (air > 0) {
@@ -3669,6 +3686,7 @@ function Walker({
   );
 }
 const DUST = 12;
+const FIDGET_EVERY = 6; // seconds between a standing minifig's fidgets
 const JUMP_AIR = 0.62; // seconds a jump keeps you in the air
 const DUST_LIFE = 0.5; // seconds
 
