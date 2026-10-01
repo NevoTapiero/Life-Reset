@@ -96,6 +96,10 @@ import {
   balloonSlabs,
   waterTowerSlabs,
   meadows,
+  boatSlabs,
+  BOATS,
+  duckText,
+  LAKE,
   RING,
   RING_SEATS,
   type Slab,
@@ -1968,6 +1972,7 @@ export function LegoTown({
         <Slabs slabs={FLATS} />
         <Slabs slabs={HEDGES} />
         <Slabs slabs={WATER_TOWER_SLABS} />
+        <LakeLife />
         {/* townsfolk sitting on three of the benches round the ring, watching the plaza */}
         {RING_SEATS.filter((b) => b.bench)
           .slice(0, 3)
@@ -2935,6 +2940,45 @@ function FountainSplash() {
       <sphereGeometry args={[1, 8, 6]} />
       <meshPhysicalMaterial color="#8fd0ff" transparent opacity={0.75} roughness={0.1} clearcoat={1} />
     </instancedMesh>
+  );
+}
+// The lake's life: the boats rock gently on the water, the ducks paddle round in slow circles
+// (LDraw frame, over LAKE).
+const BOAT_SLABS = BOATS.map((b) => boatSlabs(b.color));
+function LakeLife() {
+  const duck = useModel(duckText(), true);
+  const ducks = useMemo(() => (duck ? [0, 1, 2, 3].map(() => duck.clone()) : []), [duck]);
+  const boats = useRef<(THREE.Group | null)[]>([]);
+  const paddlers = useRef<(THREE.Group | null)[]>([]);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    boats.current.forEach((g, i) => {
+      if (!g) return;
+      g.rotation.z = Math.sin(t * 1.2 + i * 2) * 0.06;
+      g.rotation.x = Math.sin(t * 0.8 + i) * 0.04;
+      g.position.y = Math.sin(t * 1.1 + i * 1.3) * 2;
+    });
+    paddlers.current.forEach((g, i) => {
+      if (!g) return;
+      const a = t * (0.12 + i * 0.03) + i * 1.6;
+      const r = LAKE.r * (0.3 + i * 0.14);
+      g.position.set(LAKE.x + Math.cos(a) * r, Math.sin(t * 3 + i) * 1.5, LAKE.z + Math.sin(a) * r);
+      g.rotation.y = -a; // facing the way it paddles
+    });
+  });
+  return (
+    <group>
+      {BOATS.map((b, i) => (
+        <group key={i} position={[LAKE.x + b.dx, 0, LAKE.z + b.dz]} rotation={[0, b.yaw, 0]} ref={(g) => void (boats.current[i] = g)}>
+          <Slabs slabs={BOAT_SLABS[i]} shadows={false} />
+        </group>
+      ))}
+      {ducks.map((d, i) => (
+        <group key={`d${i}`} ref={(g) => void (paddlers.current[i] = g)}>
+          <primitive object={d} />
+        </group>
+      ))}
+    </group>
   );
 }
 const SITTERS: MinifigLook[] = [

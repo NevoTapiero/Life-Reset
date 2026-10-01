@@ -1120,12 +1120,7 @@ export function townFlats(): Slab[] {
   for (const t of [0.35, 0.95])
     for (const side of [-1, 1])
       out.push({ x: shore[0] + jx * (t * 14 * S) / jl + (-jz / jl) * side * 1.6 * S, z: shore[2] + jz * (t * 14 * S) / jl + (jx / jl) * side * 1.6 * S, w: 8, d: 8, h: 14, y: -4, color: "#6b4a2a" });
-  const boat = (dx: number, dz: number, yaw: number, color: string) => {
-    out.push({ x: LAKE.x + dx, z: LAKE.z + dz, w: 6 * S, d: 3 * S, h: 14, y: 1, radius: 28, yaw, color });
-    out.push({ x: LAKE.x + dx, z: LAKE.z + dz, w: 2 * S, d: 2.4 * S, h: 6, y: 15, yaw, color: "#a0703c" });
-  };
-  boat(-120, -90, 0.7, "#c4281c");
-  boat(150, 120, -0.4, "#f2f2ee");
+  // (the boats and ducks are the renderer's: they move, see LakeLife)
   along(TRACK, GRAVEL_W, GRAVEL);
   // the gravel ring round the plaza, and a winding gravel path in from every house's gate
   out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -5, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL, studs: true }); // under the paths that meet it
@@ -1194,11 +1189,20 @@ export function townDecorText(): string {
   // between the paths in (never on one)
   for (const { x, z, yaw, bench: isBench, k } of RING_SEATS) out.push(...place(isBench ? bench : flowerPot([COL.red, COL.yellow, COL.pink][k % 3]), x, z, yawMat(yaw), 0));
   out.push(...playgroundText());
-  // ducks on the lake
-  for (const [dx, dz, turn] of [[-120, 60, 0], [40, -150, 90], [180, 90, 180], [-60, -40, 270]] as [number, number, 0 | 90 | 180 | 270][])
-    out.push(...place([["49661", COL.yellow, 0, -2, 0]], LAKE.x + dx, LAKE.z + dz, ROT[turn], 0));
   return modelText(out, "town-decor.ldr");
 }
+
+// ---- the lake's life (the renderer moves these): two rowing boats and a duck ----
+/** a rowing boat about its own centre, floating: a round-cornered hull and a seat */
+export const boatSlabs = (color: string): Slab[] => [
+  { x: 0, z: 0, w: 6 * S, d: 3 * S, h: 14, y: 1, radius: 28, color },
+  { x: 0, z: 0, w: 2 * S, d: 2.4 * S, h: 6, y: 15, color: "#a0703c" },
+];
+export const BOATS: { dx: number; dz: number; yaw: number; color: string }[] = [
+  { dx: -120, dz: -90, yaw: 0.7, color: "#c4281c" },
+  { dx: 150, dz: 120, yaw: -0.4, color: "#f2f2ee" },
+];
+export const duckText = () => modelText(place([["49661", COL.yellow, 0, -2, 0]], 0, 0, ROT[0], 0), "duck.ldr");
 
 // ---- meadows: round patches of a slightly different green, in the gaps and under the woods ----
 export function meadows(): { x: number; z: number; r: number; k: number }[] {
