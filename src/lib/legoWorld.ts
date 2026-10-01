@@ -958,16 +958,33 @@ export const DECOR: Decor[] = [
 // sides, flower pots at the front. LDU, the plaza's centre at 0; the shop's
 // front edge is at SHOP_FRONT.
 export const SHOP_FRONT = (-PLAZA / 2 + 34) * S; // Market Street is 34 deep, backed onto the plaza's back edge
-export const FOUNTAIN: [number, number] = [0, 340];
-const fountain: Piece[] = [
-  ["3961", COL.lightGrey, 0, 0, 0], // the basin: a big inverted dish
-  ["11213", COL.transLightBlue, 0, 16, 0], // its water
-  ...stack("3941", COL.lightGrey, 0, 0, 2, 24), // the column
-  ["3960", COL.lightGrey, 0, 72, 0], // the upper bowl
-  ["60474", COL.transLightBlue, 0, 80, 0], // its water
-  ...stack("6141", COL.transClear, 0, 0, 3, 88), // the jet
-  ["98138", COL.transClear, 0, 112, 0],
-];
+// The fountain, after Bethesda Fountain in New York's Central Park (Iftach, 3 Oct: "huge, like the park
+// in New York"): a round paved terrace straddling the plaza's front edge, a big pool with a stone rim, and
+// in it a pedestal, a wide lower basin, a column, an upper basin and the angel on top (the renderer's)
+export const FOUNTAIN: [number, number] = [0, 450];
+export const POOL_R = 200; // LDU, the pool's water
+export const TERRACE_R = 270; // LDU, the paved terrace round it
+export const ANGEL_AT = 176; // LDU up: the angel's feet, on top of it all
+export function fountainSlabs(): Slab[] {
+  const [x, z] = FOUNTAIN;
+  const stone = "#d6ccb4";
+  const disc = (r: number, h: number, y: number, color: string, extra: Partial<Slab> = {}): Slab => ({ x, z, w: 2 * r, d: 2 * r, radius: r, h, y, color, ...extra });
+  return [
+    disc(TERRACE_R, 4, 0, "#ddd4c0", { tiles: true }), // a quarter plate up off the plaza (two surfaces mustn't lie together)
+    disc(POOL_R + 16, 24, 4, "#c4b99f", { border: 16 }), // the pool's rim, a brick high
+    disc(POOL_R, 12, 4, WATER, { studs: true }), // the pool
+    { x, z, w: 0, d: 0, r: 44, h: 40, y: 16, color: stone }, // the pedestal
+    { x, z, w: 0, d: 0, r: 112, h: 12, y: 56, color: stone }, // the lower basin
+    disc(100, 4, 68, WATER, { studs: true }),
+    { x, z, w: 0, d: 0, r: 24, h: 60, y: 72, color: stone }, // the column
+    { x, z, w: 0, d: 0, r: 64, h: 10, y: 132, color: stone }, // the upper basin
+    disc(56, 4, 142, WATER, { studs: true }),
+    { x, z, w: 0, d: 0, r: 20, h: 30, y: 146, color: stone }, // the angel's plinth
+    // her wings, spread behind her (she faces the street, +z), weathered bronze
+    { x: x - 34, z: z - 22, w: 74, d: 6, h: 110, y: ANGEL_AT + 80, yaw: 0.5, color: "#8fae9c" },
+    { x: x + 34, z: z - 22, w: 74, d: 6, h: 110, y: ANGEL_AT + 80, yaw: -0.5, color: "#8fae9c" },
+  ];
+}
 const lamp: Piece[] = [["2039", COL.black, 0, 0, 0], ["30367c", COL.transYellow, 0, 168, 0]];
 const LAMP_SPOTS: [number, number][] = [-1, 1].flatMap((side) => [380, 60, -300].map((z) => [side * 400, z] as [number, number]));
 // where the lamps' lights are, for the glow after dark (LDU; -Y is up)
@@ -1032,15 +1049,17 @@ const flowerPot = (color: number): Piece[] => [["3941", COL.darkOrange, 0, 0, 0]
 export function plazaText(): string {
   const out: string[] = [];
   const [fx, fz] = FOUNTAIN;
-  out.push(...place(fountain, fx, fz, ROT[0], 0));
-  // benches either side of the fountain, facing it
-  out.push(...place(bench, fx - 150, fz, ROT[90], 0), ...place(bench, fx + 150, fz, ROT[270], 0));
+  // benches round the fountain's terrace, facing it
+  for (const a of [-1.6, -0.9, 0.9, 1.6]) { // the front and sides (the shop's side keeps the walk to it clear)
+    const r = POOL_R + 70;
+    out.push(...place(bench, fx + Math.sin(a) * r, fz + Math.cos(a) * r, yawMat(a + Math.PI), 0));
+  }
   // down both sides: lampposts and trees in planters, alternating
   for (const side of [-1, 1]) {
     for (const [x, z] of LAMP_SPOTS.filter(([x]) => Math.sign(x) === side)) out.push(...place(lamp, x, z, ROT[0], 0));
     // (the right side's front planter makes way for the ice cream cart, ICE_CREAM_CART)
     for (const z of side > 0 ? [-120, -440] : [220, -120, -440]) out.push(...place(planterTree, side * 400, z, ROT[0], 0));
-    out.push(...place(flowerPot(side < 0 ? COL.red : COL.yellow), side * 240, 440, ROT[0], 0));
+    out.push(...place(flowerPot(side < 0 ? COL.red : COL.yellow), side * 340, 300, ROT[0], 0));
   }
   return modelText(out, "plaza.ldr");
 }
@@ -1226,10 +1245,9 @@ export function townFlats(): Slab[] {
   // layered the LEGO-game way instead of cut off flat
   for (let i = 0; i < MAX_RESIDENTS; i++) gravelPath(lotPath(lotFor(i), 3));
   out.push(...fieldSlabs());
-  // a sandy disc round the fountain with a darker border (round slabs)
+  // the fountain on its terrace (round slabs)
   out.push(
-    { x: FOUNTAIN[0], z: FOUNTAIN[1], r: 150, w: 0, d: 0, h: 1, color: "#8b7a5c" },
-    { x: FOUNTAIN[0], z: FOUNTAIN[1], r: 138, w: 0, d: 0, h: 2, color: "#d8c79c" },
+    ...fountainSlabs(),
   );
   return out;
 }
@@ -1588,7 +1606,7 @@ export function rideSpot(lot: Lot, level: number): P3 {
 }
 /** from the ring on the plaza's left, between the planters and the bench, to the shop's front;
  *  `k` of 0..3 stands further along the front (so friends shopping don't stand in each other) */
-export const shopWalk = (k = 0): P3[] => [nearestStreet([-150, 0, 290]), [-150, 0, 290], [-120 + 45 * k, 0, 222]]; // outside the strollers' circle
+export const shopWalk = (k = 0): P3[] => [nearestStreet([-330, 0, 300]), [-330, 0, 300], [-120 + 45 * k, 0, 222]]; // round the fountain's pool
 export const SHOP_WALK = shopWalk(0);
 /** on the ring round the plaza? */
 export const onRing = (p: P3) => Math.abs(Math.hypot(p[0], p[2]) - RING_R) < 1;
@@ -1650,7 +1668,7 @@ export function townBlockers(residents: Resident[]): Blocker[] {
   });
   const shop = SHOP as House;
   out.push({ x0: (-shop.w / 2) * S + 10, x1: (shop.w / 2) * S - 10, z0: SHOP_FRONT - shop.d * S, z1: SHOP_FRONT - 10 });
-  out.push({ cx: FOUNTAIN[0], cz: FOUNTAIN[1], r: 95 });
+  out.push({ cx: FOUNTAIN[0], cz: FOUNTAIN[1], r: POOL_R + 18 }); // the rim
   out.push({ cx: PLAYGROUND[0], cz: PLAYGROUND[1], r: 200 }, { cx: WATER_TOWER[0], cz: WATER_TOWER[1], r: 110 });
   for (const f of FIELDS) out.push({ cx: f.x, cz: f.z, hw: (f.w / 2) * S, hd: (f.d / 2) * S, yaw: f.yaw });
   // the fences: a turned box along every run

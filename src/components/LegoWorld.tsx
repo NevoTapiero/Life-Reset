@@ -112,6 +112,7 @@ import {
   STREET_LAMP_LIGHTS,
   SHOP_FRONT,
   FOUNTAIN,
+  ANGEL_AT,
   type Station,
   type MinifigLook,
   type Figure,
@@ -753,6 +754,7 @@ function Minifig({
   jumpRef,
   sit = false,
   teleRef,
+  statue = false,
 }: {
   /** four colours (townsfolk) or a whole figure (a character's loadout) */
   look: MinifigLook | Figure;
@@ -770,6 +772,8 @@ function Minifig({
   jumpRef?: React.RefObject<number>;
   /** the clock time a teleport began (-1: none): it bursts apart, then builds itself again (TELE_*) */
   teleRef?: React.RefObject<number>;
+  /** a statue: stands stock still (no fidgets, no looking about) */
+  statue?: boolean;
 }) {
   const [model, setModel] = useState<THREE.Object3D | null>(null);
   const key = JSON.stringify("parts" in look ? { parts: look.parts, gear: look.gear, shoes: look.shoes } : figureOf(look));
@@ -853,7 +857,7 @@ function Minifig({
 
   useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime;
-    if (!model || !root.current) return;
+    if (!model || !root.current || statue) return;
     // ease into and out of the walk (no snapping between standing and striding)
     const g = gait.current;
     g.blend += ((walking?.current ? 1 : 0) - g.blend) * Math.min(1, dt * 10);
@@ -2378,6 +2382,10 @@ export function LegoTown({
           <Prop key={k} {...PARK_BURGER_STAND} lot={lot} />
         ))}
         <FountainSpray />
+        {/* the Angel of the Waters on top of the fountain, in weathered bronze, facing the street */}
+        <group position={[FOUNTAIN[0], -ANGEL_AT, FOUNTAIN[1]]} scale={1.8}>
+          <Minifig look={ANGEL} at={[0, 0, 0]} statue />
+        </group>
         <TownSign name={residents[meIndex]?.name ?? "Your"} />
         {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
         {GUIDES.map((g) => (
@@ -4244,17 +4252,21 @@ function Seagulls({ centre = FOUNTAIN, seed = 0 }: { centre?: [number, number]; 
 }
 
 // ---- the fountain's water: droplets arcing from the jet into the bowls ----
-const DROPS = 36;
+const DROPS = 120;
 function FountainSpray() {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const m = useMemo(() => new THREE.Matrix4(), []);
   useFrame(({ clock }) => {
     if (!mesh.current) return;
     for (let i = 0; i < DROPS; i++) {
-      const t = (clock.elapsedTime * 0.9 + i / DROPS) % 1; // each drop's time along its arc, 0..1
-      const a = (i * 2.39996) % (Math.PI * 2); // spread round the jet (golden angle)
-      const out = 12 + t * (i % 3 ? 26 : 60); // most land in the upper bowl, some reach the basin
-      const up = 128 + 60 * t - 110 * t * t * (i % 3 ? 1 : 1.3); // height above the ground, LDU
+      // Bethesda's curtains of water: half the drops spill over the upper basin's lip into the lower
+      // basin, half over the lower basin's lip into the pool, all round, each falling and drifting out
+      const lower = i % 2 === 1;
+      const t = (clock.elapsedTime * 1.1 + i / DROPS) % 1; // each drop's time down, 0..1
+      const a = (i * 2.39996) % (Math.PI * 2); // spread round the lip (golden angle)
+      const [r0, y0, drift, drop] = lower ? [114, 68, 22, 52] : [66, 142, 18, 70];
+      const out = r0 + drift * t;
+      const up = y0 - drop * t * t; // falling faster as it goes (LDU above the ground)
       m.makeTranslation(FOUNTAIN[0] + Math.cos(a) * out, -up, FOUNTAIN[1] + Math.sin(a) * out);
       mesh.current.setMatrixAt(i, m);
     }
@@ -4262,11 +4274,12 @@ function FountainSpray() {
   });
   return (
     <instancedMesh ref={mesh} args={[undefined, undefined, DROPS]}>
-      <sphereGeometry args={[3.2, 6, 4]} />
+      <sphereGeometry args={[3.6, 6, 4]} />
       <meshStandardMaterial color="#bfe6ff" transparent opacity={0.75} roughness={0.1} />
     </instancedMesh>
   );
 }
+const ANGEL: MinifigLook = { skin: 378, hair: 378, torso: 378, legs: 378 }; // sand green: weathered bronze
 
 // ---- the welcome sign at the front of the plaza: "<name>'s Town" ----
 function TownSign({ name }: { name: string }) {
