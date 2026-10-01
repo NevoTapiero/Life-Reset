@@ -75,12 +75,6 @@ function line(color: number, x: number, y: number, z: number, m: Mat, part: stri
   return `1 ${color} ${n(x)} ${n(y)} ${n(z)} ${m.map(n).join(" ")} ${part}.dat`;
 }
 
-// Put a part whose footprint is centred on cell-space point (u, w), standing
-// on the surface `plates` plates above the baseplate.
-function put(part: string, color: number, u: number, w: number, plates: number, rot: 0 | 90 | 180 | 270 = 0) {
-  const bottom = BOTTOM[part] ?? 24;
-  return line(color, (u - (PLOT - 1) / 2) * S, -plates * PLATE - bottom, (w - (PLOT - 1) / 2) * S, ROT[rot], part);
-}
 
 // ---- the house -------------------------------------------------------------
 
@@ -163,22 +157,14 @@ export function buildGarden(streak: number, s: HouseSpec, stations: Station[] = 
     out.push(line(COL.tan, x, -8, z, spots[i].f, "3958")); // its pad, a 6x6 plate
     out.push(...place(kinds[n % kinds.length], x, z, spots[i].f, -8));
   });
-  const door = doorCells(s);
-  const pathL = door[1];
-  const front = s.z0 + s.d;
-
-  // the path from the door to the edge, and on to the gate where the gravel path begins
-  let z = front;
-  // tan tiles, as wide as the gravel path outside, so it's one path from the door to the ring
-  for (; z + 1 < PLOT + 3; z += 2) for (const dx of [-2, 0, 2]) out.push(put("3068b", COL.tan, pathL + 0.5 + dx, z + 0.5, 0));
-  if (z < PLOT + 3) for (const dx of [-2, 0, 2]) out.push(put("3069b", COL.tan, pathL + 0.5 + dx, z, 0));
+  // (the path from the door to the gate is a tiled slab, doorPath(): real tile parts side by side
+  // merge into one seamless sheet, there being no edge lines to show where one ends)
 
   // the name sign at the gate, beside the path, and the fence round the yard
   out.push(...fenceLines(s));
   // (no streak flowers, hedges, trees or pond any more: Iftach, 2 Oct, "we need a real upgrade",
   // what a plot has will come from the shop and the level; `streak` stays in the signature for now)
   void streak;
-  void front;
   return out;
 }
 
@@ -329,6 +315,20 @@ export function inLot(lot: Lot, [x, y, z]: [number, number, number]): [number, n
 }
 /** the gravel path from a lot's front gate (just past its hedge, by the door) in to the ring
  *  round the plaza: from the ring inwards, winding a little, LDU */
+/** the tiled path from a house's door out past its gate, in the plot frame (LDU): 6 studs wide,
+ *  a plate high, laid in 2x2 tiles with seams (Slab.tiles), the same tiles as the path outside */
+export function doorPath(s: HouseSpec): Slab {
+  const [front, end] = [s.z0 + s.d, PLOT + 3]; // in cells: the house's front to 3 studs past the fence
+  return { x: pathX(s), z: ((front + end) / 2 - PLOT / 2) * S, w: 6 * S, d: (end - front) * S, h: 8, y: 0, color: GRAVEL, tiles: true };
+}
+/** every lived-in plot's door path, in the town's frame */
+export const doorPaths = (residents: Resident[]): Slab[] =>
+  residents.slice(0, MAX_RESIDENTS).map((r, i) => {
+    const lot = lotFor(i);
+    const p = doorPath(houseSpec(r.level));
+    const [x, , z] = inLot(lot, [p.x, 0, p.z]);
+    return { ...p, x, z, yaw: lot.yaw };
+  });
 /** the middle of the tiled path from a house's door, in the plot frame (LDU) */
 export const pathX = (s: HouseSpec) => (doorCells(s)[1] + 1 - PLOT / 2) * S;
 export function lotPath(lot: Lot, level: number): P3[] {

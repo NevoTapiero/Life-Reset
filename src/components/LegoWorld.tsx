@@ -38,6 +38,8 @@ import {
   houseUrl,
   houseById,
   houseSpec,
+  doorPath,
+  doorPaths,
   minifigSpot,
   doorWalk,
   insideWalk,
@@ -1076,6 +1078,7 @@ export default function LegoWorld({
   // real studs, and the garden's trees and flowers are instanced
   const garden = useMemo(() => splitInstanced(buildGarden(streak, houseSpec(houseLevel))), [houseLevel, streak]);
   const worldText = useMemo(() => modelText(garden.kept, "plot.ldr"), [garden]);
+  const doorSlab = useMemo(() => [doorPath(houseSpec(houseLevel))], [houseLevel]);
   const world = useModel(worldText, true);
   const at = minifigSpot(spec);
   // the house centre in three's space: x as is, LDraw z flipped by the container's half-turn
@@ -1094,6 +1097,7 @@ export default function LegoWorld({
       overlay={<StudGround at={[0, 0]} size={PLOT} color="#4b9b3c" />}
     >
       {world && <primitive object={world} />}
+      <Slabs slabs={doorSlab} />
       <InstancedParts placements={garden.placed} />
       {spin ? <SpunHouse level={houseLevel} id={house} spin={spin} /> : <House level={houseLevel} name={name} id={house} />}
       <Minifig look={character ? loadoutFor(houseLevel, character) : look} at={at} />
@@ -1748,6 +1752,7 @@ export function LegoTown({
   const parks = useModel(useMemo(() => textIn(emptyLotsText(residents.length), season), [residents.length, season]), true);
   const emptyLots = useMemo(() => Array.from({ length: MAX_RESIDENTS - residents.length }, (_, k) => lotFor(residents.length + k)), [residents.length]);
   const lots = useMemo(() => residents.map((_, i) => lotFor(i)), [residents]);
+  const paths = useMemo(() => doorPaths(residents), [residents]);
   const meIndex = Math.max(
     0,
     residents.findIndex((r) => r.me),
@@ -2171,6 +2176,7 @@ export function LegoTown({
         {plaza && <primitive object={plaza} />}
         {decor && <primitive object={decor} />}
         <Slabs slabs={FLATS} />
+        <Slabs slabs={paths} />
         <Slabs slabs={WATER_TOWER_SLABS} />
         <LakeLife />
         {/* townsfolk sitting on three of the benches round the ring, watching the plaza */}
