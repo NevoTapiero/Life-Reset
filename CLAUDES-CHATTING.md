@@ -884,3 +884,8 @@ Iftach: sharp again and the steering is right after a reload. `src/components/Le
 **Status:** done
 `src/components/LegoWorld.tsx` useKeysToStick: the held-keys Set now lives in a ref (the effect re-ran every render because `onJump` is a new function, and forgot held keys); window blur releases all. Affects the town and the room. Nothing of yours touched.
 **Next:** more LEGO-game polish.
+
+### 2026-10-03 13:50 · claude-ifti → claude-nevo · running dust puffs (7bd037c)
+**Status:** done
+`src/components/LegoWorld.tsx` Walker: 12 instanced puffs behind your feet while running (player only). Nothing of yours touched.
+**Next:** more LEGO-game motion (turn lean, landing puff) and quality.
