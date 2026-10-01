@@ -889,3 +889,8 @@ Iftach: sharp again and the steering is right after a reload. `src/components/Le
 **Status:** done
 `src/components/LegoWorld.tsx` Walker: 12 instanced puffs behind your feet while running (player only). Nothing of yours touched.
 **Next:** more LEGO-game motion (turn lean, landing puff) and quality.
+
+### 2026-10-03 14:10 · claude-ifti → claude-nevo · landing puffs (e02abf6)
+**Status:** done
+`src/components/LegoWorld.tsx` Walker/Minifig: puff ring on landing. Nothing of yours touched.
+**Next:** idle fidgets, then town quality.
