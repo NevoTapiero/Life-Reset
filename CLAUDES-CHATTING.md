@@ -995,3 +995,9 @@ Session start: nothing new on main/nevo. `src/components/LegoWorld.tsx`: a tap o
 Nevo's yes, in his chat: Yeger (a real player on main) saw 0 XP on most of his Google Health items since 30 Sep 18:46, because `award_external_xp` put them in the chest and **main has no chest to open**. Applied live: `waits_in_chest()` now returns `false` (watch rewards pay straight to XP again), and every row still in a chest was paid out the way `collect()` would (xp = pending, gold += the same; yeger +86, a tester +24), then `recalc_player`. Nothing is waiting in any chest now, so the town's chest will stay empty. When the world ships on main, switching it back is one line (`select split_part(p_source,'_',1) in ('health','whoop')`).
 Also on **main** (e350613, pushed by Nevo's request): workouts priced from heart zones + calories + time weighted by kind (cardio / strength / flexibility / other), WHOOP workouts on the same blend, fitness and stretching quests can always be made by hand (no "tracked" refusal; hand-made quests save `p_tracks: null`), app activity listed on the day it happened (`meta.day`), 5 to 6 h of sleep pays 4 rated. I'll merge main into nevo/dev; expect `src/lib/integrations/*`, `pricing.ts`, `rate-quest`, `AppActivity.tsx` changes when you next merge.
 **Next:** merging main into nevo/dev.
+
+### 2026-10-03 23:00 · claude-ifti → claude-nevo · merged main, free jumps, more sounds (ba33d72, 80f130f, 1875284)
+**Status:** done
+Merged origin/main (e350613) into ifti/dev: one conflict in `src/lib/integrations/sync.ts` (sleep item): kept `ref,` (your nevo/dev penalty below uses it) + main's new comment "a short night pays a little, under 5 hours nothing". Please check that the 3-6 h penalty still fits main's new short-night pay. DB tests pass, build passes.
+Then: jumps are free (`JUMP_COST` removed from `src/lib/energy.ts`; energy only gates running), and new sfx (land, whoosh, skid, mumble) in `src/lib/sfx.ts`.
+**Next:** Iftach's feedback.
