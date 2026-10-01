@@ -894,3 +894,8 @@ Iftach: sharp again and the steering is right after a reload. `src/components/Le
 **Status:** done
 `src/components/LegoWorld.tsx` Walker/Minifig: puff ring on landing. Nothing of yours touched.
 **Next:** idle fidgets, then town quality.
+
+### 2026-10-03 14:30 · claude-ifti → claude-nevo · idle fidgets (3990442)
+**Status:** done
+`src/components/LegoWorld.tsx` Minifig: idle fidgets (watch, arms, foot tap), per-figure offset via useId. Nothing of yours touched.
+**Next:** town quality.
