@@ -891,6 +891,10 @@ function Minifig({
 }
 
 const FRONT_RIGHT = new THREE.Vector3(0.55, 0.65, -0.8).normalize();
+const PAN_MOUSE = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+const TURN_MOUSE = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+const PAN_TOUCH = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
+const TURN_TOUCH = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
 
 // Frames `target` so `width` fits the view, looking from `dir`. The first
 // time it jumps there; after that the camera glides (under a second, eased),
@@ -1602,15 +1606,11 @@ function Stage({
             onChange={clamp}
             enablePan={pan}
             screenSpacePanning={false}
-            // in the town a one-finger drag walks along the street; two fingers turn and zoom
-            {...(pan && {
-              mouseButtons: {
-                LEFT: THREE.MOUSE.PAN,
-                MIDDLE: THREE.MOUSE.DOLLY,
-                RIGHT: THREE.MOUSE.ROTATE,
-              },
-              touches: { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE },
-            })}
+            // on the map a one-finger drag walks along the street, two fingers turn and zoom; playing,
+            // a drag turns the view round you. Both always given: a prop that goes away is reset to
+            // nothing, not to the controls' default (left drag did nothing once you'd been on the map)
+            mouseButtons={pan ? PAN_MOUSE : TURN_MOUSE}
+            touches={pan ? PAN_TOUCH : TURN_TOUCH}
             minDistance={fov > 40 ? 6 : 14}
             maxDistance={maxDistance}
             minPolarAngle={0.45}
