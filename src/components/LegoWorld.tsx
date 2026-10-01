@@ -2022,6 +2022,31 @@ export function LegoTown({
                 ? { icon: "knock", text: `Knock`, onClick: () => onKnock(r!.name) }
                 : null;
   const me = residents[meIndex];
+  // walking up to a door, its button stands on the building, at the door, with the place's name
+  // over it (Shop on the shop, Go inside / Visit / Knock on the house), not down in the corner
+  const actionPin = (i: number) => {
+    if (!action) return nearPin(i);
+    const at: [number, number, number] =
+      i === SHOP_FOCUS
+        ? [0, 7, -(SHOP_FRONT + 10) * LDU]
+        : (() => {
+            const d = doorWalk(lots[i], residents[i].level).at(-1)!;
+            const [x, , z] = toThree([d[0], 0, d[2]]);
+            return [x, 7, z];
+          })();
+    const label = i === SHOP_FOCUS ? "Market Street" : residents[i].me ? "Your house" : `${residents[i].name}'s house`;
+    return {
+      key: `door-${i}`,
+      at,
+      node: (
+        <div className="flex flex-col items-center gap-1">
+          <span className="lego lego-sm lego-white pointer-events-none">{label}</span>
+          <RoundAction icon={action.icon} text={action.text} onClick={action.onClick} disabled={!action.onClick} tone={action.tone} small />
+        </div>
+      ),
+    };
+  };
+  const doorButtonOnBuilding = following && inside === null && action !== null && near !== null;
 
   return (
     <div className={`relative ${className ?? ""}`}>
@@ -2079,7 +2104,7 @@ export function LegoTown({
             ))}
           </>
         }
-        pins={following ? [...(near === null ? [] : [nearPin(near)]), ...(talker ? [chatPin(talker)] : []), ...stationPins()] : [
+        pins={following ? [...(near === null ? [] : [doorButtonOnBuilding ? actionPin(near) : nearPin(near)]), ...(talker ? [chatPin(talker)] : []), ...stationPins()] : [
           {
             key: "shop",
             at: [0, SHOP_BUILDING.h * LDU + 3, -(SHOP_FRONT - (SHOP_BUILDING.d / 2) * 20) * LDU] as [number, number, number],
@@ -2328,7 +2353,7 @@ export function LegoTown({
         {!isPlacing && (
           <div className="flex items-end gap-3">
             {following && <RoundAction icon="jump" text="Jump" tone="dark" small onClick={jump} disabled={energy !== null && energyNow < JUMP_COST} />}
-            {action && <RoundAction icon={action.icon} text={action.text} onClick={action.onClick} disabled={!action.onClick} tone={action.tone} />}
+            {action && !doorButtonOnBuilding && <RoundAction icon={action.icon} text={action.text} onClick={action.onClick} disabled={!action.onClick} tone={action.tone} />}
           </div>
         )}
       </div>
@@ -2427,8 +2452,8 @@ function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>, jumpR
     const down = new Set<string>();
     const set = () => {
       const k = (a: string, b: string) => (down.has(a) || down.has(b) ? 1 : 0);
-      // keys walk; hold Shift to run
-      const push = down.has("shift") ? 1 : 0.84; // a brisk walk; Shift (the stick right out) runs
+      // keys run, the LEGO-game way (while you have the energy); hold Shift to walk
+      const push = down.has("shift") ? 0.6 : 1;
       outRef.current = { x: (k("d", "arrowright") - k("a", "arrowleft")) * push, y: (k("w", "arrowup") - k("s", "arrowdown")) * push };
     };
     const on = (e: KeyboardEvent) => {
@@ -3452,6 +3477,9 @@ function Walker({
   // the camera's forward when you first pushed the stick: your directions keep to it until you
   // let go, so the camera can come round behind you without turning you round with it
   const frame = useRef<{ fx: number; fz: number } | null>(null);
+  // your velocity (LDU a second, LDraw x/z): it eases toward where the stick points and eases off
+  // when you let go, so you speed up and slow down instead of snapping
+  const vel = useRef({ x: 0, z: 0 });
   const off = useMemo(() => ({ x: 0, z: 0 }), []); // sidestepping someone
   const stepped = useRef({ x: 0, z: 0, d: 0 }); // for your footsteps
   const [running, setRunning] = useState(false);
@@ -3499,6 +3527,8 @@ function Walker({
       else energyRef.current = Math.min(ENERGY_MAX, energyRef.current + TRICKLE * dt);
     }
     if (!stick || push <= 0.15) frame.current = null;
+    // where the stick wants you to go (LDU a second), eased into: a quick speed-up, a short slide to a stop
+    let [tx, tz] = [0, 0];
     if (stick && push > 0.15) {
       if (!frame.current) {
         camera.getWorldDirection(look3);
@@ -3509,8 +3539,17 @@ function Walker({
       const mx = fx * stick.y - fz * stick.x;
       const mz = fz * stick.y + fx * stick.x;
       const m = Math.hypot(mx, mz) || 1;
-      const [dx, dz] = [mx / m, -mz / m]; // LDraw: z is flipped
-      const len = DRIVE_SPEED * (run ? 1.8 : push) * Math.min(dt, 0.1);
+      const speed = DRIVE_SPEED * (run ? 1.8 : push);
+      [tx, tz] = [(mx / m) * speed, (-mz / m) * speed]; // LDraw: z is flipped
+    }
+    const v = vel.current;
+    const ease = Math.min(1, dt * (tx || tz ? 9 : 12));
+    v.x += (tx - v.x) * ease;
+    v.z += (tz - v.z) * ease;
+    if (Math.hypot(v.x, v.z) > 6 && (tx || tz || !s.walk)) {
+      const sp = Math.hypot(v.x, v.z);
+      const [dx, dz] = [v.x / sp, v.z / sp];
+      const len = sp * Math.min(dt, 0.1);
       // start from where you're actually standing (if you'd stepped aside for someone)
       const [ox, oz] = [s.pos[0] + off.x, s.pos[2] + off.z];
       let [x, z] = stepFree(ox, oz, dx * len, dz * len, blockers ?? []);
@@ -3520,15 +3559,17 @@ function Walker({
         else if (!intoSomeone(id, ox, oz, ox, z)) x = ox;
         else [x, z] = [ox, oz];
       }
+      if (x === ox && z === oz) [v.x, v.z] = [0, 0]; // against a wall: stop, don't keep pushing
       s.walk = null;
       s.from = null;
       s.pos = [x, 0, z];
-      walking.current = true;
+      walking.current = sp > 40;
       face(Math.atan2(dx, dz));
-      behind(dx, dz); // the camera comes round behind you whichever way you go: you see where you're walking
+      if (tx || tz) behind(dx, dz); // the camera comes round behind you whichever way you go: you see where you're walking
       report(false);
       return;
     }
+    [v.x, v.z] = [0, 0];
     const w = s.walk;
     walking.current = !!w;
     if (!w) {
