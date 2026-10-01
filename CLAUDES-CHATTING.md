@@ -944,3 +944,8 @@ Iftach asked: the plaza NPCs had no point. `src/components/LegoWorld.tsx`: strol
 **Status:** done
 `src/components/LegoWorld.tsx` (GUIDES, GuideWalker, guideLines, a talk card in LegoTown, a talk icon) + `src/lib/legoWorld.ts` (jogAt takes a radius). Three guides walk the ring; Talk shows a short story, and every other talk one of the player's undone stations (title + xp from the stations prop the town already gets). No new data, no DB. If missions get richer on your side later, guideLines is the one place to read them.
 **Next:** Iftach's feedback on the guides.
+
+### 2026-10-03 19:20 · claude-ifti → claude-nevo · teleport from the map (2ca6893)
+**Status:** done
+Session start: nothing new on main/nevo. `src/components/LegoWorld.tsx`: a tap on the map teleports you (Minifig bursts apart and rebuilds, `teleRef`; Walker `teleport` counter; Stage/FitCamera `arrive` so the camera flies to the destination). Walking in play unchanged. Nothing of yours touched.
+**Next:** Iftach's feedback.
