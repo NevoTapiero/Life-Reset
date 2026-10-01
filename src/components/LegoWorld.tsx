@@ -21,7 +21,6 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import {
   BASE_HUNTER,
-  COL,
   MINIFIG_PARTS,
   PLOT,
   buildGarden,
@@ -44,10 +43,8 @@ import {
   doorWalk,
   insideWalk,
   rideSpot,
-  jogAt,
   type Loadout,
   SHOP_WALK,
-  shopWalk,
   walkRoute,
   rerouteFrom,
   walkFrom,
@@ -101,7 +98,6 @@ import {
   duckText,
   LAKE,
   RING,
-  RING_SEATS,
   type Slab,
   emptyLotsText,
   ICE_CREAM_CART,
@@ -1785,24 +1781,7 @@ export function LegoTown({
   const [inside, setInside] = useState<number | null>(null);
   // where your minifig is walking to: the last place you looked at
   const [dest, setDest] = useState(meIndex);
-  // your friends go out too, a few at a time: to the shop, or round to a neighbour's door
-  // (sometimes yours) if they're in. Whoever you go to see heads home; after dark everyone's home.
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setTick((n) => n + 1), 15_000);
-    return () => clearInterval(t);
-  }, []);
-  const phase = (i: number) => (tick + i * 3) % 8; // 15 s steps: 0-3 home, 4-5 the shop, 6-7 visiting
-  const outing = (i: number): "shop" | number | null => {
-    if (i === meIndex || i === dest || i === inside || mood.night || residents.length < 2) return null;
-    if (phase(i) < 4) return null;
-    if (phase(i) < 6) return "shop";
-    let host = (i + 1 + Math.floor(tick / 8)) % residents.length;
-    if (host === i) host = (host + 1) % residents.length;
-    const hostIn = host === meIndex || host === dest || phase(host) < 4;
-    return hostIn ? host : "shop";
-  };
-  const visited = (host: number) => residents.some((_, j) => outing(j) === host);
+  // (your friends stay at home, one at each house's door: Iftach, 3 Oct, the ones wandering about had no point)
   if (focus !== OVERVIEW && focus !== dest) setDest(focus);
   const [shopOpen, setShopOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -2190,12 +2169,6 @@ export function LegoTown({
         <Slabs slabs={paths} />
         <Slabs slabs={WATER_TOWER_SLABS} />
         <LakeLife />
-        {/* townsfolk sitting on three of the benches round the ring, watching the plaza */}
-        {RING_SEATS.filter((b) => b.bench)
-          .slice(0, 3)
-          .map((b, i) => (
-            <Minifig key={`sit${i}`} look={SITTERS[i]} at={[b.x, 0, b.z]} turn={b.yaw} sit />
-          ))}
         <DriftingClouds />
         {parks && <primitive object={parks} />}
         <Traffic night={mood.night} />
@@ -2212,13 +2185,6 @@ export function LegoTown({
         <FountainSpray />
         <TownSign name={residents[meIndex]?.name ?? "Your"} />
         {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
-        {STROLLERS.map((p, i) => (
-          <Stroller key={i} id={`stroller-${i}`} {...p} />
-        ))}
-        {!mood.night &&
-          JOGGERS.slice(0, mood.name === "golden" ? 4 : 2).map((p, i) => (
-            <Jogger key={i} id={`jogger-${i}`} {...p} />
-          ))}
         {residents.map((res, i) => (
           <Ride key={res.name} ride={loadoutFor(res.level, res.character ?? undefined).ride} at={rideSpot(lots[i], res.level)} turn={lots[i].yaw} />
         ))}
@@ -2277,30 +2243,12 @@ export function LegoTown({
                   ? insideWalk(lots[dest], level, side, r && { x: hx + r.x, z: hz + r.z, front: hz + r.front })
                   : doorWalk(lots[dest], level, side);
             }
-            // you wave at the friend you've come to see, or at one who's come round to yours
-            const wave = inside === null && !shop && (dest !== meIndex || visited(meIndex));
+            // you wave at the friend you've come to see
+            const wave = inside === null && !shop && dest !== meIndex;
             return <Walker key="me" id="me" wave={wave} go={goes} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : lots[dest].yaw} />;
           }
-          // friends: at their door, at the shop, or on a neighbour's step, turned to them
-          const out = outing(i);
-          const host = typeof out === "number" ? out : null;
-          return (
-            <Walker
-              key={res.name}
-              id={res.name}
-              // hello: when you come to see them, when someone's round, and to whoever they're visiting
-              wave={host !== null || (!out && (dest === i || visited(i)))}
-              look={loadoutFor(res.level, res.character ?? undefined)}
-              to={
-                out === "shop"
-                  ? shopWalk(1 + (i % 3))
-                  : host !== null
-                    ? doorWalk(lots[host], residents[host].level, -40)
-                    : doorWalk(lots[i], res.level)
-              }
-              turn={out === "shop" ? Math.PI : host !== null ? lots[host].yaw + Math.PI / 2 : lots[i].yaw}
-            />
-          );
+          // friends: at home, at their door, waving when you come to see them
+          return <Walker key={res.name} id={res.name} wave={dest === i} look={loadoutFor(res.level, res.character ?? undefined)} to={doorWalk(lots[i], res.level)} turn={lots[i].yaw} />;
         })}
       </Stage>
 
@@ -3343,11 +3291,6 @@ function Wild({ season }: { season: Season }) {
     </>
   );
 }
-const SITTERS: MinifigLook[] = [
-  { skin: COL.yellow, hair: COL.darkOrange, torso: COL.azure, legs: COL.darkBlue },
-  { skin: COL.yellow, hair: COL.black, torso: COL.yellow, legs: COL.darkGrey },
-  { skin: COL.yellow, hair: COL.white, torso: COL.darkGreen, legs: COL.tan },
-];
 const FLATS = townFlats();
 const BALLOON = balloonSlabs();
 const WATER_TOWER_SLABS = waterTowerSlabs();
@@ -3425,45 +3368,6 @@ function Car({ car, start, night }: { car: Baked; start: number; night: boolean 
             <spriteMaterial map={map} color="#fff4d6" blending={THREE.AdditiveBlending} depthWrite={false} transparent fog={false} />
           </sprite>
         ))}
-    </group>
-  );
-}
-
-// ---- people strolling round the fountain ----
-const STROLLERS: { look: MinifigLook; r: number; speed: number; start: number }[] = [
-  // between the fountain's rim (80) and the benches (130), a quarter apart, all the same way at
-  // the same pace, so they never walk into each other
-  { look: { skin: COL.yellow, hair: COL.reddishBrown, torso: COL.red, legs: COL.blue }, r: 108, speed: 0.3, start: 0 },
-  { look: { skin: COL.yellow, hair: COL.black, torso: COL.white, legs: COL.darkGrey }, r: 108, speed: 0.3, start: Math.PI },
-  { look: { skin: COL.yellow, hair: COL.yellow, torso: COL.green, legs: COL.tan }, r: 108, speed: 0.3, start: Math.PI / 2 },
-  { look: { skin: COL.yellow, hair: COL.darkOrange, torso: COL.purple, legs: COL.black }, r: 108, speed: 0.3, start: (3 * Math.PI) / 2 },
-];
-// Joggers doing laps of the streets round the plaza (it's a fitness town): a
-// few by day, more in the morning and evening, all home after dark.
-const JOGGERS: { look: MinifigLook; speed: number; start: number }[] = [
-  { look: { skin: COL.yellow, hair: COL.black, torso: COL.azure, legs: COL.black }, speed: 220, start: 0 },
-  { look: { skin: COL.yellow, hair: COL.reddishBrown, torso: COL.orange, legs: COL.darkBlue }, speed: 195, start: 1500 },
-  { look: { skin: COL.yellow, hair: COL.yellow, torso: COL.brightGreen, legs: COL.darkGrey }, speed: 240, start: 3100 },
-  { look: { skin: COL.yellow, hair: COL.darkOrange, torso: COL.pink, legs: COL.black }, speed: 205, start: 2300 },
-];
-const MOVING = { current: true }; // always on the move
-// (a minifig's legs keep pace at about 13 LDU a second per unit of stride at a jog, as yours do running;
-// the strollers' slow amble round the fountain, ~32 LDU a second, wants a stride of about 4.5)
-function Jogger({ id, look, speed, start }: (typeof JOGGERS)[number] & { id: string }) {
-  const root = useRef<THREE.Group>(null);
-  const off = useMemo(() => ({ x: 0, z: 0 }), []);
-  useEffect(() => () => void CROWD.delete(id), [id]);
-  useFrame(({ clock }, dt) => {
-    if (!root.current) return;
-    const { at, heading } = jogAt(start + clock.elapsedTime * speed);
-    const [x, z] = sidestep(id, at[0], at[2], off, dt);
-    root.current.position.set(x, 0, z); // (the minifig bounces in step with its own stride)
-    CROWD.set(id, { x, z });
-    root.current.rotation.y = heading;
-  });
-  return (
-    <group ref={root}>
-      <Minifig look={look} at={[0, 0, 0]} walking={MOVING} stride={Math.round(speed / 13.2)} />
     </group>
   );
 }
@@ -3714,26 +3618,6 @@ const DUST = 12;
 const FIDGET_EVERY = 6; // seconds between a standing minifig's fidgets
 const JUMP_AIR = 0.62; // seconds a jump keeps you in the air
 const DUST_LIFE = 0.5; // seconds
-
-function Stroller({ id, look, r, speed, start }: (typeof STROLLERS)[number] & { id: string }) {
-  const root = useRef<THREE.Group>(null);
-  const off = useMemo(() => ({ x: 0, z: 0 }), []);
-  useEffect(() => () => void CROWD.delete(id), [id]);
-  useFrame(({ clock }, dt) => {
-    if (!root.current) return;
-    const a = start + clock.elapsedTime * speed;
-    const [x, z] = sidestep(id, FOUNTAIN[0] + Math.cos(a) * r, FOUNTAIN[1] + Math.sin(a) * r, off, dt);
-    root.current.position.set(x, 0, z);
-    CROWD.set(id, { x, z });
-    // facing along the circle, the way they're walking (a minifig's front is +Z)
-    root.current.rotation.y = Math.atan2(-Math.sin(a) * speed, Math.cos(a) * speed);
-  });
-  return (
-    <group ref={root}>
-      <Minifig look={look} at={[0, 0, 0]} walking={MOVING} stride={4.5} />
-    </group>
-  );
-}
 
 // ---- props: small official sets (the ice cream cart, the parks' burger stands) ----
 // Placed by their centre (LDraw frame) and quarter turns; the glb's origin is its front-left corner.
