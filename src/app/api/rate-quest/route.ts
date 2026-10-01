@@ -99,31 +99,10 @@ const TRACK_WORDS: [Tracked, RegExp][] = [
   ["sleep", /\bsleep(ing)?\b|\bhours? of sleep\b|שינה|לישון|שעות שינה/i],
   ["steps", /\bsteps?\b|\b\d+\s?k\b|\bwalk(ing)?\b|צעדים|הליכה|ללכת/i],
 ];
-const TRACKERS: Record<Tracked, string[]> = { steps: ["ghealth"], sleep: ["ghealth", "whoop"], workout: ["ghealth", "whoop"] };
-const TRACKER_NAME: Record<string, string> = { ghealth: "Google Health", whoop: "WHOOP" };
 
 function trackedByWords(title: string): Tracked | null {
   for (const [kind, re] of TRACK_WORDS) if (re.test(title)) return kind;
   return null;
-}
-
-async function myTrackers(auth: string): Promise<string[]> {
-  try {
-    const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/my_trackers`, {
-      method: "POST",
-      headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
-        authorization: auth,
-        "Content-Type": "application/json",
-      },
-      body: "{}",
-      signal: AbortSignal.timeout(5000),
-    });
-    const rows = r.ok ? await r.json() : [];
-    return Array.isArray(rows) ? rows : [];
-  } catch {
-    return [];
-  }
 }
 
 // ---------- the scale depends on the period ----------
@@ -178,16 +157,12 @@ export async function POST(req: Request) {
   }
   const auth = req.headers.get("authorization") ?? "";
 
-  // Something the player's watch already pays for is refused before the Judge
-  // ever prices it, so the same activity can't earn twice at two prices.
-  const [providers, peers] = await Promise.all([myTrackers(auth), peerQuests(auth)]);
+  // A workout, a stretch or a walk can always be made into a quest checked by
+  // hand, even with a watch connected (1 Oct: a watch doesn't see everything,
+  // e.g. stretching). The word check still sends steps and sleep through the
+  // watch's price table so the same thing pays the same.
+  const peers = await peerQuests(auth);
   const wordKind = trackedByWords(title);
-  const refuseIfTracked = (kind: Tracked | null) => {
-    const by = kind ? TRACKERS[kind].find((p) => providers.includes(p)) : undefined;
-    return by ? NextResponse.json({ tracked: TRACKER_NAME[by] ?? by, tracks: kind, source: "tracked" }) : null;
-  };
-  const early = refuseIfTracked(wordKind);
-  if (early) return early;
 
   // Steps and sleep are never guessed: the number in the title goes through the
   // same price table a watch uses, so "10k steps" by hand pays what 10,000
@@ -287,8 +262,6 @@ export async function POST(req: Request) {
       if (!Number.isFinite(raw)) continue;
       const modelKind = (["steps", "sleep", "workout"] as const).find((k) => k === parsed?.tracks) ?? null;
       const tracks = wordKind ?? modelKind;
-      const late = refuseIfTracked(tracks);
-      if (late) return late;
       // the model spotted steps or sleep the word check missed: price it, don't trust its number
       const latePriced = priced(tracks);
       if (latePriced) return latePriced;

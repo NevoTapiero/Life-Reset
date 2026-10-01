@@ -25,12 +25,42 @@ export type HealthExercise = {
   };
 };
 
-// How hard a workout was, from the richest signal the watch recorded:
-// minutes in each heart-rate zone, else Active Zone Minutes, else calories,
-// else plain duration. Returns a rated value on the quest scale (1 to 50)
-// and how it was measured, so a hard 30-minute run outscores a relaxed hour in
-// the gym. A peak-zone minute is worth nine light ones.
-export function workoutXp(w: HealthExercise): { xp: number; basis: string } {
+// What a workout is worth: three signals weighed together, not just one.
+//   heart: minutes in each heart-rate zone (a peak minute is worth nine light
+//          ones), else Active Zone Minutes
+//   burn:  calories, 10 kcal = 1
+//   time:  minutes of activity, at a rate that depends on the kind of workout
+// The weights depend on the kind, so each is judged fairly: a run is mostly
+// about effort, a strength session mostly about time under load and what it
+// burns (the heart rarely climbs high lifting), stretching mostly about time.
+// A signal the watch didn't record is left out and the others share its weight.
+// Returns a rated value on the quest scale (0 to 50).
+export type WorkoutKind = "cardio" | "strength" | "flexibility" | "other";
+
+const KIND_WORDS: [WorkoutKind, RegExp][] = [
+  ["flexibility", /yoga|stretch|pilates|mobility|flexib|barre|tai ?chi/i],
+  ["strength", /strength|weight|lift|crossfit|functional|bodyweight|calisthenic|resistance|core|gym/i],
+  [
+    "cardio",
+    /run|jog|treadmill|cycl|bik|spin|swim|row|elliptical|hiit|interval|cardio|walk|hik|skat|ski|danc|box|martial|kick|tennis|padel|squash|soccer|football|basket|volley|sport|climb|stair/i,
+  ],
+];
+
+export function workoutKind(w: HealthExercise): WorkoutKind {
+  const text = `${w.exercise?.exerciseType ?? ""} ${w.exercise?.displayName ?? ""}`;
+  for (const [kind, re] of KIND_WORDS) if (re.test(text)) return kind;
+  return "other";
+}
+
+// [heart, burn, time] weights, and XP-scale points per minute of the workout
+const BLEND: Record<WorkoutKind, { heart: number; burn: number; time: number; perMinute: number }> = {
+  cardio: { heart: 0.5, burn: 0.3, time: 0.2, perMinute: 0.5 },
+  strength: { heart: 0.2, burn: 0.35, time: 0.45, perMinute: 0.55 },
+  flexibility: { heart: 0.1, burn: 0.2, time: 0.7, perMinute: 0.5 },
+  other: { heart: 0.45, burn: 0.3, time: 0.25, perMinute: 0.45 },
+};
+
+export function workoutXp(w: HealthExercise): { xp: number; basis: string; kind: WorkoutKind } {
   const m = w.exercise?.metricsSummary;
   const z = m?.heartRateZoneDurations;
   const zone = {
@@ -39,16 +69,32 @@ export function workoutXp(w: HealthExercise): { xp: number; basis: string } {
     vigorous: durationMinutes(z?.vigorousTime),
     peak: durationMinutes(z?.peakTime),
   };
-  const cap = (x: number) => Math.max(0, Math.min(50, Math.round(x))); // the quest scale (1-50)
-  if (zone.light + zone.moderate + zone.vigorous + zone.peak > 0) {
-    const xp = zone.light * 0.25 + zone.moderate * 0.75 + zone.vigorous * 1.5 + zone.peak * 2.25;
-    return { xp: cap(xp), basis: `heart zones ${zone.moderate}/${zone.vigorous}/${zone.peak} min` };
-  }
+  const kind = workoutKind(w);
+  const blend = BLEND[kind];
+  const minutes = exerciseMinutes(w);
+  const zoneTotal = zone.light + zone.moderate + zone.vigorous + zone.peak;
   const azm = Number(m?.activeZoneMinutes ?? 0);
-  if (azm > 0) return { xp: cap(azm * 0.75), basis: `${azm} active zone min` };
   const kcal = Number(m?.caloriesKcal ?? 0);
-  if (kcal > 0) return { xp: cap(kcal / 10), basis: `${Math.round(kcal)} kcal` };
-  return { xp: cap(exerciseMinutes(w) * 0.4), basis: "duration only" };
+
+  const parts: { value: number; weight: number }[] = [];
+  const said: string[] = [];
+  if (zoneTotal > 0) {
+    parts.push({ value: zone.light * 0.25 + zone.moderate * 0.75 + zone.vigorous * 1.5 + zone.peak * 2.25, weight: blend.heart });
+    said.push(`heart zones ${zone.moderate}/${zone.vigorous}/${zone.peak} min`);
+  } else if (azm > 0) {
+    parts.push({ value: azm * 0.75, weight: blend.heart });
+    said.push(`${azm} active zone min`);
+  }
+  if (kcal > 0) {
+    parts.push({ value: kcal / 10, weight: blend.burn });
+    said.push(`${Math.round(kcal)} kcal`);
+  }
+  parts.push({ value: minutes * blend.perMinute, weight: blend.time });
+
+  const weight = parts.reduce((a, p) => a + p.weight, 0);
+  const score = parts.reduce((a, p) => a + p.value * p.weight, 0) / (weight || 1);
+  const xp = Math.max(0, Math.min(50, Math.round(score)));
+  return { xp, kind, basis: [kind, ...said].join(", ") };
 }
 
 export type HealthSleep = {

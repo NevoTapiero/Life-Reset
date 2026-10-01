@@ -20,7 +20,8 @@ type Entry = {
   xp: number;
   reason: string | null;
   created_at: string;
-  meta: { listId?: string | null; calendarId?: string | null } | null;
+  // day: the Israel date the activity happened (watch items), not when it synced
+  meta: { listId?: string | null; calendarId?: string | null; day?: string | null } | null;
 };
 type AgendaEvent = {
   id: string;
@@ -68,6 +69,20 @@ function ago(iso: string): string {
   if (s < 86400) return `${Math.round(s / 3600)}h ago`;
   const d = Math.round(s / 86400);
   return d === 1 ? "yesterday" : `${d}d ago`;
+}
+
+// the day an entry belongs to: when it happened, for anything a watch reports
+// (a workout synced two days later still counts on its own day)
+const dayKey = (e: Entry) => e.meta?.day ?? dayOf(new Date(e.created_at));
+
+function whenLabel(e: Entry): string {
+  const day = e.meta?.day;
+  if (!day) return ago(e.created_at);
+  const today = dayOf(new Date());
+  const yesterday = dayOf(new Date(Date.now() - 86400_000));
+  if (day === today) return "today";
+  if (day === yesterday) return "yesterday";
+  return new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }).format(new Date(day + "T12:00:00Z"));
 }
 
 function clock(iso: string | null): string {
@@ -376,8 +391,8 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
   const today = dayOf(new Date());
   const yesterday = dayOf(new Date(Date.now() - 86400_000));
   const all = entries ?? [];
-  const todays = all.filter((e) => dayOf(new Date(e.created_at)) === today);
-  const yesterdays = all.filter((e) => dayOf(new Date(e.created_at)) === yesterday);
+  const todays = all.filter((e) => dayKey(e) === today);
+  const yesterdays = all.filter((e) => dayKey(e) === yesterday);
   const xpToday = todays.reduce((s, e) => s + e.xp, 0);
 
   const todayEvents = events.filter((e) => e.today);
@@ -425,7 +440,7 @@ export default function AppActivity({ onXp }: { onXp?: () => void }) {
         key={`${e.source}-${e.ref}`}
         icon={meta.icon}
         title={e.reason || meta.label}
-        sub={`${meta.label} · ${ago(e.created_at)}`}
+        sub={`${meta.label} · ${whenLabel(e)}`}
         right={<XpTag xp={e.xp} />}
       />
     );
