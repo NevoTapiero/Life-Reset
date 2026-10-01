@@ -876,6 +876,12 @@ function Minifig({
     if (parts.every(Boolean)) {
       if (!limbs.current.length) limbs.current = parts.map((p) => p!.quaternion.clone());
       const swing = sit ? [-1.5, -1.5, 0, 0] : [s * reach, -s * reach, -s * reach * 0.8, s * reach * 0.8]; // legL legR armL armR
+      // a hand holding something (a sword, a staff) carries it the LEGO-game way: that arm barely swings and
+      // comes up a little, which tips the blade back to rest steady over the shoulder (swung like the empty
+      // hand, it swept from straight out in front to over the head every stride)
+      const holds = [2, 3].map((k) => parts[k]!.children.some((c) => c.name.startsWith("gear:")));
+      for (const k of [2, 3]) if (holds[k - 2] && !sit) swing[k] = swing[k] * 0.15 + CARRY * g.blend;
+      const free = holds[1] && !holds[0] ? 2 : 3; // the arm that fidgets: the empty one
       // standing a while, it fidgets the LEGO-game way, now and then: checks its wrist, swings its
       // arms, taps a foot (each eased in and out, then a rest)
       if (!sit && !(wave && t % 5 < 3) && g.blend < 0.05 && t - g.still > 2) {
@@ -884,8 +890,8 @@ function Minifig({
         if (u < 1) {
           const env = Math.sin(u * Math.PI);
           const kind = Math.floor(it / FIDGET_EVERY) % 3;
-          if (kind === 0) swing[3] += 1.3 * env; // the right arm up in front: a look at the watch
-          else if (kind === 1) [swing[2], swing[3]] = [Math.sin(it * 7) * 0.45 * env, -Math.sin(it * 7) * 0.45 * env]; // arms swinging, bored
+          if (kind === 0) swing[free] += 1.3 * env; // the free arm up in front: a look at the watch
+          else if (kind === 1) swing[free] += Math.sin(it * 7) * 0.45 * env; // the free arm swinging, bored
           else swing[1] += Math.max(0, Math.sin(it * 16)) * 0.35 * env; // a foot tapping
         }
       }
@@ -3902,6 +3908,7 @@ const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const BUILD_ORDER = (name: string) => ({ legL: 0, legR: 0, hips: 1, torso: 2, swingL: 3, swingR: 3, head: 4, hair: 5 })[name] ?? 6;
 const BUILD_GAP = 0.12;
 const BUILD_HOP = 0.24;
+const CARRY = 0.6; // radians the weapon arm comes up while on the move (the blade rests back over the shoulder)
 const FIDGET_EVERY = 6; // seconds between a standing minifig's fidgets
 const JUMP_AIR = 0.62; // seconds a jump keeps you in the air
 const DUST_LIFE = 0.5; // seconds
