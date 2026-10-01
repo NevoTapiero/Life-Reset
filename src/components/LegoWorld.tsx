@@ -1169,7 +1169,7 @@ export type Pin = { key: string; at: [number, number, number] | (() => [number, 
 // Real studs on the ground round you: a stud a stud, on the plots and the plaza
 // (the painted studs stay underneath, and take over further off). Instanced
 // low-poly cylinders, laid out again whenever you've moved a few studs.
-const STUD_REACH = 16; // studs from you
+const STUD_REACH = 30; // studs from you: far enough that the painted studs beyond are small
 const STUD_MAX = 2 * (2 * STUD_REACH + 1) ** 2; // the plots' and the open ground's
 function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vector3>; grass: string; lots: Lot[] }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
@@ -3634,17 +3634,17 @@ function studTexture() {
   if (studs) return studs;
   const c = document.createElement("canvas");
   // drawn at 128 px a stud and scaled, so studs stay crisp close up
-  c.width = c.height = 128;
+  c.width = c.height = 256;
   const g = c.getContext("2d")!;
-  g.scale(2, 2);
+  g.scale(4, 4);
   g.fillStyle = "#ffffff";
   g.fillRect(0, 0, 64, 64);
   // the stud's shadow, then its side ring, then its top, lit from the top left
-  g.fillStyle = "rgba(0,0,0,0.22)";
+  g.fillStyle = "rgba(0,0,0,0.18)";
   g.beginPath();
-  g.arc(35, 35, 19, 0, Math.PI * 2);
+  g.arc(34, 34, 19, 0, Math.PI * 2);
   g.fill();
-  g.fillStyle = "#cfcfcf";
+  g.fillStyle = "#c4c4c4"; // the side ring, a clear step down from the top: reads as a real stud from afar
   g.beginPath();
   g.arc(32, 33, 18.5, 0, Math.PI * 2);
   g.fill();

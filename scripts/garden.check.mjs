@@ -20,6 +20,4 @@ for (const g of GARDEN) {
   }
   if (g.pieces) assert(gardenItemLines({ item: g.id, x: 2, z: 2, turn: 3 }).length === g.pieces.length, `${g.name} draws every piece`);
 }
-// a pond can't sit on the garden's own pond once the streak has one
-assert(!canPlace({ item: "g-pond", x: PLOT - 22, z: PLOT - 12, turn: 0 }, 1, 20, []), "the streak pond's spot is taken");
 console.log(`ok: garden placing, ${GARDEN.length} items`);

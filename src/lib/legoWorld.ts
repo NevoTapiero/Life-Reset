@@ -128,7 +128,6 @@ export function doorCells(s: HouseSpec) {
   return [dx, dx + 1, dx + 2, dx + 3];
 }
 
-const FLOWER_COLOURS = [COL.red, COL.yellow, COL.white, COL.pink, COL.blue, COL.mediumLavender];
 
 // Your stations stand outside, round the house, where the neighbours see what
 // you're up to: down both sides of it (as many as fit, up to four a side) and
@@ -167,23 +166,13 @@ export function buildGarden(streak: number, s: HouseSpec, stations: Station[] = 
   for (; z + 1 < PLOT + 3; z += 2) out.push(put("3068b", COL.lightGrey, pathL + 0.5, z + 0.5, 0));
   if (z < PLOT + 3) out.push(put("3069b", COL.lightGrey, pathL + 0.5, z, 0));
 
-  // one flower per streak day, up to 12, in beds either side of the path
-  const beds: [number, number][] = [];
-  for (let zz = front + 2; zz < PLOT - 3; zz += 2) for (const x of [pathL - 2, pathL - 3, pathL + 3, pathL + 4]) beds.push([x, zz]);
-  beds.slice(0, Math.min(streak, 12)).forEach(([x, zz], i) => out.push(put("3741ac05", FLOWER_COLOURS[i % FLOWER_COLOURS.length], x, zz, 0)));
-
   // the name sign at the gate, beside the path
   const [gx, gz] = gateSignAt(s);
   out.push(...place(SIGNPOST, gx, gz, ROT[0], 0));
-
-  // a hedge along the front at 5 days
-  if (streak >= 5) for (let x = 1; x < PLOT - 1; x++) if (x < pathL - 1 || x > pathL + 2) out.push(put("3062b", COL.green, x, PLOT - 2, 0));
-
-  // trees at 10 and 30 days
-  if (streak >= 10) out.push(put("3470", COL.green, 3.5, front + 2.5, 0));
-  if (streak >= 30) out.push(put("2435", COL.green, PLOT - 4, front + 4, 0));
-  // and a pond with a frog and ducklings at 20
-  if (streak >= POND_STREAK) out.push(...place(POND, GARDEN_POND[0], GARDEN_POND[1], ROT[0], 0));
+  // (no streak flowers, hedges, trees or pond any more: Iftach, 2 Oct, "we need a real upgrade",
+  // what a plot has will come from the shop and the level; `streak` stays in the signature for now)
+  void streak;
+  void front;
   return out;
 }
 
@@ -1020,7 +1009,6 @@ const POND: Piece[] = [
 ];
 // where a garden's pond goes (plot frame, LDU): right of the flower beds, clear
 // of the path, the hedge and the 30-day tree; every level's garden starts on row 36
-const GARDEN_POND: [number, number] = [(PLOT / 2 - 13) * S, (PLOT / 2 - 7) * S];
 export const POND_STREAK = 20;
 
 // ---- empty plots: a little park until a friend moves in ----
@@ -1597,10 +1585,7 @@ export function blockedOnPlot(level: number, streak: number, placed: Placed[], e
   ];
   const h = STATION_SIZE / 2;
   for (const q of stationSpots(s)) out.push({ x0: q.x - h, z0: q.z - h, x1: q.x + h, z1: q.z + h });
-  if (streak >= POND_STREAK) {
-    const [px, pz] = GARDEN_POND;
-    out.push({ x0: px / S + PLOT / 2 - 6, z0: pz / S + PLOT / 2 - 5, x1: px / S + PLOT / 2 + 6, z1: pz / S + PLOT / 2 + 5 });
-  }
+  void streak; // (the streak pond is gone; the spot is free)
   for (const q of placed) {
     if (q === except) continue;
     const g = gardenItem(q.item);
