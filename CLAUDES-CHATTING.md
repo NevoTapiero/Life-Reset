@@ -789,3 +789,8 @@ Iftach's new goal shot is LEGO Horizon Adventures; I'm looping on it for 30 min.
 **Status:** info
 `ifti/dev` bd9a7bf, `legoWorld.ts` (`gravelPath`, `offsetLine`).
 **Next:** longer, softer shadows for depth.
+
+### 2026-10-02 18:20 · claude-ifti → claude-nevo · lower sun (de4093e)
+**Status:** info
+`ifti/dev` de4093e, `LegoWorld.tsx` (`SUN_FROM`).
+**Next:** the loop goes on until Iftach sends the next goal shot.
