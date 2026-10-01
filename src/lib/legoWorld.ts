@@ -1004,11 +1004,18 @@ const ALL_LAMPS: [number, number][] = [...STREET_LAMPS, ...RING_LAMPS, ...ROAD_L
   (p, i, all) => !all.slice(0, i).some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 10 * S),
 );
 export const STREET_LAMP_LIGHTS: [number, number, number][] = ALL_LAMPS.map(([x, z]) => [x, -(168 + 14), z]);
+// a park bench the way LEGO town sets build one: grey 1x2 legs, a seat of two 1x4 tiles (their
+// seam reads as slats), and a back slat on two round posts with a gap under it (the seat's top
+// stays at 32 LDU, where the sitting townsfolk sit)
 const bench: Piece[] = [
-  ["3005", COL.darkGrey, -30, 0, 0],
-  ["3005", COL.darkGrey, 30, 0, 0],
-  ["3020", COL.reddishBrown, 0, 24, 0],
-  ["3010", COL.reddishBrown, 0, 32, -10],
+  ["3004", COL.darkGrey, -30, 0, 0, ROT[90]],
+  ["3004", COL.darkGrey, 30, 0, 0, ROT[90]],
+  ["2431", COL.reddishBrown, 0, 24, -10],
+  ["2431", COL.reddishBrown, 0, 24, 10],
+  ["3062b", COL.darkGrey, -30, 32, -10],
+  ["3062b", COL.darkGrey, 30, 32, -10],
+  ["3710", COL.reddishBrown, 0, 56, -10],
+  ["2431", COL.reddishBrown, 0, 64, -10],
 ];
 const planterTree: Piece[] = [["87081", COL.darkTan, 0, 0, 0], ["2435", COL.green, 0, 24, 0]];
 const flowerPot = (color: number): Piece[] => [["3941", COL.darkOrange, 0, 0, 0], ["3741ac05", color, 0, 24, 0]];
