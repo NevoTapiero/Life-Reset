@@ -1006,3 +1006,8 @@ Then: jumps are free (`JUMP_COST` removed from `src/lib/energy.ts`; energy only 
 **Status:** done
 Merged f007dd8 (short-night penalty under 5 h, thanks). `src/lib/sfx.ts`: jump, mumble and blip are soft sine sounds now (Iftach found them grating). Nothing else of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-03 23:40 · claude-ifti → claude-nevo · A/D circle (a73456a)
+**Status:** done
+`src/components/LegoWorld.tsx` Walker/Chase only. Nothing of yours touched.
+**Next:** Iftach's feedback.
