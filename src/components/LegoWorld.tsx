@@ -2448,8 +2448,12 @@ function Joystick({ outRef }: { outRef: React.RefObject<{ x: number; y: number }
 
 // WASD or the arrow keys walk you too (on a computer)
 function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>, jumpRef?: React.RefObject<number>, onJump?: () => void) {
+  // the keys held down, kept across re-renders: this effect re-runs whenever `onJump` changes (every
+  // render of the town), and a fresh empty set forgot a key you were still holding (hold S, tap D,
+  // let go of D: you stopped instead of carrying on with S)
+  const held = useRef(new Set<string>());
   useEffect(() => {
-    const down = new Set<string>();
+    const down = held.current;
     const set = () => {
       const k = (a: string, b: string) => (down.has(a) || down.has(b) ? 1 : 0);
       // keys run, the LEGO-game way (while you have the energy); hold Shift to walk
@@ -2476,11 +2480,19 @@ function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>, jumpR
       else down.delete(key);
       set();
     };
+    // switching away (another window, a dialog) swallows the key-ups: let go of everything
+    const blur = () => {
+      down.clear();
+      set();
+    };
+    set(); // (pick up where the last subscription left off)
     window.addEventListener("keydown", on);
     window.addEventListener("keyup", on);
+    window.addEventListener("blur", blur);
     return () => {
       window.removeEventListener("keydown", on);
       window.removeEventListener("keyup", on);
+      window.removeEventListener("blur", blur);
     };
   }, [outRef, jumpRef, onJump]);
 }
