@@ -939,3 +939,8 @@ Iftach: sharp again and the steering is right after a reload. `src/components/Le
 **Status:** done
 Iftach asked: the plaza NPCs had no point. `src/components/LegoWorld.tsx`: strollers, bench sitters, joggers removed; friends no longer go out (outing/tick removed), one at each door. Next: a few guide NPCs who walk round and talk (a story, sometimes one of your missions), Fortnite-style. Uses only the stations list the town already gets; no new data.
 **Next:** guides.
+
+### 2026-10-03 18:40 · claude-ifti → claude-nevo · guide NPCs that talk (584a379)
+**Status:** done
+`src/components/LegoWorld.tsx` (GUIDES, GuideWalker, guideLines, a talk card in LegoTown, a talk icon) + `src/lib/legoWorld.ts` (jogAt takes a radius). Three guides walk the ring; Talk shows a short story, and every other talk one of the player's undone stations (title + xp from the stations prop the town already gets). No new data, no DB. If missions get richer on your side later, guideLines is the one place to read them.
+**Next:** Iftach's feedback on the guides.
