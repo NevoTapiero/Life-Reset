@@ -1197,45 +1197,34 @@ export function balloonSlabs(): Slab[] {
 
 // Clouds: plate-shaped slabs stacked into puffs, three times LEGO size, in a
 // ring over the hills.
-export function townClouds(): Slab[] {
-  const out: Slab[] = [];
+/** a cloud: where it starts (LDU, its base's middle and height), how fast it drifts (LDU a second),
+ *  and its puffs (offsets from the middle and radii, LDU) */
+export type Cloud = { x: number; z: number; y: number; speed: number; puffs: [number, number, number, number][] };
+export const CLOUD_EXTENT = (TOWN_HALF + 260) * S; // they drift across a square this far either way, then come round again
+// Fluffy clouds, cumulus-style: a row of round puffs along a flat-ish bottom, bigger ones heaped in
+// the middle, the odd one tucked behind; each its own size, scattered at their own spots and heights
+export function townClouds(): Cloud[] {
+  const out: Cloud[] = [];
   const rnd = seeded(11);
-  // one cloud, its own shape: a long flat base of round-cornered plates, smaller ones heaped on it
-  // in one to three layers, turned its own way. `u`: LDU per unit (bigger far off); (cx, cz) its middle
-  const cloud = (cx: number, cz: number, cy: number, u: number) => {
-    const len = 8 + rnd() * 18; // units
-    const wid = 4 + rnd() * 5;
-    const yaw = rnd() * Math.PI;
-    const [c, sn] = [Math.cos(yaw), Math.sin(yaw)];
-    const puff = (dx: number, dz: number, w: number, d: number, layer: number) => {
-      const [x, z] = [cx + (dx * c - dz * sn) * u, cz + (dx * sn + dz * c) * u];
-      out.push({ x, z, w: w * u, d: d * u, h: u * 0.4, y: cy + layer * u * 0.4, radius: Math.min(w, d) * u * 0.45, yaw, color: "#ffffff", studs: true });
-    };
-    const base = 2 + Math.floor(rnd() * 4); // flat puffs along its length
-    for (let k = 0; k < base; k++) {
-      const t = base === 1 ? 0 : k / (base - 1) - 0.5;
-      puff(t * len * 0.7 + (rnd() - 0.5) * 2, (rnd() - 0.5) * wid * 0.4, len / base + 4 + rnd() * 4, wid * (0.6 + rnd() * 0.4), 0);
+  for (let tries = 0; tries < 200 && out.length < 15; tries++) {
+    const x = (rnd() * 2 - 1) * CLOUD_EXTENT;
+    const z = (rnd() * 2 - 1) * CLOUD_EXTENT;
+    if (out.some((c) => Math.hypot(c.x - x, c.z - z) < 140 * S)) continue;
+    const u = (7 + rnd() * 8) * S; // a puff's base radius
+    const n = 3 + Math.floor(rnd() * 4); // puffs in the bottom row
+    const puffs: [number, number, number, number][] = [];
+    for (let k = 0; k < n; k++) {
+      const t = k / (n - 1) - 0.5;
+      const r = u * (0.7 + (1 - Math.abs(t) * 1.4) * 0.5 + rnd() * 0.2);
+      puffs.push([t * n * u * 1.1, r * 0.35, (rnd() - 0.5) * u * 0.6, r]);
     }
-    const layers = 1 + Math.floor(rnd() * 3);
-    for (let l = 1; l <= layers; l++) {
-      const n = Math.max(1, Math.floor((base - l + 1) * (0.5 + rnd() * 0.6)));
-      for (let k = 0; k < n; k++)
-        puff((rnd() - 0.5) * len * (0.7 - l * 0.15), (rnd() - 0.5) * wid * 0.3, (len / base) * (1 - l * 0.22) + 2 + rnd() * 3, wid * (0.5 - l * 0.08) + rnd() * 2, l);
+    const tops = 1 + Math.floor(rnd() * Math.min(3, n - 1));
+    for (let k = 0; k < tops; k++) {
+      const r = u * (1.05 + rnd() * 0.35);
+      puffs.push([(rnd() - 0.5) * n * u * 0.5, r * 0.85, (rnd() - 0.5) * u * 0.4, r]);
     }
-  };
-  // a few over the village (seen from the ground), at odd spots and heights, never evenly spaced
-  for (let tries = 0, made = 0; tries < 40 && made < 7; tries++) {
-    const a = rnd() * Math.PI * 2;
-    const d = (RING + 30 + rnd() * (TOWN_HALF - RING)) * S;
-    const [x, z] = [Math.cos(a) * d, Math.sin(a) * d];
-    if (out.some((p) => Math.hypot(p.x - x, p.z - z) < 70 * S)) continue;
-    cloud(x, z, 1300 + rnd() * 900, 30 + rnd() * 20);
-    made++;
-  }
-  // and more over the woods and the hills, bigger, at their own gaps
-  for (let a = rnd(); a < Math.PI * 2; a += 0.35 + rnd() * 0.7) {
-    const d = (TOWN_HALF + 60 + rnd() * 140) * S;
-    cloud(Math.cos(a) * d, Math.sin(a) * d, 1000 + rnd() * 1100, 45 + rnd() * 30);
+    if (rnd() < 0.5) puffs.push([(rnd() - 0.5) * n * u * 0.6, u * 0.4, u * (0.5 + rnd() * 0.3), u * 0.8]); // one behind
+    out.push({ x, z, y: 1400 + rnd() * 900, speed: 22 + rnd() * 18, puffs });
   }
   return out;
 }

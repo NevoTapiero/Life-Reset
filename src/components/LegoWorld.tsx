@@ -88,6 +88,7 @@ import {
   forestTrees,
   carLoop,
   townClouds,
+  CLOUD_EXTENT,
   balloonSlabs,
   WILD,
   waterTowerSlabs,
@@ -3676,14 +3677,42 @@ const GULLS = [
   { r: 800, y: 580, speed: -0.1, start: 5 },
 ];
 const BEAK_BACK = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI); // its beak is -Z
-// The clouds drift slowly round the sky (a turn about every half hour).
+// The clouds drift with the wind, all the same way (a little south of east), each at its own
+// pace; one that leaves the sky comes back in on the far side. Every puff is an instance of one
+// soft round shape, flattened a touch; a few hundred matrices a frame. LDraw frame (in the group).
+const WIND: [number, number] = [Math.cos(0.25), Math.sin(0.25)];
+const PUFF_COUNT = CLOUDS.reduce((n, c) => n + c.puffs.length, 0);
 function DriftingClouds() {
-  const g = useRef<THREE.Group>(null);
-  useFrame((_, dt) => void g.current?.rotateY(dt * 0.0035));
+  const puffs = useRef<THREE.InstancedMesh>(null);
+  const o = useMemo(() => new THREE.Object3D(), []);
+  useFrame(({ clock }) => {
+    const m = puffs.current;
+    if (!m) return;
+    const t = clock.elapsedTime;
+    const span = 2 * CLOUD_EXTENT;
+    let i = 0;
+    for (const c of CLOUDS) {
+      // along the wind, wrapped into the square; across it, a slow sway
+      const along = ((((c.x * WIND[0] + c.z * WIND[1] + t * c.speed + CLOUD_EXTENT) % span) + span) % span) - CLOUD_EXTENT;
+      const across = -c.x * WIND[1] + c.z * WIND[0] + Math.sin(t * 0.05 + c.y) * 40;
+      const [cx, cz] = [along * WIND[0] - across * WIND[1], along * WIND[1] + across * WIND[0]];
+      for (const [dx, dy, dz, r] of c.puffs) {
+        o.position.set(cx + dx, -(c.y + dy), cz + dz); // LDraw: -y is up
+        o.scale.set(r, r * 0.78, r);
+        o.updateMatrix();
+        m.setMatrixAt(i++, o.matrix);
+      }
+    }
+    m.instanceMatrix.needsUpdate = true;
+  });
   return (
-    <group ref={g}>
+    <group>
       <Balloon />
-      <Slabs slabs={CLOUDS} shadows={false} />
+      <instancedMesh ref={puffs} args={[undefined, undefined, PUFF_COUNT]} frustumCulled={false}>
+        <sphereGeometry args={[1, 18, 12]} />
+        {/* soft white, lit a little from within so the shaded side stays light, like a real cloud */}
+        <meshStandardMaterial color="#ffffff" emissive="#dfe8f5" emissiveIntensity={0.35} roughness={1} />
+      </instancedMesh>
     </group>
   );
 }
