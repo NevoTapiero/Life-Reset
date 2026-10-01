@@ -1922,6 +1922,13 @@ export function LegoTown({
             <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} shadows={following} />
             {following && <NearStuds follow={me3} grass={grass} lots={[...lots, ...emptyLots]} />}
             <FountainSplash />
+            {/* chimney smoke over the shop and every house */}
+            <Smoke at={toThree([(-SHOP_BUILDING.w / 4) * 20, -SHOP_BUILDING.h - 10, SHOP_FRONT - SHOP_BUILDING.d * 10])} />
+            {residents.map((res, i) => {
+              const h = houseFor(res.level, res.name);
+              const [x, , z] = toThree(houseCentre(i));
+              return <Smoke key={`smoke-${res.name}`} at={[x + 1.2, h.h * LDU + 0.5, z - 1]} seed={i + 1} />;
+            })}
             {/* the ground: grass everywhere (the road, ring and paths are Slabs on it), the paved
                 plaza, and each plot turned its own way. Layers sit 0.1 apart (two LDU): the map
                 camera's depth buffer can't tell closer ones apart. */}
@@ -2926,6 +2933,35 @@ function roundedRect(w: number, d: number, r: number): THREE.Shape {
   shape.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false);
   return shape;
 }
+// Chimney smoke: white puffs rising from a roof, drifting a little, growing and thinning
+// away. Three's space; `at` is the chimney's top.
+const PUFFS = 9;
+function Smoke({ at, seed = 0 }: { at: [number, number, number]; seed?: number }) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const o = useMemo(() => new THREE.Object3D(), []);
+  useFrame(({ clock }) => {
+    const m = mesh.current;
+    if (!m) return;
+    const t = clock.elapsedTime + seed * 7;
+    for (let i = 0; i < PUFFS; i++) {
+      const f = (t * 0.22 + i / PUFFS) % 1; // 0 leaving the chimney, 1 gone
+      const wobble = Math.sin(t * 1.3 + i) * 0.25;
+      o.position.set(at[0] + f * 1.6 + wobble, at[1] + f * 5.5, at[2] + f * 0.8 - wobble * 0.5);
+      const sz = 0.18 + Math.sin(f * Math.PI) * 0.5;
+      o.scale.set(sz, sz * 0.8, sz);
+      o.updateMatrix();
+      m.setMatrixAt(i, o.matrix);
+    }
+    m.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, PUFFS]} frustumCulled={false}>
+      <sphereGeometry args={[1, 8, 6]} />
+      <meshStandardMaterial color="#f4f4f2" transparent opacity={0.7} roughness={1} />
+    </instancedMesh>
+  );
+}
+
 // The fountain plays: droplets (tiny trans-blue balls) leap from the top of the jet, arc
 // out and fall into the basin, round and round. Three's space, over FOUNTAIN.
 const FOUNTAIN_DROPS = 28;
@@ -3015,6 +3051,8 @@ function Balloon() {
     const a = t * 0.02;
     const r = (RING + 90) * 20;
     g.current.position.set(Math.sin(a) * r, -1300 - Math.sin(t * 0.5) * 30, Math.cos(a) * r);
+    g.current.rotation.z = Math.sin(t * 0.7) * 0.05; // leaning a little with the wind
+    g.current.rotation.x = Math.cos(t * 0.6) * 0.04;
   });
   return (
     <group ref={g}>
