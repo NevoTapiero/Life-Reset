@@ -2392,17 +2392,22 @@ export function LegoTown({
         ))}
         <FountainSpray />
         {/* a friend's statue on top of the fountain, as in the photo Iftach sent, in his real colours: his
-            dark curls, his white sport sunglasses with their red lenses, one hand up, in a black One Piece tee
-            and jeans, facing the street */}
+            dark curls, snow goggles with a red mirror lens, one hand up, in a black One Piece tee and jeans,
+            facing the street */}
         <group position={[FOUNTAIN[0], -STATUE_AT, FOUNTAIN[1]]} scale={1.8}>
           <Minifig look={STATUE} at={[0, 0, 0]} statue />
-          <mesh position={[0, -85, 10.6]}>
-            <boxGeometry args={[23, 6, 2]} />
+          {/* his snow goggles: a chunky white frame, a big red mirror lens, the strap round his head */}
+          <mesh position={[0, -86, 10.4]}>
+            <boxGeometry args={[25, 10, 3]} />
             <meshStandardMaterial color="#f4f4f0" roughness={0.4} />
           </mesh>
-          <mesh position={[0, -85, 11.8]}>
-            <boxGeometry args={[19, 4.4, 1]} />
-            <meshStandardMaterial color="#b0303a" metalness={0.6} roughness={0.15} />
+          <mesh position={[0, -86, 12]}>
+            <boxGeometry args={[22, 7.4, 1]} />
+            <meshStandardMaterial color="#c8323c" metalness={0.75} roughness={0.08} />
+          </mesh>
+          <mesh position={[0, -86, 0]}>
+            <cylinderGeometry args={[10.9, 10.9, 4.5, 24, 1, true]} />
+            <meshStandardMaterial color="#1d1d1d" roughness={0.7} side={THREE.DoubleSide} />
           </mesh>
           <ShirtPrint />
         </group>
