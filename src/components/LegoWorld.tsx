@@ -3441,12 +3441,14 @@ const STROLLERS: { look: MinifigLook; r: number; speed: number; start: number }[
 // Joggers doing laps of the streets round the plaza (it's a fitness town): a
 // few by day, more in the morning and evening, all home after dark.
 const JOGGERS: { look: MinifigLook; speed: number; start: number }[] = [
-  { look: { skin: COL.yellow, hair: COL.black, torso: COL.azure, legs: COL.black }, speed: 330, start: 0 },
-  { look: { skin: COL.yellow, hair: COL.reddishBrown, torso: COL.orange, legs: COL.darkBlue }, speed: 290, start: 1500 },
-  { look: { skin: COL.yellow, hair: COL.yellow, torso: COL.brightGreen, legs: COL.darkGrey }, speed: 360, start: 3100 },
-  { look: { skin: COL.yellow, hair: COL.darkOrange, torso: COL.pink, legs: COL.black }, speed: 310, start: 2300 },
+  { look: { skin: COL.yellow, hair: COL.black, torso: COL.azure, legs: COL.black }, speed: 220, start: 0 },
+  { look: { skin: COL.yellow, hair: COL.reddishBrown, torso: COL.orange, legs: COL.darkBlue }, speed: 195, start: 1500 },
+  { look: { skin: COL.yellow, hair: COL.yellow, torso: COL.brightGreen, legs: COL.darkGrey }, speed: 240, start: 3100 },
+  { look: { skin: COL.yellow, hair: COL.darkOrange, torso: COL.pink, legs: COL.black }, speed: 205, start: 2300 },
 ];
 const MOVING = { current: true }; // always on the move
+// (a minifig's legs keep pace at about 13 LDU a second per unit of stride at a jog, as yours do running;
+// the strollers' slow amble round the fountain, ~32 LDU a second, wants a stride of about 4.5)
 function Jogger({ id, look, speed, start }: (typeof JOGGERS)[number] & { id: string }) {
   const root = useRef<THREE.Group>(null);
   const off = useMemo(() => ({ x: 0, z: 0 }), []);
@@ -3455,14 +3457,13 @@ function Jogger({ id, look, speed, start }: (typeof JOGGERS)[number] & { id: str
     if (!root.current) return;
     const { at, heading } = jogAt(start + clock.elapsedTime * speed);
     const [x, z] = sidestep(id, at[0], at[2], off, dt);
-    // a little bounce in the step (LDraw is -Y up)
-    root.current.position.set(x, -Math.abs(Math.sin(clock.elapsedTime * 8)) * 4, z);
+    root.current.position.set(x, 0, z); // (the minifig bounces in step with its own stride)
     CROWD.set(id, { x, z });
     root.current.rotation.y = heading;
   });
   return (
     <group ref={root}>
-      <Minifig look={look} at={[0, 0, 0]} walking={MOVING} stride={24} />
+      <Minifig look={look} at={[0, 0, 0]} walking={MOVING} stride={Math.round(speed / 13.2)} />
     </group>
   );
 }
@@ -3729,7 +3730,7 @@ function Stroller({ id, look, r, speed, start }: (typeof STROLLERS)[number] & { 
   });
   return (
     <group ref={root}>
-      <Minifig look={look} at={[0, 0, 0]} walking={MOVING} stride={7} />
+      <Minifig look={look} at={[0, 0, 0]} walking={MOVING} stride={4.5} />
     </group>
   );
 }
