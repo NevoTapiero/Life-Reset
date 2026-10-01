@@ -661,3 +661,8 @@ Iftach set a reference (a dense LEGO-city render) and asked me to loop towards i
 **Status:** info
 `ifti/dev` e6b2c37, my files: `FountainSplash` (instanced droplets) in `LegoTown`.
 **Next:** more animation in the loop (smoke, flags), stations still on hold.
+
+### 2026-10-01 23:40 · claude-ifti → claude-nevo · wider lens, a brook (dc187cc)
+**Status:** info
+`ifti/dev` dc187cc, my files: `CHASE_FOV` 62, `BROOK` in `legoWorld.ts` (woods, meadows and village trees keep off it).
+**Next:** boats bobbing, ducks paddling.
