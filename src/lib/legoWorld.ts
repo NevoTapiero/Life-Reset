@@ -961,7 +961,7 @@ export const SHOP_FRONT = (-PLAZA / 2 + 34) * S; // Market Street is 34 deep, ba
 // The fountain, after Bethesda Fountain in New York's Central Park (Iftach, 3 Oct: "huge, like the park
 // in New York"): a round paved terrace straddling the plaza's front edge, a big pool with a stone rim, and
 // in it a pedestal, a wide lower basin, a column, an upper basin and a statue on top (the renderer's: a
-// friend of Iftach's, a sniper in his olive uniform, aiming his rifle)
+// friend of Iftach's, from his photo, in a black One Piece tee and jeans)
 export const FOUNTAIN: [number, number] = [0, 450];
 export const POOL_R = 200; // LDU, the pool's water
 export const TERRACE_R = 270; // LDU, the paved terrace round it

@@ -860,10 +860,10 @@ function Minifig({
     const t = clock.elapsedTime;
     if (!model || !root.current) return;
     if (statue) {
-      // stock still, aiming: both arms up straight ahead, holding a rifle to the shoulder (set once, for this model)
+      // stock still, one hand raised as in the photo (set once, for this model)
       if (posed.current !== model) {
         posed.current = model;
-        for (const arm of ["swingL", "swingR"]) model.getObjectByName(arm)?.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(X_AXIS, 1.5));
+        model.getObjectByName("swingR")?.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(X_AXIS, 1.3));
       }
       return;
     }
@@ -2391,11 +2391,20 @@ export function LegoTown({
           <Prop key={k} {...PARK_BURGER_STAND} lot={lot} />
         ))}
         <FountainSpray />
-        {/* a friend's statue on top of the fountain, in his real colours: a sniper in his olive uniform,
-            aiming his rifle out over the street, stock at his right shoulder, his left hand under it */}
+        {/* a friend's statue on top of the fountain, as in the photo Iftach sent, in his real colours: his
+            dark curls, his white sport sunglasses with their red lenses, one hand up, in a black One Piece tee
+            and jeans, facing the street */}
         <group position={[FOUNTAIN[0], -STATUE_AT, FOUNTAIN[1]]} scale={1.8}>
           <Minifig look={STATUE} at={[0, 0, 0]} statue />
-          <SniperRifle at={[-8, -62, 0]} />
+          <mesh position={[0, -85, 10.6]}>
+            <boxGeometry args={[23, 6, 2]} />
+            <meshStandardMaterial color="#f4f4f0" roughness={0.4} />
+          </mesh>
+          <mesh position={[0, -85, 11.8]}>
+            <boxGeometry args={[19, 4.4, 1]} />
+            <meshStandardMaterial color="#b0303a" metalness={0.6} roughness={0.15} />
+          </mesh>
+          <ShirtPrint />
         </group>
         <TownSign name={residents[meIndex]?.name ?? "Your"} />
         {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
@@ -4291,37 +4300,60 @@ function FountainSpray() {
     </instancedMesh>
   );
 }
-// a sniper rifle aimed straight ahead (+z), the way he holds it (LDU, minifig scale, LDraw frame: -y up):
-// the stock at the shoulder, the body and grip, a long barrel, the scope on top and the bipod folded down
-function SniperRifle({ at }: { at: [number, number, number] }) {
-  const black = <meshStandardMaterial color="#23272b" metalness={0.3} roughness={0.45} />;
-  const part = (pos: [number, number, number], geo: React.ReactNode, rot: [number, number, number] = [0, 0, 0]) => (
-    <mesh position={pos} rotation={rot}>
-      {geo}
-      {black}
+// the statue, after a friend of Iftach's, in his real colours: light nougat skin, dark brown tousled hair,
+// a black tee, blue jeans
+const STATUE: Figure = {
+  parts: { ...figureOf({ skin: 78, hair: 308, torso: 0, legs: 272 }).parts, hair: { part: "10048", color: 308 }, head: { part: "3626bp05", color: 78 } }, // his dark brows
+};
+// the print on his black tee, a One Piece nod (our own drawing, not their logo): a white skull and crossbones
+// in a yellow straw hat with a red band
+function ShirtPrint() {
+  const map = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const g = c.getContext("2d")!;
+    g.lineCap = "round";
+    g.strokeStyle = "#f4f4f0";
+    g.lineWidth = 12;
+    for (const [a, b, d, e] of [[22, 112, 106, 70], [22, 70, 106, 112]]) {
+      g.beginPath();
+      g.moveTo(a, b);
+      g.lineTo(d, e);
+      g.stroke(); // the crossbones
+    }
+    g.fillStyle = "#f4f4f0";
+    g.beginPath();
+    g.arc(64, 66, 30, 0, Math.PI * 2);
+    g.fill(); // the skull
+    g.fillRect(48, 86, 32, 16);
+    g.fillStyle = "#151515";
+    for (const x of [52, 76]) {
+      g.beginPath();
+      g.arc(x, 66, 7, 0, Math.PI * 2);
+      g.fill(); // the eyes
+    }
+    g.fillStyle = "#f2c230";
+    g.beginPath();
+    g.ellipse(64, 40, 52, 10, 0, 0, Math.PI * 2);
+    g.fill(); // the hat's brim
+    g.beginPath();
+    g.ellipse(64, 30, 28, 18, 0, Math.PI, 0);
+    g.fill(); // its crown
+    g.fillStyle = "#c91a09";
+    g.fillRect(36, 30, 56, 7); // its band
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, []);
+  useEffect(() => () => map.dispose(), [map]);
+  // on the torso's front, mid-chest (LDU, minifig frame: -y up, front +z)
+  return (
+    <mesh position={[0, -56, 11]} rotation={[0, 0, Math.PI]}>{/* upright in the LDraw frame (-y up), facing out */}
+      <planeGeometry args={[15, 15]} />
+      <meshStandardMaterial map={map} transparent roughness={0.6} />
     </mesh>
   );
-  const along: [number, number, number] = [Math.PI / 2, 0, 0]; // a cylinder laid along the rifle
-  return (
-    <group position={at}>
-      {part([0, 2, 0], <boxGeometry args={[7, 13, 30]} />) /* the stock, at the shoulder */}
-      {part([0, 0, 34], <boxGeometry args={[7, 10, 40]} />) /* the body */}
-      {part([0, 10, 22], <boxGeometry args={[5, 12, 6]} />) /* the grip, under his right hand */}
-      {part([0, 0, 92], <cylinderGeometry args={[2, 2, 76, 10]} />, along) /* the barrel */}
-      {part([0, 0, 131], <cylinderGeometry args={[3, 3, 8, 10]} />, along) /* the muzzle */}
-      {part([0, -10, 38], <cylinderGeometry args={[3.6, 3.6, 30, 12]} />, along) /* the scope */}
-      {part([0, -10, 24], <cylinderGeometry args={[4.6, 3.6, 5, 12]} />, along)}
-      {part([0, -10, 54], <cylinderGeometry args={[3.6, 5, 6, 12]} />, along)}
-      {part([0, -5, 38], <boxGeometry args={[3, 6, 8]} />) /* its mount */}
-      {[-1, 1].map((side) => (
-        <group key={side}>{part([side * 4, 12, 66], <cylinderGeometry args={[1, 1, 24, 6]} />, [0, 0, side * 0.35])}</group>
-      )) /* the bipod's legs, splayed under the barrel */}
-    </group>
-  );
 }
-// the statue, after a friend of Iftach's, in his real colours: light nougat skin, dark brown tousled hair,
-// his olive green uniform
-const STATUE: Figure = { parts: { ...figureOf({ skin: 78, hair: 308, torso: 330, legs: 330 }).parts, hair: { part: "10048", color: 308 } } };
 
 // ---- the welcome sign at the front of the plaza: "<name>'s Town" ----
 function TownSign({ name }: { name: string }) {
