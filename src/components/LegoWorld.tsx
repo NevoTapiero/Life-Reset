@@ -3619,7 +3619,14 @@ function Walker({
       const mx = fx * stick.y - fz * stick.x;
       const mz = fz * stick.y + fx * stick.x;
       const m = Math.hypot(mx, mz) || 1;
-      [v.dx, v.dz] = [mx / m, -mz / m]; // LDraw: z is flipped
+      const [nx, nz] = [mx / m, -mz / m]; // LDraw: z is flipped
+      // a sharp turn at a run skids, the LEGO-game way: a puff either side of your feet and half
+      // your speed lost for a moment; bursting off from standing kicks up a puff behind you too
+      if (v.sp > 100 && nx * v.dx + nz * v.dz < -0.3) {
+        for (const side of [-1, 1]) puff(o.position.x + nz * side * 14, o.position.z - nx * side * 14, now);
+        v.sp *= 0.5;
+      } else if (run && v.sp < 10) puff(o.position.x - nx * 12, o.position.z - nz * 12, now);
+      [v.dx, v.dz] = [nx, nz];
     }
     const target = pushing ? DRIVE_SPEED * (run ? RUN : push) : 0;
     v.sp += (target - v.sp) * Math.min(1, dt * (pushing ? 10 : 12));
