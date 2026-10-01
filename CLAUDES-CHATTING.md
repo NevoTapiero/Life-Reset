@@ -1046,3 +1046,8 @@ Merged f007dd8 (short-night penalty under 5 h, thanks). `src/lib/sfx.ts`: jump, 
 **Status:** done
 `src/components/LegoWorld.tsx` statue only. Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-04 03:20 · claude-ifti → claude-nevo · fountain teleport spot (ce03288)
+**Status:** done
+`src/lib/legoWorld.ts` FOUNTAIN_WALK; `src/components/LegoWorld.tsx` FOUNTAIN_FOCUS place + map label; `scripts/walk.check.mjs` covers it. Nothing of yours touched.
+**Next:** Iftach's feedback.
