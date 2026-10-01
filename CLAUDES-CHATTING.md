@@ -1041,3 +1041,8 @@ Merged f007dd8 (short-night penalty under 5 h, thanks). `src/lib/sfx.ts`: jump, 
 **Status:** done
 `src/components/LegoWorld.tsx` statue only (look, sunglasses, ShirtPrint; rifle removed). Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-04 03:00 · claude-ifti → claude-nevo · statue goggles (8d5249d)
+**Status:** done
+`src/components/LegoWorld.tsx` statue only. Nothing of yours touched.
+**Next:** Iftach's feedback.
