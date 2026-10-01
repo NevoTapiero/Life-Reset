@@ -838,7 +838,7 @@ function Minifig({
           [dx, dy, roll, size] = [side * 26 * (1 - o), -46 * (1 - o) - Math.sin(Math.PI * v) * 10 + (after > 0 && after < 1 ? Math.sin(Math.PI * after) * 2.5 : 0), (side || 1) * 0.5 * (1 - o), 0.6 + 0.4 * Math.min(1, v * 1.8)];
           if (v === 1 && g > clicked.current) {
             clicked.current = g;
-            sfx.click();
+            sfx.snap(); // a brick clicking home
           }
         }
       }
@@ -932,6 +932,7 @@ function Minifig({
         hopFrom.current = lift(up);
         hopDouble.current = true;
         hopAt.current = t;
+        sfx.whoosh();
       } else if (up > 0.5) {
         [hopAt.current, hopBig.current, hopFrom.current, hopDouble.current] = [t, true, 0, false];
       }
@@ -2102,7 +2103,10 @@ export function LegoTown({
     node: (
       <div className="flex flex-col items-center gap-1">
         <span className="lego lego-sm lego-white pointer-events-none">{GUIDES[g].name}</span>
-        <RoundAction icon="talk" text="Talk" tone="yellow" small onClick={() => setTalk({ g, line: 0 })} />
+        <RoundAction icon="talk" text="Talk" tone="yellow" small onClick={() => {
+            setTalk({ g, line: 0 });
+            sfx.mumble();
+          }} />
       </div>
     ),
   });
@@ -2111,8 +2115,11 @@ export function LegoTown({
   // the next line, or the end of the talk (the next talk with this guide tells the next story)
   const nextLine = () => {
     if (!talk) return;
+    if (talk.line + 1 < talkLines.length) {
+      sfx.mumble(); // they say the next bit
+      return setTalk({ ...talk, line: talk.line + 1 });
+    }
     sfx.click();
-    if (talk.line + 1 < talkLines.length) return setTalk({ ...talk, line: talk.line + 1 });
     setTalked((n) => n.map((v, k) => (k === talk.g ? v + 1 : v)));
     setTalk(null);
   };
@@ -3762,6 +3769,7 @@ function Walker({
     if (l.at > 0 && now >= l.at) {
       l.at = -1;
       for (let k = 0; k < 6; k++) puff(o.position.x + Math.sin(k * 1.05 + 0.3) * 26, o.position.z + Math.cos(k * 1.05 + 0.3) * 26, now);
+      sfx.land();
     }
     animatePuffs(now);
     // turn quickly but smoothly (never snap round a corner), the short way round
@@ -3797,7 +3805,7 @@ function Walker({
     if (tp.pending) {
       [tp.pending, tp.at, tp.landed, teleAt.current] = [false, now, false, now];
       for (let k = 0; k < 6; k++) puff(o.position.x + Math.sin(k * 1.05) * 22, o.position.z + Math.cos(k * 1.05) * 22, now);
-      sfx.jump();
+      sfx.clatter(); // bursting into bricks
     }
     if (now - tp.at < TELE_ARRIVE + TELE_BUILD) {
       if (now - tp.at >= TELE_BREAK && tp.to) {
@@ -3847,6 +3855,7 @@ function Walker({
       if (v.sp > 100 && nx * v.dx + nz * v.dz < -0.3) {
         for (const side of [-1, 1]) puff(o.position.x + nz * side * 14, o.position.z - nx * side * 14, now);
         v.sp *= 0.5;
+        sfx.skid();
       } else if (run && v.sp < 10) puff(o.position.x - nx * 12, o.position.z - nz * 12, now);
       [v.dx, v.dz] = [nx, nz];
     }

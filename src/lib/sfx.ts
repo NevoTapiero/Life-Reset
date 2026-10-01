@@ -70,6 +70,25 @@ function tone(a: AudioContext, at: number, from: number, to: number, gain: numbe
   o.stop(at + len + 0.02);
 }
 
+// filtered noise swept from one pitch to another: air (a whoosh) or plastic dragging (a skid)
+function sweep(a: AudioContext, at: number, from: number, to: number, q: number, gain: number, len: number) {
+  const src = a.createBufferSource();
+  src.buffer = noise;
+  src.loop = true;
+  const bp = a.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.setValueAtTime(from, at);
+  bp.frequency.exponentialRampToValueAtTime(to, at + len);
+  bp.Q.value = q;
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(gain, at + len * 0.3);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+  src.connect(bp).connect(g).connect(a.destination);
+  src.start(at);
+  src.stop(at + len + 0.02);
+}
+
 // no more than a few of the same sound at once (a whole town building up)
 const last = new Map<string, number>();
 function throttle(name: string, gapMs: number) {
@@ -119,6 +138,37 @@ export const sfx = {
     if (!a) return;
     const t = a.currentTime;
     for (let i = 0; i < 14; i++) tick(a, t + i * 0.028 + Math.random() * 0.02, 1800 + Math.random() * 2400, 2.5, 0.14, 0.04);
+  },
+  /** landing from a jump: a hollow plastic thud and a click */
+  land() {
+    const a = audio();
+    if (!a || throttle("land", 150)) return;
+    const t = a.currentTime;
+    tick(a, t, 650, 1.6, 0.28, 0.07);
+    tick(a, t + 0.012, 2600, 3, 0.12, 0.03);
+  },
+  /** the double jump's spin: a quick rush of air */
+  whoosh() {
+    const a = audio();
+    if (!a) return;
+    sweep(a, a.currentTime, 500, 2800, 1.2, 0.16, 0.32);
+  },
+  /** turning sharply at a run: plastic feet scraping */
+  skid() {
+    const a = audio();
+    if (!a || throttle("skid", 250)) return;
+    sweep(a, a.currentTime, 2600, 900, 2.5, 0.1, 0.18);
+  },
+  /** someone talking, the LEGO-game way: a few quick blips of gibberish */
+  mumble() {
+    const a = audio();
+    if (!a || throttle("mumble", 250)) return;
+    const t = a.currentTime;
+    const n = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) {
+      const f = 320 + Math.random() * 280;
+      tone(a, t + i * 0.075, f, f * (0.9 + Math.random() * 0.25), 0.045, 0.06, "square");
+    }
   },
   /** a friend talking: a little blip-blip */
   blip() {
