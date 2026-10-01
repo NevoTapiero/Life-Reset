@@ -332,17 +332,26 @@ export const doorPaths = (residents: Resident[]): Slab[] =>
 /** the middle of the tiled path from a house's door, in the plot frame (LDU) */
 export const pathX = (s: HouseSpec) => (doorCells(s)[1] + 1 - PLOT / 2) * S;
 export function lotPath(lot: Lot, level: number): P3[] {
-  // straight out of the gate, square to the fence, then one smooth curve round to the ring
+  // straight out of the gate, square to the fence, then a curve round to the ring that winds as it
+  // goes, the village way (Iftach liked them winding, not straight): one gentle bow on some, an S on
+  // others, each its own way, easing in at the gate and out at the ring so it never kinks
   const x = pathX(houseSpec(level));
   const gate = inLot(lot, [x, 0, (PLOT / 2 + 3) * S]); // where the tiles end, past the fence
   const out = inLot(lot, [x, 0, (PLOT / 2 + 12) * S]);
   const ctrl = inLot(lot, [x, 0, (PLOT / 2 + 12) * S + lot.r * S * 0.35]); // on along the same line
   const end = nearestStreet(ctrl);
+  const seed = Math.round(lot.a * 100 + lot.r);
+  const [bends, sway] = [1 + (seed % 2), (seed % 3 === 0 ? -1 : 1) * (seed % 2 ? 11 : 14) * S]; // an S or a bow; which way, how far
   const curve: P3[] = [];
-  for (let k = 0; k <= 10; k++) {
-    const t = k / 10;
+  for (let k = 0; k <= 16; k++) {
+    const t = k / 16;
     const [a, b, c] = [(1 - t) * (1 - t), 2 * (1 - t) * t, t * t]; // a quadratic curve: out of the gate, bending to the ring
-    curve.push([a * out[0] + b * ctrl[0] + c * end[0], 0, a * out[2] + b * ctrl[2] + c * end[2]]);
+    const [px, pz] = [a * out[0] + b * ctrl[0] + c * end[0], a * out[2] + b * ctrl[2] + c * end[2]];
+    // its direction there, and the wind across it (nothing at either end, and no kink: sin(pi t) eases it)
+    const [tx, tz] = [2 * (1 - t) * (ctrl[0] - out[0]) + 2 * t * (end[0] - ctrl[0]), 2 * (1 - t) * (ctrl[2] - out[2]) + 2 * t * (end[2] - ctrl[2])];
+    const len = Math.hypot(tx, tz) || 1;
+    const w = sway * Math.sin(Math.PI * t) * Math.sin(Math.PI * bends * t);
+    curve.push([px - (tz / len) * w, 0, pz + (tx / len) * w]);
   }
   return [gate, ...curve].reverse();
 }
