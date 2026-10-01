@@ -1,9 +1,9 @@
 // node scripts/walk.check.mjs -- every walk between any two places (doors, insides, the shop) keeps to the streets
 import assert from "node:assert";
-import { onRing, RING_R, CROWD, PERSON, sidestep, intoSomeone, jogAt, townBlockers, free, stepFree, nearestStreet, walkFrom, doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, shopWalk, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
+import { onRing, RING_R, CROWD, PERSON, sidestep, intoSomeone, jogAt, townBlockers, free, stepFree, nearestStreet, walkFrom, doorWalk, insideWalk, lotFor, MAX_RESIDENTS, SHOP_WALK, FOUNTAIN_WALK, shopWalk, walkRoute, rerouteFrom } from "../src/lib/legoWorld.ts";
 
 const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
-const places = [SHOP_WALK, shopWalk(1), shopWalk(3), ...lots.flatMap((lot, i) => [doorWalk(lot, 1 + (i % 5), 40), doorWalk(lot, 1 + (i % 5), -40), insideWalk(lot, 1 + (i % 5), 40)])];
+const places = [SHOP_WALK, FOUNTAIN_WALK, shopWalk(1), shopWalk(3), ...lots.flatMap((lot, i) => [doorWalk(lot, 1 + (i % 5), 40), doorWalk(lot, 1 + (i % 5), -40), insideWalk(lot, 1 + (i % 5), 40)])];
 // on the ring (or a step inside it, mid-way between two of its points), or straight along
 const nearRing = (p) => Math.abs(Math.hypot(p[0], p[2]) - RING_R) < 12;
 const straight = (a, b) => (nearRing(a) && nearRing(b)) || Math.abs(a[0] - b[0]) < 1 || Math.abs(a[2] - b[2]) < 1;

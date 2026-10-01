@@ -50,6 +50,7 @@ import {
   rideSpot,
   type Loadout,
   SHOP_WALK,
+  FOUNTAIN_WALK,
   walkRoute,
   rerouteFrom,
   walkFrom,
@@ -1824,6 +1825,7 @@ function Stage({
 // for your house.
 export type Visit = "allowed" | "knocked";
 const SHOP_FOCUS = -1;
+const FOUNTAIN_FOCUS = -3; // the big fountain on the plaza (a place you can teleport to)
 const OVERVIEW = -2; // the whole town from above
 const LOOK_DOWN = new THREE.Vector3(0.25, 0.95, -0.75).normalize(); // a high three-quarter view: the hills and the sky in the frame
 // playing: the camera behind and above you, looking down at about 40 degrees, close
@@ -2082,7 +2084,7 @@ export function LegoTown({
     // straight to where you'll stand, and you build yourself again there
     if (focus === OVERVIEW) {
       setTeleports((n) => n + 1);
-      const [x, , z] = i === SHOP_FOCUS || !residents[i] ? SHOP_WALK.at(-1)! : i === meIndex ? doorWalk(lots[i], residents[i].level).at(-1)! : doorWalk(lots[i], residents[i].level, VISIT_SIDE, VISIT_AHEAD).at(-1)!;
+      const [x, , z] = i === FOUNTAIN_FOCUS ? FOUNTAIN_WALK.at(-1)! : i === SHOP_FOCUS || !residents[i] ? SHOP_WALK.at(-1)! : i === meIndex ? doorWalk(lots[i], residents[i].level).at(-1)! : doorWalk(lots[i], residents[i].level, VISIT_SIDE, VISIT_AHEAD).at(-1)!;
       setArrive(new THREE.Vector3(x * LDU, 0, -z * LDU));
       setArriveTurn(i === SHOP_FOCUS || !residents[i] ? 0 : lots[meIndex].yaw - lots[i].yaw);
     } else setArrive(null);
@@ -2097,6 +2099,8 @@ export function LegoTown({
     const z = -p.z / LDU;
     let best = SHOP_FOCUS;
     let bestD = x * x + z * z;
+    const f = (x - FOUNTAIN[0]) ** 2 + (z - FOUNTAIN[1]) ** 2;
+    if (f < bestD) [best, bestD] = [FOUNTAIN_FOCUS, f];
     lots.forEach((lot, i) => {
       const d = (x - lot.x) ** 2 + (z - lot.z) ** 2;
       if (d < bestD) {
@@ -2324,6 +2328,11 @@ export function LegoTown({
             at: [0, SHOP_BUILDING.h * LDU + 3, -(SHOP_FRONT - (SHOP_BUILDING.d / 2) * 20) * LDU] as [number, number, number],
             node: label("Shop", false, () => go(SHOP_FOCUS)),
           },
+          {
+            key: "fountain",
+            at: [FOUNTAIN[0] * LDU, (STATUE_AT + 220) * LDU, -FOUNTAIN[1] * LDU] as [number, number, number],
+            node: label("Fountain", false, () => go(FOUNTAIN_FOCUS)),
+          },
           ...emptyLots.map((lot, k) => ({
             key: `empty-${k}`,
             at: [lot.x * LDU, 6, -lot.z * LDU] as [number, number, number],
@@ -2461,9 +2470,10 @@ export function LegoTown({
           // you walk to where you last looked, and into the house you're visiting; everyone else stays at their door
           if (i === meIndex) {
             // you walk to wherever you last looked (the whole-town view doesn't move you)
-            const shop = dest === SHOP_FOCUS || !residents[dest];
-            let to = SHOP_WALK;
-            if (!shop) {
+            const fountain = dest === FOUNTAIN_FOCUS;
+            const shop = !fountain && (dest === SHOP_FOCUS || !residents[dest]);
+            let to = fountain ? FOUNTAIN_WALK : SHOP_WALK;
+            if (!shop && !fountain) {
               const { level, name } = residents[dest];
               const side = dest === meIndex ? 0 : 40;
               const house = houseFor(level, name);
@@ -2477,8 +2487,8 @@ export function LegoTown({
                     : doorWalk(lots[dest], level, VISIT_SIDE, VISIT_AHEAD);
             }
             // you wave at the friend you've come to see
-            const wave = inside === null && !shop && dest !== meIndex;
-            return <Walker key="me" id="me" wave={wave} go={goes} teleport={teleports} runRef={runRef} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : lots[dest].yaw} />;
+            const wave = inside === null && !shop && !fountain && dest !== meIndex;
+            return <Walker key="me" id="me" wave={wave} go={goes} teleport={teleports} runRef={runRef} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop || fountain ? Math.PI : lots[dest].yaw} />;
           }
           // friends: at home, at their door, waving when you come to see them
           return <Walker key={res.name} id={res.name} wave={dest === i} look={loadoutFor(res.level, res.character ?? undefined)} to={doorWalk(lots[i], res.level)} turn={lots[i].yaw} />;
