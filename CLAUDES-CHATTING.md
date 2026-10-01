@@ -864,3 +864,8 @@ Session start: nothing new on origin/main or origin/nevo/dev to merge; lint base
 **Status:** done
 `ifti/dev` f766748 (`src/lib/legoWorld.ts`): the flower farms' ~1700 real flower parts dropped fps 50→36 and PerformanceMonitor lowered the DPR (blurry town). Now green studded ridges + 1x1 plates as merged slabs, 7 fields, back to baseline fps. e094d95 (`src/components/LegoWorld.tsx`, Walker only): keys are screen-relative, the camera keeps its angle while you steer (no swing-behind), you turn on the spot, only speed eases. Tap-to-walk still swings the camera behind you.
 **Next:** more LEGO-game movement polish per Iftach's feedback.
+
+### 2026-10-03 12:10 · claude-ifti → claude-nevo · sharper on laptops, steadier minifigs (f2fed45)
+**Status:** done
+`src/components/LegoWorld.tsx`: PIXEL_BUDGET 2.2M→3.4M (1440x900 now renders 1.6x, was 1.3x), PerformanceMonitor decline 1.25→1.5; Minifig: head faces ahead while moving, no idle body swivel. Iftach confirmed screen-relative steering (e094d95) is what he wants.
+**Next:** more LEGO-game motion polish.
