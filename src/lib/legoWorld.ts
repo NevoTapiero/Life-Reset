@@ -495,6 +495,19 @@ export const RIVER: P3[] = Array.from({ length: 27 }, (_, k) => {
 });
 /** the lake in the woods, and the dirt track to it from the ring (LDU) */
 export const LAKE = { x: Math.sin((66 * Math.PI) / 180) * (TOWN_HALF + 18) * S, z: Math.cos((66 * Math.PI) / 180) * (TOWN_HALF + 18) * S, r: 22 * S };
+const LAKE_Z_FOR_BROOK = LAKE.z - 18 * S; // the brook ends at the lake's top edge
+/** a brook from the river down the village's west edge into the lake, winding (LDU) */
+export const BROOK: P3[] = (() => {
+  const x0 = 236 * S;
+  const z0 = RIVER_Z * S + 26 * Math.sin((x0 / S) / 90) * S + 14 * Math.sin((x0 / S) / 37 + 1) * S; // on the river's line there
+  const out: P3[] = [];
+  for (let k = 0; k <= 12; k++) {
+    const t = k / 12;
+    out.push([x0 + Math.sin(t * 9) * 14 * S + t * 6 * S, 0, z0 + t * (LAKE_Z_FOR_BROOK - z0)]);
+  }
+  return out;
+})();
+
 export const TRACK: P3[] = (() => {
   const rim: P3 = [LAKE.x * (1 - (LAKE.r + 2 * S) / Math.hypot(LAKE.x, LAKE.z)), 0, LAKE.z * (1 - (LAKE.r + 2 * S) / Math.hypot(LAKE.x, LAKE.z))];
   const start = nearestStreet(rim);
@@ -567,7 +580,7 @@ export function forestTrees(): { x: number; z: number; h: number; pine: boolean;
       if (lots.some((lot) => nearLot(x, z, lot, 6 * S))) continue;
       if (paths.some((p) => toPath(x, z, p) < 8 * S)) continue;
       if (ROADS.some((p) => toPath(x, z, p) < (ROAD_OUT / 2 + 5) * S)) continue;
-      if (toPath(x, z, RIVER) < (RIVER_W / 2 + 5) * S || toPath(x, z, TRACK) < 6 * S) continue;
+      if (toPath(x, z, RIVER) < (RIVER_W / 2 + 5) * S || toPath(x, z, TRACK) < 6 * S || toPath(x, z, BROOK) < 9 * S) continue;
       if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 5 * S) continue;
       if (Math.hypot(x - ROUNDABOUT[0], z - ROUNDABOUT[1]) < ROUND_R + (ROAD_OUT + 4) * S) continue;
       if (bridge && Math.hypot(x - bridge.p[0], z - bridge.p[2]) < 24 * S) continue;
@@ -612,7 +625,7 @@ function villageTrees(): string[] {
     const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
     if (lots.some((lot) => nearLot(x, z, lot, 6 * S))) continue;
     if (paths.some((path) => toPath(x, z, path) < 7 * S)) continue;
-    if (ROADS.some((p) => toPath(x, z, p) < (ROAD_OUT / 2 + 5) * S) || toPath(x, z, TRACK) < 6 * S) continue;
+    if (ROADS.some((p) => toPath(x, z, p) < (ROAD_OUT / 2 + 5) * S) || toPath(x, z, TRACK) < 6 * S || toPath(x, z, BROOK) < 9 * S) continue;
     if (Math.hypot(x - ROUNDABOUT[0], z - ROUNDABOUT[1]) < ROUND_R + (ROAD_OUT + 4) * S) continue;
     if (Math.hypot(x - PLAYGROUND[0], z - PLAYGROUND[1]) < 260 || Math.hypot(x - WATER_TOWER[0], z - WATER_TOWER[1]) < 160) continue;
     if (taken.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 11 * S)) continue;
@@ -1084,6 +1097,9 @@ export function townFlats(): Slab[] {
   // the river: sandy banks under a band of water, wandering across the north woods; a bridge where the road crosses it
   along(RIVER, (RIVER_W + 6) * S, "#d8c79c", 1, true, 4); // the banks, under the water
   along(RIVER, RIVER_W * S, "#3f8fd8", 2);
+  // the brook, a touch higher than the river where they meet so the join never shimmers
+  along(BROOK, 11 * S, "#d8c79c", 1, true, 2);
+  along(BROOK, 7 * S, "#3f8fd8", 2, true, -2);
   if (bridge) {
     const [nx, nz] = [-bridge.dir[1], bridge.dir[0]];
     const deck = (RIVER_W + 14) * S;
@@ -1197,7 +1213,7 @@ export function meadows(): { x: number; z: number; r: number; k: number }[] {
     const size = (18 + rnd() * 26) * S;
     if (lots.some((lot) => nearLot(x, z, lot, size))) continue;
     if (paths.some((p) => toPath(x, z, p) < size) || toPath(x, z, TRACK) < size || ROADS.some((p) => toPath(x, z, p) < size + 10 * S)) continue;
-    if (toPath(x, z, RIVER) < size + 12 * S || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + size) continue;
+    if (toPath(x, z, RIVER) < size + 12 * S || toPath(x, z, BROOK) < size + 8 * S || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + size) continue;
     if (Math.hypot(x - PLAYGROUND[0], z - PLAYGROUND[1]) < size + 200 || Math.hypot(x - WATER_TOWER[0], z - WATER_TOWER[1]) < size + 120) continue;
     if (out.some((m) => Math.hypot(m.x - x, m.z - z) < m.r + size)) continue;
     out.push({ x, z, r: size, k: Math.floor(rnd() * 3) });

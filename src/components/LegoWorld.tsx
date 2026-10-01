@@ -1484,8 +1484,8 @@ const LOOK_DOWN = new THREE.Vector3(0.25, 0.95, -0.75).normalize(); // a high th
 // playing: the camera behind and above you, looking down at about 40 degrees, close
 // enough that you're the star (LEGO-game style); you can swing it round with a drag
 const CHASE_DIR = new THREE.Vector3(0.1, 0.44, -0.9).normalize(); // about 25 degrees down: the horizon shows
-const CHASE_WIDTH = 23;
-const CHASE_FOV = 50; // a game camera's wider lens (the diorama views keep a narrow one)
+const CHASE_WIDTH = 27;
+const CHASE_FOV = 62; // a game camera's wide lens: you see well ahead and to the sides (the diorama views keep a narrow one)
 const STILL = new THREE.Vector3(); // a target that never changes (the camera follows you instead)
 // where the sun hangs in the sky (three's space): where the sunlight comes from
 // (up, to the right and behind the usual view), just inside the sky dome
@@ -2823,7 +2823,7 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
   const water = useRef<THREE.Mesh>(null);
   useFrame((_, dt) => {
     const map = (water.current?.material as THREE.MeshStandardMaterial | undefined)?.map;
-    if (map) map.offset.x = (map.offset.x - dt * 0.7) % 1;
+    if (map) map.offset.x = (map.offset.x - dt * 1.4) % 1;
   });
   return (
     <>
