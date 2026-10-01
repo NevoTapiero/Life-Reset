@@ -3498,10 +3498,39 @@ function Walker({
   // (Shift, or the stick pushed only part way) at about 0.6 of the walk
   const [stride, setStride] = useState(13);
   useEffect(() => () => void CROWD.delete(id), [id]);
-  useFrame(({ camera }, dt) => {
+  // dust puffs kicked up behind you as you run, the LEGO-game way: round white puffs that swell and
+  // shrink away in steps (a few frames each, like the town's stepped motion), one every stride
+  const puffs = useRef<THREE.InstancedMesh>(null);
+  const puffLife = useRef({ born: Array<number>(DUST).fill(-9), at: Array.from({ length: DUST }, () => [0, 0, 0]), next: 0 });
+  const puffObj = useMemo(() => new THREE.Object3D(), []);
+  const kickPuff = (x: number, z: number, dx: number, dz: number, now: number) => {
+    const p = puffLife.current;
+    if (now - p.born[(p.next + DUST - 1) % DUST] < 0.16) return; // one a stride
+    const side = p.next % 2 ? 1 : -1; // left foot, right foot
+    p.at[p.next] = [x - dx * 14 + dz * side * 6, 0, z - dz * 14 - dx * side * 6];
+    p.born[p.next] = now;
+    p.next = (p.next + 1) % DUST;
+  };
+  const animatePuffs = (now: number) => {
+    const m = puffs.current;
+    if (!m) return;
+    const p = puffLife.current;
+    for (let k = 0; k < DUST; k++) {
+      const age = Math.floor(((now - p.born[k]) / DUST_LIFE) * 5) / 5; // 0, 0.2 .. 0.8: five steps
+      const live = age >= 0 && age < 1;
+      const size = live ? Math.sin((age + 0.2) * Math.PI) * (0.7 + age * 0.6) : 0;
+      puffObj.position.set(p.at[k][0], -4 - age * 14, p.at[k][2]); // LDraw: -y is up, it drifts up
+      puffObj.scale.setScalar(size);
+      puffObj.updateMatrix();
+      m.setMatrixAt(k, puffObj.matrix);
+    }
+    m.instanceMatrix.needsUpdate = true;
+  };
+  useFrame(({ camera, clock }, dt) => {
     const s = state.current;
     const o = root.current;
     if (!s || !o) return;
+    animatePuffs(clock.elapsedTime);
     // turn quickly but smoothly (never snap round a corner), the short way round
     const face = (yaw: number, rate = 12) => {
       const d = Math.atan2(Math.sin(yaw - o.rotation.y), Math.cos(yaw - o.rotation.y));
@@ -3572,6 +3601,7 @@ function Walker({
       s.from = null;
       s.pos = [x, 0, z];
       walking.current = sp > 40;
+      if (run && sp > 120) kickPuff(x, z, dx, dz, clock.elapsedTime);
       face(Math.atan2(dx, dz), 22); // round on the spot, the LEGO way
       report(false);
       return;
@@ -3609,11 +3639,21 @@ function Walker({
     report();
   });
   return (
-    <group ref={root}>
-      <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} stride={stride} jumpRef={jumpRef} />
-    </group>
+    <>
+      <group ref={root}>
+        <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} stride={stride} jumpRef={jumpRef} />
+      </group>
+      {input && (
+        <instancedMesh ref={puffs} args={[undefined, undefined, DUST]} frustumCulled={false}>
+          <cylinderGeometry args={[10, 10, 10, 12]} />
+          <meshStandardMaterial color="#f2efe6" roughness={0.9} />
+        </instancedMesh>
+      )}
+    </>
   );
 }
+const DUST = 12;
+const DUST_LIFE = 0.5; // seconds
 
 function Stroller({ id, look, r, speed, start }: (typeof STROLLERS)[number] & { id: string }) {
   const root = useRef<THREE.Group>(null);
