@@ -793,11 +793,13 @@ function Minifig({
   const id = useId();
   const fidgetOffset = useMemo(() => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 9973, 7) / 9973 * FIDGET_EVERY, [id]);
 
-  // a teleport, the LEGO way: every piece bursts out, spinning, and is gone; then at the other end
-  // they drop back in one by one from the feet up and click together. In stop-motion steps (15 a
-  // second, like the LEGO films), so it reads as built, not morphed
+  // a teleport, the LEGO way: the pieces pop apart and are gone; then at the other end they're built
+  // again the way the LEGO games build things: one group at a time from the feet up (both legs, the
+  // hips, the torso, both arms, the head, the hair, then anything else), each hopping in on a short arc
+  // from beside where it goes, straightening as it comes, and clicking home with a little press
   const homes = useRef<{ p: THREE.Vector3; q: THREE.Quaternion }[] | null>(null);
   const teleDone = useRef(-1);
+  const clicked = useRef(-1); // the last group that has clicked home (one click sound each)
   const spin = useMemo(() => new THREE.Quaternion(), []);
   const teleport = (t: number) => {
     const start = teleRef?.current ?? -1;
@@ -805,34 +807,40 @@ function Minifig({
     const pieces = model.children;
     if (!homes.current || homes.current.length !== pieces.length) homes.current = pieces.map((c) => ({ p: c.position.clone(), q: c.quaternion.clone() }));
     const home = homes.current;
-    const e = Math.floor((t - start) * 15) / 15;
-    // the feet first, the hair last (LDraw: lower is larger y)
-    const order = pieces.map((_, k) => k).sort((a, b) => home[b].p.y - home[a].p.y);
+    const e = t - start;
     const done = e >= TELE_ARRIVE + TELE_BUILD;
+    if (e < TELE_ARRIVE) clicked.current = -1;
     pieces.forEach((c, k) => {
       const h = home[k];
       const animated = LIMBS.has(c.name); // the walk sets these every frame; the rest keep their home turn
+      const side = /L$/.test(c.name) ? -1 : /R$/.test(c.name) ? 1 : 0;
+      let [dx, dy, roll, size] = [0, 0, 0, 1];
       if (done) {
-        c.position.copy(h.p);
-        c.scale.setScalar(1);
-        if (!animated) c.quaternion.copy(h.q);
-        return;
-      }
-      let [out, up, turn, size] = [0, 0, 0, 0];
-      if (e < TELE_BREAK) {
+        // home
+      } else if (e < TELE_BREAK) {
+        // popping apart: out to its side (the middle pieces up), a quarter turn, shrinking away
         const u = e / TELE_BREAK;
-        [out, up, turn] = [80 * u, 120 * u - 170 * u * u, u * 5 * (k % 2 ? 1 : -1)];
-        size = u < 0.6 ? 1 : 1 - (u - 0.6) / 0.4;
-      } else if (e >= TELE_ARRIVE) {
-        const j = order.indexOf(k);
-        const v = Math.min(1, Math.max(0, (e - TELE_ARRIVE - (j * TELE_BUILD * 0.65) / pieces.length) / 0.3));
-        if (v > 0) [up, turn, size] = [150 * (1 - v) ** 3, (1 - v) * 3 * (k % 2 ? 1 : -1), 1];
+        const o = 1 - (1 - u) ** 3;
+        [dx, dy, roll, size] = [side * 46 * o, -(side ? 28 : 50) * o, (side || 1) * 1.2 * o, 1 - u * u];
+      } else if (e < TELE_ARRIVE) {
+        size = 0;
+      } else {
+        const g = BUILD_ORDER(c.name);
+        const v = Math.min(1, Math.max(0, (e - TELE_ARRIVE - g * BUILD_GAP) / BUILD_HOP));
+        if (v <= 0) size = 0;
+        else {
+          const o = 1 - (1 - v) ** 3; // fast, then easing home
+          const after = (e - TELE_ARRIVE - g * BUILD_GAP - BUILD_HOP) / 0.1; // the click: a little press, and back
+          [dx, dy, roll, size] = [side * 26 * (1 - o), -46 * (1 - o) - Math.sin(Math.PI * v) * 10 + (after > 0 && after < 1 ? Math.sin(Math.PI * after) * 2.5 : 0), (side || 1) * 0.5 * (1 - o), 0.6 + 0.4 * Math.min(1, v * 1.8)];
+          if (v === 1 && g > clicked.current) {
+            clicked.current = g;
+            sfx.click();
+          }
+        }
       }
-      // outwards from the middle, each its own way
-      const a = Math.atan2(h.p.z, h.p.x) + k * 2.4;
-      c.position.set(h.p.x + Math.cos(a) * out, h.p.y - up, h.p.z + Math.sin(a) * out);
+      c.position.set(h.p.x + dx, h.p.y + dy, h.p.z);
       c.scale.setScalar(Math.max(0.0001, size));
-      spin.setFromAxisAngle(k % 3 ? Y_AXIS : X_AXIS, turn);
+      spin.setFromAxisAngle(Z_AXIS, roll);
       if (animated) c.quaternion.premultiply(spin);
       else c.quaternion.copy(h.q).premultiply(spin);
     });
@@ -847,6 +855,7 @@ function Minifig({
     g.blend += ((walking?.current ? 1 : 0) - g.blend) * Math.min(1, dt * 10);
     g.phase += dt * stride * (0.4 + 0.6 * g.blend);
     if (walking?.current) g.still = t;
+    if (teleRef && t - teleRef.current < TELE_ARRIVE + TELE_BUILD + 1) g.still = t; // no fidgeting mid-teleport
     // the head and hair turn together, glancing around while standing; on the move they look
     // straight ahead, where they're going (a face looking one way while the legs go another reads wrong)
     const head = model.getObjectByName("head");
@@ -3768,10 +3777,9 @@ function Walker({
         [s.pos, s.from, s.walk, tp.to] = [tp.to[tp.to.length - 1], tp.to, null, null];
         vel.current.sp = 0;
       }
-      if (!tp.landed && now - tp.at >= TELE_ARRIVE + TELE_BUILD * 0.7) {
+      if (!tp.landed && now - tp.at >= TELE_ARRIVE + BUILD_HOP) { // the feet are down: a ring of dust
         tp.landed = true;
         for (let k = 0; k < 6; k++) puff(s.pos[0] + Math.sin(k * 1.05 + 0.3) * 26, s.pos[2] + Math.cos(k * 1.05 + 0.3) * 26, now);
-        sfx.click();
       }
       walking.current = false;
       if (s.from) face(turn);
@@ -3881,12 +3889,15 @@ function Walker({
 }
 const DUST = 12;
 // a teleport's timing, seconds from the tap: bursting apart, gone (the camera's flying there), then built again
-const TELE_BREAK = 0.45;
+const TELE_BREAK = 0.4;
 const TELE_ARRIVE = 0.95;
-const TELE_BUILD = 1.0;
+const TELE_BUILD = 1.1;
 const LIMBS = new Set(["legL", "legR", "swingL", "swingR", "head", "hair"]);
-const X_AXIS = new THREE.Vector3(1, 0, 0);
-const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+// the build: which group a piece comes in with (feet up), the gap between groups, and each one's hop (seconds)
+const BUILD_ORDER = (name: string) => ({ legL: 0, legR: 0, hips: 1, torso: 2, swingL: 3, swingR: 3, head: 4, hair: 5 })[name] ?? 6;
+const BUILD_GAP = 0.12;
+const BUILD_HOP = 0.24;
 const FIDGET_EVERY = 6; // seconds between a standing minifig's fidgets
 const JUMP_AIR = 0.62; // seconds a jump keeps you in the air
 const DUST_LIFE = 0.5; // seconds
