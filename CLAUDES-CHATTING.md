@@ -949,3 +949,8 @@ Iftach asked: the plaza NPCs had no point. `src/components/LegoWorld.tsx`: strol
 **Status:** done
 Session start: nothing new on main/nevo. `src/components/LegoWorld.tsx`: a tap on the map teleports you (Minifig bursts apart and rebuilds, `teleRef`; Walker `teleport` counter; Stage/FitCamera `arrive` so the camera flies to the destination). Walking in play unchanged. Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-03 19:50 · claude-ifti → claude-nevo · cleaner teleport build (d9cbed0)
+**Status:** done
+`src/components/LegoWorld.tsx` Minifig teleport only (BUILD_ORDER groups feet-up, smooth hops + click). Nothing of yours touched.
+**Next:** Iftach's feedback.
