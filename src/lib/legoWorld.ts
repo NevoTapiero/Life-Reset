@@ -1279,13 +1279,33 @@ export function meadows(): { x: number; z: number; r: number; k: number }[] {
 
 /** the open ground at (x, z) LDU, for the real studs laid round the player: -1 on anything flat
  *  (plaza, paths, roads, water, the roundabout), 0 on grass, 1..3 on a meadow (its shade + 1) */
+// the lines nothing grows on, each with its bounding box and how far either side of it is taken,
+// so the ground check skips every line that's nowhere near (it runs for thousands of studs at a time)
+let FLAT_LINES: { pts: P3[]; d: number; x0: number; x1: number; z0: number; z1: number }[] | null = null;
+function flatLines() {
+  if (FLAT_LINES) return FLAT_LINES;
+  const lines: [P3[], number][] = [
+    ...LOT_PATHS.map((p) => [p, (PATH_W / 2 + 1) * S] as [P3[], number]),
+    [TRACK, (PATH_W / 2 + 1) * S],
+    [SPUR, (PATH_W / 2 + 1) * S],
+    ...ROADS.map((p) => [p, (ROAD_OUT / 2 + 3) * S] as [P3[], number]),
+    [RIVER, (RIVER_W / 2 + 4) * S],
+    [BROOK, 7 * S],
+  ];
+  FLAT_LINES = lines.map(([pts, d]) => ({
+    pts,
+    d,
+    x0: Math.min(...pts.map((p) => p[0])) - d,
+    x1: Math.max(...pts.map((p) => p[0])) + d,
+    z0: Math.min(...pts.map((p) => p[2])) - d,
+    z1: Math.max(...pts.map((p) => p[2])) + d,
+  }));
+  return FLAT_LINES;
+}
 export function openGround(x: number, z: number): number {
   if (Math.abs(x) < (PLAZA / 2 + 1) * S && Math.abs(z) < (PLAZA / 2 + 1) * S) return -1;
   if (Math.abs(Math.hypot(x, z) - RING_R) < (PATH_W / 2 + 1) * S) return -1;
-  if (LOT_PATHS.some((p) => toPath(x, z, p) < (PATH_W / 2 + 1) * S) || toPath(x, z, TRACK) < (PATH_W / 2 + 1) * S) return -1;
-  if (toPath(x, z, SPUR) < (PATH_W / 2 + 1) * S) return -1;
-  if (ROADS.some((p) => toPath(x, z, p) < (ROAD_OUT / 2 + 3) * S)) return -1;
-  if (toPath(x, z, RIVER) < (RIVER_W / 2 + 4) * S || toPath(x, z, BROOK) < 7 * S) return -1;
+  for (const l of flatLines()) if (x > l.x0 && x < l.x1 && z > l.z0 && z < l.z1 && toPath(x, z, l.pts) < l.d) return -1;
   if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 4 * S) return -1;
   if (Math.hypot(x - ROUNDABOUT[0], z - ROUNDABOUT[1]) < ROUND_R + (ROAD_OUT + 1) * S) return -1;
   for (const m of MEADOWS) if (Math.hypot(x - m.x, z - m.z) < m.r) return m.k + 1;

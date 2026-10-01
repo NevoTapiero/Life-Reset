@@ -1171,8 +1171,10 @@ export type Pin = { key: string; at: [number, number, number] | (() => [number, 
 // Real studs on the ground round you: a stud a stud, on the plots and the plaza
 // (the painted studs stay underneath, and take over further off). Instanced
 // low-poly cylinders, laid out again whenever you've moved a few studs.
-const STUD_REACH = 30; // studs from you: far enough that the painted studs beyond are small
-const STUD_MAX = 3 * (2 * STUD_REACH + 1) ** 2; // room for the plots' studs (laid in their own turned frames) and the open ground's, with the overlaps; a cap that bit left the ground behind you bare
+const STUD_REACH = 64; // studs from you: real studs well out, so you never see where they stop
+const NEAR_REACH = 28; // within this, full studs (16-sided, tufts, loose pieces); beyond, light 6-sided ones
+const NEAR_MAX = 3 * (2 * NEAR_REACH + 1) ** 2; // room for the plots' studs (in their own turned frames) and the open ground's, with the overlaps
+const FAR_MAX = 2 * (2 * STUD_REACH + 1) ** 2;
 // a tuft of grass: three thin blades leaning apart (unit size, scaled where it stands)
 function tuftGeometry(): THREE.BufferGeometry {
   const blades: THREE.BufferGeometry[] = [];
@@ -1191,6 +1193,7 @@ const GRASS_Y = -0.3; // the open grass's height (three units), under everything
 const MEADOW_Y = -0.2; // a meadow patch lies on it
 function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vector3>; grass: string; lots: Lot[] }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
+  const farMesh = useRef<THREE.InstancedMesh>(null);
   const tufts = useRef<THREE.InstancedMesh>(null);
   const bits = useRef<THREE.InstancedMesh>(null); // loose round plates and pebbles lying on the studs
   const bitColours = useMemo(() => ["#a0a5a9", "#6c6e68", "#d8c79c", new THREE.Color(grass).multiplyScalar(0.82).getStyle()].map((c) => new THREE.Color(c)), [grass]);
@@ -1204,12 +1207,27 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
   const meadowGreens = useMemo(() => [0, 1, 2].map((k) => new THREE.Color(meadowShade(grass, k))), [grass]);
   useFrame(() => {
     const m = mesh.current;
-    if (!m) return;
+    const fm = farMesh.current;
+    if (!m || !fm) return;
     const px = Math.round(follow.current.x);
     const pz = Math.round(follow.current.z);
-    if (Math.abs(px - laid.current.x) < 3 && Math.abs(pz - laid.current.z) < 3) return;
+    if (Math.abs(px - laid.current.x) < 4 && Math.abs(pz - laid.current.z) < 4) return;
     laid.current = { x: px, z: pz };
     let n = 0;
+    let nf = 0;
+    // a stud at (x, y, z) in three's space: a full one close to you, a light one further off
+    const put = (x: number, y: number, z: number, c: THREE.Color) => {
+      o.position.set(x, y, z);
+      o.updateMatrix();
+      if (Math.max(Math.abs(x - px), Math.abs(z - pz)) <= NEAR_REACH) {
+        if (n >= NEAR_MAX) return;
+        m.setMatrixAt(n, o.matrix);
+        m.setColorAt(n++, c);
+      } else if (nf < FAR_MAX) {
+        fm.setMatrixAt(nf, o.matrix);
+        fm.setColorAt(nf++, c);
+      }
+    };
     // each plot's studs in its own (turned) frame: the plaza first, then the plots
     for (const lot of [PLAZA_LOT, ...lots]) {
       const size = lot === PLAZA_LOT ? PLAZA : PLOT;
@@ -1218,13 +1236,9 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
       if (Math.abs(cu) > size / 2 + STUD_REACH || Math.abs(cv) > size / 2 + STUD_REACH) continue;
       for (let i = cu - STUD_REACH; i <= cu + STUD_REACH; i++)
         for (let k = cv - STUD_REACH; k <= cv + STUD_REACH; k++) {
-          if (Math.abs(i + 0.5) >= size / 2 || Math.abs(k + 0.5) >= size / 2 || n >= STUD_MAX) continue;
+          if (Math.abs(i + 0.5) >= size / 2 || Math.abs(k + 0.5) >= size / 2) continue;
           const [x, , z] = inLot(lot, [(i + 0.5) * 20, 0, (k + 0.5) * 20]);
-          o.position.set(x * LDU, 0.085, -z * LDU);
-          o.updateMatrix();
-          m.setMatrixAt(n, o.matrix);
-          m.setColorAt(n, lot === PLAZA_LOT ? grey : green);
-          n++;
+          put(x * LDU, 0.085, -z * LDU, lot === PLAZA_LOT ? grey : green);
         }
     }
     // and the open ground round you: real studs on the grass and the meadows, none on anything flat;
@@ -1235,7 +1249,6 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
     let nb = 0;
     for (let i = px - STUD_REACH; i <= px + STUD_REACH; i++)
       for (let k = pz - STUD_REACH; k <= pz + STUD_REACH; k++) {
-        if (n >= STUD_MAX) break;
         const [x, z] = [(i + 0.5) * 20, -(k + 0.5) * 20]; // LDU
         if (lots.some((lot) => { const [u, v] = fromLot(lot, [x, z]); return Math.abs(u) < (PLOT / 2 + 0.5) * 20 && Math.abs(v) < (PLOT / 2 + 0.5) * 20; })) continue;
         const g = openGround(x, z);
@@ -1244,11 +1257,8 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
         // seated on the ground it stands on: the open grass lies at GRASS_Y, a meadow at MEADOW_Y
         // (both below the plots' 0); at the plots' height they floated, each with its shadow under it
         const base = g === 0 ? GRASS_Y : MEADOW_Y;
-        o.position.set(i + 0.5, base + 0.085, k + 0.5);
-        o.updateMatrix();
-        m.setMatrixAt(n, o.matrix);
-        m.setColorAt(n, jittered.copy(g === 0 ? green : meadowGreens[g - 1]).multiplyScalar(0.96 + ((hash % 1000) / 1000) * 0.08));
-        n++;
+        put(i + 0.5, base + 0.085, k + 0.5, jittered.copy(g === 0 ? green : meadowGreens[g - 1]).multiplyScalar(0.96 + ((hash % 1000) / 1000) * 0.08));
+        if (Math.max(Math.abs(i - px), Math.abs(k - pz)) > NEAR_REACH) continue; // tufts and loose pieces only close by
         // now and then a loose round piece lying on the studs: a 2x2 round plate, or a 1x1 pebble
         if (bm && nb < BITS_MAX && hash % 41 === 3) {
           const big = hash % 3 === 0;
@@ -1271,9 +1281,11 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
           o.scale.set(1, 1, 1);
         }
       }
-    m.count = n;
-    m.instanceMatrix.needsUpdate = true;
-    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    for (const [mm, c] of [[m, n], [fm, nf]] as [THREE.InstancedMesh, number][]) {
+      mm.count = c;
+      mm.instanceMatrix.needsUpdate = true;
+      if (mm.instanceColor) mm.instanceColor.needsUpdate = true;
+    }
     if (tm) {
       tm.count = nt;
       tm.instanceMatrix.needsUpdate = true;
@@ -1286,10 +1298,15 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
   });
   return (
     <>
-      <instancedMesh ref={mesh} args={[undefined, undefined, STUD_MAX]} frustumCulled={false} receiveShadow>
+      <instancedMesh ref={mesh} args={[undefined, undefined, NEAR_MAX]} frustumCulled={false} receiveShadow>
         <cylinderGeometry args={[0.3, 0.3, 0.17, 16]} />
         {/* flat-shaded: a crisp rim and a flat bright top, the way a stud reads, not a soft blob */}
         <meshPhysicalMaterial roughness={0.5} clearcoat={0.3} clearcoatRoughness={0.4} flatShading />
+      </instancedMesh>
+      {/* further off: six-sided studs, no bottom, a plain material (they're a few pixels across there) */}
+      <instancedMesh ref={farMesh} args={[undefined, undefined, FAR_MAX]} frustumCulled={false}>
+        <cylinderGeometry args={[0.3, 0.3, 0.17, 6, 1, false]} />
+        <meshStandardMaterial roughness={0.55} flatShading />
       </instancedMesh>
       <instancedMesh ref={bits} args={[undefined, undefined, BITS_MAX]} frustumCulled={false} castShadow receiveShadow>
         <cylinderGeometry args={[0.95, 0.95, 0.12, 20]} />
@@ -2013,7 +2030,6 @@ export function LegoTown({
           <>
             <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} shadows={following} />
             {following && <NearStuds follow={me3} grass={grass} lots={[...lots, ...emptyLots]} />}
-            {following && <PlayerRing follow={me3} />}
             <Wild season={season} />
             {/* chimney smoke over the shop and every house */}
             <Smoke at={toThree([(-SHOP_BUILDING.w / 4) * 20, -SHOP_BUILDING.h - 10, SHOP_FRONT - SHOP_BUILDING.d * 10])} />
@@ -3134,26 +3150,6 @@ function LakeLife() {
         </group>
       ))}
     </group>
-  );
-}
-// A glowing ring on the ground round you (the LEGO games' player marker), pulsing gently.
-// Three's space, following you.
-function PlayerRing({ follow }: { follow: React.RefObject<THREE.Vector3> }) {
-  const ring = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }) => {
-    const r = ring.current;
-    if (!r) return;
-    r.position.set(follow.current.x, follow.current.y + 0.2, follow.current.z);
-    const k = 1 + Math.sin(clock.elapsedTime * 3) * 0.06;
-    r.scale.set(k, k, k);
-    (r.material as THREE.MeshBasicMaterial).opacity = 0.55 + Math.sin(clock.elapsedTime * 3) * 0.15;
-  });
-  return (
-    <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2}>
-      <ringGeometry args={[1.35, 1.8, 48]} />
-      {/* drawn over the studs (they'd cut it into pieces), under everything standing */}
-      <meshBasicMaterial color="#5fe3ff" transparent opacity={0.6} depthWrite={false} depthTest={false} toneMapped={false} />
-    </mesh>
   );
 }
 // Boulders and spiky plants, brick-built the LEGO-game way: a boulder is three stacked blocks,
