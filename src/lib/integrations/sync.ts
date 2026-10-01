@@ -124,7 +124,7 @@ async function payWatchItems(
   let changed = false;
   for (const it of items) {
     if (it.rated <= 0) {
-      // below the habit's bar (e.g. under 6 hours of sleep): the quest would pay
+      // below the habit's bar (e.g. under 5 hours of sleep): the quest would pay
       // nothing, so the watch pays nothing. An older payout for it is zeroed.
       const prev = paid.get(`${it.source}|${it.ref}`);
       if (prev && prev.rated !== 0) {
@@ -198,7 +198,7 @@ export async function syncHealth(uid: string, sinceOverride?: Date, repriceOnly 
       rated: workoutRated(score),
       day: ymd(new Date(w.exercise?.interval?.startTime ?? Date.now())),
       reason: `${label} · ${minutes} min · ${basis}`,
-      extra: { scoring: "intensity-v2", basis },
+      extra: { scoring: "blend-v3", basis },
     });
   }
   for (const s of sleeps) {
@@ -208,12 +208,12 @@ export async function syncHealth(uid: string, sinceOverride?: Date, repriceOnly 
       source: "health_sleep",
       kind: "sleep",
       ref,
-      rated: sleepRated(hours), // under 6 hours pays nothing, like the quest
+      rated: sleepRated(hours), // a short night pays a little, under 5 hours nothing
       day: ymd(new Date(s.sleep?.interval?.endTime ?? Date.now())), // the morning you woke up
       reason: `Slept ${hours.toFixed(1)} h`,
     });
-    // a real night (3 h+) under 6 hours is a penalty on top, not just no prize
-    if (hours >= 3 && hours < 6)
+    // a real night (3 h+) under 5 hours is a penalty on top (5 to 6 h pays a little, 1 Oct)
+    if (hours >= 3 && hours < 5)
       penalties.push({ source: "health_sleep_penalty", ref, xp: -10, reason: `Slept ${hours.toFixed(1)} h · short night, you're running tired` });
   }
   for (const d of steps) {
@@ -287,14 +287,39 @@ export async function syncWhoop(uid: string): Promise<WhoopSync> {
   }
   for (const w of workouts) {
     if (w.score_state !== "SCORED") continue;
-    // strain runs 0 to 21; a hard session (~12) lands where a hard run does
+    // the same three signals as Google Health: heart zones, calories, time.
+    // WHOOP zones 1-2 count as light, 3 moderate, 4 vigorous, 5 peak.
+    const zd = w.score?.zone_durations;
+    const sec = (ms?: number) => `${Math.round((ms ?? 0) / 1000)}s`;
+    const asHealth = {
+      name: w.id,
+      exercise: {
+        interval: { startTime: w.start, endTime: w.end },
+        displayName: w.sport_name,
+        metricsSummary: {
+          caloriesKcal: w.score?.kilojoule ? w.score.kilojoule / 4.184 : undefined,
+          heartRateZoneDurations: zd
+            ? {
+                lightTime: sec((zd.zone_one_milli ?? 0) + (zd.zone_two_milli ?? 0)),
+                moderateTime: sec(zd.zone_three_milli),
+                vigorousTime: sec(zd.zone_four_milli),
+                peakTime: sec(zd.zone_five_milli),
+              }
+            : undefined,
+        },
+      },
+    };
+    const rich = !!zd || !!w.score?.kilojoule;
+    // strain (0 to 21) only when WHOOP sent nothing else; a hard session (~12) lands where a hard run does
+    const { xp: score, basis } = rich ? workoutXp(asHealth) : { xp: (w.score?.strain ?? 0) * 3, basis: `strain ${(w.score?.strain ?? 0).toFixed(1)}` };
     items.push({
       source: "whoop_workout",
       kind: "workout",
       ref: `workout:${w.id}`,
-      rated: workoutRated((w.score?.strain ?? 0) * 3),
+      rated: workoutRated(score),
       day: ymd(new Date(w.start ?? Date.now())),
-      reason: `${w.sport_name ?? "Workout"} · strain ${(w.score?.strain ?? 0).toFixed(1)}`,
+      reason: `${w.sport_name ?? "Workout"} · ${basis}`,
+      extra: { scoring: "blend-v3", basis },
     });
   }
   const r = await payWatchItems(uid, ["whoop_sleep", "whoop_workout"], items);
