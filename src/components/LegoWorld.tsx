@@ -1696,6 +1696,18 @@ export function LegoTown({
   const me3 = useRef(new THREE.Vector3());
   const meAim = useRef<number | null>(null);
   const blockers = useMemo(() => townBlockers(residents), [residents]);
+  // winter: a white round-cornered plate of snow on every roof
+  const snowCaps = useMemo<Slab[]>(() => {
+    const out: Slab[] = [];
+    residents.forEach((res, i) => {
+      const h = houseFor(res.level, res.name);
+      const sp = houseSpec(res.level);
+      const [x, , z] = inLot(lots[i], [(sp.x0 + sp.w / 2 - PLOT / 2) * 20, 0, (sp.z0 + sp.d / 2 - PLOT / 2) * 20]);
+      out.push({ x, z, w: h.w * 20 * 0.92, d: h.d * 20 * 0.92, h: 8, y: h.h, radius: 24, yaw: lots[i].yaw, color: "#f4f6f8", studs: true });
+    });
+    out.push({ x: 0, z: SHOP_FRONT - SHOP_BUILDING.d * 10, w: SHOP_BUILDING.w * 20 * 0.92, d: SHOP_BUILDING.d * 20 * 0.92, h: 8, y: SHOP_BUILDING.h, radius: 24, color: "#f4f6f8", studs: true });
+    return out;
+  }, [residents, lots]);
   const [goes, setGoes] = useState(0); // bumped by every "walk there", so the same place twice still walks
   const [near, setNear] = useState<number | null>(null);
   // who you've walked up to (they say something), and a new line each time you meet
@@ -1921,7 +1933,6 @@ export function LegoTown({
           <>
             <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} shadows={following} />
             {following && <NearStuds follow={me3} grass={grass} lots={[...lots, ...emptyLots]} />}
-            <FountainSplash />
             {/* chimney smoke over the shop and every house */}
             <Smoke at={toThree([(-SHOP_BUILDING.w / 4) * 20, -SHOP_BUILDING.h - 10, SHOP_FRONT - SHOP_BUILDING.d * 10])} />
             {residents.map((res, i) => {
@@ -2006,6 +2017,11 @@ export function LegoTown({
         {parks && <primitive object={parks} />}
         <Traffic night={mood.night} />
         <Seagulls />
+        <Seagulls centre={[LAKE.x, LAKE.z]} seed={2} />
+        {/* banners either side of the plaza, waving; snow on every roof in winter */}
+        <Banner at={[(RING - 7) * 20, 0, 0]} />
+        <Banner at={[-(RING - 7) * 20, 0, 0]} />
+        {season === "winter" && <Slabs slabs={snowCaps} shadows={false} />}
         <Prop {...ICE_CREAM_CART} />
         {emptyLots.map((lot, k) => (
           <Prop key={k} {...PARK_BURGER_STAND} lot={lot} />
@@ -2933,6 +2949,44 @@ function roundedRect(w: number, d: number, r: number): THREE.Shape {
   shape.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false);
   return shape;
 }
+// A banner: a tall pole with a red cloth that waves (the cloth's far edge ripples in a
+// vertex shader). LDraw frame; `at` is the pole's foot.
+function Banner({ at }: { at: [number, number, number] }) {
+  const mat = useRef<THREE.MeshStandardMaterial>(null);
+  useEffect(() => {
+    const m = mat.current;
+    if (!m) return;
+    m.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = { value: 0 };
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nuniform float uTime;")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\ntransformed.z += sin(uTime * 4.0 + position.x * 0.08) * position.x * 0.09;");
+      m.userData.shader = shader;
+    };
+    m.needsUpdate = true;
+  }, []);
+  useFrame(({ clock }) => {
+    if (mat.current?.userData.shader) mat.current.userData.shader.uniforms.uTime.value = clock.elapsedTime;
+  });
+  return (
+    <group position={at}>
+      <mesh position={[0, -110, 0]}>
+        <cylinderGeometry args={[4, 4, 220, 8]} />
+        <meshStandardMaterial color="#5c3a1e" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, -214, 0]}>
+        <sphereGeometry args={[7, 8, 6]} />
+        <meshStandardMaterial color="#e6b422" metalness={0.6} roughness={0.3} />
+      </mesh>
+      {/* the cloth hangs from the top, out to +x, 70 wide and 44 tall, ten segments to ripple */}
+      <mesh position={[39, -184, 0]}>
+        <planeGeometry args={[70, 44, 10, 2]} />
+        <meshStandardMaterial ref={mat} color="#c4281c" side={THREE.DoubleSide} roughness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
 // Chimney smoke: white puffs rising from a roof, drifting a little, growing and thinning
 // away. Three's space; `at` is the chimney's top.
 const PUFFS = 9;
@@ -2962,38 +3016,6 @@ function Smoke({ at, seed = 0 }: { at: [number, number, number]; seed?: number }
   );
 }
 
-// The fountain plays: droplets (tiny trans-blue balls) leap from the top of the jet, arc
-// out and fall into the basin, round and round. Three's space, over FOUNTAIN.
-const FOUNTAIN_DROPS = 28;
-function FountainSplash() {
-  const mesh = useRef<THREE.InstancedMesh>(null);
-  const o = useMemo(() => new THREE.Object3D(), []);
-  const cx = FOUNTAIN[0] * LDU;
-  const cz = -FOUNTAIN[1] * LDU;
-  useFrame(({ clock }) => {
-    const m = mesh.current;
-    if (!m) return;
-    const t = clock.elapsedTime;
-    for (let i = 0; i < FOUNTAIN_DROPS; i++) {
-      const a = (i / DROPS) * Math.PI * 2 + t * 0.3;
-      const f = (t * 0.9 + i * 0.37) % 1; // where it is on its flight, 0 leaving the jet, 1 landing
-      const out = 0.4 + f * 3.2;
-      const y = 6.3 + f * 2.4 - f * f * 7.2; // up a little, then down into the basin
-      o.position.set(cx + Math.cos(a) * out, y, cz + Math.sin(a) * out);
-      const sz = 0.16 + (1 - f) * 0.08;
-      o.scale.set(sz, sz, sz);
-      o.updateMatrix();
-      m.setMatrixAt(i, o.matrix);
-    }
-    m.instanceMatrix.needsUpdate = true;
-  });
-  return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, FOUNTAIN_DROPS]} frustumCulled={false}>
-      <sphereGeometry args={[1, 8, 6]} />
-      <meshPhysicalMaterial color="#8fd0ff" transparent opacity={0.75} roughness={0.1} clearcoat={1} />
-    </instancedMesh>
-  );
-}
 // The lake's life: the boats rock gently on the water, the ducks paddle round in slow circles
 // (LDraw frame, over LAKE).
 const BOAT_SLABS = BOATS.map((b) => boatSlabs(b.color));
@@ -3489,18 +3511,18 @@ function DriftingClouds() {
   );
 }
 
-function Seagulls() {
+function Seagulls({ centre = FOUNTAIN, seed = 0 }: { centre?: [number, number]; seed?: number }) {
   const gull = useModel(useMemo(() => modelText(["1 15 0 0 0 1 0 0 0 1 0 0 0 1 12891p01.dat"], "gull.ldr"), []), true);
   const flock = useMemo(() => (gull ? GULLS.map(() => gull.clone()) : []), [gull]);
   const refs = useRef<(THREE.Group | null)[]>([]);
   const paths = useMemo(
     () =>
       GULLS.map((g, i) => (t: number) => {
-        const a = g.start + t * g.speed;
+        const a = g.start + seed + t * g.speed;
         const r = g.r * (1 + 0.22 * Math.sin(t * 0.21 + i));
-        return new THREE.Vector3(FOUNTAIN[0] + Math.cos(a) * r, -g.y - Math.sin(t * 0.4 + i * 2) * 60, FOUNTAIN[1] + Math.sin(a) * r);
+        return new THREE.Vector3(centre[0] + Math.cos(a) * r, -g.y - Math.sin(t * 0.4 + i * 2) * 60, centre[1] + Math.sin(a) * r);
       }),
-    [],
+    [centre, seed],
   );
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
@@ -3528,7 +3550,7 @@ function FountainSpray() {
   const m = useMemo(() => new THREE.Matrix4(), []);
   useFrame(({ clock }) => {
     if (!mesh.current) return;
-    for (let i = 0; i < FOUNTAIN_DROPS; i++) {
+    for (let i = 0; i < DROPS; i++) {
       const t = (clock.elapsedTime * 0.9 + i / DROPS) % 1; // each drop's time along its arc, 0..1
       const a = (i * 2.39996) % (Math.PI * 2); // spread round the jet (golden angle)
       const out = 12 + t * (i % 3 ? 26 : 60); // most land in the upper bowl, some reach the basin
