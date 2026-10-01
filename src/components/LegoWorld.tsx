@@ -95,7 +95,8 @@ import {
   townClouds,
   balloonSlabs,
   waterTowerSlabs,
-  meadows,
+  MEADOWS,
+  openGround,
   boatSlabs,
   BOATS,
   duckText,
@@ -1169,13 +1170,14 @@ export type Pin = { key: string; at: [number, number, number] | (() => [number, 
 // (the painted studs stay underneath, and take over further off). Instanced
 // low-poly cylinders, laid out again whenever you've moved a few studs.
 const STUD_REACH = 16; // studs from you
-const STUD_MAX = (2 * STUD_REACH + 1) ** 2;
+const STUD_MAX = 2 * (2 * STUD_REACH + 1) ** 2; // the plots' and the open ground's
 function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vector3>; grass: string; lots: Lot[] }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const laid = useRef({ x: 1e9, z: 1e9 });
   const o = useMemo(() => new THREE.Object3D(), []);
   const green = useMemo(() => new THREE.Color(grass), [grass]);
   const grey = useMemo(() => new THREE.Color("#a3a7ad"), []);
+  const meadowGreens = useMemo(() => [0, 1, 2].map((k) => new THREE.Color(meadowShade(grass, k))), [grass]);
   useFrame(() => {
     const m = mesh.current;
     if (!m) return;
@@ -1201,6 +1203,20 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
           n++;
         }
     }
+    // and the open ground round you: real studs on the grass and the meadows, none on anything flat
+    for (let i = px - STUD_REACH; i <= px + STUD_REACH; i++)
+      for (let k = pz - STUD_REACH; k <= pz + STUD_REACH; k++) {
+        if (n >= STUD_MAX) break;
+        const [x, z] = [(i + 0.5) * 20, -(k + 0.5) * 20]; // LDU
+        if (lots.some((lot) => { const [u, v] = fromLot(lot, [x, z]); return Math.abs(u) < (PLOT / 2 + 0.5) * 20 && Math.abs(v) < (PLOT / 2 + 0.5) * 20; })) continue;
+        const g = openGround(x, z);
+        if (g < 0) continue;
+        o.position.set(i + 0.5, 0.085, k + 0.5);
+        o.updateMatrix();
+        m.setMatrixAt(n, o.matrix);
+        m.setColorAt(n, g === 0 ? green : meadowGreens[g - 1]);
+        n++;
+      }
     m.count = n;
     m.instanceMatrix.needsUpdate = true;
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
@@ -2990,7 +3006,6 @@ const FLATS = townFlats();
 const HEDGES = plotHedges();
 const BALLOON = balloonSlabs();
 const WATER_TOWER_SLABS = waterTowerSlabs();
-const MEADOWS = meadows();
 // the balloon drifts round the village at a walking pace, high over the houses, bobbing a little
 function Balloon() {
   const g = useRef<THREE.Group>(null);

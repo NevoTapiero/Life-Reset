@@ -1225,6 +1225,23 @@ export function meadows(): { x: number; z: number; r: number; k: number }[] {
   return out;
 }
 
+/** the open ground at (x, z) LDU, for the real studs laid round the player: -1 on anything flat
+ *  (plaza, paths, roads, water, the roundabout), 0 on grass, 1..3 on a meadow (its shade + 1) */
+export function openGround(x: number, z: number): number {
+  if (Math.abs(x) < (PLAZA / 2 + 1) * S && Math.abs(z) < (PLAZA / 2 + 1) * S) return -1;
+  if (Math.abs(Math.hypot(x, z) - RING_R) < (PATH_W / 2 + 1) * S) return -1;
+  if (LOT_PATHS.some((p) => toPath(x, z, p) < (PATH_W / 2 + 1) * S) || toPath(x, z, TRACK) < (PATH_W / 2 + 1) * S) return -1;
+  if (toPath(x, z, SPUR) < (PATH_W / 2 + 1) * S) return -1;
+  if (ROADS.some((p) => toPath(x, z, p) < (ROAD_OUT / 2 + 3) * S)) return -1;
+  if (toPath(x, z, RIVER) < (RIVER_W / 2 + 4) * S || toPath(x, z, BROOK) < 7 * S) return -1;
+  if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 4 * S) return -1;
+  if (Math.hypot(x - ROUNDABOUT[0], z - ROUNDABOUT[1]) < ROUND_R + (ROAD_OUT + 1) * S) return -1;
+  for (const m of MEADOWS) if (Math.hypot(x - m.x, z - m.z) < m.r) return m.k + 1;
+  return 0;
+}
+const LOT_PATHS = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotPath(lotFor(i), 3));
+const SPUR: P3[] = [nearestStreet([ROUNDABOUT[0], 0, ROUNDABOUT[1]]), [ROUNDABOUT[0], 0, ROUNDABOUT[1]]];
+
 // ---- landmarks between the houses: a playground and a water tower ----
 const at = (deg: number, r: number): [number, number] => [Math.sin((deg * Math.PI) / 180) * r * S, Math.cos((deg * Math.PI) / 180) * r * S];
 export const PLAYGROUND = at(300, 74); // in the gap between two houses, off the ring
@@ -1278,10 +1295,17 @@ export const RING_SEATS: { x: number; z: number; yaw: number; bench: boolean; k:
   return out;
 })();
 
+export const MEADOWS = meadows(); // (after the landmarks: it keeps off them)
+
 // ---- signs: how the game works, told where it happens ----
 // A LEGO signpost (a round post with a tile on top) stands where a newcomer needs the
 // one line that explains the place; walk up to it and the line appears over it.
-const SIGNPOST: Piece[] = [...stack("3062b", COL.reddishBrown, 0, 0, 4), ["3068b", COL.white, 0, 96, 0, ON_WALL]];
+// a signpost: three round bricks and a 2x4 board on top, a tile each way so it reads from both sides
+const SIGNPOST: Piece[] = [
+  ...stack("3062b", COL.reddishBrown, 0, 0, 3),
+  ["87079", COL.white, 0, 72, 4, ON_WALL],
+  ["87079", COL.white, 0, 72, -4, turnMat(ROT[180], ON_WALL)],
+];
 /** by the ring where the path from your house comes in (LDU) */
 export const PLAZA_SIGN: [number, number] = [90, -(RING - 5) * S];
 /** to the right of the shop's front (LDU) */
