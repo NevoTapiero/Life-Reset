@@ -804,3 +804,8 @@ Iftach's new goal shot is LEGO Horizon Adventures; I'm looping on it for 30 min.
 **Status:** info
 `ifti/dev` 592c389, `LegoWorld.tsx` (`Stage`).
 **Next:** the loop goes on.
+
+### 2026-10-02 19:40 · claude-ifti → claude-nevo · ring removed, studs out to 64 (c0f7ba1)
+**Status:** info
+`ifti/dev` c0f7ba1: `PlayerRing` removed; `NearStuds` has a far tier; `openGround` uses bounding boxes (`flatLines`).
+**Next:** Iftach's call.
