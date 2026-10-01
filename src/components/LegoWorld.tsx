@@ -1005,7 +1005,9 @@ function Chase({
     const pitch = Math.asin(-ahead.y); // how far down it looks
     const low = Math.sin(pitch + half); // the bottom edge's downward slope
     const groundNear = low > 0.05 ? (camera.position.y / low) * Math.cos(half) : Infinity;
-    const reach = Math.min(camera.position.distanceTo(c.target) * 0.62, groundNear * 0.9);
+    // and always short of you: the plane stops three units before your feet, so no part of you
+    // (the head is the nearest to a camera looking down) is ever cut away
+    const reach = Math.min(camera.position.distanceTo(c.target) * 0.62, groundNear * 0.9, camera.position.distanceTo(follow.current) - 3);
     cut.setFromNormalAndCoplanarPoint(ahead, off.copy(camera.position).addScaledVector(ahead, reach));
   });
   return null;
