@@ -999,7 +999,11 @@ const ROAD_LAMPS: [number, number][] = ROADS.flatMap((road) => {
   }
   return out;
 });
-export const STREET_LAMP_LIGHTS: [number, number, number][] = [...STREET_LAMPS, ...RING_LAMPS, ...ROAD_LAMPS].map(([x, z]) => [x, -(168 + 14), z]);
+// every lamp once: where two paths meet the ring close together their lamps would stand side by side
+const ALL_LAMPS: [number, number][] = [...STREET_LAMPS, ...RING_LAMPS, ...ROAD_LAMPS].filter(
+  (p, i, all) => !all.slice(0, i).some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 10 * S),
+);
+export const STREET_LAMP_LIGHTS: [number, number, number][] = ALL_LAMPS.map(([x, z]) => [x, -(168 + 14), z]);
 const bench: Piece[] = [
   ["3005", COL.darkGrey, -30, 0, 0],
   ["3005", COL.darkGrey, 30, 0, 0],
@@ -1092,6 +1096,8 @@ export type Slab = {
   color: string;
   /** studs on top, a stud a stud */
   studs?: boolean;
+  /** smooth 2x2 tiles with seams instead of studs (a finished path or square) */
+  tiles?: boolean;
   /** one continuous band `w` wide along these points (a river, a road, a path): no seams, nothing overlapping */
   ribbon?: P3[];
 };
@@ -1108,7 +1114,8 @@ export function townFlats(): Slab[] {
   const along = (pts: P3[], w: number, color: string, h = 2, studs = true, drop = 0) => out.push({ x: 0, z: 0, w, d: 0, h, y: -h - drop, color, studs, ribbon: pts });
   // a gravel path: the gravel on top, and a darker rim a stud wide along both edges, a little lower
   // (beside the gravel, not under it, so no two surfaces lie on each other and shimmer)
-  const gravelPath = (pts: P3[]) => along(pts, GRAVEL_W, GRAVEL);
+  // the paths are laid in smooth tan tiles, the way LEGO towns finish their walks
+  const gravelPath = (pts: P3[]) => out.push({ x: 0, z: 0, w: GRAVEL_W, d: 0, h: 2, y: -2, color: GRAVEL, tiles: true, ribbon: pts });
   // a point `d` LDU along a polyline, and the leg's yaw
   const at = (pts: P3[], d: number): { x: number; z: number; yaw: number } | null => {
     for (let k = 0; k + 1 < pts.length; k++) {
@@ -1175,7 +1182,7 @@ export function townFlats(): Slab[] {
   // (the boats and ducks are the renderer's: they move, see LakeLife)
   gravelPath(TRACK);
   // the gravel ring round the plaza, and a winding gravel path in from every house's gate
-  out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -5, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL, studs: true }); // under the paths that meet it
+  out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -5, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL, tiles: true }); // under the paths that meet it
   // the paths in, each with a darker rim a plate lower showing along both edges and round ends,
   // layered the LEGO-game way instead of cut off flat
   for (let i = 0; i < MAX_RESIDENTS; i++) gravelPath(lotPath(lotFor(i), 3));
@@ -1235,10 +1242,11 @@ export function townClouds(): Cloud[] {
 // The lampposts on the pavement corners that face the plaza (LDraw).
 export function townDecorText(): string {
   const out: string[] = [];
-  for (const [x, z] of [...STREET_LAMPS, ...RING_LAMPS, ...ROAD_LAMPS]) out.push(...place(lamp, x, z, ROT[0], 0));
+  for (const [x, z] of ALL_LAMPS) out.push(...place(lamp, x, z, ROT[0], 0));
   // life round the ring: a bench facing the plaza and a pot of flowers just outside the ring path,
   // between the paths in (never on one)
-  for (const { x, z, yaw, bench: isBench, k } of RING_SEATS) out.push(...place(isBench ? bench : flowerPot([COL.red, COL.yellow, COL.pink][k % 3]), x, z, yawMat(yaw), 0));
+  for (const { x, z, yaw, bench: isBench, k } of RING_SEATS)
+    out.push(...place(isBench ? bench : k % 4 === 0 ? planterTree : flowerPot([COL.red, COL.yellow, COL.pink][k % 3]), x, z, yawMat(yaw), 0));
   out.push(...playgroundText());
   return modelText(out, "town-decor.ldr");
 }

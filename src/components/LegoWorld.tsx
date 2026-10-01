@@ -1220,22 +1220,21 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
   const farLaid = useRef({ x: 1e9, z: 1e9 });
   const o = useMemo(() => new THREE.Object3D(), []);
   const green = useMemo(() => new THREE.Color(grass), [grass]);
-  const grey = useMemo(() => new THREE.Color("#a3a7ad"), []);
   const meadowGreens = useMemo(() => [0, 1, 2].map((k) => new THREE.Color(meadowShade(grass, k))), [grass]);
   // every stud within `reach` of (px, pz): on the plaza and the plots in their own turned frames,
   // then on the open grass and meadows (none on anything flat). `each` gets three's x, the ground's
   // height, z, its colour, and (open ground only) the cell's hash
   // (a generator: it pauses after each plot and each row, so a big pass can be spread over frames)
   function* layRows(px: number, pz: number, reach: number, each: (x: number, base: number, z: number, c: THREE.Color, hash: number) => void) {
-    for (const lot of [PLAZA_LOT, ...lots]) {
-      const size = lot === PLAZA_LOT ? PLAZA : PLOT;
+    for (const lot of lots) { // (the plaza is smooth tiles: no studs there)
+      const size = PLOT;
       const [u, v] = fromLot(lot, [px * 20, -pz * 20]); // studs from the plot's centre, its frame (LDraw z)
       const [cu, cv] = [Math.round(u / 20), Math.round(v / 20)];
       if (Math.abs(cu) > size / 2 + reach || Math.abs(cv) > size / 2 + reach) continue;
       for (let i = Math.max(cu - reach, -size / 2); i <= Math.min(cu + reach, size / 2 - 1); i++)
         for (let k = Math.max(cv - reach, -size / 2); k <= Math.min(cv + reach, size / 2 - 1); k++) {
           const [x, , z] = inLot(lot, [(i + 0.5) * 20, 0, (k + 0.5) * 20]);
-          each(x * LDU, 0, -z * LDU, lot === PLAZA_LOT ? grey : green, -1);
+          each(x * LDU, 0, -z * LDU, green, -1);
         }
       yield;
     }
@@ -1367,7 +1366,6 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
     </>
   );
 }
-const PLAZA_LOT: Lot = { x: 0, z: 0, yaw: 0, a: 0, r: 0 };
 
 // Following someone round the town, the sunlight (and its shadow area, only
 // ~44 units across) goes with them, so you and what's around you always cast shadows.
@@ -2098,7 +2096,7 @@ export function LegoTown({
             {MEADOWS.map((m, i) => (
               <StudGround key={`m${i}`} at={[m.x * LDU, -m.z * LDU]} size={(2 * m.r) / 20} color={meadowShade(grass, m.k)} y={MEADOW_Y} radius={m.r / 20} thick={MEADOW_Y - GRASS_Y} />
             ))}
-            <StudGround at={[0, 0]} size={PLAZA} color="#a3a7ad" radius={8} thick={-GRASS_Y} />
+            <StudGround at={[0, 0]} size={PLAZA} color="#b9bcc0" radius={8} thick={-GRASS_Y} tiles />
             {[...lots, ...emptyLots].map((lot, i) => (
               <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} yaw={-lot.yaw} thick={-GRASS_Y} />
             ))}
@@ -2987,17 +2985,17 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
         if (b.yaw) g.rotateY(b.yaw);
         g.translate(b.x, -(b.y ?? 0) - b.h / 2, b.z);
       }
-      if (b.studs && !b.ribbon) {
+      if ((b.studs || b.tiles) && !b.ribbon) {
         // studs a stud apart: a shape's UVs are its LDU coordinates, a box's run 0..1 over each face (a ribbon's are studs already)
         const uv = g.attributes.uv as THREE.BufferAttribute;
         const [su, sv] = b.radius ? [1 / 20, 1 / 20] : [b.w / 20, b.d / 20];
         for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
       }
-      const key = `${b.color}|${b.studs ? "studs" : "smooth"}`;
+      const key = `${b.color}|${b.tiles ? "tiles" : b.studs ? "studs" : "smooth"}`;
       if (!byColor.has(key)) byColor.set(key, []);
       byColor.get(key)!.push(g.index ? g.toNonIndexed() : g); // extruded shapes have no index; a merge needs all alike
     }
-    return [...byColor].map(([key, gs]) => ({ key, color: key.split("|")[0], studs: key.endsWith("studs"), geometry: mergeGeometries(gs) }));
+    return [...byColor].map(([key, gs]) => ({ key, color: key.split("|")[0], studs: key.endsWith("studs"), tiles: key.endsWith("tiles"), geometry: mergeGeometries(gs) }));
   }, [slabs]);
   useEffect(() => () => meshes.forEach((m) => m.geometry.dispose()), [meshes]);
   const studMap = useMemo(() => {
@@ -3013,6 +3011,7 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
     t.needsUpdate = true;
     return t;
   }, []);
+  const tileMap = useMemo(() => tileTexture(), []);
   // the water moves the LEGO way (as the LEGO Skylines trailer does it): no sliding studs, but
   // ordered waves rolling across the stud grid as one body, each stud lighting up in its turn, in
   // steps. A few lines in the fragment shader: the stud's cell, a travelling wave, three levels
@@ -3039,7 +3038,7 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
     <>
       {meshes.map((m) => (
         <mesh key={m.key} geometry={m.geometry} castShadow={shadows} receiveShadow={shadows}>
-          <meshStandardMaterial ref={m.color === WATER ? waterMat : undefined} color={m.color} map={m.studs ? (m.color === WATER ? waterMap : studMap) : null} roughness={m.color === WATER ? 0.25 : 0.7} />
+          <meshStandardMaterial ref={m.color === WATER ? waterMat : undefined} color={m.color} map={m.tiles ? tileMap : m.studs ? (m.color === WATER ? waterMap : studMap) : null} roughness={m.color === WATER ? 0.25 : 0.7} />
         </mesh>
       ))}
     </>
@@ -3914,6 +3913,31 @@ function Traffic({ night }: { night: boolean }) {
 
 // A studded LEGO surface drawn as one flat quad with a stud texture: from town
 // distance it reads the same as real studs at a fraction of the triangles.
+// smooth 2x2 tiles: a flat face, a fine dark seam and a light bevel round each (UVs in studs, so
+// it repeats every two)
+let tiles: THREE.CanvasTexture | null = null;
+function tileTexture() {
+  if (tiles) return tiles;
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#ffffff";
+  g.fillRect(0, 0, 256, 256);
+  g.fillStyle = "rgba(255,255,255,1)";
+  g.fillRect(6, 6, 244, 244);
+  g.fillStyle = "rgba(0,0,0,0.28)"; // the seam
+  g.fillRect(0, 0, 256, 4);
+  g.fillRect(0, 0, 4, 256);
+  g.fillStyle = "rgba(0,0,0,0.08)"; // the bevel's shaded side
+  g.fillRect(4, 248, 252, 8);
+  g.fillRect(248, 4, 8, 252);
+  tiles = new THREE.CanvasTexture(c);
+  tiles.colorSpace = THREE.SRGBColorSpace;
+  tiles.wrapS = tiles.wrapT = THREE.RepeatWrapping;
+  tiles.repeat.set(0.5, 0.5);
+  tiles.anisotropy = 16;
+  return tiles;
+}
 let studs: THREE.CanvasTexture | null = null;
 function studTexture() {
   if (studs) return studs;
@@ -3955,6 +3979,7 @@ function StudGround({
   radius,
   yaw = 0,
   thick,
+  tiles: tiled,
 }: {
   at: [number, number];
   size: number;
@@ -3967,20 +3992,23 @@ function StudGround({
   yaw?: number;
   /** a real plate this thick (three units) with side edges, its top at `y`; without it a flat sheet */
   thick?: number;
+  /** smooth 2x2 tiles instead of studs */
+  tiles?: boolean;
 }) {
   const [ax, az] = at;
   const map = useMemo(() => {
     if (flat) return null;
-    const t = studTexture().clone();
+    const t = (tiled ? tileTexture() : studTexture()).clone();
     t.repeat.set(radius ? 1 : size, radius ? 1 : size); // a shape's UVs are its coordinates (one stud a unit); a plane's run 0..1
     // a rounded plate's UVs start at its own centre, which can sit anywhere: shift them so its
     // painted studs land on the world's stud grid, where the real studs round the player are
     // (a shape's y runs along -z once it lies flat)
     if (radius) t.offset.set(((ax % 1) + 1) % 1, ((-az % 1) + 1) % 1);
     if (thick) t.repeat.set(1, 1); // an extruded shape's caps are mapped by its coordinates, a stud a unit
+    if (tiled) t.repeat.multiplyScalar(0.5); // a tile is two studs
     t.needsUpdate = true;
     return t;
-  }, [size, flat, radius, ax, az, thick]);
+  }, [size, flat, radius, ax, az, thick, tiled]);
   const w = size * 20 * LDU;
   const geometry = useMemo(() => {
     const shape = radius ? roundedRect(w, w, radius * 20 * LDU) : roundedRect(w, w, 0.01);
