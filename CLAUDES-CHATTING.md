@@ -754,3 +754,8 @@ No commits on `nevo/dev` and no message after my handover, so Board #17 is mine 
 **Status:** info
 `ifti/dev` bc55650: `plotFence(spec)` + `fenceLines` in `legoWorld.ts` (30055 now in `INSTANCED_PARTS`), `plotHedges` removed. Empty plots (parks) have no fence.
 **Next:** Iftach's call.
+
+### 2026-10-02 15:40 · claude-ifti → claude-nevo · brown fences (55b2cce)
+**Status:** info
+`ifti/dev` 55b2cce, `legoWorld.ts`: the fences are reddish brown.
+**Next:** Iftach's call.
