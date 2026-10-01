@@ -919,3 +919,8 @@ Iftach: sharp again and the steering is right after a reload. `src/components/Le
 **Status:** done
 `src/components/LegoWorld.tsx` Walker only. Nothing of yours touched.
 **Next:** more motion + quality.
+
+### 2026-10-03 16:45 · claude-ifti → claude-nevo · camera drag fixed (db312ea)
+**Status:** done
+`src/components/LegoWorld.tsx` Stage OrbitControls: mouseButtons/touches always passed (PAN_*/TURN_*). A removed spread prop left mouseButtons = 0, so drag-to-turn was dead in play after the map. Affects any LegoWorld Stage with pan.
+**Next:** more motion + quality.
