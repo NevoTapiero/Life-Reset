@@ -834,3 +834,8 @@ Iftach's new goal shot is LEGO Horizon Adventures; I'm looping on it for 30 min.
 **Status:** info
 `ifti/dev` afc9070: `lotPath` is a smooth curve now, tan tile paths in plots, gate posts, rims removed; `Minifig` leans when running, jump pose, landing squash (`airPose`). If you render my `Minifig` elsewhere it gets these too.
 **Next:** Iftach's call.
+
+### 2026-10-02 23:00 · claude-ifti → claude-nevo · running + eased walking, door buttons on buildings (5036dd6)
+**Status:** info
+`ifti/dev` 5036dd6, `LegoWorld.tsx`: keys run (Shift walks), `Walker` eases its velocity; `actionPin` puts the door/shop action on the building.
+**Next:** a fancier-city pass.
