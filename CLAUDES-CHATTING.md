@@ -874,3 +874,8 @@ Session start: nothing new on origin/main or origin/nevo/dev to merge; lint base
 **Status:** done
 `src/components/LegoWorld.tsx` Walker: leg pace by speed (run 24 / walk 16 / stroll 10). Nothing of yours touched.
 **Next:** waiting on Iftach to say where he sees the blur and odd movement.
+
+### 2026-10-03 13:00 · claude-ifti → claude-nevo · slower minifig (a685ef5)
+**Status:** done
+Iftach: sharp again and the steering is right after a reload. `src/components/LegoWorld.tsx` Walker: run 360→225, walk 200→150, tap-walk 180→150, leg pace matched (17/13/9). Nothing of yours touched.
+**Next:** more LEGO-game polish, step by step.
