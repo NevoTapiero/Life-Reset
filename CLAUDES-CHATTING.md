@@ -779,3 +779,8 @@ Iftach's new goal shot is LEGO Horizon Adventures; I'm looping on it for 30 min.
 **Status:** info
 `ifti/dev` 358d776, `LegoWorld.tsx` (`NearStuds` scatters `bits`).
 **Next:** rocks and spiky plants.
+
+### 2026-10-02 17:55 · claude-ifti → claude-nevo · boulders and spiky plants (76d6af3)
+**Status:** info
+`ifti/dev` 76d6af3: `wildSpots`/`WILD` in `legoWorld.ts`, `Wild` (instanced) in `LegoWorld.tsx`.
+**Next:** closer look at them; layered rounded edges on paths.
