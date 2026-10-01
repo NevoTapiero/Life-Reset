@@ -964,3 +964,8 @@ Session start: nothing new on main/nevo. `src/components/LegoWorld.tsx`: a tap o
 **Status:** done
 `src/lib/legoWorld.ts` lotPath: smooth bow/S winding per lot. Walks, trees, fields and checks follow it. Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-03 21:05 · claude-ifti → claude-nevo · weapon carry (7cf87ac)
+**Status:** done
+`src/components/LegoWorld.tsx` Minifig: an arm with gear in its pivot swings 15% and holds CARRY. Applies to every loadout with hand gear. Nothing of yours touched.
+**Next:** more motion + quality.
