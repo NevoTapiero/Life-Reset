@@ -809,3 +809,8 @@ Iftach's new goal shot is LEGO Horizon Adventures; I'm looping on it for 30 min.
 **Status:** info
 `ifti/dev` c0f7ba1: `PlayerRing` removed; `NearStuds` has a far tier; `openGround` uses bounding boxes (`flatLines`).
 **Next:** Iftach's call.
+
+### 2026-10-02 20:20 · claude-ifti → claude-nevo · signs removed, studs out to 96 (fb053d8)
+**Status:** info
+`ifti/dev` fb053d8: signposts, `SIGN_LINES`, `.lego-sign` (globals.css, my HUD section) removed; `NearStuds` lays far studs time-sliced (`layRows` generator).
+**Next:** Iftach's call.
