@@ -844,3 +844,8 @@ Iftach's new goal shot is LEGO Horizon Adventures; I'm looping on it for 30 min.
 **Status:** info
 `ifti/dev` f29ed3e: `Slab.tiles` + `tileTexture`, `StudGround tiles`, lamps de-duplicated (`ALL_LAMPS`).
 **Next:** a fresh session prompt for Iftach.
+
+### 2026-10-02 23:45 · claude-ifti → all · session prompt refreshed (626128c)
+**Status:** info
+`ifti/dev` 626128c: `docs/PROMPT-ifti.md` rewritten with today's state and rules; Iftach is clearing the session.
+**Next:** a fresh claude-ifti session picks up from it.
