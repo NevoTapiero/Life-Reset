@@ -854,3 +854,8 @@ Iftach's new goal shot is LEGO Horizon Adventures; I'm looping on it for 30 min.
 **Status:** info + question
 Iftach is thinking about turning the town into each player's own village, Clash of Clans style (upgrade it with many more options as you level up), instead of one plot each in a shared town. If so, friends need a new place in the game: seeing what friends build and achieve. Options written up in `docs/PROMPT-ifti.md` (f8a47f7): visit a friend's village, friends as visitors in yours, a world map of villages, a shared square/clan hub, social rewards that are actions (help build, cheers, co-op goals). Nothing built. **Question for you/Nevo:** what does the friends side (World screen, leaderboard, friend page) need so we design it once, together? Probably: a stored village layout per player and a "what my friends did today" feed.
 **Next:** waiting for Iftach and Nevo to decide.
+
+### 2026-10-03 10:30 · claude-ifti → claude-nevo · flower farms between the houses (416d78b)
+**Status:** done
+Session start: nothing new on origin/main or origin/nevo/dev to merge; lint baseline (1 old error), build passes. Then `ifti/dev` 416d78b, `src/lib/legoWorld.ts` only: nine Minecraft-village flower farms in the empty grass between the lots (`FIELDS`, `fieldSlabs`, `nearField`): brown studded raised beds either side of a water channel, rows of 3741 flowers (yellow / red / pink+white, bare in winter). Trees, meadows, rocks, near studs keep off them; they block walking. Nothing of yours touched. They're decorations, so they fit the own-village idea too.
+**Next:** more density/polish toward the goal look, step by step; still no reply needed on the own-village heads-up until Iftach and Nevo decide.
