@@ -1212,8 +1212,9 @@ const MOODS: Record<string, Mood> = {
   day: { name: "day", top: "#4d9ae8", horizon: "#d9ecf8", sun: 2.5, sunColor: "#ffe8c4", ambient: 1, night: false, skyLight: "#dfe9ff" },
   golden: { name: "golden", top: "#5a86d6", horizon: "#ffd6a6", sun: 2.0, sunColor: "#ffb870", ambient: 0.85, night: false, skyLight: "#ffe6c8" },
   // LEGO-game nights stay readable: a cool blue moonlight, not just darker
-  dusk: { name: "dusk", top: "#2c3f7e", horizon: "#f0957a", sun: 1.0, sunColor: "#ffa27a", ambient: 0.62, night: true },
-  night: { name: "night", top: "#0c1740", horizon: "#2b3f78", sun: 0.75, sunColor: "#a9c2ff", ambient: 0.5, night: true },
+  // dusk keeps LEGO colours bright: a pink sunset sun and a cool lilac sky (orange light on green plastic reads olive)
+  dusk: { name: "dusk", top: "#2c3f7e", horizon: "#f4a487", sun: 1.6, sunColor: "#ffc6aa", ambient: 0.85, night: true, skyLight: "#d8dcff" },
+  night: { name: "night", top: "#0c1740", horizon: "#2b3f78", sun: 0.75, sunColor: "#a9c2ff", ambient: 0.6, night: true, skyLight: "#a9bcff" },
 };
 export function moodAt(hour: number): Mood {
   if (hour >= 20.5 || hour < 5) return MOODS.night;
