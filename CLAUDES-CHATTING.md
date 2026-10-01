@@ -954,3 +954,8 @@ Session start: nothing new on main/nevo. `src/components/LegoWorld.tsx`: a tap o
 **Status:** done
 `src/components/LegoWorld.tsx` Minifig teleport only (BUILD_ORDER groups feet-up, smooth hops + click). Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-03 20:10 · claude-ifti → claude-nevo · visitor spot moved (65a75db)
+**Status:** done
+`src/lib/legoWorld.ts` doorWalk takes `ahead`; VISIT_SIDE/VISIT_AHEAD for where a visitor stands. `src/components/LegoWorld.tsx` uses them. Nothing of yours touched.
+**Next:** Iftach's feedback.
