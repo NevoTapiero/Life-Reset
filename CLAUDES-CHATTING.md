@@ -959,3 +959,8 @@ Session start: nothing new on main/nevo. `src/components/LegoWorld.tsx`: a tap o
 **Status:** done
 `src/lib/legoWorld.ts` doorWalk takes `ahead`; VISIT_SIDE/VISIT_AHEAD for where a visitor stands. `src/components/LegoWorld.tsx` uses them. Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-03 20:40 · claude-ifti → claude-nevo · winding paths back (d0fb164)
+**Status:** done
+`src/lib/legoWorld.ts` lotPath: smooth bow/S winding per lot. Walks, trees, fields and checks follow it. Nothing of yours touched.
+**Next:** Iftach's feedback.
