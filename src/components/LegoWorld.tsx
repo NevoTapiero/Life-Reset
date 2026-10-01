@@ -21,6 +21,9 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import {
   BASE_HUNTER,
+  COL,
+  RING_R,
+  jogAt,
   MINIFIG_PARTS,
   PLOT,
   buildGarden,
@@ -1871,6 +1874,9 @@ export function LegoTown({
   // who you've walked up to (they say something), and a new line each time you meet
   const [talker, setTalker] = useState<string | null>(null);
   const [meetings, setMeetings] = useState(0);
+  // talking with a guide: which, and how far through what they're saying; how often you've talked to each
+  const [talk, setTalk] = useState<{ g: number; line: number } | null>(null);
+  const [talked, setTalked] = useState<number[]>(() => GUIDES.map(() => 0));
   const places = useMemo(
     () => [
       { id: SHOP_FOCUS, at: SHOP_WALK[SHOP_WALK.length - 1] },
@@ -1988,6 +1994,30 @@ export function LegoTown({
         node: <StationButton st={st} onTap={onTap} gold={gold} />,
       };
     });
+  };
+  // a guide you've walked up to: its name and a Talk button over its head
+  const guidePin = (g: number) => ({
+    key: `guide-${g}`,
+    at: () => {
+      const p = CROWD.get(GUIDES[g].id);
+      return p ? ([p.x * LDU, 7.2, -p.z * LDU] as [number, number, number]) : null;
+    },
+    node: (
+      <div className="flex flex-col items-center gap-1">
+        <span className="lego lego-sm lego-white pointer-events-none">{GUIDES[g].name}</span>
+        <RoundAction icon="talk" text="Talk" tone="yellow" small onClick={() => setTalk({ g, line: 0 })} />
+      </div>
+    ),
+  });
+  const talkingTo = talk ? GUIDES[talk.g] : null;
+  const talkLines = talk ? guideLines(GUIDES[talk.g], talked[talk.g], residents[meIndex]?.name ?? "friend", stations) : [];
+  // the next line, or the end of the talk (the next talk with this guide tells the next story)
+  const nextLine = () => {
+    if (!talk) return;
+    sfx.click();
+    if (talk.line + 1 < talkLines.length) return setTalk({ ...talk, line: talk.line + 1 });
+    setTalked((n) => n.map((v, k) => (k === talk.g ? v + 1 : v)));
+    setTalk(null);
   };
   // a friend's speech bubble, over their head wherever they walk
   const chatPin = (name: string) => {
@@ -2116,7 +2146,7 @@ export function LegoTown({
             ))}
           </>
         }
-        pins={following ? [...(near === null ? [] : [doorButtonOnBuilding ? actionPin(near) : nearPin(near)]), ...(talker ? [chatPin(talker)] : []), ...stationPins()] : [
+        pins={following ? [...(near === null ? [] : [doorButtonOnBuilding ? actionPin(near) : nearPin(near)]), ...(talker ? (GUIDES.some((g) => g.id === talker) ? (talk ? [] : [guidePin(GUIDES.findIndex((g) => g.id === talker))]) : [chatPin(talker)]) : []), ...stationPins()] : [
           {
             key: "shop",
             at: [0, SHOP_BUILDING.h * LDU + 3, -(SHOP_FRONT - (SHOP_BUILDING.d / 2) * 20) * LDU] as [number, number, number],
@@ -2150,8 +2180,14 @@ export function LegoTown({
         {following && (
           <Chatter
             where={me3}
-            friends={residents.filter((res) => !res.me).map((res) => res.name)}
+            friends={[...residents.filter((res) => !res.me).map((res) => res.name), ...GUIDES.map((g) => g.id)]}
             onTalk={(name) => {
+              // walking off ends a talk (someone else coming nearer doesn't)
+              if (talk && name !== GUIDES[talk.g].id) {
+                const p = CROWD.get(GUIDES[talk.g].id);
+                if (p && Math.hypot(me3.current.x / LDU - p.x, -me3.current.z / LDU - p.z) < TALK_RANGE) return;
+                setTalk(null);
+              }
               setTalker(name);
               if (!name) return;
               setMeetings((n) => n + 1);
@@ -2185,6 +2221,9 @@ export function LegoTown({
         <FountainSpray />
         <TownSign name={residents[meIndex]?.name ?? "Your"} />
         {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
+        {GUIDES.map((g) => (
+          <GuideWalker key={g.id} guide={g} where={me3} />
+        ))}
         {residents.map((res, i) => (
           <Ride key={res.name} ride={loadoutFor(res.level, res.character ?? undefined).ride} at={rideSpot(lots[i], res.level)} turn={lots[i].yaw} />
         ))}
@@ -2310,6 +2349,19 @@ export function LegoTown({
             {note}
             <BrickBurst count={26} />
           </span>
+        </div>
+      )}
+
+      {/* talking with a guide: who, and what they're saying; tap to go on */}
+      {talk && talkingTo && (
+        <div className="absolute inset-x-3 bottom-28 flex justify-center pointer-events-none">
+          <button onClick={nextLine} className="lego-panel pointer-events-auto w-full max-w-md rounded-2xl p-3.5 text-left slide-in">
+            <span className="lego lego-sm lego-yellow">
+              {talkingTo.name} · {talkingTo.role}
+            </span>
+            <p className={`mt-2.5 text-[15px] leading-snug ${talkLines[talk.line]?.mission ? "font-bold" : ""}`}>{talkLines[talk.line]?.text}</p>
+            <span className="mt-2 block text-right text-xs font-bold opacity-60">{talk.line + 1 < talkLines.length ? "Tap to go on ›" : "Tap to say bye"}</span>
+          </button>
         </div>
       )}
 
@@ -2550,6 +2602,7 @@ function Near({
 // ---- the HUD ----
 // Simple, chunky icons for the round buttons (24x24, drawn in currentColor).
 const ICONS: Record<string, React.ReactNode> = {
+  talk: <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" strokeWidth="2.2" />,
   door: <path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17M3 21h18M14 12.5h.01" strokeWidth="2.4" />,
   knock: <path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V11m0-4.5a1.5 1.5 0 0 1 3 0V11m0-3a1.5 1.5 0 0 1 3 0v6a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3.6 14a1.5 1.5 0 0 1 2.4-1.8L8 14" strokeWidth="2" />,
   shop: <path d="M5 8h14l-1.2 11.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9L5 8Zm4 0V6a3 3 0 0 1 6 0v2" strokeWidth="2.2" />,
@@ -3368,6 +3421,119 @@ function Car({ car, start, night }: { car: Baked; start: number; night: boolean 
             <spriteMaterial map={map} color="#fff4d6" blending={THREE.AdditiveBlending} depthWrite={false} transparent fog={false} />
           </sprite>
         ))}
+    </group>
+  );
+}
+
+// ---- the guides: a few townsfolk who walk round the plaza and talk to you (Fortnite's NPCs: walk
+// up, tap Talk, they tell you a small story, and now and then hand you one of today's missions) ----
+type Guide = {
+  id: string;
+  name: string;
+  role: string;
+  look: MinifigLook;
+  /** where on the ring it starts (LDU round), its lane (LDU from the centre), which way it walks */
+  start: number;
+  r: number;
+  dir: 1 | -1;
+  hello: (me: string) => string;
+  /** a few small stories, told one per talk, in turn */
+  stories: string[][];
+  /** how it hands you a mission, and what it says when you've done them all */
+  mission: (title: string, xp: number) => string;
+  allDone: string;
+};
+const GUIDES: Guide[] = [
+  {
+    id: "guide-mayor",
+    name: "Mayor Brickley",
+    role: "Mayor",
+    look: { skin: COL.yellow, hair: COL.white, torso: COL.black, legs: COL.black },
+    start: 0,
+    r: RING_R - 30,
+    dir: 1,
+    hello: (me) => `Ah, ${me}! Good to see you about town.`,
+    stories: [
+      ["This town grows when you do.", "Every mission you finish out in the real world earns you XP and gold in here."],
+      ["When I was young, all this was one empty baseplate.", "Then people started keeping the promises they made to themselves, and the houses went up, brick by brick."],
+      ["Level up and your house grows with you.", "And the shop on Market Street will sell you things for your garden, for gold."],
+    ],
+    mission: (title, xp) => `Here's a job for you today: ${title}. That's ${xp} XP when it's done.`,
+    allDone: "Every mission done today? The whole town's talking about you.",
+  },
+  {
+    id: "guide-coach",
+    name: "Coach Rita",
+    role: "Coach",
+    look: { skin: COL.yellow, hair: COL.reddishBrown, torso: COL.red, legs: COL.darkBlue },
+    start: 1700,
+    r: RING_R + 30,
+    dir: -1,
+    hello: (me) => `${me}! Warmed up yet?`,
+    stories: [
+      ["Energy keeps your legs running. That's the bar up top.", "Sleep well and walk your steps, and it fills right back up."],
+      ["I ran round this plaza every morning for a year.", "The first lap was the hardest. The second was easier. Keep going."],
+      ["Out of energy? Walk instead. Hold Shift to stroll.", "Walking costs nothing, and your energy creeps back while you do."],
+    ],
+    mission: (title, xp) => `Today's training: ${title}! ${xp} XP when you've done it.`,
+    allDone: "All your training done today? That's a champion's day.",
+  },
+  {
+    id: "guide-gardener",
+    name: "Old Finn",
+    role: "Gardener",
+    look: { skin: COL.yellow, hair: COL.darkGrey, torso: COL.darkGreen, legs: COL.tan },
+    start: 3400,
+    r: RING_R - 30,
+    dir: 1,
+    hello: () => "Mind the flowers, now. Oh, hello there.",
+    stories: [
+      ["See the flower farms between the houses?", "Every one of them started with a single seed. Small things, every day."],
+      ["The river up north never stops.", "It does slow down at the bends, mind. Rest is part of the journey too."],
+      ["Buy something for your garden in the shop,", "then watch it build itself on your plot, brick by brick."],
+    ],
+    mission: (title, xp) => `Something to tend to today: ${title}. ${xp} XP for it.`,
+    allDone: "Nothing left to tend today. Sit a while and enjoy it.",
+  },
+];
+const GUIDE_SPEED = 60; // LDU a second: an amble (stride 7)
+const TALK_RANGE = 130; // LDU: close enough to talk (as friends' chatter)
+// what a guide says this time: hello, the next story, and on every other talk one of your missions
+// not done yet (or well done, if they all are)
+function guideLines(g: Guide, n: number, me: string, stations?: Station[]): { text: string; mission?: boolean }[] {
+  const lines: { text: string; mission?: boolean }[] = [g.hello(me), ...g.stories[n % g.stories.length]].map((text) => ({ text }));
+  if (n % 2 === 1 && stations?.length) {
+    const todo = stations.filter((st) => !st.done);
+    const st = todo[n % Math.max(1, todo.length)];
+    lines.push({ text: st ? g.mission(st.title, st.xp) : g.allDone, mission: !!st });
+  }
+  return lines;
+}
+// a guide on its round: it walks its lane of the ring, and stops and turns to you while you're near
+function GuideWalker({ guide, where }: { guide: Guide; where: React.RefObject<THREE.Vector3> }) {
+  const root = useRef<THREE.Group>(null);
+  const walking = useRef(true);
+  const d = useRef(guide.start);
+  useEffect(() => () => void CROWD.delete(guide.id), [guide.id]);
+  useFrame((_, dt) => {
+    const o = root.current;
+    if (!o) return;
+    const { at } = jogAt(d.current, guide.r);
+    const [mx, mz] = [where.current.x / LDU, -where.current.z / LDU];
+    const near = Math.hypot(mx - at[0], mz - at[2]) < TALK_RANGE;
+    walking.current = !near;
+    if (!near) d.current += GUIDE_SPEED * guide.dir * Math.min(dt, 0.1);
+    const { at: p, heading } = jogAt(d.current, guide.r);
+    o.position.set(p[0], 0, p[2]);
+    CROWD.set(guide.id, { x: p[0], z: p[2] });
+    // walking: along the ring, the way it goes; near you: round to face you (the short way, eased)
+    const want = near ? Math.atan2(mx - p[0], mz - p[2]) : heading + (guide.dir < 0 ? Math.PI : 0);
+    const turn = Math.atan2(Math.sin(want - o.rotation.y), Math.cos(want - o.rotation.y));
+    o.rotation.y += turn * Math.min(1, dt * 8);
+  });
+  return (
+    <group ref={root}>
+      <Minifig look={guide.look} at={[0, 0, 0]} walking={walking} stride={7} />
     </group>
   );
 }

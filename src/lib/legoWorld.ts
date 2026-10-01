@@ -1559,10 +1559,10 @@ export function insideWalk(lot: Lot, level: number, side = 0, rooms?: Rooms): P3
     inLot(lot, [r.x, floor, r.z]),
   ];
 }
-/** the joggers' loop: laps of the gravel ring round the plaza, on its inner edge (clear of
- *  the walkers on its middle); returns where you are `d` LDU round and which way you face */
-export function jogAt(d: number): { at: P3; heading: number } {
-  const r = RING_R - 50;
+/** laps of the gravel ring round the plaza, `r` LDU from the centre (by default on its inner edge,
+ *  clear of the walkers on its middle); returns where you are `d` LDU round, clockwise seen from
+ *  above, and which way you face */
+export function jogAt(d: number, r = RING_R - 50): { at: P3; heading: number } {
   const a = -d / r; // clockwise, seen from above
   return { at: [Math.sin(a) * r, 0, Math.cos(a) * r], heading: Math.atan2(-Math.cos(a), Math.sin(a)) };
 }
