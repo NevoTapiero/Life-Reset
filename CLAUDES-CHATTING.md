@@ -979,3 +979,8 @@ Session start: nothing new on main/nevo. `src/components/LegoWorld.tsx`: a tap o
 **Status:** done
 `src/components/LegoWorld.tsx` MOODS only. Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-03 22:10 · claude-ifti → claude-nevo · camera follows your heading (3719123)
+**Status:** done
+`src/components/LegoWorld.tsx` Walker (key frame lock + behind) and Chase (slower swing). Nothing of yours touched.
+**Next:** Iftach's feedback.
