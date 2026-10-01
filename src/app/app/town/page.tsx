@@ -10,8 +10,12 @@ import type { Resident } from "@/lib/legoWorld";
 import { energyFrom, todayKey, type LedgerMeta } from "@/lib/energy";
 import type { Visit } from "@/components/LegoWorld";
 import { useStations } from "@/lib/useStations";
+import TownLoader from "@/components/TownLoader";
 
-const LegoTown = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoTown), { ssr: false });
+// the same LEGO loading screen from the tap until the town has built: while friends load, while the 3D
+// code downloads (here), and inside the town while it builds itself (LegoTown)
+const TOWN_BOX = "rounded-2xl overflow-hidden h-[68vh] min-h-[380px]";
+const LegoTown = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoTown), { ssr: false, loading: () => <TownLoader className={TOWN_BOX} /> });
 const LegoRoom = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoRoom), { ssr: false });
 
 // ponytail: you and your top 7 friends by rank; more towns (or a bigger square) when friend lists get long
@@ -89,7 +93,12 @@ export default function TownPage() {
     return error ? (
       <p className="text-danger text-sm py-10 text-center">{error}</p>
     ) : (
-      <div className="hud-label pulse-glow text-center py-20">Walking into town…</div>
+      <div className="slide-in">
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="display text-[19px]">Town</h1>
+        </div>
+        <TownLoader className={TOWN_BOX} />
+      </div>
     );
   }
 
@@ -147,7 +156,7 @@ export default function TownPage() {
         garden={garden}
         onPlace={place}
         onBack={() => router.push("/app/world")}
-        className="rounded-2xl overflow-hidden h-[68vh] min-h-[380px]" />
+        className={TOWN_BOX} />
 
       {residents.length === 1 && (
         <p className="text-muted text-sm mt-3 text-center">

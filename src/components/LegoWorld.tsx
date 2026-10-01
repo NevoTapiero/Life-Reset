@@ -7,6 +7,7 @@ import { ContactShadows, Environment, Lightformer, OrbitControls, PerformanceMon
 import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, N8AO, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import { sfx, setSound, soundOn } from "@/lib/sfx";
+import TownLoader from "@/components/TownLoader";
 import { CAN_RUN_AT, ENERGY_MAX, RUN_COST, TRICKLE } from "@/lib/energy";
 import * as THREE from "three";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
@@ -2495,19 +2496,8 @@ export function LegoTown({
         })}
       </Stage>
 
-      {/* while the town loads (it stutters then), a LEGO loading card; it fades as the town builds itself */}
-      <div
-        className={`absolute inset-0 flex flex-col items-center justify-center gap-4 pointer-events-none ${settled ? "fade-away" : ""}`}
-        style={{ background: "linear-gradient(180deg, #8fd0ff 0%, #d9efff 60%, #7cc36a 60%, #58ab41 100%)" }}
-        aria-hidden={settled}
-      >
-        <div className="flex flex-col-reverse items-center gap-[3px]">
-          {["#d01012", "#f5cd2f", "#0055bf"].map((c, i) => (
-            <span key={c} className="stack-brick" style={{ "--c": c, animationDelay: `${i * 0.18}s` } as React.CSSProperties} />
-          ))}
-        </div>
-        <span className="lego lego-white text-sm">Building your town…</span>
-      </div>
+      {/* while the town loads (it stutters then), the LEGO loading screen; it fades as the town builds itself */}
+      <TownLoader className={`absolute inset-0 pointer-events-none ${settled ? "fade-away" : ""}`} />
 
       {/* the HUD, LEGO-game style. Top left: you (head, name, level, gold). */}
       {me && (
