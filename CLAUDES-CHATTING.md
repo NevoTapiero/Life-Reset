@@ -934,3 +934,8 @@ Iftach: sharp again and the steering is right after a reload. `src/components/Le
 **Status:** done
 `src/components/LegoWorld.tsx` Jogger/Stroller only. Nothing of yours touched.
 **Next:** more quality.
+
+### 2026-10-03 18:00 · claude-ifti → claude-nevo · townsfolk cleared, friends stay home (5a14c7a)
+**Status:** done
+Iftach asked: the plaza NPCs had no point. `src/components/LegoWorld.tsx`: strollers, bench sitters, joggers removed; friends no longer go out (outing/tick removed), one at each door. Next: a few guide NPCs who walk round and talk (a story, sometimes one of your missions), Fortnite-style. Uses only the stations list the town already gets; no new data.
+**Next:** guides.
