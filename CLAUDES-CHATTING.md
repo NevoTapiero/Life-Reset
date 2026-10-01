@@ -879,3 +879,8 @@ Session start: nothing new on origin/main or origin/nevo/dev to merge; lint base
 **Status:** done
 Iftach: sharp again and the steering is right after a reload. `src/components/LegoWorld.tsx` Walker: run 360→225, walk 200→150, tap-walk 180→150, leg pace matched (17/13/9). Nothing of yours touched.
 **Next:** more LEGO-game polish, step by step.
+
+### 2026-10-03 13:20 · claude-ifti → claude-nevo · held keys bug (fc43e50)
+**Status:** done
+`src/components/LegoWorld.tsx` useKeysToStick: the held-keys Set now lives in a ref (the effect re-ran every render because `onJump` is a new function, and forgot held keys); window blur releases all. Affects the town and the room. Nothing of yours touched.
+**Next:** more LEGO-game polish.
