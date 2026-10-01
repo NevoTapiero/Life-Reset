@@ -1292,13 +1292,58 @@ function glow() {
   glowTexture = new THREE.CanvasTexture(c);
   return glowTexture;
 }
+// a pool of lamplight on the ground: warm in the middle, fading out soft
+let poolTexture: THREE.CanvasTexture | null = null;
+function pool() {
+  if (poolTexture) return poolTexture;
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  r.addColorStop(0, "rgba(255,214,140,0.62)");
+  r.addColorStop(0.45, "rgba(255,190,110,0.28)");
+  r.addColorStop(1, "rgba(255,170,90,0)");
+  g.fillStyle = r;
+  g.fillRect(0, 0, 128, 128);
+  poolTexture = new THREE.CanvasTexture(c);
+  return poolTexture;
+}
+// The lamps after dark, the LEGO-game way: a bright bulb inside each dome (it blooms), a small soft halo
+// round it (a big one hid the lamp's head in a fuzzy blob), and a warm pool of light on the ground under
+// it. `at`: the lamp heads (LDU, LDraw frame); all instanced
 function LampGlows({ at }: { at: [number, number, number][] }) {
-  const map = useMemo(() => glow(), []);
+  const halo = useMemo(() => glow(), []);
+  const ground = useMemo(() => pool(), []);
+  const bulbs = useRef<THREE.InstancedMesh>(null);
+  const pools = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const o = new THREE.Object3D();
+    at.forEach(([x, y, z], i) => {
+      o.position.set(x, y + 4, z);
+      o.rotation.set(0, 0, 0);
+      o.updateMatrix();
+      bulbs.current?.setMatrixAt(i, o.matrix);
+      o.position.set(x, -5, z); // just above the paving (LDraw: -y is up)
+      o.rotation.set(Math.PI / 2, 0, 0);
+      o.updateMatrix();
+      pools.current?.setMatrixAt(i, o.matrix);
+    });
+    if (bulbs.current) bulbs.current.instanceMatrix.needsUpdate = true;
+    if (pools.current) pools.current.instanceMatrix.needsUpdate = true;
+  }, [at]);
   return (
     <>
+      <instancedMesh ref={bulbs} args={[undefined, undefined, at.length]} frustumCulled={false}>
+        <sphereGeometry args={[9, 12, 8]} />
+        <meshBasicMaterial color="#fff3cf" toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={pools} args={[undefined, undefined, at.length]} frustumCulled={false} renderOrder={1}>
+        <planeGeometry args={[300, 300]} />
+        <meshBasicMaterial map={ground} blending={THREE.AdditiveBlending} depthWrite={false} transparent fog={false} side={THREE.DoubleSide} />
+      </instancedMesh>
       {at.map((p, i) => (
-        <sprite key={i} position={p} scale={[130, 130, 1]}>
-          <spriteMaterial map={map} blending={THREE.AdditiveBlending} depthWrite={false} transparent fog={false} />
+        <sprite key={i} position={p} scale={[70, 70, 1]}>
+          <spriteMaterial map={halo} blending={THREE.AdditiveBlending} depthWrite={false} transparent fog={false} opacity={0.75} />
         </sprite>
       ))}
     </>
