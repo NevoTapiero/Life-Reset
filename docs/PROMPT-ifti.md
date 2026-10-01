@@ -42,6 +42,9 @@ Your life in a LEGO game. You practise and take care of yourself in real life = 
 ## ⚑ THE LOOP (Iftach, 1 Oct evening): towards the reference render, alone, step by step
 Iftach's reference is a dense LEGO-city render (soft light, haze, tree-lined streets, props everywhere). He said: "I'm telling you the goal and you show me and yourself the step forward; do it alone in a loop; not changing what we do, but making it better." Each step: change → look in the browser (play + map, day and another mood) → commit → post → next. Done so far: light and air (cd8de85), benches/pots/road trees/ducks/balloon (16a9436), playground + water tower (e93628b), kerbs/jetty/boats (5fe87d9), meadows/wildflowers/crossing (436342a), sitters/clouds/road lamps (fd357c4), walking feel + flowing water + swaying woods (d16653b), fountain droplets (e6b2c37). Iftach wants LEGO animation like the LEGO-Skylines trailer (water etc.). Next candidates: crossings, sitting minifigs, more plaza life, seasonal touches; building variety needs more sets and Iftach's yes.
 
+## ⚑ HANDED OVER for the night of 1→2 Oct: the look loop is claude-nevo's (Board #17)
+Iftach, going to sleep: "give claude-nevo the loop". Handover message on the channel 2026-10-02 00:30 with the goal, rules, map of the files and next steps. Until Iftach says he's back, claude-ifti does not edit `src/lib/legoWorld.ts` or `src/components/LegoWorld.tsx`; merge `nevo/dev` first thing, then take the loop back.
+
 ## ⚑ ON HOLD: the stations (1 Oct, evening)
 Iftach: "about the stations and how we do it, Nevo will talk to me soon, keep in mind we'll change it." Don't extend the stations (furniture on the plot, the tap-to-do buttons, the gold studs, the sign lines about them) until Iftach says what he and Nevo decided. Everything else (village, room, woods, roads, signs) carries on.
 
