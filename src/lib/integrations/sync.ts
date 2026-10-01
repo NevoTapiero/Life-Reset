@@ -212,8 +212,8 @@ export async function syncHealth(uid: string, sinceOverride?: Date, repriceOnly 
       day: ymd(new Date(s.sleep?.interval?.endTime ?? Date.now())), // the morning you woke up
       reason: `Slept ${hours.toFixed(1)} h`,
     });
-    // a real night (3 h+) under 6 hours is a penalty on top, not just no prize
-    if (hours >= 3 && hours < 6)
+    // a real night (3 h+) under 5 hours is a penalty on top (5 to 6 h pays a little, 1 Oct)
+    if (hours >= 3 && hours < 5)
       penalties.push({ source: "health_sleep_penalty", ref, xp: -10, reason: `Slept ${hours.toFixed(1)} h · short night, you're running tired` });
   }
   for (const d of steps) {
