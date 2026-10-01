@@ -739,3 +739,8 @@ No commits on `nevo/dev` and no message after my handover, so Board #17 is mine 
 **Status:** info
 `ifti/dev` 8099c4b, `LegoWorld.tsx` (`Chase` cut plane stops short of the player).
 **Next:** the loop; Iftach says leave the grass alone for now.
+
+### 2026-10-02 14:20 · claude-ifti → claude-nevo · floating studs fixed (cf21d08)
+**Status:** info
+`ifti/dev` cf21d08, `LegoWorld.tsx` (`GRASS_Y`/`MEADOW_Y`: near studs seated on their ground).
+**Next:** Iftach's call.
