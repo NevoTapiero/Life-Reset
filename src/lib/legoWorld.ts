@@ -12,7 +12,7 @@ import PROPS from "./legoProps.json" with { type: "json" };
 // The plot is a 48x48 baseplate; cell (i, j) is a stud, 0..47 on x and z.
 // The front of the house and the garden face +Z.
 
-export const PLOT = 64; // a plot's side, studs: the house at the back, the garden and your stations round it
+export const PLOT = 88; // a plot's side, studs: the house towards the back, a deep front garden, room round it for your stations and what you buy
 export const PLAZA = 48; // the plaza's paved square in the middle of its block
 const S = 20;
 const PLATE = 8;
@@ -110,11 +110,12 @@ export const SHOP_BUILDING = SHOP as House;
 // rows (or against the back edge if it's deep). Gardens, paths and the door
 // spot follow it, whichever of the level's houses stands there.
 export type HouseSpec = { x0: number; z0: number; w: number; d: number };
+const HOUSE_BACK = 14; // studs of lawn between the back fence and the house
 export function houseSpec(level: number): HouseSpec {
   const all = housesAt(level);
   const w = Math.max(...all.map((h) => h.w));
   const d = Math.max(...all.map((h) => h.d));
-  return { x0: Math.floor((PLOT - w) / 2), z0: Math.max(1, PLOT - d - 12), w, d };
+  return { x0: Math.floor((PLOT - w) / 2), z0: HOUSE_BACK, w, d }; // a fixed strip of lawn behind it, the rest a front garden
 }
 
 // Where a house's model goes (LDU): centred on the footprint, its front on the
@@ -279,7 +280,7 @@ export type Resident = {
 // there's air: a lawn in front of every hedge, a wide pavement, then the
 // road; a ring road round it all, and forest beyond.
 export const ROAD = 16; // the road round the village, studs wide
-export const TOWN_HALF = 232; // the village's radius to the road's outer edge, studs
+export const TOWN_HALF = 318; // the village's radius to the road's outer edge, studs
 export const RING = 40; // the gravel ring round the plaza, studs from the centre: where every path meets
 export const PATH_W = 6; // the paths, studs
 export const RING_R = RING * S; // the ring, LDU
@@ -291,14 +292,14 @@ export type Lot = { x: number; z: number; yaw: number; a: number; r: number };
 // angles, none square to another. You first, right behind the shop; then your friends
 // round the circle. [angle from north (degrees), distance (studs), twist (degrees)]
 const LOTS: [number, number, number][] = [
-  [180, 100, -8],
-  [226, 150, 9],
-  [134, 132, -12],
-  [278, 108, 6],
-  [92, 168, -6],
-  [356, 122, 11],
-  [318, 166, -9],
-  [40, 140, 5],
+  [180, 137, -8],
+  [226, 206, 9],
+  [134, 182, -12],
+  [278, 149, 6],
+  [92, 231, -6],
+  [356, 168, 11],
+  [318, 228, -9],
+  [40, 193, 5],
 ];
 export const MAX_RESIDENTS = LOTS.length;
 /** a turn about Y (LDraw), as ROT is for the quarter turns */
@@ -454,10 +455,10 @@ function seeded(seed: number) {
 // hills. One crosses the river on a bridge. A dirt track leads from the ring to a
 // lake in the woods. The woods start at the village's edge and thicken outwards.
 export const ROAD_OUT = 16; // the roads out, studs wide
-export const ROAD_END = TOWN_HALF + 130; // where the roads out fade into the hills, studs from the centre
+export const ROAD_END = TOWN_HALF + 170; // where the roads out fade into the hills, studs from the centre
 export const RIVER_W = 16; // studs
 export const RIVER_Z = -(TOWN_HALF + 40); // the river's mean line, studs (it wanders)
-const ENTRANCE = { a: (248 * Math.PI) / 180, r: 175, round: 9 }; // the roundabout: where it stands (a gap between houses, at the woods' edge), its radius (studs)
+const ENTRANCE = { a: (248 * Math.PI) / 180, r: 240, round: 9 }; // the roundabout: where it stands (a gap between houses, at the woods' edge), its radius (studs)
 export const ROUNDABOUT: [number, number] = [Math.sin(ENTRANCE.a) * ENTRANCE.r * S, Math.cos(ENTRANCE.a) * ENTRANCE.r * S];
 export const ROUND_R = ENTRANCE.round * S;
 /** a road out into the woods from the roundabout's rim, winding (LDU) */
@@ -487,7 +488,7 @@ export const LAKE = { x: Math.sin((66 * Math.PI) / 180) * (TOWN_HALF + 18) * S, 
 const LAKE_Z_FOR_BROOK = LAKE.z - 18 * S; // the brook ends at the lake's top edge
 /** a brook from the river down the village's west edge into the lake, winding (LDU) */
 export const BROOK: P3[] = (() => {
-  const x0 = 236 * S;
+  const x0 = 325 * S;
   const z0 = RIVER_Z * S + 26 * Math.sin((x0 / S) / 90) * S + 14 * Math.sin((x0 / S) / 37 + 1) * S; // on the river's line there
   const out: P3[] = [];
   for (let k = 0; k <= 12; k++) {
@@ -1272,7 +1273,7 @@ const SPUR: P3[] = [nearestStreet([ROUNDABOUT[0], 0, ROUNDABOUT[1]]), [ROUNDABOU
 // ---- landmarks between the houses: a playground and a water tower ----
 const at = (deg: number, r: number): [number, number] => [Math.sin((deg * Math.PI) / 180) * r * S, Math.cos((deg * Math.PI) / 180) * r * S];
 export const PLAYGROUND = at(300, 74); // in the gap between two houses, off the ring
-export const WATER_TOWER = at(18, 165); // at the village's edge, seen from everywhere
+export const WATER_TOWER = at(18, 240); // at the village's edge, seen from everywhere
 const PITCH_X = (a: number): Mat => [1, 0, 0, 0, Math.cos(a), -Math.sin(a), 0, Math.sin(a), Math.cos(a)]; // a lean about X
 // swings (two round-brick towers, a bar, two seats), a slide (steps up, a plate leaning
 // down), a sandbox (a tan plate with a brick rim)

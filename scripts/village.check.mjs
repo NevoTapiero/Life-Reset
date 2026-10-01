@@ -5,7 +5,7 @@ import { lotFor, lotPath, fromLot, MAX_RESIDENTS, PLOT, ROADS, TRACK, ROUNDABOUT
 const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
 for (let i = 0; i < lots.length; i++)
   for (let j = i + 1; j < lots.length; j++)
-    assert(Math.hypot(lots[i].x - lots[j].x, lots[i].z - lots[j].z) / 20 >= 90, `plots ${i} and ${j} too close`);
+    assert(Math.hypot(lots[i].x - lots[j].x, lots[i].z - lots[j].z) / 20 >= PLOT * 1.3, `plots ${i} and ${j} too close`);
 const crossesPlot = (poly, except) =>
   lots.some((lot, j) => {
     if (j === except) return false;
