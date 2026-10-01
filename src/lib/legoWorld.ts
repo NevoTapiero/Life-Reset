@@ -960,11 +960,12 @@ export const DECOR: Decor[] = [
 export const SHOP_FRONT = (-PLAZA / 2 + 34) * S; // Market Street is 34 deep, backed onto the plaza's back edge
 // The fountain, after Bethesda Fountain in New York's Central Park (Iftach, 3 Oct: "huge, like the park
 // in New York"): a round paved terrace straddling the plaza's front edge, a big pool with a stone rim, and
-// in it a pedestal, a wide lower basin, a column, an upper basin and the angel on top (the renderer's)
+// in it a pedestal, a wide lower basin, a column, an upper basin and a statue on top (the renderer's: a
+// friend of Iftach's, in bronze, in his sport sunglasses)
 export const FOUNTAIN: [number, number] = [0, 450];
 export const POOL_R = 200; // LDU, the pool's water
 export const TERRACE_R = 270; // LDU, the paved terrace round it
-export const ANGEL_AT = 176; // LDU up: the angel's feet, on top of it all
+export const STATUE_AT = 176; // LDU up: the statue's feet, on top of it all
 export function fountainSlabs(): Slab[] {
   const [x, z] = FOUNTAIN;
   const stone = "#d6ccb4";
@@ -979,10 +980,7 @@ export function fountainSlabs(): Slab[] {
     { x, z, w: 0, d: 0, r: 24, h: 60, y: 72, color: stone }, // the column
     { x, z, w: 0, d: 0, r: 64, h: 10, y: 132, color: stone }, // the upper basin
     disc(56, 4, 142, WATER, { studs: true }),
-    { x, z, w: 0, d: 0, r: 20, h: 30, y: 146, color: stone }, // the angel's plinth
-    // her wings, spread behind her (she faces the street, +z), weathered bronze
-    { x: x - 34, z: z - 22, w: 74, d: 6, h: 110, y: ANGEL_AT + 80, yaw: 0.5, color: "#8fae9c" },
-    { x: x + 34, z: z - 22, w: 74, d: 6, h: 110, y: ANGEL_AT + 80, yaw: -0.5, color: "#8fae9c" },
+    { x, z, w: 0, d: 0, r: 20, h: 30, y: 146, color: stone }, // the statue's plinth
   ];
 }
 const lamp: Piece[] = [["2039", COL.black, 0, 0, 0], ["30367c", COL.transYellow, 0, 168, 0]];

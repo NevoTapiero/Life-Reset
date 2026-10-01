@@ -112,7 +112,7 @@ import {
   STREET_LAMP_LIGHTS,
   SHOP_FRONT,
   FOUNTAIN,
-  ANGEL_AT,
+  STATUE_AT,
   type Station,
   type MinifigLook,
   type Figure,
@@ -855,9 +855,18 @@ function Minifig({
     if (done) teleDone.current = start;
   };
 
+  const posed = useRef<THREE.Object3D | null>(null);
   useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime;
-    if (!model || !root.current || statue) return;
+    if (!model || !root.current) return;
+    if (statue) {
+      // stock still, one hand raised (set once, for this model)
+      if (posed.current !== model) {
+        posed.current = model;
+        model.getObjectByName("swingR")?.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(X_AXIS, 1.3));
+      }
+      return;
+    }
     // ease into and out of the walk (no snapping between standing and striding)
     const g = gait.current;
     g.blend += ((walking?.current ? 1 : 0) - g.blend) * Math.min(1, dt * 10);
@@ -2382,9 +2391,20 @@ export function LegoTown({
           <Prop key={k} {...PARK_BURGER_STAND} lot={lot} />
         ))}
         <FountainSpray />
-        {/* the Angel of the Waters on top of the fountain, in weathered bronze, facing the street */}
-        <group position={[FOUNTAIN[0], -ANGEL_AT, FOUNTAIN[1]]} scale={1.8}>
-          <Minifig look={ANGEL} at={[0, 0, 0]} statue />
+        {/* a friend's statue on top of the fountain: bronze, bare-chested in his shorts, his curls, one hand
+            up, and his white sport sunglasses with their red mirror lenses (the one thing in colour) */}
+        <group position={[FOUNTAIN[0], -STATUE_AT, FOUNTAIN[1]]} scale={1.8}>
+          <Minifig look={STATUE} at={[0, 0, 0]} statue />
+          <mesh position={[0, -85, 10.6]}>
+            <boxGeometry args={[23, 6, 2]} />
+            <meshStandardMaterial color="#f4f4f0" roughness={0.4} />
+          </mesh>
+          <mesh position={[0, -85, 11.8]}>
+            <boxGeometry args={[19, 4.4, 1]} />
+            <meshStandardMaterial color="#b0303a" metalness={0.6} roughness={0.15} />
+          </mesh>
+          {/* he's a sniper: his rifle stood upright at his side in his free hand, the way a monument holds one */}
+          <SniperRifle at={[27, 0, 10]} />
         </group>
         <TownSign name={residents[meIndex]?.name ?? "Your"} />
         {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
@@ -4006,6 +4026,7 @@ const TELE_ARRIVE = 0.95;
 const TELE_BUILD = 1.1;
 const LIMBS = new Set(["legL", "legR", "swingL", "swingR", "head", "hair"]);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
+const X_AXIS = new THREE.Vector3(1, 0, 0);
 // the build: which group a piece comes in with (feet up), the gap between groups, and each one's hop (seconds)
 const BUILD_ORDER = (name: string) => ({ legL: 0, legR: 0, hips: 1, torso: 2, swingL: 3, swingR: 3, head: 4, hair: 5 })[name] ?? 6;
 const BUILD_GAP = 0.12;
@@ -4279,7 +4300,31 @@ function FountainSpray() {
     </instancedMesh>
   );
 }
-const ANGEL: MinifigLook = { skin: 378, hair: 378, torso: 378, legs: 378 }; // sand green: weathered bronze
+// a sniper rifle in bronze, stood on its butt (LDU, minifig scale, LDraw frame: -y up): a stock, the body
+// with its grip, a long barrel with a muzzle, and a scope along the top
+function SniperRifle({ at }: { at: [number, number, number] }) {
+  const bronze = <meshStandardMaterial color="#9db8a8" metalness={0.35} roughness={0.5} />;
+  const part = (pos: [number, number, number], geo: React.ReactNode) => (
+    <mesh position={pos}>
+      {geo}
+      {bronze}
+    </mesh>
+  );
+  return (
+    <group position={at}>
+      {part([0, -16, 0], <boxGeometry args={[8, 32, 14]} />) /* the stock */}
+      {part([0, -52, 1], <boxGeometry args={[8, 40, 10]} />) /* the body */}
+      {part([0, -40, -8], <boxGeometry args={[6, 12, 7]} />) /* the grip */}
+      {part([0, -104, 1], <cylinderGeometry args={[2.6, 2.6, 66, 10]} />) /* the barrel */}
+      {part([0, -139, 1], <cylinderGeometry args={[3.6, 3.6, 8, 10]} />) /* the muzzle */}
+      {part([0, -60, 10], <cylinderGeometry args={[4.4, 4.4, 30, 12]} />) /* the scope, along the front */}
+      {part([0, -46, 10], <cylinderGeometry args={[5.6, 4.4, 4, 12]} />) /* its eyepiece */}
+      {part([0, -76, 10], <cylinderGeometry args={[4.4, 5.6, 4, 12]} />) /* and its lens end */}
+    </group>
+  );
+}
+// the statue, after a friend of Iftach's: weathered bronze (sand green) all over, his tousled curls
+const STATUE: Figure = { parts: { ...figureOf({ skin: 378, hair: 378, torso: 378, legs: 378 }).parts, hair: { part: "10048", color: 378 } } };
 
 // ---- the welcome sign at the front of the plaza: "<name>'s Town" ----
 function TownSign({ name }: { name: string }) {
