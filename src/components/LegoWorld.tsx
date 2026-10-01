@@ -1171,8 +1171,25 @@ export type Pin = { key: string; at: [number, number, number] | (() => [number, 
 // low-poly cylinders, laid out again whenever you've moved a few studs.
 const STUD_REACH = 30; // studs from you: far enough that the painted studs beyond are small
 const STUD_MAX = 3 * (2 * STUD_REACH + 1) ** 2; // room for the plots' studs (laid in their own turned frames) and the open ground's, with the overlaps; a cap that bit left the ground behind you bare
+// a tuft of grass: three thin blades leaning apart (unit size, scaled where it stands)
+function tuftGeometry(): THREE.BufferGeometry {
+  const blades: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 3; k++) {
+    const g = new THREE.ConeGeometry(0.09, 0.5, 4);
+    g.translate(0, 0.25, 0);
+    g.rotateZ(0.5 - k * 0.5);
+    g.rotateY(k * 2.1);
+    blades.push(g);
+  }
+  return mergeGeometries(blades.map((g) => g.toNonIndexed()));
+}
+const TUFT_MAX = 900;
 function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vector3>; grass: string; lots: Lot[] }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
+  const tufts = useRef<THREE.InstancedMesh>(null);
+  const tuftGeo = useMemo(() => tuftGeometry(), []);
+  const tuftGreen = useMemo(() => new THREE.Color(grass).multiplyScalar(0.78), [grass]);
+  const jittered = useMemo(() => new THREE.Color(), []);
   const laid = useRef({ x: 1e9, z: 1e9 });
   const o = useMemo(() => new THREE.Object3D(), []);
   const green = useMemo(() => new THREE.Color(grass), [grass]);
@@ -1203,7 +1220,10 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
           n++;
         }
     }
-    // and the open ground round you: real studs on the grass and the meadows, none on anything flat
+    // and the open ground round you: real studs on the grass and the meadows, none on anything flat;
+    // each stud its own faint shade, and a tuft of grass on about one cell in ten
+    const tm = tufts.current;
+    let nt = 0;
     for (let i = px - STUD_REACH; i <= px + STUD_REACH; i++)
       for (let k = pz - STUD_REACH; k <= pz + STUD_REACH; k++) {
         if (n >= STUD_MAX) break;
@@ -1211,22 +1231,42 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
         if (lots.some((lot) => { const [u, v] = fromLot(lot, [x, z]); return Math.abs(u) < (PLOT / 2 + 0.5) * 20 && Math.abs(v) < (PLOT / 2 + 0.5) * 20; })) continue;
         const g = openGround(x, z);
         if (g < 0) continue;
+        const hash = ((i * 73856093) ^ (k * 19349663)) >>> 0; // the same stud always gets the same shade and tuft
         o.position.set(i + 0.5, 0.085, k + 0.5);
         o.updateMatrix();
         m.setMatrixAt(n, o.matrix);
-        m.setColorAt(n, g === 0 ? green : meadowGreens[g - 1]);
+        m.setColorAt(n, jittered.copy(g === 0 ? green : meadowGreens[g - 1]).multiplyScalar(0.96 + ((hash % 1000) / 1000) * 0.08));
         n++;
+        if (tm && nt < TUFT_MAX && hash % 11 === 0) {
+          o.position.set(i + 0.5 + ((hash % 7) / 7 - 0.5) * 0.5, 0.17, k + 0.5 + ((hash % 5) / 5 - 0.5) * 0.5);
+          o.rotation.set(0, (hash % 360) * (Math.PI / 180), 0);
+          const sz = 0.7 + ((hash % 13) / 13) * 0.6;
+          o.scale.set(sz, sz, sz);
+          o.updateMatrix();
+          tm.setMatrixAt(nt++, o.matrix);
+          o.rotation.set(0, 0, 0);
+          o.scale.set(1, 1, 1);
+        }
       }
     m.count = n;
     m.instanceMatrix.needsUpdate = true;
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    if (tm) {
+      tm.count = nt;
+      tm.instanceMatrix.needsUpdate = true;
+    }
   });
   return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, STUD_MAX]} frustumCulled={false} receiveShadow>
-      <cylinderGeometry args={[0.3, 0.3, 0.17, 16]} />
-      {/* flat-shaded: a crisp rim and a flat bright top, the way a stud reads, not a soft blob */}
-      <meshPhysicalMaterial roughness={0.5} clearcoat={0.3} clearcoatRoughness={0.4} flatShading />
-    </instancedMesh>
+    <>
+      <instancedMesh ref={mesh} args={[undefined, undefined, STUD_MAX]} frustumCulled={false} receiveShadow>
+        <cylinderGeometry args={[0.3, 0.3, 0.17, 16]} />
+        {/* flat-shaded: a crisp rim and a flat bright top, the way a stud reads, not a soft blob */}
+        <meshPhysicalMaterial roughness={0.5} clearcoat={0.3} clearcoatRoughness={0.4} flatShading />
+      </instancedMesh>
+      <instancedMesh ref={tufts} args={[undefined, undefined, TUFT_MAX]} geometry={tuftGeo} frustumCulled={false} castShadow>
+        <meshStandardMaterial color={tuftGreen} roughness={0.8} flatShading />
+      </instancedMesh>
+    </>
   );
 }
 const PLAZA_LOT: Lot = { x: 0, z: 0, yaw: 0, a: 0, r: 0 };
