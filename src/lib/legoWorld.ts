@@ -1199,34 +1199,43 @@ export function balloonSlabs(): Slab[] {
 // ring over the hills.
 export function townClouds(): Slab[] {
   const out: Slab[] = [];
-  const puff: [number, number, number, number, number][] = [
-    // dx, dz, w, d (studs), layer
-    [0, 0, 16, 6, 0],
-    [-2, -0.5, 10, 6, 1],
-    [4, 1, 8, 8, 1],
-    [-3, 0, 6, 6, 2],
-    [2, -0.5, 8, 4, 2],
-    [0, 0, 4, 4, 3],
-  ];
   const rnd = seeded(11);
-  // a few over the village itself (seen from the ground), the rest in a ring over the hills
-  const spots: [number, number, number][] = [];
-  for (let k = 0; k < 6; k++) {
-    const a = (k / 6) * Math.PI * 2 + rnd() * 0.6;
-    const d = (RING + 60 + rnd() * 120) * S;
-    spots.push([Math.cos(a) * d, Math.sin(a) * d, 1500 + rnd() * 500]);
+  // one cloud, its own shape: a long flat base of round-cornered plates, smaller ones heaped on it
+  // in one to three layers, turned its own way. `u`: LDU per unit (bigger far off); (cx, cz) its middle
+  const cloud = (cx: number, cz: number, cy: number, u: number) => {
+    const len = 8 + rnd() * 18; // units
+    const wid = 4 + rnd() * 5;
+    const yaw = rnd() * Math.PI;
+    const [c, sn] = [Math.cos(yaw), Math.sin(yaw)];
+    const puff = (dx: number, dz: number, w: number, d: number, layer: number) => {
+      const [x, z] = [cx + (dx * c - dz * sn) * u, cz + (dx * sn + dz * c) * u];
+      out.push({ x, z, w: w * u, d: d * u, h: u * 0.4, y: cy + layer * u * 0.4, radius: Math.min(w, d) * u * 0.45, yaw, color: "#ffffff", studs: true });
+    };
+    const base = 2 + Math.floor(rnd() * 4); // flat puffs along its length
+    for (let k = 0; k < base; k++) {
+      const t = base === 1 ? 0 : k / (base - 1) - 0.5;
+      puff(t * len * 0.7 + (rnd() - 0.5) * 2, (rnd() - 0.5) * wid * 0.4, len / base + 4 + rnd() * 4, wid * (0.6 + rnd() * 0.4), 0);
+    }
+    const layers = 1 + Math.floor(rnd() * 3);
+    for (let l = 1; l <= layers; l++) {
+      const n = Math.max(1, Math.floor((base - l + 1) * (0.5 + rnd() * 0.6)));
+      for (let k = 0; k < n; k++)
+        puff((rnd() - 0.5) * len * (0.7 - l * 0.15), (rnd() - 0.5) * wid * 0.3, (len / base) * (1 - l * 0.22) + 2 + rnd() * 3, wid * (0.5 - l * 0.08) + rnd() * 2, l);
+    }
+  };
+  // a few over the village (seen from the ground), at odd spots and heights, never evenly spaced
+  for (let tries = 0, made = 0; tries < 40 && made < 7; tries++) {
+    const a = rnd() * Math.PI * 2;
+    const d = (RING + 30 + rnd() * (TOWN_HALF - RING)) * S;
+    const [x, z] = [Math.cos(a) * d, Math.sin(a) * d];
+    if (out.some((p) => Math.hypot(p.x - x, p.z - z) < 70 * S)) continue;
+    cloud(x, z, 1300 + rnd() * 900, 30 + rnd() * 20);
+    made++;
   }
-  for (const [cx, cz, cy] of spots)
-    for (const [dx, dz, w, dd, layer] of puff)
-      out.push({ x: cx + dx * 40, z: cz + dz * 40, w: w * 40, d: dd * 40, h: 16, y: cy + layer * 16, radius: Math.min(w, dd) * 40 * 0.4, color: "#ffffff", studs: true });
-  for (let a = 0; a < Math.PI * 2; a += 0.55 + rnd() * 0.35) {
-    const d = (TOWN_HALF + 80 + rnd() * 70) * S;
-    const cx = Math.cos(a) * d;
-    const cz = Math.sin(a) * d;
-    const cy = 1100 + rnd() * 700; // height of the cloud's base
-    // white round-cornered plates with studs, stacked: a LEGO cloud
-    for (const [dx, dz, w, dd, layer] of puff)
-      out.push({ x: cx + dx * 60, z: cz + dz * 60, w: w * 60, d: dd * 60, h: 24, y: cy + layer * 24, radius: Math.min(w, dd) * 60 * 0.4, color: "#ffffff", studs: true });
+  // and more over the woods and the hills, bigger, at their own gaps
+  for (let a = rnd(); a < Math.PI * 2; a += 0.35 + rnd() * 0.7) {
+    const d = (TOWN_HALF + 60 + rnd() * 140) * S;
+    cloud(Math.cos(a) * d, Math.sin(a) * d, 1000 + rnd() * 1100, 45 + rnd() * 30);
   }
   return out;
 }
