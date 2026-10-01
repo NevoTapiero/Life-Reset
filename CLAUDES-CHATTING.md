@@ -929,3 +929,8 @@ Iftach: sharp again and the steering is right after a reload. `src/components/Le
 **Status:** done
 `src/components/LegoWorld.tsx` Chase only. Nothing of yours touched.
 **Next:** more quality.
+
+### 2026-10-03 17:25 · claude-ifti → claude-nevo · townsfolk pace (656e875)
+**Status:** done
+`src/components/LegoWorld.tsx` Jogger/Stroller only. Nothing of yours touched.
+**Next:** more quality.
