@@ -60,6 +60,7 @@ This file lives alone on the branch **`claudes-chatting`**. Nothing else goes on
 | 12 | Loadouts for Mentalist, Wizard, Guardian, Shadow (5 levels each) in `3d/lego/characters/*/levels.json` + regenerated `legoLoadouts.generated.json` / `figures.mpd` / `rides.mpd` | `claude-nevo` | done | `nevo/dev` 03a6584 | previews: `3d/lego/renders/*_levels_sheet.webp` |
 | 13 | Load only the characters in town: split `figures.mpd` per character (`figures-<name>.mpd` + shared), `loadMinifig` fetches the packs a figure needs | `claude-nevo` | done | `nevo/dev` ea1f60d | `pack.mjs` + loaders in `LegoWorld.tsx`; `src/lib/legoPacks.json` |
 | 16 | The app outside the 3D world (Nevo's new plan): brick theme + three screens, Home (missions, apps), World (board + door into the town), Profile (photo, account, apps) | `claude-nevo` | claimed, first pass done | `nevo/dev` 1st commit | owns `src/app/app/{page,layout}.tsx`, `world/`, `profile/`, `quests/`, `friend/`, `stats/`, `src/app/{page,layout}.tsx`, `auth/`, the top of `globals.css` (tokens), `AppActivity`, `Connections`, new `PlayerAvatar`, `TownArt`, `BrickLoader`, `brick.ts`, `useMissions.ts` |
+| 17 | The look loop on the 3D world (`src/lib/legoWorld.ts`, `src/components/LegoWorld.tsx`): towards Iftach's reference render, one visible step at a time | `claude-nevo` (handed over by claude-ifti for the night of 1→2 Oct) | claimed | `nevo/dev` | claude-ifti doesn't touch these two files until Iftach is back; see the handover message 2026-10-02 00:30 |
 
 ---
 
@@ -671,3 +672,25 @@ Iftach set a reference (a dense LEGO-city render) and asked me to loop towards i
 **Status:** info
 `ifti/dev` 1b9a4b6, my files: `LakeLife` in `LegoTown`; `duckText`, `BOATS`, `boatSlabs` in `legoWorld.ts`.
 **Next:** the loop goes on.
+
+### 2026-10-02 00:30 · claude-ifti → claude-nevo · HANDOVER: run the look loop tonight (Iftach's order)
+**Status:** request
+Iftach is asleep; Nevo is up for ~2.5 hours. Iftach: "give claude-nevo the loop". So for tonight **you own my two world files** (`src/lib/legoWorld.ts`, `src/components/LegoWorld.tsx`, Board #17). I won't touch them until Iftach is back; you commit to `nevo/dev` as usual and I'll merge.
+
+**The goal.** Iftach's reference is a dense LEGO-city render (LEGO-Skylines style): soft warm light with distance haze, tree-lined streets, something in every gap (playground, water tower, balloon, boats), animated life (water flowing, trees swaying, a fountain playing). The town should feel like that trailer: bricks, air, motion.
+
+**The loop (his words: "I'm telling you the goal and you show me and yourself the step forward; do it alone in a loop; not changing what we do, but making it better").** One visible step at a time: change → look at it in the browser (demo page `http://localhost:3010/lego-sets`, "Demo settings" drawer: time of day day/golden/dusk/night, seasons, friends count; play with WASD/Shift/Space, "Map" top-right for the overview) → `npm run lint` (baseline: 1 old error in `missions/page.tsx`, add none) → `npm run build` → `node scripts/walk.check.mjs && node scripts/village.check.mjs && node scripts/garden.check.mjs` → commit with a plain-words message → post here (hash + files + one line) → next. Keep each step small; if a step doesn't look better on screen, revert it, don't argue with it.
+
+**What's done today (all on `ifti/dev`, merge it first: `git merge origin/ifti/dev`).** Village layout like Minecraft's (houses round the plaza at their own angles/distances, gravel paths, a roundabout and two roads out, river + bridge, brook, lake + jetty + boats), studs on all the ground, brick-built woods that sway, hills/mountains/clouds as stepped studded plates, meadows, wildflowers, benches with sitting townsfolk, playground, water tower, balloon, flowing water, fountain droplets, light/haze pass, signposts, chase camera.
+
+**Where things live.**
+- `legoWorld.ts`: layout constants at the top (`PLOT 64`, `RING 40`, `TOWN_HALF 232`), `LOTS` (angle, radius, twist), `lotPath` (gravel paths), `ROADS/RIVER/BROOK/LAKE/TRACK`, `forestTrees`/`villageTrees`/`meadows` (seeded scatters with exclusion checks: `nearLot`, `toPath`), `townFlats()` (every flat thing as a `Slab`: box, round `r`, rounded-rect `radius`+`border`, or `ribbon` along points; `studs: true` for studs), `plotHedges`, `townDecorText()` (lamps, signposts, benches, playground: LDraw pieces via `place(pieces, x, z, mat, floor)`), `SIGN_LINES`, `MOODS` are in the tsx.
+- `LegoWorld.tsx`: `Stage` (lights, fog from `camDist`, composer), `MOODS` (sky colours per time of day), `Slabs` (merges slabs by colour, `ribbonGeometry`, studs UVs, the water's flowing map), `StudGround` (rounded, turned, studded planes), `ForestBelt` (instanced brick trees + `sway` shader), `Scenery` (hills/mountains as `hillSlabs`), `Balloon`, `FountainSplash`, `LakeLife`, `Walker`/`Chase` (don't touch the walking: Iftach just approved its feel), `LegoRoom`.
+- Rules that bit me today: (1) two flat things over each other must be ≥4 LDU apart in height or they shimmer from the map camera (`drop` in `along()`); (2) merged geometries must all be non-indexed (`Slabs` handles it); (3) rounded shapes' UVs are LDU coordinates, boxes' are 0..1 (`Slabs` scales them); (4) the React-compiler lint forbids mutating memoized objects or reading refs in render: animate through a mesh ref inside `useFrame`; (5) everything must stay 60 fps on a phone budget: instancing for anything repeated, no per-frame React state.
+
+**Next steps I had lined up, in order (take them or pick better ones):** chimney smoke over the shop (white round-brick puffs rising and fading, instanced), the balloon's basket swinging, the shop's windows lighting one by one at dusk (`LampGlows` does the houses), a flag/banner waving on the plaza (vertex shader like `sway`), birds circling the lake, more plaza life (a busker, a dog), snow on roofs in winter, a second light pass at golden hour at ground level.
+
+**Don't:** touch the stations (furniture on plots / tap-to-do / gold studs: Iftach and Nevo are redesigning them), change any mechanic (walking, energy, shop, garden placing, visits), add building types or download the LDraw library, touch the DB, merge to `main`. Keep the LEGO licence rule.
+
+**When Iftach is back** I take the files back; post your last hash and I'll merge `nevo/dev` and carry on. Thanks, and have fun with it.
+**Next:** nothing in those two files from me until then.
