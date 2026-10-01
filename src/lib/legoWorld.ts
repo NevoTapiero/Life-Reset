@@ -169,8 +169,9 @@ export function buildGarden(streak: number, s: HouseSpec, stations: Station[] = 
 
   // the path from the door to the edge, and on to the gate where the gravel path begins
   let z = front;
-  for (; z + 1 < PLOT + 3; z += 2) out.push(put("3068b", COL.lightGrey, pathL + 0.5, z + 0.5, 0));
-  if (z < PLOT + 3) out.push(put("3069b", COL.lightGrey, pathL + 0.5, z, 0));
+  // tan tiles, as wide as the gravel path outside, so it's one path from the door to the ring
+  for (; z + 1 < PLOT + 3; z += 2) for (const dx of [-2, 0, 2]) out.push(put("3068b", COL.tan, pathL + 0.5 + dx, z + 0.5, 0));
+  if (z < PLOT + 3) for (const dx of [-2, 0, 2]) out.push(put("3069b", COL.tan, pathL + 0.5 + dx, z, 0));
 
   // the name sign at the gate, beside the path, and the fence round the yard
   out.push(...fenceLines(s));
@@ -331,17 +332,19 @@ export function inLot(lot: Lot, [x, y, z]: [number, number, number]): [number, n
 /** the middle of the tiled path from a house's door, in the plot frame (LDU) */
 export const pathX = (s: HouseSpec) => (doorCells(s)[1] + 1 - PLOT / 2) * S;
 export function lotPath(lot: Lot, level: number): P3[] {
-  const gate = inLot(lot, [pathX(houseSpec(level)), 0, (PLOT / 2 + 3) * S]); // where the tiles end, past the hedge
-  const end = nearestStreet(gate);
-  const [dx, dz] = [end[0] - gate[0], end[2] - gate[2]];
-  const len = Math.hypot(dx, dz) || 1;
-  const [nx, nz] = [-dz / len, dx / len]; // across the path
-  const bend = (lot.a * 7 + lot.r) % 2 ? 1 : -1;
-  const wind = [0, 0.35, 0.7, 1].map((t, k) => {
-    const w = k === 0 || k === 3 ? 0 : bend * (k === 1 ? 1 : -1) * 6 * S;
-    return [gate[0] + dx * t + nx * w, 0, gate[2] + dz * t + nz * w] as P3;
-  });
-  return wind.reverse();
+  // straight out of the gate, square to the fence, then one smooth curve round to the ring
+  const x = pathX(houseSpec(level));
+  const gate = inLot(lot, [x, 0, (PLOT / 2 + 3) * S]); // where the tiles end, past the fence
+  const out = inLot(lot, [x, 0, (PLOT / 2 + 12) * S]);
+  const ctrl = inLot(lot, [x, 0, (PLOT / 2 + 12) * S + lot.r * S * 0.35]); // on along the same line
+  const end = nearestStreet(ctrl);
+  const curve: P3[] = [];
+  for (let k = 0; k <= 10; k++) {
+    const t = k / 10;
+    const [a, b, c] = [(1 - t) * (1 - t), 2 * (1 - t) * t, t * t]; // a quadratic curve: out of the gate, bending to the ring
+    curve.push([a * out[0] + b * ctrl[0] + c * end[0], 0, a * out[2] + b * ctrl[2] + c * end[2]]);
+  }
+  return [gate, ...curve].reverse();
 }
 
 // The town as one LDraw file: each plot (its garden) as its own submodel
@@ -708,9 +711,13 @@ export function plotFence(s: HouseSpec): { a: [number, number]; b: [number, numb
   if (gx + GATE * S < E - 2 * S) out.push({ a: [gx + GATE * S, E], b: [E, E] });
   return out;
 }
-// the fence's pieces along each run, each run evenly split into whole pieces (stretched a touch to fit)
+// the fence's pieces along each run, each run evenly split into whole pieces (stretched a touch to fit),
+// and a gate post either side of the path: round bricks, a round plate on top
 function fenceLines(s: HouseSpec): string[] {
   const out: string[] = [];
+  const E = (PLOT / 2 - 0.5) * S;
+  const post: Piece[] = [...stack("3941", COL.reddishBrown, 0, 0, 3), ["4032a", COL.tan, 0, 72, 0]];
+  for (const side of [-1, 1]) out.push(...place(post, pathX(s) + side * GATE * S, E, ROT[0], 0));
   for (const { a, b } of plotFence(s)) {
     const [dx, dz] = [b[0] - a[0], b[1] - a[1]];
     const len = Math.hypot(dx, dz);
@@ -1089,7 +1096,6 @@ export type Slab = {
   ribbon?: P3[];
 };
 const GRAVEL = "#c9b48a";
-const GRAVEL_RIM = "#9c8158"; // a darker tan, the edge of a path a plate lower
 
 export function townFlats(): Slab[] {
   const out: Slab[] = [];
@@ -1102,10 +1108,7 @@ export function townFlats(): Slab[] {
   const along = (pts: P3[], w: number, color: string, h = 2, studs = true, drop = 0) => out.push({ x: 0, z: 0, w, d: 0, h, y: -h - drop, color, studs, ribbon: pts });
   // a gravel path: the gravel on top, and a darker rim a stud wide along both edges, a little lower
   // (beside the gravel, not under it, so no two surfaces lie on each other and shimmer)
-  const gravelPath = (pts: P3[]) => {
-    along(pts, GRAVEL_W, GRAVEL);
-    for (const side of [-1, 1]) along(offsetLine(pts, side * (GRAVEL_W / 2 + S / 2)), S, GRAVEL_RIM, 2, true, 2);
-  };
+  const gravelPath = (pts: P3[]) => along(pts, GRAVEL_W, GRAVEL);
   // a point `d` LDU along a polyline, and the leg's yaw
   const at = (pts: P3[], d: number): { x: number; z: number; yaw: number } | null => {
     for (let k = 0; k + 1 < pts.length; k++) {

@@ -734,6 +734,12 @@ function House({ level, name, id, cut, lit, build }: { level: number; name?: str
 }
 
 // `turn`: which way the figure faces (radians about the vertical, LDraw frame)
+// how far into the jump pose a minifig is, `h` seconds into a hop: 0 on the ground, 1 mid-air
+// (a big jump only; little hops stay as they are)
+function airPose(h: number, big: boolean): number {
+  if (!big || h < 0 || h > 0.62) return 0;
+  return Math.min(1, h / 0.08) * Math.min(1, (0.62 - h) / 0.1);
+}
 function Minifig({
   look,
   at,
@@ -804,6 +810,12 @@ function Minifig({
     if (parts.every(Boolean)) {
       if (!limbs.current.length) limbs.current = parts.map((p) => p!.quaternion.clone());
       const swing = sit ? [-1.5, -1.5, 0, 0] : [s * reach, -s * reach, -s * reach * 0.8, s * reach * 0.8]; // legL legR armL armR
+      // in the air (a jump, the LEGO-game way): arms flung up, legs split, eased in and out
+      const air = airPose(t - hopAt.current, hopBig.current);
+      if (air > 0) {
+        const pose = [0.75, -0.55, 2.5, 2.3];
+        for (let k = 0; k < 4; k++) swing[k] += (pose[k] - swing[k]) * air;
+      }
       parts.forEach((p, k) =>
         p!.quaternion.copy(limbs.current[k]).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), swing[k])),
       );
@@ -832,8 +844,15 @@ function Minifig({
     // a bounce on every step and a waddle from foot to foot (LDraw is -Y up)
     const bounce = Math.abs(s) * (1.5 + stride * 0.15) * g.blend;
     root.current.position.y = at[1] + (sit ? 6 : 0) - bounce - (h < hopTime ? Math.sin((h / hopTime) * Math.PI) * hopHeight : 0);
+    root.current.rotation.order = "YXZ"; // the lean is about its own sideways axis, whichever way it faces
     root.current.rotation.z = s * 0.075 * g.blend;
     root.current.rotation.y = turn + Math.sin(t * 0.3) * 0.25 * (1 - g.blend);
+    // leaning into it: a little when walking, well forward when running (its front is +z)
+    root.current.rotation.x = -(stride > 20 ? 0.17 : 0.05) * g.blend;
+    // and a squash on landing from a jump: down and out for a moment, then back
+    const land = h - hopTime;
+    const squash = hopBig.current && land > 0 && land < 0.16 ? Math.sin((land / 0.16) * Math.PI) : 0;
+    root.current.scale.set(1 + squash * 0.07, 1 - squash * 0.13, 1 + squash * 0.07);
   });
 
   if (!model) return null;
@@ -1300,7 +1319,8 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
       m.setColorAt(n++, c);
       if (hash < 0) return;
       // now and then a loose round piece lying on the studs: a 2x2 round plate, or a 1x1 pebble
-      if (nb < BITS_MAX && hash % 41 === 3) {
+      // (only well clear of paths, roads and water: never half on a path's edge)
+      if (nb < BITS_MAX && hash % 41 === 3 && [[2, 0], [-2, 0], [0, 2], [0, -2]].every(([dx, dz]) => openGround((x + dx) * 20, -(z + dz) * 20) >= 0)) {
         const big = hash % 3 === 0;
         o.position.set(x + ((hash % 9) / 9 - 0.5) * 0.3, base + 0.2, z + ((hash % 7) / 7 - 0.5) * 0.3);
         o.scale.set(big ? 1 : 0.42, 1, big ? 1 : 0.42);
