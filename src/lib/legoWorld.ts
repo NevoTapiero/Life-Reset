@@ -1103,6 +1103,27 @@ export type Slab = {
 };
 const GRAVEL = "#c9b48a";
 
+/** the part of a polyline outside the plaza ring's outer edge (a path in stops where the ring begins) */
+function outsideRing(pts: P3[]): P3[] {
+  const R = (RING + PATH_W / 2) * S;
+  const inside = (p: P3) => Math.hypot(p[0], p[2]) < R;
+  const out: P3[] = [];
+  pts.forEach((p, i) => {
+    const a = pts[i - 1];
+    if (a && inside(a) !== inside(p)) {
+      // where the leg crosses the edge, found by halving
+      let [lo, hi] = [0, 1];
+      for (let k = 0; k < 24; k++) {
+        const t = (lo + hi) / 2;
+        if (inside([a[0] + (p[0] - a[0]) * t, 0, a[2] + (p[2] - a[2]) * t]) === inside(a)) lo = t;
+        else hi = t;
+      }
+      out.push([a[0] + (p[0] - a[0]) * lo, 0, a[2] + (p[2] - a[2]) * lo]);
+    }
+    if (!inside(p)) out.push(p);
+  });
+  return out;
+}
 export function townFlats(): Slab[] {
   const out: Slab[] = [];
   const white = "#f2f2ee";
@@ -1115,7 +1136,9 @@ export function townFlats(): Slab[] {
   // a gravel path: the gravel on top, and a darker rim a stud wide along both edges, a little lower
   // (beside the gravel, not under it, so no two surfaces lie on each other and shimmer)
   // the paths are laid in smooth tan tiles, the way LEGO towns finish their walks
-  const gravelPath = (pts: P3[]) => out.push({ x: 0, z: 0, w: GRAVEL_W, d: 0, h: 2, y: -2, color: GRAVEL, tiles: true, ribbon: pts });
+  // each stops at the ring's outer edge, a clean T where it meets it: run on into the ring, its tiles
+  // lay across the ring's at an angle, crossing seams and a ragged edge
+  const gravelPath = (pts: P3[]) => out.push({ x: 0, z: 0, w: GRAVEL_W, d: 0, h: 2, y: -2, color: GRAVEL, tiles: true, ribbon: outsideRing(pts) });
   // a point `d` LDU along a polyline, and the leg's yaw
   const at = (pts: P3[], d: number): { x: number; z: number; yaw: number } | null => {
     for (let k = 0; k + 1 < pts.length; k++) {
@@ -1182,7 +1205,7 @@ export function townFlats(): Slab[] {
   // (the boats and ducks are the renderer's: they move, see LakeLife)
   gravelPath(TRACK);
   // the gravel ring round the plaza, and a winding gravel path in from every house's gate
-  out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -5, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL, tiles: true }); // under the paths that meet it
+  out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -2, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL, tiles: true }); // flush with the paths that meet it
   // the paths in, each with a darker rim a plate lower showing along both edges and round ends,
   // layered the LEGO-game way instead of cut off flat
   for (let i = 0; i < MAX_RESIDENTS; i++) gravelPath(lotPath(lotFor(i), 3));
