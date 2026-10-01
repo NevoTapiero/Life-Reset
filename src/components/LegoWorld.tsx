@@ -44,6 +44,8 @@ import {
   doorPaths,
   minifigSpot,
   doorWalk,
+  VISIT_SIDE,
+  VISIT_AHEAD,
   insideWalk,
   rideSpot,
   type Loadout,
@@ -1992,7 +1994,7 @@ export function LegoTown({
     // straight to where you'll stand, and you build yourself again there
     if (focus === OVERVIEW) {
       setTeleports((n) => n + 1);
-      const [x, , z] = i === SHOP_FOCUS || !residents[i] ? SHOP_WALK.at(-1)! : doorWalk(lots[i], residents[i].level, i === meIndex ? 0 : 40).at(-1)!;
+      const [x, , z] = i === SHOP_FOCUS || !residents[i] ? SHOP_WALK.at(-1)! : i === meIndex ? doorWalk(lots[i], residents[i].level).at(-1)! : doorWalk(lots[i], residents[i].level, VISIT_SIDE, VISIT_AHEAD).at(-1)!;
       setArrive(new THREE.Vector3(x * LDU, 0, -z * LDU));
       setArriveTurn(i === SHOP_FOCUS || !residents[i] ? 0 : lots[meIndex].yaw - lots[i].yaw);
     } else setArrive(null);
@@ -2356,7 +2358,9 @@ export function LegoTown({
               to =
                 inside === dest
                   ? insideWalk(lots[dest], level, side, r && { x: hx + r.x, z: hz + r.z, front: hz + r.front })
-                  : doorWalk(lots[dest], level, side);
+                  : dest === meIndex
+                    ? doorWalk(lots[dest], level)
+                    : doorWalk(lots[dest], level, VISIT_SIDE, VISIT_AHEAD);
             }
             // you wave at the friend you've come to see
             const wave = inside === null && !shop && dest !== meIndex;

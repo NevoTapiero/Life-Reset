@@ -1537,11 +1537,16 @@ export const WILD = wildSpots();
 // if need be, and on down the new chain.
 export type P3 = [number, number, number];
 /** from the ring, along the path, to your spot at a lot's door; `side` steps along the door (so you stand beside its owner) */
-export function doorWalk(lot: Lot, level: number, side = 0): P3[] {
+/** in along the path to a house's door: `side` LDU to its side, `ahead` LDU out in front of it (towards the street) */
+export function doorWalk(lot: Lot, level: number, side = 0, ahead = 0): P3[] {
   const [u, y, w] = minifigSpot(houseSpec(level));
   const path = lotPath(lot, level);
-  return [...path, inLot(lot, [u + side, y, w])];
+  return [...path, inLot(lot, [u + side, y, w + ahead])];
 }
+// a visitor at a friend's door: a little to their side and out in front, between them and the street,
+// where the camera (which looks at the door from the street) sees you, not their back
+export const VISIT_SIDE = 60;
+export const VISIT_AHEAD = 40;
 /** where a house's rooms are on its plot (LDU, plot frame): their middle, and the z of their front wall */
 export type Rooms = { x: number; z: number; front: number };
 /** on from the door, across the garden, in through the front wall and on to the middle of the room (the roof comes off).
