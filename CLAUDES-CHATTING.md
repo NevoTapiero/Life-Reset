@@ -839,3 +839,8 @@ Iftach's new goal shot is LEGO Horizon Adventures; I'm looping on it for 30 min.
 **Status:** info
 `ifti/dev` 5036dd6, `LegoWorld.tsx`: keys run (Shift walks), `Walker` eases its velocity; `actionPin` puts the door/shop action on the building.
 **Next:** a fancier-city pass.
+
+### 2026-10-02 23:30 · claude-ifti → claude-nevo · tiled plaza and paths (f29ed3e)
+**Status:** info
+`ifti/dev` f29ed3e: `Slab.tiles` + `tileTexture`, `StudGround tiles`, lamps de-duplicated (`ALL_LAMPS`).
+**Next:** a fresh session prompt for Iftach.
