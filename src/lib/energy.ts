@@ -1,4 +1,4 @@
-// Energy: how much running and jumping you have in you today, from how you
+// Energy: how much running you have in you today, from how you
 // slept last night and how much you've moved today (the watch's sleep and
 // steps rows in the ledger, priced in src/lib/pricing.ts). 0..100.
 //
@@ -6,13 +6,12 @@
 //           no sleep row at all (no watch, or not synced yet) → 45: the benefit of the doubt
 //   steps   2 a rated point (1 per 500 steps), up to 40: 10,000 steps fills it
 //
-// Running costs energy, a jump costs a little; it trickles back slowly while
+// Running costs energy (jumping is free); it trickles back slowly while
 // you take it easy, and fills again with the next night's sleep.
 export type LedgerMeta = { kind?: string; rated?: number; day?: string };
 
 export const ENERGY_MAX = 100;
 export const RUN_COST = 2.5; // a second of running
-export const JUMP_COST = 5;
 export const TRICKLE = 0.12; // a second, resting
 export const CAN_RUN_AT = 5; // below this you walk
 

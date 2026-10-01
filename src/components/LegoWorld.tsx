@@ -7,7 +7,7 @@ import { ContactShadows, Environment, Lightformer, OrbitControls, PerformanceMon
 import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, N8AO, ToneMapping, Vignette } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
 import { sfx, setSound, soundOn } from "@/lib/sfx";
-import { CAN_RUN_AT, ENERGY_MAX, JUMP_COST, RUN_COST, TRICKLE } from "@/lib/energy";
+import { CAN_RUN_AT, ENERGY_MAX, RUN_COST, TRICKLE } from "@/lib/energy";
 import * as THREE from "three";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -1928,14 +1928,13 @@ export function LegoTown({
   const following = focus !== OVERVIEW && inside === null && !isPlacing;
   const stick = useRef({ x: 0, y: 0 });
   const jumps = useRef(0);
-  // energy: the walker drains it as you run; a jump takes a bite; the bar reads it
+  // energy: the walker drains it as you run; the bar reads it. Jumping is free, always (Iftach, 3 Oct: a
+  // jump that cost energy just didn't happen once you'd run a while, walking or not)
   const energyRef = useRef(energy ?? ENERGY_MAX);
   useEffect(() => {
     if (energy !== null) energyRef.current = energy;
   }, [energy]);
   const jump = () => {
-    if (energy !== null && energyRef.current < JUMP_COST) return;
-    if (energy !== null) energyRef.current -= JUMP_COST;
     jumps.current++;
     sfx.jump();
   };
@@ -2487,7 +2486,7 @@ export function LegoTown({
         )}
         {!isPlacing && (
           <div className="flex items-end gap-3">
-            {following && <RoundAction icon="jump" text="Jump" tone="dark" small onClick={jump} disabled={energy !== null && energyNow < JUMP_COST} />}
+            {following && <RoundAction icon="jump" text="Jump" tone="dark" small onClick={jump} />}
             {action && !doorButtonOnBuilding && <RoundAction icon={action.icon} text={action.text} onClick={action.onClick} disabled={!action.onClick} tone={action.tone} />}
           </div>
         )}
