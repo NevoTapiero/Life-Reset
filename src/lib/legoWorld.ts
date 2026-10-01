@@ -597,7 +597,7 @@ export function forestTrees(): { x: number; z: number; h: number; pine: boolean;
   return out;
 }
 export function townLand(): string[] {
-  return [...villageTrees(), ...fieldCrops()];
+  return villageTrees();
 }
 /** is (x, z) LDU within `margin` LDU of a lot's plot (its turned square)? */
 function nearLot(x: number, z: number, lot: Lot, margin: number): boolean {
@@ -1381,13 +1381,14 @@ export const RING_SEATS: { x: number; z: number; yaw: number; bench: boolean; k:
 /** a field's centre (LDU), its turn, its size (studs: w along the channel, d across) and its crop */
 export type Field = { x: number; z: number; yaw: number; w: number; d: number; crop: number };
 export const FIELD_H = 8; // LDU, the soil's a plate high
-// flower farms, the Dutch way: one colour to a bed (gone in winter, like every flower)
-const CROPS: number[][] = [[COL.yellow], [COL.red], [COL.pink, COL.white]];
+// flower farms, the Dutch way, built as LEGO builds a flower field small: green ridges dotted with
+// 1x1 plates, one colour to a field (real flower parts are ~1400 triangles each: far too dear by the hundred)
+const CROPS: string[][] = [["#f2cd37"], ["#c91a09"], ["#fc97ac", "#f4f4f4"]];
 export const FIELDS: Field[] = (() => {
   const out: Field[] = [];
   const rnd = seeded(71);
   const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
-  for (let tries = 0; tries < 900 && out.length < 9; tries++) {
+  for (let tries = 0; tries < 900 && out.length < 7; tries++) {
     const a = rnd() * Math.PI * 2;
     const r = (RING + 45 + rnd() * (WOODS_FROM - RING - 80)) * S;
     const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
@@ -1412,33 +1413,33 @@ export function nearField(x: number, z: number, margin: number): boolean {
     return Math.abs(c * rx - s * rz) < (f.w / 2) * S + margin && Math.abs(s * rx + c * rz) < (f.d / 2) * S + margin;
   });
 }
-// the soil beds and the water channel between them (slabs), and the crops on the beds (LDraw lines)
+// the rows on a bed, studs across the field from its middle (a row of green plants every 3 studs)
+const ROW_H = 4; // LDU, a green ridge a third of a plate on the soil
+const rowsOf = (f: Field) => Array.from({ length: Math.floor((f.d - 2) / 2 / 3) }, (_, k) => 1 + 1.5 + k * 3);
+// the soil beds, the water channel between them, and the planted rows (slabs: a few merged meshes, cheap)
 export function fieldSlabs(): Slab[] {
   return FIELDS.flatMap((f) => {
     const half = ((f.d - 2) / 2) * S;
     const [nx, nz] = [Math.sin(f.yaw), Math.cos(f.yaw)]; // across the field, in the town's frame
-    const bed = (side: number): Slab => ({ x: f.x + nx * side * (S + half / 2), z: f.z + nz * side * (S + half / 2), w: f.w * S, d: half, h: FIELD_H, yaw: f.yaw, color: "#6b4a2a", studs: true });
-    return [bed(-1), bed(1), { x: f.x, z: f.z, w: f.w * S, d: 2 * S, h: 4, yaw: f.yaw, color: WATER, studs: true }];
+    const at = (v: number) => ({ x: f.x + nx * v, z: f.z + nz * v });
+    const bed = (side: number): Slab => ({ ...at(side * (S + half / 2)), w: f.w * S, d: half, h: FIELD_H, yaw: f.yaw, color: "#6b4a2a", studs: true });
+    const [c, s] = [Math.cos(f.yaw), Math.sin(f.yaw)]; // along the field
+    const out: Slab[] = [bed(-1), bed(1), { x: f.x, z: f.z, w: f.w * S, d: 2 * S, h: 4, yaw: f.yaw, color: WATER, studs: true }];
+    for (const side of [-1, 1])
+      rowsOf(f).forEach((v, r) => {
+        const row = at(side * v * S);
+        out.push({ ...row, w: (f.w - 2) * S, d: S, h: ROW_H, y: FIELD_H, yaw: f.yaw, color: "#4b9f4a", studs: true });
+        // the flowers: a 1x1 plate every other stud along the ridge, staggered row to row
+        for (let k = 0; (k + 1) * 2 < f.w - 2; k++) {
+          const u = (-f.w / 2 + 1 + (k + 0.5 + (r % 2) * 0.5) * 2) * S;
+          const colors = CROPS[f.crop];
+          out.push({ x: row.x + c * u, z: row.z - s * u, w: S, d: S, h: 8, y: FIELD_H + ROW_H, yaw: f.yaw, color: colors[(k + r) % colors.length], studs: true });
+        }
+      });
+    return out;
   });
 }
 const WATER = "#3f8fd8";
-function fieldCrops(): string[] {
-  const out: string[] = [];
-  for (const f of FIELDS) {
-    const colors = CROPS[f.crop];
-    const [c, s] = [Math.cos(f.yaw), Math.sin(f.yaw)];
-    const rows = Math.floor((f.d - 2) / 4); // a flower every 2 studs each way
-    for (const side of [-1, 1])
-      for (let row = 0; row < rows; row++)
-        for (let k = 0; k < f.w / 2; k++) {
-          // in the field's frame: along (u) and across (v), one centred in each 2x2 of its bed
-          const u = (-f.w / 2 + (k + 0.5) * 2) * S;
-          const v = side * (1 + (row + 0.5) * 2) * S;
-          out.push(line(colors[(k + row) % colors.length], f.x + c * u + s * v, -FIELD_H - BOTTOM["3741ac05"], f.z - s * u + c * v, ROT[0], "3741ac05"));
-        }
-  }
-  return out;
-}
 
 export const MEADOWS = meadows(); // (after the landmarks: it keeps off them)
 
