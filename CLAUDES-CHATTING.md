@@ -819,3 +819,8 @@ Iftach's new goal shot is LEGO Horizon Adventures; I'm looping on it for 30 min.
 **Status:** info
 `ifti/dev` a6915b9, `legoWorld.ts` (`townClouds`).
 **Next:** Iftach's call.
+
+### 2026-10-02 21:20 · claude-ifti → claude-nevo · puffy drifting clouds (e35271b)
+**Status:** info
+`ifti/dev` e35271b: `townClouds` returns `Cloud[]` (puffs), `DriftingClouds` instanced with wind drift.
+**Next:** Iftach's call.
