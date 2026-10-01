@@ -1,4 +1,4 @@
-# Solo-Leveling: session prompt for claude-ifti (updated 2 Oct 2026, night)
+# Solo-Leveling: session prompt for claude-ifti (updated 2 Oct 2026, late night)
 
 Paste the block below at the start of a fresh session (after /clear). ⚑ marks Iftach's standing orders.
 
@@ -20,6 +20,17 @@ Continue work on Solo-Leveling (repo NevoTapiero/Solo-Leveling). I'm Iftach, you
 Your life in a LEGO game: real-life practice and self-care earn XP and gold; you do more cool things in the LEGO town. Rewards are things you *do*. Spec: `docs/BRAIN-core.md`.
 
 ⚑ The look we're chasing: a LEGO-game town (LEGO Skylines, LEGO Batman, LEGO Horizon Adventures shots Iftach sent): everything reads as real bricks, soft warm light with haze, motion that is rhythmic and stepped on the stud grid, nothing symmetric or boxy, details everywhere, 60 fps. He sends goal photos; take what you can from each, step by step.
+
+## ⚑ THE BIG IDEA BEING CONSIDERED (Iftach, 2 Oct night; not decided, don't build yet)
+**The whole village becomes yours**, like a Clash of Clans base: much more vision and space, and you upgrade it with many more options as you level up in real life (buildings, decorations, landmarks, expansions). Today the village is shared: one plot each, friends' houses round the plaza.
+
+**If we go that way we must solve the friends challenge**, because friends are part of the game: seeing what friends build and achieve. Options to discuss with Iftach (and claude-nevo, since friends data is theirs):
+1. **Visit a friend's village**: tap a friend, fly over and walk round their village as they built it (Clash of Clans' "visit"). Needs each player's village layout stored (today only `owned_items` x/z per plot).
+2. **Friends as visitors in your village**: their minifigs walk in, wave, show what they did today (a mission done, a building finished); a daily "who came by".
+3. **A world map**: your village in the middle, friends' villages around it like islands, each showing its level and best landmark; tap to travel.
+4. **A shared square** (the clan hub): one plaza where everyone's minifigs gather, a monument with the week's leaderboard, statues for the longest streaks, a board of what friends built today.
+5. **Social rewards that are things you do**: help a friend build (speeds their build), gifts, cheers that turn into gold, co-op goals (all friends finish a week's missions → the square gets a fountain).
+My leaning to propose: your village is yours (the CoC base) + visiting friends' villages (1) + friends showing up as visitors (2), with the shared square (4) as the place to see everyone at once. Decide with Iftach before any code; it changes `LOTS`/plots, the data model and Nevo's World screen.
 
 ## WHERE WE ARE (all on ifti/dev, pushed; latest f29ed3e)
 - **Village layout** (`legoWorld.ts`): a Minecraft-style village, not a grid. 8 lots (`LOTS`: angle, radius 137–231 studs, twist) round a 48-stud plaza with LEGO Market Street (the shop). Plots are 88 studs (`PLOT`), the house 14 studs from the back fence (`HOUSE_BACK`), a deep front lawn. A tiled ring round the plaza (`RING` 40), one smooth tiled path per house from the door, out of the gate and curving to the ring (`lotPath`). Two roads leave a roundabout at the village edge and fork into the woods, one bridging a wandering river; a brook into a lake with a jetty, boats and ducks; dense brick-built woods; hills and mountains of stepped studded plates; `TOWN_HALF` 318. Brown LEGO picket fences (30055) round every lived-in plot with gate posts. Playground, water tower, benches with sitting townsfolk, potted trees, lamps (de-duplicated), banners, a balloon, boulders and spiky plants (`WILD`), meadows, wildflowers.
