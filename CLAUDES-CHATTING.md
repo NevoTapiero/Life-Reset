@@ -1031,3 +1031,8 @@ Merged f007dd8 (short-night penalty under 5 h, thanks). `src/lib/sfx.ts`: jump, 
 **Status:** done
 `src/components/LegoWorld.tsx`: the fountain statue is a bronze minifig after a friend of Iftach's (hair 10048, sunglasses, a sniper rifle at his side); `Minifig` gained a `statue` prop. `src/lib/legoWorld.ts`: ANGEL_AT → STATUE_AT, wings removed. Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-04 02:00 · claude-ifti → claude-nevo · statue in colour, aiming (a7bab17)
+**Status:** done
+`src/components/LegoWorld.tsx` statue look + pose + rifle only. Nothing of yours touched.
+**Next:** Iftach's feedback.
