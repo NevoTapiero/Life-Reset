@@ -130,18 +130,22 @@ export function doorCells(s: HouseSpec) {
 }
 
 
-// Your stations stand outside, round the house, where the neighbours see what
-// you're up to: down both sides of it (as many as fit, up to four a side) and
-// the two front corners, by the street. Plot frame, studs; f: which way it faces.
+// Your stations stand outside in the front garden, where the neighbours see what you're up to.
+// Plot frame, studs; f: which way it faces.
 export const STATION_SIZE = 6; // studs, the room a station takes
 export function stationSpots(s: HouseSpec): { x: number; z: number; f: Mat }[] {
+  // out on the front lawn, in tidy rows either side of the path from the gate to the door, each
+  // on its own pad, all facing the gate: walking in, you read every one. Nearest the house first,
+  // the inner pair before the outer.
   const out: { x: number; z: number; f: Mat }[] = [];
-  const perSide = Math.min(4, Math.floor((s.d - 2) / STATION_SIZE));
-  for (let k = 0; k < perSide; k++) {
-    const z = s.z0 + 4 + k * STATION_SIZE;
-    out.push({ x: s.x0 / 2, z, f: ROT[270] }, { x: (s.x0 + s.w + PLOT) / 2, z, f: ROT[90] });
-  }
-  out.push({ x: 9, z: PLOT - 7, f: ROT[0] }, { x: PLOT - 11, z: PLOT - 7, f: ROT[0] });
+  const path = doorCells(s)[1] + 1; // the path's column
+  const front = s.z0 + s.d;
+  for (let z = front + 10; z <= PLOT - 9; z += 14)
+    for (const dx of [-12, 12, -26, 26]) {
+      const x = path + dx;
+      if (x < 6 || x > PLOT - 6) continue;
+      out.push({ x, z, f: ROT[0] });
+    }
   return out;
 }
 /** a station's centre in the plot frame (LDU) */
@@ -156,7 +160,8 @@ export function buildGarden(streak: number, s: HouseSpec, stations: Station[] = 
     const kinds = FURNITURE[st.pillar] ?? FURNITURE.Discipline;
     const n = (seen[st.pillar] = (seen[st.pillar] ?? -1) + 1);
     const [x, z] = stationAt(spots[i]);
-    out.push(...place(kinds[n % kinds.length], x, z, spots[i].f, 0));
+    out.push(line(COL.tan, x, -8, z, spots[i].f, "3958")); // its pad, a 6x6 plate
+    out.push(...place(kinds[n % kinds.length], x, z, spots[i].f, -8));
   });
   const door = doorCells(s);
   const pathL = door[1];
@@ -1451,7 +1456,7 @@ export function townBlockers(residents: Resident[]): Blocker[] {
     (r.stations ?? []).slice(0, spots.length).forEach((_, k) => {
       const [x, z] = stationAt(spots[k]);
       const [cx, , cz] = inLot(lot, [x, 0, z]);
-      out.push({ cx, cz, hw: 55, hd: 55, yaw: lot.yaw });
+      out.push({ cx, cz, hw: 62, hd: 62, yaw: lot.yaw });
     });
   });
   const shop = SHOP as House;
