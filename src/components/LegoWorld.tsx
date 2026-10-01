@@ -4139,9 +4139,46 @@ const BEAK_BACK = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1
 // soft round shape, flattened a touch; a few hundred matrices a frame. LDraw frame (in the group).
 const WIND: [number, number] = [Math.cos(0.25), Math.sin(0.25)];
 const PUFF_COUNT = CLOUDS.reduce((n, c) => n + c.puffs.length, 0);
+// A cloud's puff, brick-built the way the LEGO games build their skies: a flat-bottomed base and round
+// plates stacked on it, each tier smaller, so it steps up into a dome, with studs on every tier's top
+// (unit radius; the studs are drawn about a stud apart at a puff's usual size)
+function cloudPuffGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const flat = (g: THREE.BufferGeometry) => {
+    const uv = g.attributes.uv as THREE.BufferAttribute;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.02, 0.02); // the plain white between studs
+    return g;
+  };
+  const tiers: [number, number, number][] = [[-0.3, 0, 0.88], [0, 0.3, 1], [0.3, 0.6, 0.82], [0.6, 0.85, 0.58], [0.85, 1.05, 0.32]]; // bottom, top, radius: bold steps
+  tiers.forEach(([y0, y1, r]) => {
+    const side = flat(new THREE.CylinderGeometry(r, r, y1 - y0, 28, 1, true));
+    side.translate(0, (y0 + y1) / 2, 0);
+    const top = new THREE.CircleGeometry(r, 28);
+    top.rotateX(-Math.PI / 2);
+    top.translate(0, y1, 0);
+    const uv = top.attributes.uv as THREE.BufferAttribute;
+    const pos = top.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) * 8, pos.getZ(i) * 8); // studs across the top
+    parts.push(side.toNonIndexed(), top.toNonIndexed());
+  });
+  const bottom = flat(new THREE.CircleGeometry(0.88, 28));
+  bottom.rotateX(Math.PI / 2);
+  bottom.translate(0, -0.3, 0);
+  parts.push(bottom.toNonIndexed());
+  return mergeGeometries(parts);
+}
+
 function DriftingClouds() {
   const puffs = useRef<THREE.InstancedMesh>(null);
   const o = useMemo(() => new THREE.Object3D(), []);
+  const geometry = useMemo(() => cloudPuffGeometry(), []);
+  const studs = useMemo(() => {
+    const t = studTexture().clone();
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.needsUpdate = true;
+    return t;
+  }, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   useFrame(({ clock }) => {
     const m = puffs.current;
     if (!m) return;
@@ -4156,7 +4193,7 @@ function DriftingClouds() {
       const [cx, cz] = [along * WIND[0] - across * WIND[1], along * WIND[1] + across * WIND[0]];
       for (const [dx, dy, dz, r] of c.puffs) {
         o.position.set(cx + dx, -(c.y + dy), cz + dz); // LDraw: -y is up
-        o.scale.set(r, r * 0.78, r);
+        o.scale.set(r, r * 0.8, r);
         o.updateMatrix();
         m.setMatrixAt(i++, o.matrix);
       }
@@ -4166,10 +4203,9 @@ function DriftingClouds() {
   return (
     <group>
       <Balloon />
-      <instancedMesh ref={puffs} args={[undefined, undefined, PUFF_COUNT]} frustumCulled={false}>
-        <sphereGeometry args={[1, 18, 12]} />
-        {/* soft white, lit a little from within so the shaded side stays light, like a real cloud */}
-        <meshStandardMaterial color="#ffffff" emissive="#dfe8f5" emissiveIntensity={0.35} roughness={1} />
+      <instancedMesh ref={puffs} args={[geometry, undefined, PUFF_COUNT]} frustumCulled={false}>
+        {/* white plastic, lit a little from within so the shaded side stays light, like a real cloud */}
+        <meshStandardMaterial color="#ffffff" map={studs} emissive="#dfe8f5" emissiveIntensity={0.18} roughness={0.55} />
       </instancedMesh>
     </group>
   );
