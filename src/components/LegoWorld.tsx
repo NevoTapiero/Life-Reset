@@ -750,6 +750,7 @@ function Minifig({
   stride = 10,
   jumpRef,
   sit = false,
+  teleRef,
 }: {
   /** four colours (townsfolk) or a whole figure (a character's loadout) */
   look: MinifigLook | Figure;
@@ -765,6 +766,8 @@ function Minifig({
   stride?: number;
   /** bumped to jump (the Jump button, Space) */
   jumpRef?: React.RefObject<number>;
+  /** the clock time a teleport began (-1: none): it bursts apart, then builds itself again (TELE_*) */
+  teleRef?: React.RefObject<number>;
 }) {
   const [model, setModel] = useState<THREE.Object3D | null>(null);
   const key = JSON.stringify("parts" in look ? { parts: look.parts, gear: look.gear, shoes: look.shoes } : figureOf(look));
@@ -789,6 +792,52 @@ function Minifig({
   // each figure fidgets on its own clock (an offset from its id), so the town never moves in step
   const id = useId();
   const fidgetOffset = useMemo(() => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 9973, 7) / 9973 * FIDGET_EVERY, [id]);
+
+  // a teleport, the LEGO way: every piece bursts out, spinning, and is gone; then at the other end
+  // they drop back in one by one from the feet up and click together. In stop-motion steps (15 a
+  // second, like the LEGO films), so it reads as built, not morphed
+  const homes = useRef<{ p: THREE.Vector3; q: THREE.Quaternion }[] | null>(null);
+  const teleDone = useRef(-1);
+  const spin = useMemo(() => new THREE.Quaternion(), []);
+  const teleport = (t: number) => {
+    const start = teleRef?.current ?? -1;
+    if (!model || start < 0 || teleDone.current === start) return;
+    const pieces = model.children;
+    if (!homes.current || homes.current.length !== pieces.length) homes.current = pieces.map((c) => ({ p: c.position.clone(), q: c.quaternion.clone() }));
+    const home = homes.current;
+    const e = Math.floor((t - start) * 15) / 15;
+    // the feet first, the hair last (LDraw: lower is larger y)
+    const order = pieces.map((_, k) => k).sort((a, b) => home[b].p.y - home[a].p.y);
+    const done = e >= TELE_ARRIVE + TELE_BUILD;
+    pieces.forEach((c, k) => {
+      const h = home[k];
+      const animated = LIMBS.has(c.name); // the walk sets these every frame; the rest keep their home turn
+      if (done) {
+        c.position.copy(h.p);
+        c.scale.setScalar(1);
+        if (!animated) c.quaternion.copy(h.q);
+        return;
+      }
+      let [out, up, turn, size] = [0, 0, 0, 0];
+      if (e < TELE_BREAK) {
+        const u = e / TELE_BREAK;
+        [out, up, turn] = [80 * u, 120 * u - 170 * u * u, u * 5 * (k % 2 ? 1 : -1)];
+        size = u < 0.6 ? 1 : 1 - (u - 0.6) / 0.4;
+      } else if (e >= TELE_ARRIVE) {
+        const j = order.indexOf(k);
+        const v = Math.min(1, Math.max(0, (e - TELE_ARRIVE - (j * TELE_BUILD * 0.65) / pieces.length) / 0.3));
+        if (v > 0) [up, turn, size] = [150 * (1 - v) ** 3, (1 - v) * 3 * (k % 2 ? 1 : -1), 1];
+      }
+      // outwards from the middle, each its own way
+      const a = Math.atan2(h.p.z, h.p.x) + k * 2.4;
+      c.position.set(h.p.x + Math.cos(a) * out, h.p.y - up, h.p.z + Math.sin(a) * out);
+      c.scale.setScalar(Math.max(0.0001, size));
+      spin.setFromAxisAngle(k % 3 ? Y_AXIS : X_AXIS, turn);
+      if (animated) c.quaternion.premultiply(spin);
+      else c.quaternion.copy(h.q).premultiply(spin);
+    });
+    if (done) teleDone.current = start;
+  };
 
   useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime;
@@ -872,8 +921,8 @@ function Minifig({
     const land = h - hopTime;
     const squash = hopBig.current && land > 0 && land < 0.16 ? Math.sin((land / 0.16) * Math.PI) : 0;
     root.current.scale.set(1 + squash * 0.07, 1 - squash * 0.13, 1 + squash * 0.07);
+    teleport(t);
   });
-
   if (!model) return null;
   return (
     <group
@@ -905,6 +954,7 @@ function FitCamera({
   controls,
   follow,
   flyingRef,
+  arrive,
 }: {
   target: THREE.Vector3;
   width: number;
@@ -914,6 +964,8 @@ function FitCamera({
   follow?: React.RefObject<THREE.Vector3>;
   /** set while a glide is under way (the follow camera waits for it) */
   flyingRef?: React.RefObject<boolean>;
+  /** following someone who's about to land somewhere else (a teleport): frame there instead */
+  arrive?: THREE.Vector3 | null;
 }) {
   const { camera, size } = useThree();
   const flight = useRef<{ from: THREE.Vector3; fromAim: THREE.Vector3; to: THREE.Vector3; toAim: THREE.Vector3; t: number } | null>(null);
@@ -923,7 +975,7 @@ function FitCamera({
     const vfov = (cam.fov * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * (size.width / size.height));
     const dist = width / 2 / Math.tan(Math.min(hfov, vfov) / 2);
-    const aim = follow ? follow.current.clone().add(CHASE_LIFT) : target;
+    const aim = follow ? (arrive ?? follow.current).clone().add(CHASE_LIFT) : target;
     // by default from the front-right, looking down at the house (the front faces three's -Z)
     const to = aim.clone().addScaledVector(dir, dist);
     const c = controls.current;
@@ -937,7 +989,7 @@ function FitCamera({
     }
     flight.current = { from: cam.position.clone(), fromAim: c.target.clone(), to, toAim: aim.clone(), t: 0 };
     // (follow is a ref: only where they are when following starts matters)
-  }, [camera, size, target, width, dir, controls, follow]);
+  }, [camera, size, target, width, dir, controls, follow, arrive]);
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
@@ -1468,6 +1520,7 @@ function Stage({
   overlay,
   pins = [],
   follow,
+  arrive,
   aim,
   sunFrom = SUN_FROM,
   children,
@@ -1498,6 +1551,8 @@ function Stage({
   pins?: Pin[];
   /** follow someone (their position in three's space, kept up to date), LEGO-game style */
   follow?: React.RefObject<THREE.Vector3>;
+  /** where they're about to land (a teleport): the camera flies there, not to where they are */
+  arrive?: THREE.Vector3 | null;
   /** while following: which way round to swing the camera (behind them), or null */
   aim?: React.RefObject<number | null>;
   /** where the sun stands, from the target (three's space): behind and right outdoors, in
@@ -1628,7 +1683,7 @@ function Stage({
           />
           {/* after the controls, so it can move them */}
           <FovSync fov={fov} />
-          <FitCamera target={target} width={width} dir={dir} controls={controls} follow={follow} flyingRef={flying} />
+          <FitCamera target={target} width={width} dir={dir} controls={controls} follow={follow} flyingRef={flying} arrive={arrive} />
           {follow && <Chase follow={follow} aim={aim} controls={controls} flying={flying} cut={cameraCut} />}
           {/* outdoors: lamps and lit windows glowing after dark, a soft vignette. Everything
               stays sharp (no blur: it read as low quality). The effects draw off screen, so the
@@ -1870,6 +1925,9 @@ export function LegoTown({
     return out;
   }, [residents, lots]);
   const [goes, setGoes] = useState(0); // bumped by every "walk there", so the same place twice still walks
+  const [teleports, setTeleports] = useState(0); // bumped with it when you go from the map: you teleport there
+  const [arrive, setArrive] = useState<THREE.Vector3 | null>(null); // where a teleport lands you (three's space): the camera flies there
+  const [arriveTurn, setArriveTurn] = useState(0); // and how far round from the usual view, so you see the door from the street
   const [near, setNear] = useState<number | null>(null);
   // who you've walked up to (they say something), and a new line each time you meet
   const [talker, setTalker] = useState<string | null>(null);
@@ -1907,13 +1965,13 @@ export function LegoTown({
   }, [focus, inside, lots, following, isPlacing, meIndex]);
   // look at a house from its front: turn the view with the lot
   const dir = useMemo(() => {
-    if (following) return CHASE_DIR;
+    if (following) return arriveTurn ? CHASE_DIR.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), arriveTurn) : CHASE_DIR;
     if (isPlacing) return LOOK_DOWN.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -lots[meIndex].yaw);
     const base = inside === null ? FRONT_RIGHT : LOOK_IN;
     if (focus === OVERVIEW) return LOOK_DOWN;
     if (focus === SHOP_FOCUS) return base;
     return base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -lots[focus].yaw);
-  }, [focus, inside, lots, following, isPlacing, meIndex]);
+  }, [focus, inside, lots, following, isPlacing, meIndex, arriveTurn]);
   const bounds = useMemo(() => {
     const h = (TOWN_HALF - 8) * 20 * LDU;
     return new THREE.Box3(new THREE.Vector3(-h, 0, -h), new THREE.Vector3(h, 12, h));
@@ -1921,6 +1979,14 @@ export function LegoTown({
 
   // walk to a place (a name tapped): the camera follows you there
   const go = (i: number) => {
+    // from the map you teleport there (a minute's walk was too long: Iftach, 3 Oct): the camera flies
+    // straight to where you'll stand, and you build yourself again there
+    if (focus === OVERVIEW) {
+      setTeleports((n) => n + 1);
+      const [x, , z] = i === SHOP_FOCUS || !residents[i] ? SHOP_WALK.at(-1)! : doorWalk(lots[i], residents[i].level, i === meIndex ? 0 : 40).at(-1)!;
+      setArrive(new THREE.Vector3(x * LDU, 0, -z * LDU));
+      setArriveTurn(i === SHOP_FOCUS || !residents[i] ? 0 : lots[meIndex].yaw - lots[i].yaw);
+    } else setArrive(null);
     setFocus(i);
     setInside(null);
     setGoes((n) => n + 1);
@@ -2116,6 +2182,7 @@ export function LegoTown({
         bounds={bounds}
         pan={!following}
         follow={following ? me3 : undefined}
+        arrive={arrive}
         aim={meAim}
         fov={following ? CHASE_FOV : 32}
         mood={mood}
@@ -2284,7 +2351,7 @@ export function LegoTown({
             }
             // you wave at the friend you've come to see
             const wave = inside === null && !shop && dest !== meIndex;
-            return <Walker key="me" id="me" wave={wave} go={goes} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : lots[dest].yaw} />;
+            return <Walker key="me" id="me" wave={wave} go={goes} teleport={teleports} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : lots[dest].yaw} />;
           }
           // friends: at home, at their door, waving when you come to see them
           return <Walker key={res.name} id={res.name} wave={dest === i} look={loadoutFor(res.level, res.character ?? undefined)} to={doorWalk(lots[i], res.level)} turn={lots[i].yaw} />;
@@ -3554,6 +3621,7 @@ function Walker({
   turn,
   wave = false,
   go = 0,
+  teleport,
   input,
   blockers,
   where,
@@ -3573,6 +3641,8 @@ function Walker({
   aimRef?: React.RefObject<number | null>;
   /** your energy (0..100), drained by running and jumps, trickling back while you rest; none: no limits */
   energyRef?: React.RefObject<number>;
+  /** bumped together with `go` when you teleport there (a tap on the map) instead of walking */
+  teleport?: number;
   input?: React.RefObject<{ x: number; y: number }>;
   blockers?: Blocker[];
   where?: React.RefObject<THREE.Vector3>;
@@ -3582,16 +3652,22 @@ function Walker({
   const key = JSON.stringify(to) + "#" + go;
   // `from`: the place you last walked to, or null after driving yourself somewhere
   const state = useRef<{ from: P3[] | null; pos: P3; walk: { r: Route; i: number; f: number } | null }>(null);
+  // a teleport: when it began (the minifig plays it, see Minifig), where to, whether it's waiting for the
+  // next frame to begin, and whether you've landed yet
+  const tele = useRef({ at: -1, to: null as P3[] | null, pending: false, landed: true, seen: teleport });
   useEffect(() => {
     const dest: P3[] = JSON.parse(key.slice(0, key.lastIndexOf("#")));
     const s = state.current;
+    const t = tele.current;
     if (!s) state.current = { from: dest, pos: dest[dest.length - 1], walk: null };
+    else if (teleport !== undefined && teleport !== t.seen) Object.assign(t, { seen: teleport, to: dest, pending: true });
     else {
       const r = s.walk ? rerouteFrom(s.walk.r, s.walk.i, s.pos, dest) : s.from ? walkRoute(s.from, dest) : walkFrom(s.pos, dest);
       s.walk = r.pts.length > 1 ? { r, i: 0, f: 0 } : null;
       s.from = dest;
     }
-  }, [key]);
+  }, [key, teleport]);
+  const teleAt = useRef(-1); // (for the minifig: when the teleport began)
   const look3 = useMemo(() => new THREE.Vector3(), []);
   // driving yourself, the LEGO-game way: the stick points across the screen (the camera keeps its
   // angle and follows), you turn on the spot to it at once, and only your speed eases: a quick
@@ -3679,6 +3755,29 @@ function Walker({
       if (aimRef) aimRef.current = Math.atan2(-dx, dz);
     };
     if (aimRef) aimRef.current = null;
+    // teleporting: you burst apart where you are, vanish, and build yourself again at the other end;
+    // the stick does nothing till you're whole
+    const tp = tele.current;
+    if (tp.pending) {
+      [tp.pending, tp.at, tp.landed, teleAt.current] = [false, now, false, now];
+      for (let k = 0; k < 6; k++) puff(o.position.x + Math.sin(k * 1.05) * 22, o.position.z + Math.cos(k * 1.05) * 22, now);
+      sfx.jump();
+    }
+    if (now - tp.at < TELE_ARRIVE + TELE_BUILD) {
+      if (now - tp.at >= TELE_BREAK && tp.to) {
+        [s.pos, s.from, s.walk, tp.to] = [tp.to[tp.to.length - 1], tp.to, null, null];
+        vel.current.sp = 0;
+      }
+      if (!tp.landed && now - tp.at >= TELE_ARRIVE + TELE_BUILD * 0.7) {
+        tp.landed = true;
+        for (let k = 0; k < 6; k++) puff(s.pos[0] + Math.sin(k * 1.05 + 0.3) * 26, s.pos[2] + Math.cos(k * 1.05 + 0.3) * 26, now);
+        sfx.click();
+      }
+      walking.current = false;
+      if (s.from) face(turn);
+      report(!!s.from);
+      return;
+    }
     // driving: the stick moves you relative to the camera, sliding along walls
     const stick = input?.current;
     const push = stick ? Math.min(1, Math.hypot(stick.x, stick.y)) : 0;
@@ -3769,7 +3868,7 @@ function Walker({
   return (
     <>
       <group ref={root}>
-        <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} stride={stride} jumpRef={jumpRef} />
+        <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} stride={stride} jumpRef={jumpRef} teleRef={teleAt} />
       </group>
       {input && (
         <instancedMesh ref={puffs} args={[undefined, undefined, DUST]} frustumCulled={false}>
@@ -3781,6 +3880,13 @@ function Walker({
   );
 }
 const DUST = 12;
+// a teleport's timing, seconds from the tap: bursting apart, gone (the camera's flying there), then built again
+const TELE_BREAK = 0.45;
+const TELE_ARRIVE = 0.95;
+const TELE_BUILD = 1.0;
+const LIMBS = new Set(["legL", "legR", "swingL", "swingR", "head", "hair"]);
+const X_AXIS = new THREE.Vector3(1, 0, 0);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const FIDGET_EVERY = 6; // seconds between a standing minifig's fidgets
 const JUMP_AIR = 0.62; // seconds a jump keeps you in the air
 const DUST_LIFE = 0.5; // seconds
