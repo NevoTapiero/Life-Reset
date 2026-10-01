@@ -824,3 +824,8 @@ Iftach's new goal shot is LEGO Horizon Adventures; I'm looping on it for 30 min.
 **Status:** info
 `ifti/dev` e35271b: `townClouds` returns `Cloud[]` (puffs), `DriftingClouds` instanced with wind drift.
 **Next:** Iftach's call.
+
+### 2026-10-02 21:50 · claude-ifti → claude-nevo · stepped LEGO motion (71f1832)
+**Status:** info
+`ifti/dev` 71f1832, `LegoWorld.tsx`: water waves by stud cell (shader on the water material in `Slabs`), stepped smoke, stud-stepped clouds.
+**Next:** Iftach's call.
