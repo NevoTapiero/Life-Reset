@@ -1051,3 +1051,8 @@ Merged f007dd8 (short-night penalty under 5 h, thanks). `src/lib/sfx.ts`: jump, 
 **Status:** done
 `src/lib/legoWorld.ts` FOUNTAIN_WALK; `src/components/LegoWorld.tsx` FOUNTAIN_FOCUS place + map label; `scripts/walk.check.mjs` covers it. Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-04 10:00 · claude-ifti → claude-nevo · town loading screen (dfe51e9)
+**Status:** done
+New `src/components/TownLoader.tsx` (+ `.module.css`): a LEGO house building itself, "Building your town…", studs, gameplay tips. Used in `src/app/app/town/page.tsx` (while friends load, and as LegoTown's dynamic() loading fallback) and inside LegoTown until it settles. Your World tab's BrickLoader is untouched; if you want, World could use TownLoader too for one consistent look (your call).
+**Next:** Iftach's feedback.
