@@ -597,7 +597,7 @@ export function forestTrees(): { x: number; z: number; h: number; pine: boolean;
   return out;
 }
 export function townLand(): string[] {
-  return villageTrees();
+  return [...villageTrees(), ...fieldCrops()];
 }
 /** is (x, z) LDU within `margin` LDU of a lot's plot (its turned square)? */
 function nearLot(x: number, z: number, lot: Lot, margin: number): boolean {
@@ -630,7 +630,7 @@ function villageTrees(): string[] {
     const a = rnd() * Math.PI * 2;
     const r = (RING + 14 + rnd() * (WOODS_FROM - RING - 14)) * S;
     const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
-    if (lots.some((lot) => nearLot(x, z, lot, 6 * S))) continue;
+    if (lots.some((lot) => nearLot(x, z, lot, 6 * S)) || nearField(x, z, 6 * S)) continue;
     if (paths.some((path) => toPath(x, z, path) < 7 * S)) continue;
     if (ROADS.some((p) => toPath(x, z, p) < (ROAD_OUT / 2 + 5) * S) || toPath(x, z, TRACK) < 6 * S || toPath(x, z, BROOK) < 9 * S) continue;
     if (Math.hypot(x - ROUNDABOUT[0], z - ROUNDABOUT[1]) < ROUND_R + (ROAD_OUT + 4) * S) continue;
@@ -664,7 +664,7 @@ function villageTrees(): string[] {
     const a = rnd() * Math.PI * 2;
     const r = (RING + 12 + rnd() * (WOODS_FROM - RING - 20)) * S;
     const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
-    if (lots.some((lot) => nearLot(x, z, lot, 4 * S))) continue;
+    if (lots.some((lot) => nearLot(x, z, lot, 4 * S)) || nearField(x, z, 4 * S)) continue;
     if (paths.some((path) => toPath(x, z, path) < 5 * S) || toPath(x, z, TRACK) < 5 * S) continue;
     if (Math.hypot(x - PLAYGROUND[0], z - PLAYGROUND[1]) < 240 || Math.hypot(x - WATER_TOWER[0], z - WATER_TOWER[1]) < 150) continue;
     if (taken.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 4 * S)) continue;
@@ -1186,6 +1186,7 @@ export function townFlats(): Slab[] {
   // the paths in, each with a darker rim a plate lower showing along both edges and round ends,
   // layered the LEGO-game way instead of cut off flat
   for (let i = 0; i < MAX_RESIDENTS; i++) gravelPath(lotPath(lotFor(i), 3));
+  out.push(...fieldSlabs());
   // a sandy disc round the fountain with a darker border (round slabs)
   out.push(
     { x: FOUNTAIN[0], z: FOUNTAIN[1], r: 150, w: 0, d: 0, h: 1, color: "#8b7a5c" },
@@ -1274,7 +1275,7 @@ export function meadows(): { x: number; z: number; r: number; k: number }[] {
     const r = (RING + 30 + rnd() * (TOWN_HALF + 60 - RING - 30)) * S;
     const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
     const size = (18 + rnd() * 26) * S;
-    if (lots.some((lot) => nearLot(x, z, lot, size))) continue;
+    if (lots.some((lot) => nearLot(x, z, lot, size)) || nearField(x, z, size)) continue;
     if (paths.some((p) => toPath(x, z, p) < size) || toPath(x, z, TRACK) < size || ROADS.some((p) => toPath(x, z, p) < size + 10 * S)) continue;
     if (toPath(x, z, RIVER) < size + 12 * S || toPath(x, z, BROOK) < size + 8 * S || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + size) continue;
     if (Math.hypot(x - PLAYGROUND[0], z - PLAYGROUND[1]) < size + 200 || Math.hypot(x - WATER_TOWER[0], z - WATER_TOWER[1]) < size + 120) continue;
@@ -1315,6 +1316,7 @@ export function openGround(x: number, z: number): number {
   for (const l of flatLines()) if (x > l.x0 && x < l.x1 && z > l.z0 && z < l.z1 && toPath(x, z, l.pts) < l.d) return -1;
   if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 4 * S) return -1;
   if (Math.hypot(x - ROUNDABOUT[0], z - ROUNDABOUT[1]) < ROUND_R + (ROAD_OUT + 1) * S) return -1;
+  if (nearField(x, z, S)) return -1;
   for (const m of MEADOWS) if (Math.hypot(x - m.x, z - m.z) < m.r) return m.k + 1;
   return 0;
 }
@@ -1374,6 +1376,70 @@ export const RING_SEATS: { x: number; z: number; yaw: number; bench: boolean; k:
   return out;
 })();
 
+// ---- fields in the gaps between the houses, the Minecraft-village way: raised beds of
+// brown studded soil either side of a water channel, rows of flowers on each ----
+/** a field's centre (LDU), its turn, its size (studs: w along the channel, d across) and its crop */
+export type Field = { x: number; z: number; yaw: number; w: number; d: number; crop: number };
+export const FIELD_H = 8; // LDU, the soil's a plate high
+// flower farms, the Dutch way: one colour to a bed (gone in winter, like every flower)
+const CROPS: number[][] = [[COL.yellow], [COL.red], [COL.pink, COL.white]];
+export const FIELDS: Field[] = (() => {
+  const out: Field[] = [];
+  const rnd = seeded(71);
+  const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
+  for (let tries = 0; tries < 900 && out.length < 9; tries++) {
+    const a = rnd() * Math.PI * 2;
+    const r = (RING + 45 + rnd() * (WOODS_FROM - RING - 80)) * S;
+    const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
+    const [w, d] = [32 + Math.floor(rnd() * 4) * 4, 18 + Math.floor(rnd() * 3) * 4];
+    const room = (Math.hypot(w, d) / 2 + 6) * S; // the field's reach, and air round it
+    if (lots.some((lot) => nearLot(x, z, lot, room))) continue;
+    if (LOT_PATHS.some((p) => toPath(x, z, p) < room + 4 * S) || toPath(x, z, TRACK) < room || toPath(x, z, SPUR) < room) continue;
+    if (ROADS.some((p) => toPath(x, z, p) < room + (ROAD_OUT / 2 + 4) * S) || toPath(x, z, BROOK) < room + 6 * S) continue;
+    if (Math.hypot(x - PLAYGROUND[0], z - PLAYGROUND[1]) < room + 220 || Math.hypot(x - WATER_TOWER[0], z - WATER_TOWER[1]) < room + 130) continue;
+    if (Math.hypot(x - ROUNDABOUT[0], z - ROUNDABOUT[1]) < room + ROUND_R + ROAD_OUT * S) continue;
+    if (out.some((f) => Math.hypot(f.x - x, f.z - z) < room + (Math.hypot(f.w, f.d) / 2 + 4) * S)) continue;
+    // its long side across the way out from the plaza, give or take a twist
+    out.push({ x, z, yaw: a + (rnd() - 0.5) * 0.6, w, d, crop: out.length % CROPS.length });
+  }
+  return out;
+})();
+/** is (x, z) LDU within `margin` LDU of a field? */
+export function nearField(x: number, z: number, margin: number): boolean {
+  return FIELDS.some((f) => {
+    const [c, s] = [Math.cos(f.yaw), Math.sin(f.yaw)];
+    const [rx, rz] = [x - f.x, z - f.z];
+    return Math.abs(c * rx - s * rz) < (f.w / 2) * S + margin && Math.abs(s * rx + c * rz) < (f.d / 2) * S + margin;
+  });
+}
+// the soil beds and the water channel between them (slabs), and the crops on the beds (LDraw lines)
+export function fieldSlabs(): Slab[] {
+  return FIELDS.flatMap((f) => {
+    const half = ((f.d - 2) / 2) * S;
+    const [nx, nz] = [Math.sin(f.yaw), Math.cos(f.yaw)]; // across the field, in the town's frame
+    const bed = (side: number): Slab => ({ x: f.x + nx * side * (S + half / 2), z: f.z + nz * side * (S + half / 2), w: f.w * S, d: half, h: FIELD_H, yaw: f.yaw, color: "#6b4a2a", studs: true });
+    return [bed(-1), bed(1), { x: f.x, z: f.z, w: f.w * S, d: 2 * S, h: 4, yaw: f.yaw, color: WATER, studs: true }];
+  });
+}
+const WATER = "#3f8fd8";
+function fieldCrops(): string[] {
+  const out: string[] = [];
+  for (const f of FIELDS) {
+    const colors = CROPS[f.crop];
+    const [c, s] = [Math.cos(f.yaw), Math.sin(f.yaw)];
+    const rows = Math.floor((f.d - 2) / 4); // a flower every 2 studs each way
+    for (const side of [-1, 1])
+      for (let row = 0; row < rows; row++)
+        for (let k = 0; k < f.w / 2; k++) {
+          // in the field's frame: along (u) and across (v), one centred in each 2x2 of its bed
+          const u = (-f.w / 2 + (k + 0.5) * 2) * S;
+          const v = side * (1 + (row + 0.5) * 2) * S;
+          out.push(line(colors[(k + row) % colors.length], f.x + c * u + s * v, -FIELD_H - BOTTOM["3741ac05"], f.z - s * u + c * v, ROT[0], "3741ac05"));
+        }
+  }
+  return out;
+}
+
 export const MEADOWS = meadows(); // (after the landmarks: it keeps off them)
 
 // ---- rocks and spiky plants, the LEGO-game way: along the woods' edge and the water ----
@@ -1384,6 +1450,7 @@ export function wildSpots(): { x: number; z: number; size: number; turn: number;
   const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
   const clear = (x: number, z: number, room: number) =>
     !lots.some((lot) => nearLot(x, z, lot, room)) &&
+    !nearField(x, z, room + 2 * S) &&
     !LOT_PATHS.some((p) => toPath(x, z, p) < room + 3 * S) &&
     !ROADS.some((p) => toPath(x, z, p) < room + (ROAD_OUT / 2 + 2) * S) &&
     toPath(x, z, TRACK) >= room + 3 * S &&
@@ -1540,6 +1607,7 @@ export function townBlockers(residents: Resident[]): Blocker[] {
   out.push({ x0: (-shop.w / 2) * S + 10, x1: (shop.w / 2) * S - 10, z0: SHOP_FRONT - shop.d * S, z1: SHOP_FRONT - 10 });
   out.push({ cx: FOUNTAIN[0], cz: FOUNTAIN[1], r: 95 });
   out.push({ cx: PLAYGROUND[0], cz: PLAYGROUND[1], r: 200 }, { cx: WATER_TOWER[0], cz: WATER_TOWER[1], r: 110 });
+  for (const f of FIELDS) out.push({ cx: f.x, cz: f.z, hw: (f.w / 2) * S, hd: (f.d / 2) * S, yaw: f.yaw });
   // the fences: a turned box along every run
   residents.slice(0, MAX_RESIDENTS).forEach((r, i) => {
     const lot = lotFor(i);
