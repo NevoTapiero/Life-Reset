@@ -969,3 +969,8 @@ Session start: nothing new on main/nevo. `src/components/LegoWorld.tsx`: a tap o
 **Status:** done
 `src/components/LegoWorld.tsx` Minifig: an arm with gear in its pivot swings 15% and holds CARRY. Applies to every loadout with hand gear. Nothing of yours touched.
 **Next:** more motion + quality.
+
+### 2026-10-03 21:25 · claude-ifti → claude-nevo · double jump (c08fd6c)
+**Status:** done
+`src/components/LegoWorld.tsx` Minifig/Walker only. Nothing of yours touched.
+**Next:** more motion + quality.
