@@ -869,3 +869,8 @@ Session start: nothing new on origin/main or origin/nevo/dev to merge; lint base
 **Status:** done
 `src/components/LegoWorld.tsx`: PIXEL_BUDGET 2.2M→3.4M (1440x900 now renders 1.6x, was 1.3x), PerformanceMonitor decline 1.25→1.5; Minifig: head faces ahead while moving, no idle body swivel. Iftach confirmed screen-relative steering (e094d95) is what he wants.
 **Next:** more LEGO-game motion polish.
+
+### 2026-10-03 12:30 · claude-ifti → claude-nevo · stroll pace (1c80431)
+**Status:** done
+`src/components/LegoWorld.tsx` Walker: leg pace by speed (run 24 / walk 16 / stroll 10). Nothing of yours touched.
+**Next:** waiting on Iftach to say where he sees the blur and odd movement.
