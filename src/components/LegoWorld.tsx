@@ -1072,7 +1072,7 @@ export default function LegoWorld({
 export type Mood = { name: string; top: string; horizon: string; sun: number; sunColor: string; ambient: number; night: boolean; /** the light from the sky (the hemisphere light's colour) */ skyLight?: string };
 const MOODS: Record<string, Mood> = {
   // a soft, slightly hazy day: a pale horizon, warm sun, blue-tinted light from the sky
-  day: { name: "day", top: "#4d9ae8", horizon: "#d9ecf8", sun: 2.3, sunColor: "#fff1d8", ambient: 1, night: false, skyLight: "#e8f2ff" },
+  day: { name: "day", top: "#4d9ae8", horizon: "#d9ecf8", sun: 2.5, sunColor: "#ffe8c4", ambient: 1, night: false, skyLight: "#dfe9ff" },
   golden: { name: "golden", top: "#5a86d6", horizon: "#ffd6a6", sun: 2.0, sunColor: "#ffb870", ambient: 0.85, night: false, skyLight: "#ffe6c8" },
   // LEGO-game nights stay readable: a cool blue moonlight, not just darker
   dusk: { name: "dusk", top: "#2c3f7e", horizon: "#f0957a", sun: 1.0, sunColor: "#ffa27a", ambient: 0.62, night: true },
@@ -1425,7 +1425,8 @@ function Stage({
               map, the hills and mountains sit in haze (the look of a city seen from high up) */}
           <fog attach="fog" args={[mood?.horizon ?? sky, mood ? camDist * 1.05 + 40 : 200, mood ? camDist + Math.max(440, width * 1.4) * (mood.night ? 2 : 1) : 520]} />
           {mood && <SkyDome mood={mood} />}
-          <hemisphereLight args={[mood?.skyLight ?? "#fff8ef", "#7a9a5a", (mood?.ambient ?? 0.9) * 1.15]} />
+          {/* the fill: a cool blue from the sky, so shadows read blue-violet against the warm sun (the LEGO-game look) */}
+          <hemisphereLight args={[mood?.skyLight ?? "#fff8ef", "#5d6f9a", (mood?.ambient ?? 0.9) * 1.1]} />
           <primitive object={sun} position={[target.x, 0, target.z]} />
           {follow && <SunFollows follow={follow} sun={sun} light={light} />}
           <directionalLight
@@ -1509,13 +1510,13 @@ function Stage({
             {/* ambient occlusion: the soft dark in the gaps between bricks and round every stud,
                 the thing that makes LEGO renders look like LEGO (a stud is one unit here). Close
                 views only: from above it barely shows and it draws the whole town a second time. */}
-            {near ? <N8AO aoRadius={1.3} distanceFalloff={0.8} intensity={1.7} quality="medium" halfRes /> : null}
+            {near ? <N8AO aoRadius={1.5} distanceFalloff={0.8} intensity={2.3} color="#1d2a4a" quality="medium" halfRes /> : null}
             {mood ? <Bloom luminanceThreshold={0.85} luminanceSmoothing={0.2} intensity={mood.night ? 1.1 : 0.25} mipmapBlur /> : null}
             {mood ? <Vignette offset={0.35} darkness={0.28} /> : null}
             <ToneMapping mode={ToneMappingMode.NEUTRAL} />
             {/* toy-box colour: a touch more saturation and contrast than life */}
             <HueSaturation saturation={0.1} />
-            <BrightnessContrast contrast={0.08} />
+            <BrightnessContrast contrast={0.12} />
           </EffectComposer>
         </Canvas>
         {/* pinned buttons: plain DOM over the canvas, moved every frame by PinTracker */}
@@ -1980,6 +1981,7 @@ export function LegoTown({
           <>
             <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} shadows={following} />
             {following && <NearStuds follow={me3} grass={grass} lots={[...lots, ...emptyLots]} />}
+            {following && <PlayerRing follow={me3} />}
             {/* chimney smoke over the shop and every house */}
             <Smoke at={toThree([(-SHOP_BUILDING.w / 4) * 20, -SHOP_BUILDING.h - 10, SHOP_FRONT - SHOP_BUILDING.d * 10])} />
             {residents.map((res, i) => {
@@ -3099,6 +3101,26 @@ function LakeLife() {
         </group>
       ))}
     </group>
+  );
+}
+// A glowing ring on the ground round you (the LEGO games' player marker), pulsing gently.
+// Three's space, following you.
+function PlayerRing({ follow }: { follow: React.RefObject<THREE.Vector3> }) {
+  const ring = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    const r = ring.current;
+    if (!r) return;
+    r.position.set(follow.current.x, follow.current.y + 0.2, follow.current.z);
+    const k = 1 + Math.sin(clock.elapsedTime * 3) * 0.06;
+    r.scale.set(k, k, k);
+    (r.material as THREE.MeshBasicMaterial).opacity = 0.55 + Math.sin(clock.elapsedTime * 3) * 0.15;
+  });
+  return (
+    <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2}>
+      <ringGeometry args={[1.35, 1.8, 48]} />
+      {/* drawn over the studs (they'd cut it into pieces), under everything standing */}
+      <meshBasicMaterial color="#5fe3ff" transparent opacity={0.6} depthWrite={false} depthTest={false} toneMapped={false} />
+    </mesh>
   );
 }
 const SITTERS: MinifigLook[] = [
