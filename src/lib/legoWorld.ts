@@ -514,6 +514,16 @@ export const TRACK: P3[] = (() => {
     return [start[0] + dx * t + nx * w, 0, start[2] + dz * t + nz * w] as P3;
   });
 })();
+/** a polyline moved sideways by `d` LDU (to its left, looking along it; negative: right) */
+export function offsetLine(pts: P3[], d: number): P3[] {
+  return pts.map((p, i) => {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(pts.length - 1, i + 1)];
+    const [dx, dz] = [b[0] - a[0], b[2] - a[2]];
+    const len = Math.hypot(dx, dz) || 1;
+    return [p[0] - (dz / len) * d, p[1], p[2] + (dx / len) * d] as P3;
+  });
+}
 /** where a road crosses the river: the point and the road's heading there (as a slab yaw), or null */
 export function crossing(road: P3[], river: P3[]): { p: P3; yaw: number; dir: [number, number] } | null {
   for (let i = 0; i + 1 < road.length; i++)
@@ -1080,6 +1090,7 @@ export type Slab = {
   ribbon?: P3[];
 };
 const GRAVEL = "#c9b48a";
+const GRAVEL_RIM = "#9c8158"; // a darker tan, the edge of a path a plate lower
 
 export function townFlats(): Slab[] {
   const out: Slab[] = [];
@@ -1090,6 +1101,12 @@ export function townFlats(): Slab[] {
   // `drop`: LDU below ground level for its top (a band that lies under another must sit well below it: the map camera
   // can't tell heights a LDU apart, and they shimmer)
   const along = (pts: P3[], w: number, color: string, h = 2, studs = true, drop = 0) => out.push({ x: 0, z: 0, w, d: 0, h, y: -h - drop, color, studs, ribbon: pts });
+  // a gravel path: the gravel on top, and a darker rim a stud wide along both edges, a little lower
+  // (beside the gravel, not under it, so no two surfaces lie on each other and shimmer)
+  const gravelPath = (pts: P3[]) => {
+    along(pts, GRAVEL_W, GRAVEL);
+    for (const side of [-1, 1]) along(offsetLine(pts, side * (GRAVEL_W / 2 + S / 2)), S, GRAVEL_RIM, 2, true, 2);
+  };
   // a point `d` LDU along a polyline, and the leg's yaw
   const at = (pts: P3[], d: number): { x: number; z: number; yaw: number } | null => {
     for (let k = 0; k + 1 < pts.length; k++) {
@@ -1116,7 +1133,7 @@ export function townFlats(): Slab[] {
   const side = 2 * (ROUND_R + ROAD_OUT * S);
   out.push({ x: ROUNDABOUT[0], z: ROUNDABOUT[1], w: side, d: side, h: 2, y: -5, radius: side / 2, border: ROAD_OUT * S, color: asphalt }); // under the roads that meet it
   const spurStart = nearestStreet([ROUNDABOUT[0], 0, ROUNDABOUT[1]]);
-  along([spurStart, [ROUNDABOUT[0], 0, ROUNDABOUT[1]]], GRAVEL_W, GRAVEL);
+  gravelPath([spurStart, [ROUNDABOUT[0], 0, ROUNDABOUT[1]]]);
   {
     // a zebra crossing over the roundabout's road where the spur reaches it
     const [dx, dz] = [ROUNDABOUT[0] - spurStart[0], ROUNDABOUT[1] - spurStart[2]];
@@ -1154,10 +1171,12 @@ export function townFlats(): Slab[] {
     for (const side of [-1, 1])
       out.push({ x: shore[0] + jx * (t * 14 * S) / jl + (-jz / jl) * side * 1.6 * S, z: shore[2] + jz * (t * 14 * S) / jl + (jx / jl) * side * 1.6 * S, w: 8, d: 8, h: 14, y: -4, color: "#6b4a2a" });
   // (the boats and ducks are the renderer's: they move, see LakeLife)
-  along(TRACK, GRAVEL_W, GRAVEL);
+  gravelPath(TRACK);
   // the gravel ring round the plaza, and a winding gravel path in from every house's gate
   out.push({ x: 0, z: 0, w: (2 * RING + PATH_W) * S, d: (2 * RING + PATH_W) * S, h: 2, y: -5, radius: (RING + PATH_W / 2) * S, border: PATH_W * S, color: GRAVEL, studs: true }); // under the paths that meet it
-  for (let i = 0; i < MAX_RESIDENTS; i++) along(lotPath(lotFor(i), 3), GRAVEL_W, GRAVEL);
+  // the paths in, each with a darker rim a plate lower showing along both edges and round ends,
+  // layered the LEGO-game way instead of cut off flat
+  for (let i = 0; i < MAX_RESIDENTS; i++) gravelPath(lotPath(lotFor(i), 3));
   // a sandy disc round the fountain with a darker border (round slabs)
   out.push(
     { x: FOUNTAIN[0], z: FOUNTAIN[1], r: 150, w: 0, d: 0, h: 1, color: "#8b7a5c" },
