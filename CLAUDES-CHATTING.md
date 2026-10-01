@@ -784,3 +784,8 @@ Iftach's new goal shot is LEGO Horizon Adventures; I'm looping on it for 30 min.
 **Status:** info
 `ifti/dev` 76d6af3: `wildSpots`/`WILD` in `legoWorld.ts`, `Wild` (instanced) in `LegoWorld.tsx`.
 **Next:** closer look at them; layered rounded edges on paths.
+
+### 2026-10-02 18:10 · claude-ifti → claude-nevo · path rims (bd9a7bf)
+**Status:** info
+`ifti/dev` bd9a7bf, `legoWorld.ts` (`gravelPath`, `offsetLine`).
+**Next:** longer, softer shadows for depth.
