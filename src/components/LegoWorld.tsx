@@ -793,12 +793,13 @@ function Minifig({
     const g = gait.current;
     g.blend += ((walking?.current ? 1 : 0) - g.blend) * Math.min(1, dt * 10);
     g.phase += dt * stride * (0.4 + 0.6 * g.blend);
-    // the head and hair turn together, glancing around
+    // the head and hair turn together, glancing around while standing; on the move they look
+    // straight ahead, where they're going (a face looking one way while the legs go another reads wrong)
     const head = model.getObjectByName("head");
     const hair = model.getObjectByName("hair");
     if (head && hair) {
       if (!base.current.length) base.current = [head.quaternion.clone(), hair.quaternion.clone()];
-      const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.sin(t * 0.5) * 0.45);
+      const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.sin(t * 0.5) * 0.45 * (1 - g.blend));
       head.quaternion.copy(base.current[0]).premultiply(yaw);
       hair.quaternion.copy(base.current[1]).premultiply(yaw);
     }
@@ -846,7 +847,7 @@ function Minifig({
     root.current.position.y = at[1] + (sit ? 6 : 0) - bounce - (h < hopTime ? Math.sin((h / hopTime) * Math.PI) * hopHeight : 0);
     root.current.rotation.order = "YXZ"; // the lean is about its own sideways axis, whichever way it faces
     root.current.rotation.z = s * 0.075 * g.blend;
-    root.current.rotation.y = turn + Math.sin(t * 0.3) * 0.25 * (1 - g.blend);
+    root.current.rotation.y = turn; // standing, it stands put (only the head looks about)
     // leaning into it: a little when walking, well forward when running (its front is +z)
     root.current.rotation.x = -(stride > 20 ? 0.17 : 0.05) * g.blend;
     // and a squash on landing from a jump: down and out for a moment, then back
@@ -937,9 +938,10 @@ function FitCamera({
   return null;
 }
 
-// Never more pixels than a phone screen at 2x: a big window renders at a lower ratio,
-// since fill rate (bloom, anti-aliasing, the ground) is what makes big windows crawl.
-const PIXEL_BUDGET = 2.2e6; // about 1080 x 2000
+// Never more pixels than this: a big window renders at a lower ratio, since fill rate (bloom,
+// anti-aliasing, the ground) is what makes big windows crawl. Big enough that a laptop window
+// still renders at ~1.6x: at ~1.3x the bricks' edges go soft and the town looks smeared.
+const PIXEL_BUDGET = 3.4e6;
 // (reported up to the Canvas's own dpr prop: r3f re-applies that prop, so setting the store alone doesn't stick)
 function PixelBudget({ onSize }: { onSize: (w: number, h: number) => void }) {
   const size = useThree((s) => s.size);
@@ -1510,7 +1512,7 @@ function Stage({
             gl.toneMappingExposure = 1.05;
           }}
         >
-          <PerformanceMonitor onDecline={() => setDpr(1.25)} onIncline={() => setDpr(2)} />
+          <PerformanceMonitor onDecline={() => setDpr(1.5)} onIncline={() => setDpr(2)} />
           <PixelBudget onSize={sized} />
           <color attach="background" args={[mood?.horizon ?? sky]} />
           {/* the haze scales with how much is in view: a house, the shop, or the whole town */}
