@@ -3481,7 +3481,9 @@ function Walker({
   const vel = useRef({ dx: 0, dz: 1, sp: 0 });
   const off = useMemo(() => ({ x: 0, z: 0 }), []); // sidestepping someone
   const stepped = useRef({ x: 0, z: 0, d: 0 }); // for your footsteps
-  const [running, setRunning] = useState(false);
+  // the legs' pace, kept with your speed so your feet never slide: running, walking, or strolling
+  // (Shift, or the stick pushed only part way) at about 0.6 of the walk
+  const [stride, setStride] = useState(16);
   useEffect(() => () => void CROWD.delete(id), [id]);
   useFrame(({ camera }, dt) => {
     const s = state.current;
@@ -3520,7 +3522,8 @@ function Walker({
     // running: the stick pushed right out (or Shift), while you have the energy for it
     const e = energyRef?.current;
     const run = push > 0.85 && (e === undefined || e >= CAN_RUN_AT);
-    if (run !== running) setRunning(run);
+    const pace = run ? 24 : push > 0.15 && push < 0.75 ? 10 : 16;
+    if (pace !== stride) setStride(pace);
     if (energyRef) {
       if (run) energyRef.current = Math.max(0, energyRef.current - RUN_COST * dt);
       else energyRef.current = Math.min(ENERGY_MAX, energyRef.current + TRICKLE * dt);
@@ -3593,7 +3596,7 @@ function Walker({
   });
   return (
     <group ref={root}>
-      <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} stride={running ? 24 : 16} jumpRef={jumpRef} />
+      <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} stride={stride} jumpRef={jumpRef} />
     </group>
   );
 }
