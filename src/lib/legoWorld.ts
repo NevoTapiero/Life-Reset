@@ -1330,6 +1330,61 @@ export const RING_SEATS: { x: number; z: number; yaw: number; bench: boolean; k:
 
 export const MEADOWS = meadows(); // (after the landmarks: it keeps off them)
 
+// ---- rocks and spiky plants, the LEGO-game way: along the woods' edge and the water ----
+/** where boulders (kind 0) and spiky plants (kind 1) stand (LDU), their size and turn */
+export function wildSpots(): { x: number; z: number; size: number; turn: number; kind: 0 | 1 }[] {
+  const out: { x: number; z: number; size: number; turn: number; kind: 0 | 1 }[] = [];
+  const rnd = seeded(57);
+  const lots = Array.from({ length: MAX_RESIDENTS }, (_, i) => lotFor(i));
+  const clear = (x: number, z: number, room: number) =>
+    !lots.some((lot) => nearLot(x, z, lot, room)) &&
+    !LOT_PATHS.some((p) => toPath(x, z, p) < room + 3 * S) &&
+    !ROADS.some((p) => toPath(x, z, p) < room + (ROAD_OUT / 2 + 2) * S) &&
+    toPath(x, z, TRACK) >= room + 3 * S &&
+    toPath(x, z, RIVER) > room + (RIVER_W / 2 + 1) * S &&
+    toPath(x, z, BROOK) > room + 5 * S &&
+    Math.hypot(x - LAKE.x, z - LAKE.z) > LAKE.r + room + 2 * S &&
+    Math.hypot(x - PLAYGROUND[0], z - PLAYGROUND[1]) > 220 + room &&
+    Math.hypot(x - WATER_TOWER[0], z - WATER_TOWER[1]) > 130 + room &&
+    Math.hypot(x - ROUNDABOUT[0], z - ROUNDABOUT[1]) > ROUND_R + (ROAD_OUT + 2) * S + room &&
+    !out.some((o) => Math.hypot(o.x - x, o.z - z) < room + o.size * S * 0.6);
+  // along the woods' edge
+  for (let tries = 0; tries < 700 && out.length < 90; tries++) {
+    const a = rnd() * Math.PI * 2;
+    const r = (WOODS_FROM - 25 + rnd() * 40) * S;
+    const [x, z] = [Math.sin(a) * r, Math.cos(a) * r];
+    const kind = rnd() < 0.45 ? 0 : 1;
+    const size = kind === 0 ? 3 + rnd() * 4 : 2 + rnd() * 2;
+    if (clear(x, z, size * S)) out.push({ x, z, size, turn: rnd() * Math.PI, kind });
+  }
+  // on the banks of the river, the brook and the lake
+  const banks: [P3[], number][] = [[RIVER, RIVER_W / 2 + 4], [BROOK, 7]];
+  for (let tries = 0; tries < 500 && out.length < 150; tries++) {
+    const [line, off] = banks[Math.floor(rnd() * banks.length)];
+    const k = Math.floor(rnd() * (line.length - 1));
+    const [a, b] = [line[k], line[k + 1]];
+    const t = rnd();
+    const [dx, dz] = [b[0] - a[0], b[2] - a[2]];
+    const len = Math.hypot(dx, dz) || 1;
+    const side = rnd() < 0.5 ? -1 : 1;
+    const kind = rnd() < 0.55 ? 0 : 1;
+    const size = kind === 0 ? 2.5 + rnd() * 3 : 2 + rnd() * 1.5;
+    const reach = (off + size + rnd() * 3) * S;
+    const [x, z] = [a[0] + dx * t + (-dz / len) * side * reach, a[2] + dz * t + (dx / len) * side * reach];
+    if (Math.hypot(x, z) > (WOODS_TO - 10) * S) continue;
+    if (clear(x, z, size * S * 0.5)) out.push({ x, z, size, turn: rnd() * Math.PI, kind });
+  }
+  for (let k = 0; k < 10; k++) {
+    const a = (k / 10) * Math.PI * 2 + 0.3;
+    const size = k % 2 ? 2.5 : 2;
+    const r = LAKE.r + (size + 3) * S;
+    const [x, z] = [LAKE.x + Math.sin(a) * r, LAKE.z + Math.cos(a) * r];
+    if (toPath(x, z, TRACK) > 6 * S && toPath(x, z, BROOK) > 8 * S) out.push({ x, z, size, turn: a, kind: (k % 3 === 0 ? 1 : 0) as 0 | 1 });
+  }
+  return out;
+}
+export const WILD = wildSpots();
+
 // ---- signs: how the game works, told where it happens ----
 // A LEGO signpost (a round post with a tile on top) stands where a newcomer needs the
 // one line that explains the place; walk up to it and the line appears over it.

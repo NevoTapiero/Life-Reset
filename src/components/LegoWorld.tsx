@@ -93,6 +93,7 @@ import {
   carLoop,
   townClouds,
   balloonSlabs,
+  WILD,
   waterTowerSlabs,
   MEADOWS,
   openGround,
@@ -2007,6 +2008,7 @@ export function LegoTown({
             <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} shadows={following} />
             {following && <NearStuds follow={me3} grass={grass} lots={[...lots, ...emptyLots]} />}
             {following && <PlayerRing follow={me3} />}
+            <Wild season={season} />
             {/* chimney smoke over the shop and every house */}
             <Smoke at={toThree([(-SHOP_BUILDING.w / 4) * 20, -SHOP_BUILDING.h - 10, SHOP_FRONT - SHOP_BUILDING.d * 10])} />
             {residents.map((res, i) => {
@@ -3146,6 +3148,81 @@ function PlayerRing({ follow }: { follow: React.RefObject<THREE.Vector3> }) {
       {/* drawn over the studs (they'd cut it into pieces), under everything standing */}
       <meshBasicMaterial color="#5fe3ff" transparent opacity={0.6} depthWrite={false} depthTest={false} toneMapped={false} />
     </mesh>
+  );
+}
+// Boulders and spiky plants, brick-built the LEGO-game way: a boulder is three stacked blocks,
+// each smaller and nudged off the one below, flat-shaded in greys; a plant is a fan of thin
+// leaves. Instanced, sitting on the grass. Three's space (LDraw z flipped).
+function boulderGeometry(): THREE.BufferGeometry {
+  const parts: [number, number, number, number, number, number][] = [
+    // w, h, d, x, y, z (unit: the boulder's size)
+    [1, 0.45, 0.8, 0, 0.225, 0],
+    [0.72, 0.4, 0.62, 0.1, 0.62, -0.05],
+    [0.42, 0.3, 0.38, -0.05, 0.95, 0.06],
+  ];
+  return mergeGeometries(
+    parts.map(([w, h, d, x, y, z]) => {
+      const g = new THREE.BoxGeometry(w, h, d);
+      g.translate(x, y, z);
+      return g.toNonIndexed();
+    }),
+  );
+}
+function spikyGeometry(): THREE.BufferGeometry {
+  const leaves: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 9; k++) {
+    const g = new THREE.ConeGeometry(0.11, 1, 4);
+    g.translate(0, 0.5, 0);
+    g.rotateZ(0.35 + (k % 3) * 0.22);
+    g.rotateY((k / 9) * Math.PI * 2);
+    leaves.push(g.toNonIndexed());
+  }
+  return mergeGeometries(leaves);
+}
+const ROCK_GREYS = ["#8c9196", "#6d6e6c", "#a0a5a9", "#7b7f80"].map((c) => new THREE.Color(c));
+const PLANT_GREENS = ["#2f7d5b", "#3f8f6a", "#4f9e5f", "#2d6f63"].map((c) => new THREE.Color(c));
+function Wild({ season }: { season: Season }) {
+  const rocks = useRef<THREE.InstancedMesh>(null);
+  const plants = useRef<THREE.InstancedMesh>(null);
+  const rockGeo = useMemo(() => boulderGeometry(), []);
+  const plantGeo = useMemo(() => spikyGeometry(), []);
+  const nRock = WILD.filter((w) => w.kind === 0).length;
+  useLayoutEffect(() => {
+    const o = new THREE.Object3D();
+    const snow = new THREE.Color("#eef2f6");
+    let r = 0;
+    let p = 0;
+    WILD.forEach((w, i) => {
+      o.position.set(w.x * LDU, GRASS_Y, -w.z * LDU);
+      o.rotation.set(0, w.turn, 0);
+      const sz = w.size;
+      o.scale.set(sz, sz * (w.kind === 0 ? 0.8 : 0.9), sz);
+      o.updateMatrix();
+      if (w.kind === 0) {
+        rocks.current?.setMatrixAt(r, o.matrix);
+        rocks.current?.setColorAt(r, ROCK_GREYS[i % ROCK_GREYS.length]);
+        r++;
+      } else {
+        plants.current?.setMatrixAt(p, o.matrix);
+        plants.current?.setColorAt(p, season === "winter" ? snow : PLANT_GREENS[i % PLANT_GREENS.length]);
+        p++;
+      }
+    });
+    for (const m of [rocks, plants])
+      if (m.current) {
+        m.current.instanceMatrix.needsUpdate = true;
+        if (m.current.instanceColor) m.current.instanceColor.needsUpdate = true;
+      }
+  }, [season]);
+  return (
+    <>
+      <instancedMesh ref={rocks} args={[undefined, undefined, nRock]} geometry={rockGeo} castShadow receiveShadow>
+        <meshStandardMaterial roughness={0.7} flatShading />
+      </instancedMesh>
+      <instancedMesh ref={plants} args={[undefined, undefined, WILD.length - nRock]} geometry={plantGeo} castShadow>
+        <meshStandardMaterial roughness={0.6} flatShading />
+      </instancedMesh>
+    </>
   );
 }
 const SITTERS: MinifigLook[] = [
