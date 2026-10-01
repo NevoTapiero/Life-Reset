@@ -173,8 +173,7 @@ export function buildGarden(streak: number, s: HouseSpec, stations: Station[] = 
   if (z < PLOT + 3) out.push(put("3069b", COL.lightGrey, pathL + 0.5, z, 0));
 
   // the name sign at the gate, beside the path, and the fence round the yard
-  const [gx, gz] = gateSignAt(s);
-  out.push(...place(SIGNPOST, gx, gz, ROT[0], 0), ...fenceLines(s));
+  out.push(...fenceLines(s));
   // (no streak flowers, hedges, trees or pond any more: Iftach, 2 Oct, "we need a real upgrade",
   // what a plot has will come from the shop and the level; `streak` stays in the signature for now)
   void streak;
@@ -1236,7 +1235,6 @@ export function townClouds(): Slab[] {
 export function townDecorText(): string {
   const out: string[] = [];
   for (const [x, z] of [...STREET_LAMPS, ...RING_LAMPS, ...ROAD_LAMPS]) out.push(...place(lamp, x, z, ROT[0], 0));
-  out.push(...place(SIGNPOST, PLAZA_SIGN[0], PLAZA_SIGN[1], ROT[0], 0), ...place(SIGNPOST, SHOP_SIGN[0], SHOP_SIGN[1], ROT[0], 0));
   // life round the ring: a bench facing the plaza and a pot of flowers just outside the ring path,
   // between the paths in (never on one)
   for (const { x, z, yaw, bench: isBench, k } of RING_SEATS) out.push(...place(isBench ? bench : flowerPot([COL.red, COL.yellow, COL.pink][k % 3]), x, z, yawMat(yaw), 0));
@@ -1424,30 +1422,6 @@ export function wildSpots(): { x: number; z: number; size: number; turn: number;
 }
 export const WILD = wildSpots();
 
-// ---- signs: how the game works, told where it happens ----
-// A LEGO signpost (a round post with a tile on top) stands where a newcomer needs the
-// one line that explains the place; walk up to it and the line appears over it.
-// a signpost: three round bricks and a 2x4 board on top, a tile each way so it reads from both sides
-const SIGNPOST: Piece[] = [
-  ...stack("3062b", COL.reddishBrown, 0, 0, 3),
-  ["87079", COL.white, 0, 72, 4, ON_WALL],
-  ["87079", COL.white, 0, 72, -4, turnMat(ROT[180], ON_WALL)],
-];
-/** by the ring where the path from your house comes in (LDU) */
-export const PLAZA_SIGN: [number, number] = [90, -(RING - 5) * S];
-/** to the right of the shop's front (LDU) */
-export const SHOP_SIGN: [number, number] = [190, 250];
-/** a plot's gate sign, beside where its path starts (plot frame, LDU) */
-export function gateSignAt(s: HouseSpec): [number, number] {
-  return [(doorCells(s)[1] + 4 - PLOT / 2) * S, (PLOT / 2 + 5) * S];
-}
-export const SIGN_LINES = {
-  plaza: "Level up in real life. Your minifig levels up here.",
-  gate: "Every real thing you do is a station. Do it, tap it: XP and gold.",
-  shop: "Gold from real life buys bricks for your garden.",
-  friend: "Gold studs over their stations: what they did today.",
-};
-
 // ---- walking round town ----
 // Everyone walks the gravel ring round the plaza (RING studs out) and the paths off it,
 // one to each house; the cars keep to the road round the village. A place is a chain of
@@ -1556,13 +1530,7 @@ export function townBlockers(residents: Resident[]): Blocker[] {
   const shop = SHOP as House;
   out.push({ x0: (-shop.w / 2) * S + 10, x1: (shop.w / 2) * S - 10, z0: SHOP_FRONT - shop.d * S, z1: SHOP_FRONT - 10 });
   out.push({ cx: FOUNTAIN[0], cz: FOUNTAIN[1], r: 95 });
-  out.push({ cx: PLAZA_SIGN[0], cz: PLAZA_SIGN[1], r: 22 }, { cx: SHOP_SIGN[0], cz: SHOP_SIGN[1], r: 22 });
   out.push({ cx: PLAYGROUND[0], cz: PLAYGROUND[1], r: 200 }, { cx: WATER_TOWER[0], cz: WATER_TOWER[1], r: 110 });
-  residents.slice(0, MAX_RESIDENTS).forEach((r, i) => {
-    const [gx, gz] = gateSignAt(houseSpec(r.level));
-    const [cx, , cz] = inLot(lotFor(i), [gx, 0, gz]);
-    out.push({ cx, cz, r: 22 });
-  });
   // the fences: a turned box along every run
   residents.slice(0, MAX_RESIDENTS).forEach((r, i) => {
     const lot = lotFor(i);

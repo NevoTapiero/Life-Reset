@@ -75,10 +75,6 @@ import {
   ROOM_START,
   stationSpots,
   stationAt,
-  gateSignAt,
-  PLAZA_SIGN,
-  SHOP_SIGN,
-  SIGN_LINES,
   PLAZA,
   TOWN_HALF,
   MAX_RESIDENTS,
@@ -1171,10 +1167,10 @@ export type Pin = { key: string; at: [number, number, number] | (() => [number, 
 // Real studs on the ground round you: a stud a stud, on the plots and the plaza
 // (the painted studs stay underneath, and take over further off). Instanced
 // low-poly cylinders, laid out again whenever you've moved a few studs.
-const STUD_REACH = 64; // studs from you: real studs well out, so you never see where they stop
-const NEAR_REACH = 28; // within this, full studs (16-sided, tufts, loose pieces); beyond, light 6-sided ones
-const NEAR_MAX = 3 * (2 * NEAR_REACH + 1) ** 2; // room for the plots' studs (in their own turned frames) and the open ground's, with the overlaps
-const FAR_MAX = 2 * (2 * STUD_REACH + 1) ** 2;
+const NEAR_REACH = 28; // studs from you: full studs (16-sided), tufts and loose pieces, relaid every few steps
+const FAR_REACH = 96; // and out to here: light six-sided studs, relaid less often (so you never see where studs stop)
+const NEAR_MAX = 3 * (2 * NEAR_REACH + 1) ** 2; // room for the plots' studs (in their own turned frames) and the open ground's
+const FAR_MAX = Math.round(1.6 * (2 * FAR_REACH + 1) ** 2);
 // a tuft of grass: three thin blades leaning apart (unit size, scaled where it stands)
 function tuftGeometry(): THREE.BufferGeometry {
   const blades: THREE.BufferGeometry[] = [];
@@ -1200,101 +1196,133 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
   const tuftGeo = useMemo(() => tuftGeometry(), []);
   const tuftGreen = useMemo(() => new THREE.Color(grass).multiplyScalar(0.78), [grass]);
   const jittered = useMemo(() => new THREE.Color(), []);
-  const laid = useRef({ x: 1e9, z: 1e9 });
+  const nearLaid = useRef({ x: 1e9, z: 1e9 });
+  const farLaid = useRef({ x: 1e9, z: 1e9 });
   const o = useMemo(() => new THREE.Object3D(), []);
   const green = useMemo(() => new THREE.Color(grass), [grass]);
   const grey = useMemo(() => new THREE.Color("#a3a7ad"), []);
   const meadowGreens = useMemo(() => [0, 1, 2].map((k) => new THREE.Color(meadowShade(grass, k))), [grass]);
-  useFrame(() => {
-    const m = mesh.current;
-    const fm = farMesh.current;
-    if (!m || !fm) return;
-    const px = Math.round(follow.current.x);
-    const pz = Math.round(follow.current.z);
-    if (Math.abs(px - laid.current.x) < 4 && Math.abs(pz - laid.current.z) < 4) return;
-    laid.current = { x: px, z: pz };
-    let n = 0;
-    let nf = 0;
-    // a stud at (x, y, z) in three's space: a full one close to you, a light one further off
-    const put = (x: number, y: number, z: number, c: THREE.Color) => {
-      o.position.set(x, y, z);
-      o.updateMatrix();
-      if (Math.max(Math.abs(x - px), Math.abs(z - pz)) <= NEAR_REACH) {
-        if (n >= NEAR_MAX) return;
-        m.setMatrixAt(n, o.matrix);
-        m.setColorAt(n++, c);
-      } else if (nf < FAR_MAX) {
-        fm.setMatrixAt(nf, o.matrix);
-        fm.setColorAt(nf++, c);
-      }
-    };
-    // each plot's studs in its own (turned) frame: the plaza first, then the plots
+  // every stud within `reach` of (px, pz): on the plaza and the plots in their own turned frames,
+  // then on the open grass and meadows (none on anything flat). `each` gets three's x, the ground's
+  // height, z, its colour, and (open ground only) the cell's hash
+  // (a generator: it pauses after each plot and each row, so a big pass can be spread over frames)
+  function* layRows(px: number, pz: number, reach: number, each: (x: number, base: number, z: number, c: THREE.Color, hash: number) => void) {
     for (const lot of [PLAZA_LOT, ...lots]) {
       const size = lot === PLAZA_LOT ? PLAZA : PLOT;
       const [u, v] = fromLot(lot, [px * 20, -pz * 20]); // studs from the plot's centre, its frame (LDraw z)
       const [cu, cv] = [Math.round(u / 20), Math.round(v / 20)];
-      if (Math.abs(cu) > size / 2 + STUD_REACH || Math.abs(cv) > size / 2 + STUD_REACH) continue;
-      for (let i = cu - STUD_REACH; i <= cu + STUD_REACH; i++)
-        for (let k = cv - STUD_REACH; k <= cv + STUD_REACH; k++) {
-          if (Math.abs(i + 0.5) >= size / 2 || Math.abs(k + 0.5) >= size / 2) continue;
+      if (Math.abs(cu) > size / 2 + reach || Math.abs(cv) > size / 2 + reach) continue;
+      for (let i = Math.max(cu - reach, -size / 2); i <= Math.min(cu + reach, size / 2 - 1); i++)
+        for (let k = Math.max(cv - reach, -size / 2); k <= Math.min(cv + reach, size / 2 - 1); k++) {
           const [x, , z] = inLot(lot, [(i + 0.5) * 20, 0, (k + 0.5) * 20]);
-          put(x * LDU, 0.085, -z * LDU, lot === PLAZA_LOT ? grey : green);
+          each(x * LDU, 0, -z * LDU, lot === PLAZA_LOT ? grey : green, -1);
         }
+      yield;
     }
-    // and the open ground round you: real studs on the grass and the meadows, none on anything flat;
-    // each stud its own faint shade, and a tuft of grass on about one cell in ten
-    const tm = tufts.current;
-    const bm = bits.current;
-    let nt = 0;
-    let nb = 0;
-    for (let i = px - STUD_REACH; i <= px + STUD_REACH; i++)
-      for (let k = pz - STUD_REACH; k <= pz + STUD_REACH; k++) {
+    for (let i = px - reach; i <= px + reach; i++) {
+      yield;
+      for (let k = pz - reach; k <= pz + reach; k++) {
         const [x, z] = [(i + 0.5) * 20, -(k + 0.5) * 20]; // LDU
         if (lots.some((lot) => { const [u, v] = fromLot(lot, [x, z]); return Math.abs(u) < (PLOT / 2 + 0.5) * 20 && Math.abs(v) < (PLOT / 2 + 0.5) * 20; })) continue;
         const g = openGround(x, z);
         if (g < 0) continue;
         const hash = ((i * 73856093) ^ (k * 19349663)) >>> 0; // the same stud always gets the same shade and tuft
         // seated on the ground it stands on: the open grass lies at GRASS_Y, a meadow at MEADOW_Y
-        // (both below the plots' 0); at the plots' height they floated, each with its shadow under it
-        const base = g === 0 ? GRASS_Y : MEADOW_Y;
-        put(i + 0.5, base + 0.085, k + 0.5, jittered.copy(g === 0 ? green : meadowGreens[g - 1]).multiplyScalar(0.96 + ((hash % 1000) / 1000) * 0.08));
-        if (Math.max(Math.abs(i - px), Math.abs(k - pz)) > NEAR_REACH) continue; // tufts and loose pieces only close by
-        // now and then a loose round piece lying on the studs: a 2x2 round plate, or a 1x1 pebble
-        if (bm && nb < BITS_MAX && hash % 41 === 3) {
-          const big = hash % 3 === 0;
-          o.position.set(i + 0.5 + ((hash % 9) / 9 - 0.5) * 0.3, base + 0.2, k + 0.5 + ((hash % 7) / 7 - 0.5) * 0.3);
-          o.scale.set(big ? 1 : 0.42, 1, big ? 1 : 0.42);
-          o.updateMatrix();
-          bm.setMatrixAt(nb, o.matrix);
-          bm.setColorAt(nb, bitColours[hash % bitColours.length]);
-          nb++;
-          o.scale.set(1, 1, 1);
-        }
-        if (tm && nt < TUFT_MAX && hash % 11 === 0) {
-          o.position.set(i + 0.5 + ((hash % 7) / 7 - 0.5) * 0.5, base + 0.17, k + 0.5 + ((hash % 5) / 5 - 0.5) * 0.5);
-          o.rotation.set(0, (hash % 360) * (Math.PI / 180), 0);
-          const sz = 0.7 + ((hash % 13) / 13) * 0.6;
-          o.scale.set(sz, sz, sz);
-          o.updateMatrix();
-          tm.setMatrixAt(nt++, o.matrix);
-          o.rotation.set(0, 0, 0);
-          o.scale.set(1, 1, 1);
-        }
+        each(i + 0.5, g === 0 ? GRASS_Y : MEADOW_Y, k + 0.5, jittered.copy(g === 0 ? green : meadowGreens[g - 1]).multiplyScalar(0.96 + ((hash % 1000) / 1000) * 0.08), hash);
       }
-    for (const [mm, c] of [[m, n], [fm, nf]] as [THREE.InstancedMesh, number][]) {
-      mm.count = c;
-      mm.instanceMatrix.needsUpdate = true;
-      if (mm.instanceColor) mm.instanceColor.needsUpdate = true;
     }
-    if (tm) {
-      tm.count = nt;
-      tm.instanceMatrix.needsUpdate = true;
+  }
+  const lay = (px: number, pz: number, reach: number, each: (x: number, base: number, z: number, c: THREE.Color, hash: number) => void) => {
+    for (const _ of layRows(px, pz, reach, each)) void _;
+  };
+  const farJob = useRef<{ rows: Generator; count: { n: number } } | null>(null);
+  // show the first `c` instances, uploading only those (the far mesh's buffer is megabytes)
+  const done = (mm: THREE.InstancedMesh, c: number) => {
+    mm.count = c;
+    mm.instanceMatrix.clearUpdateRanges();
+    mm.instanceMatrix.addUpdateRange(0, c * 16);
+    mm.instanceMatrix.needsUpdate = true;
+    if (mm.instanceColor) {
+      mm.instanceColor.clearUpdateRanges();
+      mm.instanceColor.addUpdateRange(0, c * 3);
+      mm.instanceColor.needsUpdate = true;
     }
-    if (bm) {
-      bm.count = nb;
-      bm.instanceMatrix.needsUpdate = true;
-      if (bm.instanceColor) bm.instanceColor.needsUpdate = true;
+  };
+  useFrame(() => {
+    const m = mesh.current;
+    const fm = farMesh.current;
+    const tm = tufts.current;
+    const bm = bits.current;
+    if (!m || !fm || !tm || !bm) return;
+    const px = Math.round(follow.current.x);
+    const pz = Math.round(follow.current.z);
+    // far off: light studs everywhere out to FAR_REACH, a touch smaller and lower than the full
+    // ones, so where both are laid the full stud hides the light one inside it. A big job, so it's
+    // done a few milliseconds a frame (it picks up where it left off) and shown when complete
+    if (!farJob.current && (Math.abs(px - farLaid.current.x) >= 10 || Math.abs(pz - farLaid.current.z) >= 10)) {
+      farLaid.current = { x: px, z: pz };
+      const count = { n: 0 };
+      farJob.current = {
+        count,
+        rows: layRows(px, pz, FAR_REACH, (x, base, z, c) => {
+          if (count.n >= FAR_MAX) return;
+          o.position.set(x, base + 0.08, z);
+          o.updateMatrix();
+          fm.setMatrixAt(count.n, o.matrix);
+          fm.setColorAt(count.n++, c);
+        }),
+      };
     }
+    const job = farJob.current;
+    if (job) {
+      const until = performance.now() + 4;
+      let finished = false;
+      while (performance.now() < until) if (job.rows.next().done) {
+        finished = true;
+        break;
+      }
+      if (finished) {
+        done(fm, job.count.n);
+        farJob.current = null;
+      }
+    }
+    if (Math.abs(px - nearLaid.current.x) < 4 && Math.abs(pz - nearLaid.current.z) < 4) return;
+    nearLaid.current = { x: px, z: pz };
+    let n = 0;
+    let nt = 0;
+    let nb = 0;
+    lay(px, pz, NEAR_REACH, (x, base, z, c, hash) => {
+      if (n >= NEAR_MAX) return;
+      o.position.set(x, base + 0.085, z);
+      o.updateMatrix();
+      m.setMatrixAt(n, o.matrix);
+      m.setColorAt(n++, c);
+      if (hash < 0) return;
+      // now and then a loose round piece lying on the studs: a 2x2 round plate, or a 1x1 pebble
+      if (nb < BITS_MAX && hash % 41 === 3) {
+        const big = hash % 3 === 0;
+        o.position.set(x + ((hash % 9) / 9 - 0.5) * 0.3, base + 0.2, z + ((hash % 7) / 7 - 0.5) * 0.3);
+        o.scale.set(big ? 1 : 0.42, 1, big ? 1 : 0.42);
+        o.updateMatrix();
+        bm.setMatrixAt(nb, o.matrix);
+        bm.setColorAt(nb++, bitColours[hash % bitColours.length]);
+        o.scale.set(1, 1, 1);
+      }
+      // and a tuft of grass on about one cell in eleven
+      if (nt < TUFT_MAX && hash % 11 === 0) {
+        o.position.set(x + ((hash % 7) / 7 - 0.5) * 0.5, base + 0.17, z + ((hash % 5) / 5 - 0.5) * 0.5);
+        o.rotation.set(0, (hash % 360) * (Math.PI / 180), 0);
+        const sz = 0.7 + ((hash % 13) / 13) * 0.6;
+        o.scale.set(sz, sz, sz);
+        o.updateMatrix();
+        tm.setMatrixAt(nt++, o.matrix);
+        o.rotation.set(0, 0, 0);
+        o.scale.set(1, 1, 1);
+      }
+    });
+    done(m, n);
+    done(tm, nt);
+    done(bm, nb);
   });
   return (
     <>
@@ -1303,9 +1331,9 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
         {/* flat-shaded: a crisp rim and a flat bright top, the way a stud reads, not a soft blob */}
         <meshPhysicalMaterial roughness={0.5} clearcoat={0.3} clearcoatRoughness={0.4} flatShading />
       </instancedMesh>
-      {/* further off: six-sided studs, no bottom, a plain material (they're a few pixels across there) */}
+      {/* further off: six-sided studs inside the full ones' outline, a plain material (a few pixels across there) */}
       <instancedMesh ref={farMesh} args={[undefined, undefined, FAR_MAX]} frustumCulled={false}>
-        <cylinderGeometry args={[0.3, 0.3, 0.17, 6, 1, false]} />
+        <cylinderGeometry args={[0.29, 0.29, 0.16, 6]} />
         <meshStandardMaterial roughness={0.55} flatShading />
       </instancedMesh>
       <instancedMesh ref={bits} args={[undefined, undefined, BITS_MAX]} frustumCulled={false} castShadow receiveShadow>
@@ -1928,28 +1956,6 @@ export function LegoTown({
       };
     });
   };
-  // the signs: a line over each signpost once you've walked up to it
-  const signPins = () => {
-    const me = residents[meIndex];
-    const friend = residents.findIndex((r) => !r.me);
-    const spots: [string, [number, number, number], string][] = [
-      ["plaza", toThree([PLAZA_SIGN[0], 0, PLAZA_SIGN[1]]), SIGN_LINES.plaza],
-      ["shop", toThree([SHOP_SIGN[0], 0, SHOP_SIGN[1]]), SIGN_LINES.shop],
-    ];
-    if (me?.me) {
-      const [gx, gz] = gateSignAt(houseSpec(me.level));
-      spots.push(["gate", toThree(inLot(lots[meIndex], [gx, 0, gz])), SIGN_LINES.gate]);
-    }
-    if (friend >= 0) {
-      const [gx, gz] = gateSignAt(houseSpec(residents[friend].level));
-      spots.push(["friend", toThree(inLot(lots[friend], [gx, 0, gz])), SIGN_LINES.friend]);
-    }
-    return spots.map(([key, [x, y, z], text]) => ({
-      key: `sign-${key}`,
-      at: () => (Math.hypot(me3.current.x - x, me3.current.z - z) < 9 ? ([x, y + 6.2, z] as [number, number, number]) : null),
-      node: <span className="lego-bubble lego-sign">{text}</span>,
-    }));
-  };
   // a friend's speech bubble, over their head wherever they walk
   const chatPin = (name: string) => {
     let h = 0;
@@ -2052,7 +2058,7 @@ export function LegoTown({
             ))}
           </>
         }
-        pins={following ? [...(near === null ? [] : [nearPin(near)]), ...(talker ? [chatPin(talker)] : []), ...stationPins(), ...signPins()] : [
+        pins={following ? [...(near === null ? [] : [nearPin(near)]), ...(talker ? [chatPin(talker)] : []), ...stationPins()] : [
           {
             key: "shop",
             at: [0, SHOP_BUILDING.h * LDU + 3, -(SHOP_FRONT - (SHOP_BUILDING.d / 2) * 20) * LDU] as [number, number, number],
