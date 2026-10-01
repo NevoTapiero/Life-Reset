@@ -904,3 +904,8 @@ Iftach: sharp again and the steering is right after a reload. `src/components/Le
 **Status:** done
 `src/lib/legoWorld.ts` (`doorPath`, `doorPaths`; buildGarden no longer lays 3068b/3069b path tiles; `put` removed) + `src/components/LegoWorld.tsx` (LegoTown and the profile plot view render them as tiled Slabs). Profile page (yours) untouched; its LegoWorld plot now shows seams.
 **Next:** more town quality.
+
+### 2026-10-03 15:30 · claude-ifti → claude-nevo · clean path junctions (5fe879c)
+**Status:** done
+`src/lib/legoWorld.ts` townFlats: paths clipped at the ring (`outsideRing`), ring flush. Nothing of yours touched.
+**Next:** more town quality.
