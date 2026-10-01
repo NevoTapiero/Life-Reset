@@ -112,11 +112,13 @@ export const sfx = {
     if (!a || throttle("step", 120)) return;
     tick(a, a.currentTime, 1500 + Math.random() * 500, 5, 0.09, 0.035);
   },
-  /** a jump: a quick rising boing */
+  /** a jump: a soft plastic tap off the ground and a little pop (the rising "boing" grated, Iftach 3 Oct) */
   jump() {
     const a = audio();
-    if (!a) return;
-    tone(a, a.currentTime, 260, 620, 0.18, 0.18, "triangle");
+    if (!a || throttle("jump", 120)) return;
+    const t = a.currentTime;
+    tick(a, t, 1100, 2, 0.12, 0.04);
+    tone(a, t, 330, 440, 0.045, 0.09);
   },
   /** a brick snapping on (a house going up a row) */
   snap() {
@@ -159,23 +161,21 @@ export const sfx = {
     if (!a || throttle("skid", 250)) return;
     sweep(a, a.currentTime, 2600, 900, 2.5, 0.1, 0.18);
   },
-  /** someone talking, the LEGO-game way: a few quick blips of gibberish */
+  /** someone talking: a quiet, soft "hm-hm" (the square-wave gibberish grated, Iftach 3 Oct) */
   mumble() {
     const a = audio();
-    if (!a || throttle("mumble", 250)) return;
+    if (!a || throttle("mumble", 300)) return;
     const t = a.currentTime;
-    const n = 3 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < n; i++) {
-      const f = 320 + Math.random() * 280;
-      tone(a, t + i * 0.075, f, f * (0.9 + Math.random() * 0.25), 0.045, 0.06, "square");
-    }
+    const f = 380 + Math.random() * 80;
+    tone(a, t, f, f * 1.05, 0.03, 0.09);
+    tone(a, t + 0.11, f * 1.12, f * 1.02, 0.026, 0.1);
   },
   /** a friend talking: a little blip-blip */
   blip() {
     const a = audio();
     if (!a || throttle("blip", 400)) return;
     const t = a.currentTime;
-    tone(a, t, 700, 760, 0.08, 0.07, "square");
-    tone(a, t + 0.09, 860, 820, 0.07, 0.07, "square");
+    tone(a, t, 520, 560, 0.03, 0.08);
+    tone(a, t + 0.1, 600, 570, 0.026, 0.08);
   },
 };
