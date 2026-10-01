@@ -18,9 +18,10 @@ export function stepsRated(steps: number): number {
 }
 
 // Sleep: the 7 to 9 hour band is "Sleep 7 to 9 hours" (12). Close to it pays
-// less; under 6 hours is not the habit and pays nothing.
+// less; a short night (5 to 6 hours) still pays a little, under 5 nothing.
 export function sleepRated(hours: number): number {
-  if (!Number.isFinite(hours) || hours < 6) return 0;
+  if (!Number.isFinite(hours) || hours < 5) return 0;
+  if (hours < 6) return 4;
   if (hours >= 7 && hours <= 9) return 12;
   return 8;
 }
@@ -62,4 +63,4 @@ export function ratedFromTitle(kind: TrackedKind, title: string): number | null 
 }
 
 export const WORKOUT_PRICING_NOTE =
-  "Workouts are priced like a heart-rate watch prices them: about 0.75 per minute at moderate effort and 1.5 per minute at hard effort, 50 at most. A relaxed 60 minute gym session is about 25; a hard 30 minute run is about 40.";
+  "Workouts are priced like a watch prices them, from effort, time and calories together, 50 at most. A 60 minute strength session is about 30; a hard 30 minute run is about 35; an easy 30 minute run about 20; 30 minutes of stretching or yoga about 12; a 15 minute stretch about 6.";

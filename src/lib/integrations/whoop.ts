@@ -109,7 +109,25 @@ type SleepRec = Scored & {
   };
 };
 type RecoveryRec = Scored & { cycle_id: number; score?: { recovery_score?: number } };
-type WorkoutRec = Scored & { id: string; start?: string; sport_name?: string; score?: { strain?: number } };
+type WorkoutRec = Scored & {
+  id: string;
+  start?: string;
+  end?: string;
+  sport_name?: string;
+  score?: {
+    strain?: number;
+    kilojoule?: number;
+    average_heart_rate?: number;
+    zone_durations?: {
+      zone_zero_milli?: number;
+      zone_one_milli?: number;
+      zone_two_milli?: number;
+      zone_three_milli?: number;
+      zone_four_milli?: number;
+      zone_five_milli?: number;
+    };
+  };
+};
 
 export async function recentSleep(token: string, since: string): Promise<SleepRec[]> {
   return collection(token, "/v2/activity/sleep", since);

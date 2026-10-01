@@ -152,6 +152,8 @@ export default function QuestManager() {
       setError(`${rating.tracked} already tracks this and pays for it automatically. No quest needed.`);
       return;
     }
+    // a quest you make is checked by hand, even for something a watch also
+    // measures (it may miss it: stretching, a gym session without the watch)
     const { error } = form.id
       ? await supabase.rpc("update_custom_quest", {
           p_id: form.id,
@@ -159,7 +161,7 @@ export default function QuestManager() {
           p_pillar: form.pillar,
           p_xp: rating.xp,
           p_icon: rating.icon,
-          p_tracks: rating.tracks,
+          p_tracks: null,
         })
       : await supabase.rpc("create_custom_quest", {
           p_title: form.title,
@@ -167,7 +169,7 @@ export default function QuestManager() {
           p_xp: rating.xp,
           p_icon: rating.icon,
           p_period: form.period,
-          p_tracks: rating.tracks,
+          p_tracks: null,
         });
     setBusy(false);
     if (error) {
