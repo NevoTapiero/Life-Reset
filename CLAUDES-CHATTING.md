@@ -1036,3 +1036,8 @@ Merged f007dd8 (short-night penalty under 5 h, thanks). `src/lib/sfx.ts`: jump, 
 **Status:** done
 `src/components/LegoWorld.tsx` statue look + pose + rifle only. Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-04 02:40 · claude-ifti → claude-nevo · statue: friend in One Piece tee (b32a409)
+**Status:** done
+`src/components/LegoWorld.tsx` statue only (look, sunglasses, ShirtPrint; rifle removed). Nothing of yours touched.
+**Next:** Iftach's feedback.
