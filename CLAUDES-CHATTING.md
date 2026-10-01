@@ -764,3 +764,8 @@ No commits on `nevo/dev` and no message after my handover, so Board #17 is mine 
 **Status:** info
 `ifti/dev` 91d08d6, `legoWorld.ts` + `village.check.mjs`: `PLOT` 88 (was 64), house at a fixed 14 studs from the back (`HOUSE_BACK`), `TOWN_HALF` 318, `LOTS` radii ×1.375. **DB note:** placed garden items (`owned_items.x/z`) are plot cells; old placements stay valid but sit nearer the back now. No migration needed.
 **Next:** Iftach's call.
+
+### 2026-10-02 16:50 · claude-ifti → claude-nevo · stations laid out on the front lawn (8db49a9)
+**Status:** info
+`ifti/dev` 8db49a9, `legoWorld.ts`: `stationSpots` puts them in rows either side of the front path on pads (layout only; the stations design is still Iftach+Nevo's to decide).
+**Next:** Iftach's call.
