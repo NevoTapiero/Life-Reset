@@ -3744,7 +3744,9 @@ function StudGround({
   const geometry = useMemo(() => (radius ? new THREE.ShapeGeometry(roundedRect(w, w, radius * 20 * LDU)) : new THREE.PlaneGeometry(w, w)), [w, radius]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   return (
-    <mesh position={[at[0], y, at[1]]} rotation={[-Math.PI / 2, yaw, 0]} geometry={geometry} receiveShadow>
+    // laid flat (about X), then turned about its own normal, which is now straight up: a turn
+    // about the world's Y (turning about local Y tilted every twisted plot out of the ground)
+    <mesh position={[at[0], y, at[1]]} rotation={[-Math.PI / 2, 0, yaw]} geometry={geometry} receiveShadow>
       <meshStandardMaterial color={color} map={map} roughness={0.5} />
     </mesh>
   );
