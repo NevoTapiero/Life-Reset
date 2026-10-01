@@ -2025,11 +2025,11 @@ export function LegoTown({
             <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={GRASS_Y} />
             {/* meadows: round patches a shade off the grass, so the green isn't one flat sheet */}
             {MEADOWS.map((m, i) => (
-              <StudGround key={`m${i}`} at={[m.x * LDU, -m.z * LDU]} size={(2 * m.r) / 20} color={meadowShade(grass, m.k)} y={MEADOW_Y} radius={m.r / 20} />
+              <StudGround key={`m${i}`} at={[m.x * LDU, -m.z * LDU]} size={(2 * m.r) / 20} color={meadowShade(grass, m.k)} y={MEADOW_Y} radius={m.r / 20} thick={MEADOW_Y - GRASS_Y} />
             ))}
-            <StudGround at={[0, 0]} size={PLAZA} color="#a3a7ad" radius={8} />
+            <StudGround at={[0, 0]} size={PLAZA} color="#a3a7ad" radius={8} thick={-GRASS_Y} />
             {[...lots, ...emptyLots].map((lot, i) => (
-              <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} yaw={-lot.yaw} />
+              <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} yaw={-lot.yaw} thick={-GRASS_Y} />
             ))}
           </>
         }
@@ -3841,6 +3841,7 @@ function StudGround({
   flat,
   radius,
   yaw = 0,
+  thick,
 }: {
   at: [number, number];
   size: number;
@@ -3851,6 +3852,8 @@ function StudGround({
   radius?: number;
   /** turned about Y (three's space, radians) */
   yaw?: number;
+  /** a real plate this thick (three units) with side edges, its top at `y`; without it a flat sheet */
+  thick?: number;
 }) {
   const [ax, az] = at;
   const map = useMemo(() => {
@@ -3861,17 +3864,36 @@ function StudGround({
     // painted studs land on the world's stud grid, where the real studs round the player are
     // (a shape's y runs along -z once it lies flat)
     if (radius) t.offset.set(((ax % 1) + 1) % 1, ((-az % 1) + 1) % 1);
+    if (thick) t.repeat.set(1, 1); // an extruded shape's caps are mapped by its coordinates, a stud a unit
     t.needsUpdate = true;
     return t;
-  }, [size, flat, radius, ax, az]);
+  }, [size, flat, radius, ax, az, thick]);
   const w = size * 20 * LDU;
-  const geometry = useMemo(() => (radius ? new THREE.ShapeGeometry(roundedRect(w, w, radius * 20 * LDU)) : new THREE.PlaneGeometry(w, w)), [w, radius]);
+  const geometry = useMemo(() => {
+    const shape = radius ? roundedRect(w, w, radius * 20 * LDU) : roundedRect(w, w, 0.01);
+    if (thick) {
+      // a plate: the shape extruded down from the top (its local z is up once laid flat)
+      const g = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled: false });
+      g.translate(0, 0, -thick);
+      return g;
+    }
+    return radius ? new THREE.ShapeGeometry(shape) : new THREE.PlaneGeometry(w, w);
+  }, [w, radius, thick]);
   useEffect(() => () => geometry.dispose(), [geometry]);
+  const side = useMemo(() => new THREE.Color(color).multiplyScalar(0.82), [color]);
   return (
     // laid flat (about X), then turned about its own normal, which is now straight up: a turn
     // about the world's Y (turning about local Y tilted every twisted plot out of the ground)
     <mesh position={[at[0], y, at[1]]} rotation={[-Math.PI / 2, 0, yaw]} geometry={geometry} receiveShadow>
-      <meshStandardMaterial color={color} map={map} roughness={0.5} />
+      {thick ? (
+        <>
+          {/* the extrusion's groups: 0 the top and bottom (studded), 1 the sides (plain, a shade darker) */}
+          <meshStandardMaterial attach="material-0" color={color} map={map} roughness={0.5} />
+          <meshStandardMaterial attach="material-1" color={side} roughness={0.55} />
+        </>
+      ) : (
+        <meshStandardMaterial color={color} map={map} roughness={0.5} />
+      )}
     </mesh>
   );
 }
