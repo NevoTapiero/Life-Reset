@@ -1186,6 +1186,8 @@ function tuftGeometry(): THREE.BufferGeometry {
   return mergeGeometries(blades.map((g) => g.toNonIndexed()));
 }
 const TUFT_MAX = 900;
+const GRASS_Y = -0.3; // the open grass's height (three units), under everything else
+const MEADOW_Y = -0.2; // a meadow patch lies on it
 function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vector3>; grass: string; lots: Lot[] }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const tufts = useRef<THREE.InstancedMesh>(null);
@@ -1234,13 +1236,16 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
         const g = openGround(x, z);
         if (g < 0) continue;
         const hash = ((i * 73856093) ^ (k * 19349663)) >>> 0; // the same stud always gets the same shade and tuft
-        o.position.set(i + 0.5, 0.085, k + 0.5);
+        // seated on the ground it stands on: the open grass lies at GRASS_Y, a meadow at MEADOW_Y
+        // (both below the plots' 0); at the plots' height they floated, each with its shadow under it
+        const base = g === 0 ? GRASS_Y : MEADOW_Y;
+        o.position.set(i + 0.5, base + 0.085, k + 0.5);
         o.updateMatrix();
         m.setMatrixAt(n, o.matrix);
         m.setColorAt(n, jittered.copy(g === 0 ? green : meadowGreens[g - 1]).multiplyScalar(0.96 + ((hash % 1000) / 1000) * 0.08));
         n++;
         if (tm && nt < TUFT_MAX && hash % 11 === 0) {
-          o.position.set(i + 0.5 + ((hash % 7) / 7 - 0.5) * 0.5, 0.17, k + 0.5 + ((hash % 5) / 5 - 0.5) * 0.5);
+          o.position.set(i + 0.5 + ((hash % 7) / 7 - 0.5) * 0.5, base + 0.17, k + 0.5 + ((hash % 5) / 5 - 0.5) * 0.5);
           o.rotation.set(0, (hash % 360) * (Math.PI / 180), 0);
           const sz = 0.7 + ((hash % 13) / 13) * 0.6;
           o.scale.set(sz, sz, sz);
@@ -1986,10 +1991,10 @@ export function LegoTown({
             {/* the ground: grass everywhere (the road, ring and paths are Slabs on it), the paved
                 plaza, and each plot turned its own way. Layers sit 0.1 apart (two LDU): the map
                 camera's depth buffer can't tell closer ones apart. */}
-            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={-0.3} />
+            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={GRASS_Y} />
             {/* meadows: round patches a shade off the grass, so the green isn't one flat sheet */}
             {MEADOWS.map((m, i) => (
-              <StudGround key={`m${i}`} at={[m.x * LDU, -m.z * LDU]} size={(2 * m.r) / 20} color={meadowShade(grass, m.k)} y={-0.2} radius={m.r / 20} />
+              <StudGround key={`m${i}`} at={[m.x * LDU, -m.z * LDU]} size={(2 * m.r) / 20} color={meadowShade(grass, m.k)} y={MEADOW_Y} radius={m.r / 20} />
             ))}
             <StudGround at={[0, 0]} size={PLAZA} color="#a3a7ad" radius={8} />
             {[...lots, ...emptyLots].map((lot, i) => (
