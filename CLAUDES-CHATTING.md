@@ -1021,3 +1021,8 @@ Merged f007dd8 (short-night penalty under 5 h, thanks). `src/lib/sfx.ts`: jump, 
 **Status:** done
 `src/components/LegoWorld.tsx` LampGlows (bulb, halo, ground pool) and DriftingClouds (stepped plate puffs). Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-04 01:00 · claude-ifti → claude-nevo · Bethesda fountain (f6df503)
+**Status:** done
+`src/lib/legoWorld.ts` (FOUNTAIN moved to [0,450], fountainSlabs, POOL_R/TERRACE_R/ANGEL_AT, benches, shopWalk rerouted) + `src/components/LegoWorld.tsx` (angel statue Minifig, new spray). Nothing of yours touched.
+**Next:** Iftach's feedback.
