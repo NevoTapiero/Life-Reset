@@ -1007,6 +1007,9 @@ function Chase({
   const want = useMemo(() => new THREE.Vector3(), []);
   const off = useMemo(() => new THREE.Vector3(), []);
   const ahead = useMemo(() => new THREE.Vector3(), []);
+  // the LEGO-game camera leads a little the way you're going (you see where you're heading, not
+  // where you've been): a third of a second of your movement, at most 5 studs, eased in and out
+  const leadRef = useRef({ last: new THREE.Vector3(), at: new THREE.Vector3(), want: new THREE.Vector3(), primed: false });
   // when this camera goes (the map, a house), the cut goes too
   useEffect(() => () => void cut.set(cut.normal, 1e6), [cut]);
   const dragging = useRef(false);
@@ -1025,7 +1028,15 @@ function Chase({
   useFrame((_, dt) => {
     const c = controls.current;
     if (!c || flying.current) return;
-    want.copy(follow.current).add(CHASE_LIFT).sub(c.target).multiplyScalar(Math.min(1, dt * 10));
+    const p = follow.current;
+    const lead = leadRef.current;
+    lead.want.subVectors(p, lead.last).divideScalar(Math.max(dt, 1e-3)).multiplyScalar(0.33).setY(0);
+    if (!lead.primed || lead.want.length() > 40) lead.want.set(0, 0, 0); // a jump across town (into a house): no lead
+    lead.want.clampLength(0, 5);
+    lead.at.lerp(lead.want, Math.min(1, dt * 2.5));
+    lead.last.copy(p);
+    lead.primed = true;
+    want.copy(p).add(CHASE_LIFT).add(lead.at).sub(c.target).multiplyScalar(Math.min(1, dt * 10));
     c.target.add(want);
     camera.position.add(want);
     // ease round behind you as you go (never while you're turning the view yourself)
