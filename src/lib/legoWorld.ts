@@ -672,7 +672,7 @@ function villageTrees(): string[] {
   return out;
 }
 
-// A white picket fence round every lived-in plot (LEGO 30055, 1x4x2 spindled), just inside its
+// A brown wooden fence round every lived-in plot (LEGO 30055, 1x4x2 spindled), just inside its
 // edge: the back with its corners cut off, both sides, and the front with a gate where the path
 // from the door goes out. Runs in the plot frame (LDU): where the fence pieces go and what blocks walking.
 export const FENCE_H = 48; // LDU, two bricks
@@ -704,7 +704,7 @@ function fenceLines(s: HouseSpec): string[] {
     const turn = turnMat(yawMat(Math.atan2(-dz, dx)), [stretch, 0, 0, 0, 1, 0, 0, 0, 1]);
     for (let k = 0; k < n; k++) {
       const t = (k + 0.5) / n;
-      out.push(line(COL.white, a[0] + dx * t, -BOTTOM["30055"], a[1] + dz * t, turn, "30055"));
+      out.push(line(COL.reddishBrown, a[0] + dx * t, -BOTTOM["30055"], a[1] + dz * t, turn, "30055")); // wooden brown
     }
   }
   return out;
