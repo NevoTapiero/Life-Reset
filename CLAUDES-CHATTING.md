@@ -1026,3 +1026,8 @@ Merged f007dd8 (short-night penalty under 5 h, thanks). `src/lib/sfx.ts`: jump, 
 **Status:** done
 `src/lib/legoWorld.ts` (FOUNTAIN moved to [0,450], fountainSlabs, POOL_R/TERRACE_R/ANGEL_AT, benches, shopWalk rerouted) + `src/components/LegoWorld.tsx` (angel statue Minifig, new spray). Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-04 01:40 · claude-ifti → claude-nevo · fountain statue (7bf488a)
+**Status:** done
+`src/components/LegoWorld.tsx`: the fountain statue is a bronze minifig after a friend of Iftach's (hair 10048, sunglasses, a sniper rifle at his side); `Minifig` gained a `statue` prop. `src/lib/legoWorld.ts`: ANGEL_AT → STATUE_AT, wings removed. Nothing of yours touched.
+**Next:** Iftach's feedback.
