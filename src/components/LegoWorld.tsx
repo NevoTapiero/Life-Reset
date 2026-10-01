@@ -1185,11 +1185,14 @@ function tuftGeometry(): THREE.BufferGeometry {
   return mergeGeometries(blades.map((g) => g.toNonIndexed()));
 }
 const TUFT_MAX = 900;
+const BITS_MAX = 260;
 const GRASS_Y = -0.3; // the open grass's height (three units), under everything else
 const MEADOW_Y = -0.2; // a meadow patch lies on it
 function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vector3>; grass: string; lots: Lot[] }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const tufts = useRef<THREE.InstancedMesh>(null);
+  const bits = useRef<THREE.InstancedMesh>(null); // loose round plates and pebbles lying on the studs
+  const bitColours = useMemo(() => ["#a0a5a9", "#6c6e68", "#d8c79c", new THREE.Color(grass).multiplyScalar(0.82).getStyle()].map((c) => new THREE.Color(c)), [grass]);
   const tuftGeo = useMemo(() => tuftGeometry(), []);
   const tuftGreen = useMemo(() => new THREE.Color(grass).multiplyScalar(0.78), [grass]);
   const jittered = useMemo(() => new THREE.Color(), []);
@@ -1226,7 +1229,9 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
     // and the open ground round you: real studs on the grass and the meadows, none on anything flat;
     // each stud its own faint shade, and a tuft of grass on about one cell in ten
     const tm = tufts.current;
+    const bm = bits.current;
     let nt = 0;
+    let nb = 0;
     for (let i = px - STUD_REACH; i <= px + STUD_REACH; i++)
       for (let k = pz - STUD_REACH; k <= pz + STUD_REACH; k++) {
         if (n >= STUD_MAX) break;
@@ -1243,6 +1248,17 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
         m.setMatrixAt(n, o.matrix);
         m.setColorAt(n, jittered.copy(g === 0 ? green : meadowGreens[g - 1]).multiplyScalar(0.96 + ((hash % 1000) / 1000) * 0.08));
         n++;
+        // now and then a loose round piece lying on the studs: a 2x2 round plate, or a 1x1 pebble
+        if (bm && nb < BITS_MAX && hash % 41 === 3) {
+          const big = hash % 3 === 0;
+          o.position.set(i + 0.5 + ((hash % 9) / 9 - 0.5) * 0.3, base + 0.2, k + 0.5 + ((hash % 7) / 7 - 0.5) * 0.3);
+          o.scale.set(big ? 1 : 0.42, 1, big ? 1 : 0.42);
+          o.updateMatrix();
+          bm.setMatrixAt(nb, o.matrix);
+          bm.setColorAt(nb, bitColours[hash % bitColours.length]);
+          nb++;
+          o.scale.set(1, 1, 1);
+        }
         if (tm && nt < TUFT_MAX && hash % 11 === 0) {
           o.position.set(i + 0.5 + ((hash % 7) / 7 - 0.5) * 0.5, base + 0.17, k + 0.5 + ((hash % 5) / 5 - 0.5) * 0.5);
           o.rotation.set(0, (hash % 360) * (Math.PI / 180), 0);
@@ -1261,6 +1277,11 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
       tm.count = nt;
       tm.instanceMatrix.needsUpdate = true;
     }
+    if (bm) {
+      bm.count = nb;
+      bm.instanceMatrix.needsUpdate = true;
+      if (bm.instanceColor) bm.instanceColor.needsUpdate = true;
+    }
   });
   return (
     <>
@@ -1268,6 +1289,10 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
         <cylinderGeometry args={[0.3, 0.3, 0.17, 16]} />
         {/* flat-shaded: a crisp rim and a flat bright top, the way a stud reads, not a soft blob */}
         <meshPhysicalMaterial roughness={0.5} clearcoat={0.3} clearcoatRoughness={0.4} flatShading />
+      </instancedMesh>
+      <instancedMesh ref={bits} args={[undefined, undefined, BITS_MAX]} frustumCulled={false} castShadow receiveShadow>
+        <cylinderGeometry args={[0.95, 0.95, 0.12, 20]} />
+        <meshPhysicalMaterial roughness={0.45} clearcoat={0.5} clearcoatRoughness={0.3} />
       </instancedMesh>
       <instancedMesh ref={tufts} args={[undefined, undefined, TUFT_MAX]} geometry={tuftGeo} frustumCulled={false} castShadow>
         <meshStandardMaterial color={tuftGreen} roughness={0.8} flatShading />
