@@ -166,9 +166,9 @@ export function buildGarden(streak: number, s: HouseSpec, stations: Station[] = 
   for (; z + 1 < PLOT + 3; z += 2) out.push(put("3068b", COL.lightGrey, pathL + 0.5, z + 0.5, 0));
   if (z < PLOT + 3) out.push(put("3069b", COL.lightGrey, pathL + 0.5, z, 0));
 
-  // the name sign at the gate, beside the path
+  // the name sign at the gate, beside the path, and the fence round the yard
   const [gx, gz] = gateSignAt(s);
-  out.push(...place(SIGNPOST, gx, gz, ROT[0], 0));
+  out.push(...place(SIGNPOST, gx, gz, ROT[0], 0), ...fenceLines(s));
   // (no streak flowers, hedges, trees or pond any more: Iftach, 2 Oct, "we need a real upgrade",
   // what a plot has will come from the shop and the level; `streak` stays in the signature for now)
   void streak;
@@ -371,7 +371,7 @@ export function townInstances(residents: Resident[]): Placement[] {
 // once per placement they cost most of the town's triangles, memory and load
 // time; the renderer instead parses each part + colour once and draws every
 // copy with one InstancedMesh. Same geometry, same look.
-export const INSTANCED_PARTS = new Set(["3470", "3471", "2417", "2435", "3741ac05"]);
+export const INSTANCED_PARTS = new Set(["3470", "3471", "2417", "2435", "3741ac05", "30055"]);
 /** a part placed in LDraw space: m = [x, y, z, a, b, c, d, e, f, g, h, i] as in a type-1 line */
 export type Placement = { part: string; color: number; m: number[] };
 
@@ -672,26 +672,40 @@ function villageTrees(): string[] {
   return out;
 }
 
-// A hedge round the back and sides of every plot (the front is the garden's
-// own, by streak): dark green, just inside the edge, its back corners cut off
-// (rounded, not boxed in). Boxes for the renderer's Slabs, turned with the lot,
-// and blockers so nobody walks through them.
-export const HEDGE_H = 20; // LDU
-const HEDGE_CUT = 8; // studs off each back corner
-export function plotHedges(): Slab[] {
-  const out: Slab[] = [];
+// A white picket fence round every lived-in plot (LEGO 30055, 1x4x2 spindled), just inside its
+// edge: the back with its corners cut off, both sides, and the front with a gate where the path
+// from the door goes out. Runs in the plot frame (LDU): where the fence pieces go and what blocks walking.
+export const FENCE_H = 48; // LDU, two bricks
+const FENCE_CUT = 8; // studs off each back corner
+const GATE = 4; // studs either side of the path left open
+export function plotFence(s: HouseSpec): { a: [number, number]; b: [number, number] }[] {
   const E = (PLOT / 2 - 0.5) * S;
-  const C = HEDGE_CUT * S;
-  for (let i = 0; i < MAX_RESIDENTS; i++) {
-    const lot = lotFor(i);
-    const seg = (cx: number, cz: number, w: number, d: number, turn = 0) => {
-      const [x, , z] = inLot(lot, [cx, 0, cz]);
-      out.push({ x, z, w, d, h: HEDGE_H, color: "#237841", yaw: lot.yaw + turn, studs: true });
-    };
-    seg(0, -E, (PLOT - 1) * S - 2 * C, S); // the back
-    seg(-E, C / 2, S, (PLOT - 1) * S - C); // the sides
-    seg(E, C / 2, S, (PLOT - 1) * S - C);
-    for (const side of [-1, 1]) seg(side * (E - C / 2), -(E - C / 2), C * Math.SQRT2, S, side * (Math.PI / 4)); // the cut corners
+  const C = FENCE_CUT * S;
+  const gx = pathX(s);
+  const out: { a: [number, number]; b: [number, number] }[] = [
+    { a: [-E + C, -E], b: [E - C, -E] }, // the back
+    { a: [-E, -E + C], b: [-E, E] }, // the sides
+    { a: [E, -E + C], b: [E, E] },
+    { a: [-E, -E + C], b: [-E + C, -E] }, // the cut corners
+    { a: [E - C, -E], b: [E, -E + C] },
+  ];
+  if (gx - GATE * S > -E + 2 * S) out.push({ a: [-E, E], b: [gx - GATE * S, E] }); // the front, a gate at the path
+  if (gx + GATE * S < E - 2 * S) out.push({ a: [gx + GATE * S, E], b: [E, E] });
+  return out;
+}
+// the fence's pieces along each run, each run evenly split into whole pieces (stretched a touch to fit)
+function fenceLines(s: HouseSpec): string[] {
+  const out: string[] = [];
+  for (const { a, b } of plotFence(s)) {
+    const [dx, dz] = [b[0] - a[0], b[1] - a[1]];
+    const len = Math.hypot(dx, dz);
+    const n = Math.max(1, Math.round(len / (4 * S)));
+    const stretch = len / (n * 4 * S);
+    const turn = turnMat(yawMat(Math.atan2(-dz, dx)), [stretch, 0, 0, 0, 1, 0, 0, 0, 1]);
+    for (let k = 0; k < n; k++) {
+      const t = (k + 0.5) / n;
+      out.push(line(COL.white, a[0] + dx * t, -BOTTOM["30055"], a[1] + dz * t, turn, "30055"));
+    }
   }
   return out;
 }
@@ -1449,7 +1463,15 @@ export function townBlockers(residents: Resident[]): Blocker[] {
     const [cx, , cz] = inLot(lotFor(i), [gx, 0, gz]);
     out.push({ cx, cz, r: 22 });
   });
-  for (const h of plotHedges()) out.push({ cx: h.x, cz: h.z, hw: h.w / 2 + 8, hd: h.d / 2 + 8, yaw: h.yaw ?? 0 });
+  // the fences: a turned box along every run
+  residents.slice(0, MAX_RESIDENTS).forEach((r, i) => {
+    const lot = lotFor(i);
+    for (const { a, b } of plotFence(houseSpec(r.level))) {
+      const [cx, , cz] = inLot(lot, [(a[0] + b[0]) / 2, 0, (a[1] + b[1]) / 2]);
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      out.push({ cx, cz, hw: len / 2 + 6, hd: 16, yaw: lot.yaw + Math.atan2(-(b[1] - a[1]), b[0] - a[0]) });
+    }
+  });
   return out;
 }
 const EDGE = (TOWN_HALF - 4) * S;

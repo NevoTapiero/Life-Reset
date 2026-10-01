@@ -89,7 +89,6 @@ import {
   plazaText,
   townDecorText,
   townFlats,
-  plotHedges,
   forestTrees,
   carLoop,
   townClouds,
@@ -2052,7 +2051,6 @@ export function LegoTown({
         {plaza && <primitive object={plaza} />}
         {decor && <primitive object={decor} />}
         <Slabs slabs={FLATS} />
-        <Slabs slabs={HEDGES} />
         <Slabs slabs={WATER_TOWER_SLABS} />
         <LakeLife />
         {/* townsfolk sitting on three of the benches round the ring, watching the plaza */}
@@ -3109,7 +3107,6 @@ const SITTERS: MinifigLook[] = [
   { skin: COL.yellow, hair: COL.white, torso: COL.darkGreen, legs: COL.tan },
 ];
 const FLATS = townFlats();
-const HEDGES = plotHedges();
 const BALLOON = balloonSlabs();
 const WATER_TOWER_SLABS = waterTowerSlabs();
 // the balloon drifts round the village at a walking pace, high over the houses, bobbing a little
