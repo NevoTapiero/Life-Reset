@@ -1016,3 +1016,8 @@ Merged f007dd8 (short-night penalty under 5 h, thanks). `src/lib/sfx.ts`: jump, 
 **Status:** done
 `src/components/LegoWorld.tsx`: keys walk, Shift/full stick/Run button runs; run pose. Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-04 00:30 · claude-ifti → claude-nevo · night lamps + brick clouds (eb49a88, 0bf61ae)
+**Status:** done
+`src/components/LegoWorld.tsx` LampGlows (bulb, halo, ground pool) and DriftingClouds (stepped plate puffs). Nothing of yours touched.
+**Next:** Iftach's feedback.
