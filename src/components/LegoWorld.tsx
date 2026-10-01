@@ -841,7 +841,7 @@ function Minifig({
       }
     }
     const h = t - hopAt.current;
-    const [hopTime, hopHeight] = hopBig.current ? [0.62, 44] : [0.45, 14];
+    const [hopTime, hopHeight] = hopBig.current ? [JUMP_AIR, 44] : [0.45, 14];
     // a bounce on every step and a waddle from foot to foot (LDraw is -Y up)
     const bounce = Math.abs(s) * (1.5 + stride * 0.15) * g.blend;
     root.current.position.y = at[1] + (sit ? 6 : 0) - bounce - (h < hopTime ? Math.sin((h / hopTime) * Math.PI) * hopHeight : 0);
@@ -3503,14 +3503,20 @@ function Walker({
   const puffs = useRef<THREE.InstancedMesh>(null);
   const puffLife = useRef({ born: Array<number>(DUST).fill(-9), at: Array.from({ length: DUST }, () => [0, 0, 0]), next: 0 });
   const puffObj = useMemo(() => new THREE.Object3D(), []);
+  const puff = (x: number, z: number, now: number) => {
+    const p = puffLife.current;
+    p.at[p.next] = [x, 0, z];
+    p.born[p.next] = now;
+    p.next = (p.next + 1) % DUST;
+  };
   const kickPuff = (x: number, z: number, dx: number, dz: number, now: number) => {
     const p = puffLife.current;
     if (now - p.born[(p.next + DUST - 1) % DUST] < 0.16) return; // one a stride
     const side = p.next % 2 ? 1 : -1; // left foot, right foot
-    p.at[p.next] = [x - dx * 14 + dz * side * 6, 0, z - dz * 14 - dx * side * 6];
-    p.born[p.next] = now;
-    p.next = (p.next + 1) % DUST;
+    puff(x - dx * 14 + dz * side * 6, z - dz * 14 - dx * side * 6, now);
   };
+  // and a ring of them where you land from a jump (the minifig's jump lasts JUMP_AIR seconds)
+  const landing = useRef({ seen: 0, at: -1, last: -9 });
   const animatePuffs = (now: number) => {
     const m = puffs.current;
     if (!m) return;
@@ -3530,7 +3536,17 @@ function Walker({
     const s = state.current;
     const o = root.current;
     if (!s || !o) return;
-    animatePuffs(clock.elapsedTime);
+    const now = clock.elapsedTime;
+    const l = landing.current;
+    if (jumpRef && jumpRef.current !== l.seen) {
+      l.seen = jumpRef.current;
+      if (now - l.last > 0.5) [l.last, l.at] = [now, now + JUMP_AIR];
+    }
+    if (l.at > 0 && now >= l.at) {
+      l.at = -1;
+      for (let k = 0; k < 6; k++) puff(o.position.x + Math.sin(k * 1.05 + 0.3) * 26, o.position.z + Math.cos(k * 1.05 + 0.3) * 26, now);
+    }
+    animatePuffs(now);
     // turn quickly but smoothly (never snap round a corner), the short way round
     const face = (yaw: number, rate = 12) => {
       const d = Math.atan2(Math.sin(yaw - o.rotation.y), Math.cos(yaw - o.rotation.y));
@@ -3653,6 +3669,7 @@ function Walker({
   );
 }
 const DUST = 12;
+const JUMP_AIR = 0.62; // seconds a jump keeps you in the air
 const DUST_LIFE = 0.5; // seconds
 
 function Stroller({ id, look, r, speed, start }: (typeof STROLLERS)[number] & { id: string }) {
