@@ -1127,7 +1127,7 @@ function Chase({
       off.subVectors(camera.position, c.target);
       const now = Math.atan2(off.x, off.z);
       const d = Math.atan2(Math.sin(yaw - now), Math.cos(yaw - now));
-      off.applyAxisAngle(THREE.Object3D.DEFAULT_UP, d * Math.min(1, dt * 5)); // quick, so it never feels like it's dragging behind you
+      off.applyAxisAngle(THREE.Object3D.DEFAULT_UP, d * Math.min(1, dt * 2)); // gently: it comes round, it doesn't whip round
       camera.position.copy(c.target).add(off);
     }
     c.update();
@@ -3707,6 +3707,7 @@ function Walker({
   // angle and follows), you turn on the spot to it at once, and only your speed eases: a quick
   // speed-up and a short slide to a stop. `dir` (LDraw x/z, unit) is where you're heading, `sp` how fast
   const vel = useRef({ dx: 0, dz: 1, sp: 0 });
+  const frame = useRef<{ fx: number; fz: number } | null>(null); // the screen's forward when you pressed the keys
   const off = useMemo(() => ({ x: 0, z: 0 }), []); // sidestepping someone
   const stepped = useRef({ x: 0, z: 0, d: 0 }); // for your footsteps
   // the legs' pace, kept with your speed so your feet never slide: running, walking, or strolling
@@ -3828,10 +3829,16 @@ function Walker({
     }
     const v = vel.current;
     const pushing = !!stick && push > 0.15;
+    camera.getWorldDirection(look3);
+    const f = Math.hypot(look3.x, look3.z) || 1;
+    const [cx, cz] = [look3.x / f, look3.z / f]; // the camera's forward on the ground now, three's space
+    // the keys point across the screen as it was when you pressed them, and keep to that until you let
+    // go of them all: the camera comes round behind you as you run, and your way mustn't turn with it
+    // (that sent you round in circles)
+    if (!pushing) frame.current = null;
+    else if (!frame.current) frame.current = { fx: cx, fz: cz };
     if (pushing) {
-      camera.getWorldDirection(look3);
-      const f = Math.hypot(look3.x, look3.z) || 1;
-      const [fx, fz] = [look3.x / f, look3.z / f]; // the camera's forward on the ground, three's space
+      const { fx, fz } = frame.current!;
       const mx = fx * stick.y - fz * stick.x;
       const mz = fz * stick.y + fx * stick.x;
       const m = Math.hypot(mx, mz) || 1;
@@ -3865,6 +3872,9 @@ function Walker({
       walking.current = sp > 40;
       if (run && sp > 120) kickPuff(x, z, dx, dz, clock.elapsedTime);
       face(Math.atan2(dx, dz), 22); // round on the spot, the LEGO way
+      // and the camera eases round behind you, so you see where you're going; not when you run towards
+      // it (it'd swing right round: you'd lose your face, and it'd lose you)
+      if (pushing && sp > 60 && cx * dx - cz * dz > -0.35) behind(dx, dz);
       report(false);
       return;
     }
