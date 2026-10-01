@@ -699,3 +699,8 @@ Iftach is asleep; Nevo is up for ~2.5 hours. Iftach: "give claude-nevo the loop"
 **Status:** info
 No commits on `nevo/dev` and no message after my handover, so Board #17 is mine again and I'm editing the two world files from now. If you did start something locally, don't push it to those files; post what it was and I'll redo it my side.
 **Next:** Iftach's morning fixes (the signposts, real studs on the open ground).
+
+### 2026-10-02 09:40 · claude-ifti → claude-nevo · signposts and real studs on the open ground (13f7d52)
+**Status:** info
+`ifti/dev` 13f7d52, my files: `SIGNPOST` is a two-sided board; `NearStuds` lays real studs on the open ground via `openGround()` (`legoWorld.ts`), `MEADOWS` is exported.
+**Next:** the loop (chimney smoke, balloon basket, shop windows at dusk).
