@@ -877,7 +877,9 @@ function Minifig({
     const s = Math.sin(g.phase);
     if (parts.every(Boolean)) {
       if (!limbs.current.length) limbs.current = parts.map((p) => p!.quaternion.clone());
-      const swing = sit ? [-1.5, -1.5, 0, 0] : [s * reach, -s * reach, -s * reach * 0.8, s * reach * 0.8]; // legL legR armL armR
+      // running (a long stride) pumps the arms right through, as far as the legs; walking swings them less
+      const arms = stride > 15 ? 1 : 0.8;
+      const swing = sit ? [-1.5, -1.5, 0, 0] : [s * reach, -s * reach, -s * reach * arms, s * reach * arms]; // legL legR armL armR
       // a hand holding something (a sword, a staff) carries it the LEGO-game way: that arm barely swings and
       // comes up a little, which tips the blade back to rest steady over the shoulder (swung like the empty
       // hand, it swept from straight out in front to over the head every stride)
@@ -940,7 +942,7 @@ function Minifig({
     const h = t - hopAt.current;
     const [hopTime, hopHeight] = hopBig.current ? [JUMP_AIR, 44] : [0.45, 14];
     // a bounce on every step and a waddle from foot to foot (LDraw is -Y up)
-    const bounce = Math.abs(s) * (1.5 + stride * 0.15) * g.blend;
+    const bounce = Math.abs(s) * (1.5 + stride * 0.15) * (stride > 15 ? 1.35 : 1) * g.blend; // a run bounds
     root.current.position.y = at[1] + (sit ? 6 : 0) - bounce - (h < hopTime ? (hopBig.current ? lift(h) : Math.sin((h / hopTime) * Math.PI) * hopHeight) : 0);
     root.current.rotation.order = "YXZ"; // the lean is about its own sideways axis, whichever way it faces
     root.current.rotation.z = s * 0.075 * g.blend;
@@ -948,7 +950,7 @@ function Minifig({
     const spinK = hopDouble.current && h < JUMP_AIR ? Math.min(1, h / (JUMP_AIR * 0.8)) : 0;
     root.current.rotation.y = turn + (spinK > 0 ? Math.PI * 2 * (spinK < 0.5 ? 2 * spinK * spinK : 1 - (-2 * spinK + 2) ** 2 / 2) : 0);
     // leaning into it: a little when walking, well forward when running (its front is +z)
-    root.current.rotation.x = -(stride > 15 ? 0.17 : 0.05) * g.blend;
+    root.current.rotation.x = -(stride > 15 ? 0.24 : 0.05) * g.blend;
     // and a squash on landing from a jump: down and out for a moment, then back
     const land = h - hopTime;
     const squash = hopBig.current && land > 0 && land < 0.16 ? Math.sin((land / 0.16) * Math.PI) : 0;
@@ -1935,6 +1937,13 @@ export function LegoTown({
   useEffect(() => {
     if (energy !== null) energyRef.current = energy;
   }, [energy]);
+  // the Run button (phones; on a keyboard, Shift): while it's on, any push runs
+  const runRef = useRef(false);
+  const [runOn, setRunOn] = useState(false);
+  const toggleRun = () => {
+    runRef.current = !runRef.current;
+    setRunOn(runRef.current);
+  };
   const jump = () => {
     jumps.current++;
     sfx.jump();
@@ -2391,7 +2400,7 @@ export function LegoTown({
             }
             // you wave at the friend you've come to see
             const wave = inside === null && !shop && dest !== meIndex;
-            return <Walker key="me" id="me" wave={wave} go={goes} teleport={teleports} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : lots[dest].yaw} />;
+            return <Walker key="me" id="me" wave={wave} go={goes} teleport={teleports} runRef={runRef} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop ? Math.PI : lots[dest].yaw} />;
           }
           // friends: at home, at their door, waving when you come to see them
           return <Walker key={res.name} id={res.name} wave={dest === i} look={loadoutFor(res.level, res.character ?? undefined)} to={doorWalk(lots[i], res.level)} turn={lots[i].yaw} />;
@@ -2493,6 +2502,7 @@ export function LegoTown({
         )}
         {!isPlacing && (
           <div className="flex items-end gap-3">
+            {following && <RoundAction icon="run" text={runOn ? "Running" : "Run"} tone={runOn ? "yellow" : "dark"} small onClick={toggleRun} />}
             {following && <RoundAction icon="jump" text="Jump" tone="dark" small onClick={jump} />}
             {action && !doorButtonOnBuilding && <RoundAction icon={action.icon} text={action.text} onClick={action.onClick} disabled={!action.onClick} tone={action.tone} />}
           </div>
@@ -2597,8 +2607,9 @@ function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>, jumpR
     const down = held.current;
     const set = () => {
       const k = (a: string, b: string) => (down.has(a) || down.has(b) ? 1 : 0);
-      // keys run, the LEGO-game way (while you have the energy); hold Shift to walk
-      const push = down.has("shift") ? 0.6 : 1;
+      // keys walk; hold Shift to run, the LEGO-game way (while you have the energy): a full push, as
+      // the stick pushed right out
+      const push = down.has("shift") ? 1 : WALK_PUSH;
       outRef.current = { x: (k("d", "arrowright") - k("a", "arrowleft")) * push, y: (k("w", "arrowup") - k("s", "arrowdown")) * push };
     };
     const on = (e: KeyboardEvent) => {
@@ -2709,6 +2720,7 @@ function Near({
 // ---- the HUD ----
 // Simple, chunky icons for the round buttons (24x24, drawn in currentColor).
 const ICONS: Record<string, React.ReactNode> = {
+  run: <path d="M5 6l6 6-6 6M12 6l6 6-6 6" strokeWidth="2.6" />,
   talk: <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" strokeWidth="2.2" />,
   door: <path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17M3 21h18M14 12.5h.01" strokeWidth="2.4" />,
   knock: <path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V11m0-4.5a1.5 1.5 0 0 1 3 0V11m0-3a1.5 1.5 0 0 1 3 0v6a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3.6 14a1.5 1.5 0 0 1 2.4-1.8L8 14" strokeWidth="2" />,
@@ -3652,8 +3664,10 @@ const WALK_SPEED = 150; // LDU a second: an easy walk, with legs that keep up (s
 // stick points (x right, y up the screen), `blockers` what you can't walk
 // through; `where` gets your position (three's space) every frame, for the
 // camera to follow. A new `go` (the same place again included) walks you there.
-const DRIVE_SPEED = 150; // LDU a second at full stick, walking (running: RUN times that)
-const RUN = 1.5; // fast reads wrong on a minifig: a run is a brisk trot, not a sprint
+const DRIVE_SPEED = 150; // LDU a second, walking (running: RUN times that)
+const RUN = 1.7; // a LEGO run: clearly quicker than the walk, not a blur (fast reads wrong on a minifig)
+const RUN_STRIDE = 18.5; // the legs' pace that keeps a run's feet planted
+const WALK_PUSH = 0.7; // how far the keys push the stick when you walk (Shift: all the way, a run)
 function Walker({
   id,
   look,
@@ -3662,6 +3676,7 @@ function Walker({
   wave = false,
   go = 0,
   teleport,
+  runRef,
   input,
   blockers,
   where,
@@ -3683,6 +3698,8 @@ function Walker({
   energyRef?: React.RefObject<number>;
   /** bumped together with `go` when you teleport there (a tap on the map) instead of walking */
   teleport?: number;
+  /** the Run button: while on, pushing the stick at all runs (keys: Shift does the same) */
+  runRef?: React.RefObject<boolean>;
   input?: React.RefObject<{ x: number; y: number }>;
   blockers?: Blocker[];
   where?: React.RefObject<THREE.Vector3>;
@@ -3823,11 +3840,11 @@ function Walker({
     // driving: the stick moves you relative to the camera, sliding along walls
     const stick = input?.current;
     const push = stick ? Math.min(1, Math.hypot(stick.x, stick.y)) : 0;
-    // running: the stick pushed right out (or Shift), while you have the energy for it
+    // running: Shift, the stick pushed right out, or the Run button on, while you have the energy for it
     const e = energyRef?.current;
-    const run = push > 0.85 && (e === undefined || e >= CAN_RUN_AT);
+    const run = push > 0.15 && (push > 0.85 || !!runRef?.current) && (e === undefined || e >= CAN_RUN_AT);
     // (a step's length is about 2 x leg x sin(swing): these keep each speed's feet planted)
-    const pace = run ? 17 : push > 0.15 && push < 0.75 ? 9 : 13;
+    const pace = run ? RUN_STRIDE : push > 0.15 && push < WALK_PUSH * 0.7 ? 9 : 13;
     if (pace !== stride) setStride(pace);
     if (energyRef) {
       if (run) energyRef.current = Math.max(0, energyRef.current - RUN_COST * dt);
@@ -3856,7 +3873,7 @@ function Walker({
       } else if (run && v.sp < 10) puff(o.position.x - nx * 12, o.position.z - nz * 12, now);
       [v.dx, v.dz] = [nx, nz];
     }
-    const target = pushing ? DRIVE_SPEED * (run ? RUN : push) : 0;
+    const target = pushing ? DRIVE_SPEED * (run ? RUN : Math.min(1, push / WALK_PUSH)) : 0;
     v.sp += (target - v.sp) * Math.min(1, dt * (pushing ? 10 : 12));
     if (v.sp > 6 && (pushing || !s.walk)) {
       const { sp, dx, dz } = v;
