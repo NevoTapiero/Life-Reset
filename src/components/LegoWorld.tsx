@@ -787,6 +787,8 @@ function Minifig({
   const seen = useRef(0);
   const hopAt = useRef(-10); // frame-clock time the current hop started
   const hopBig = useRef(false); // a jump, not a little hop
+  const hopFrom = useRef(0); // how high you were when this jump began (a double jump starts in the air)
+  const hopDouble = useRef(false); // this jump is the second, in the air
   const jumpsSeen = useRef(0);
   const base = useRef<THREE.Quaternion[]>([]);
   const limbs = useRef<THREE.Quaternion[]>([]);
@@ -917,21 +919,33 @@ function Minifig({
       hopAt.current = t;
       hopBig.current = false;
     }
+    // a jump; and a second press while still up in the air, the LEGO-game double jump: up again from
+    // wherever you are, higher, with a full spin
+    const lift = (h: number) => {
+      const k = Math.min(1, h / JUMP_AIR);
+      return hopFrom.current * (1 - k) + Math.sin(k * Math.PI) * (hopDouble.current ? 40 : 44);
+    };
     if (jumpRef && jumpRef.current !== jumpsSeen.current) {
       jumpsSeen.current = jumpRef.current;
-      if (t - hopAt.current > 0.5) {
+      const up = t - hopAt.current;
+      if (hopBig.current && up < JUMP_AIR && !hopDouble.current) {
+        hopFrom.current = lift(up);
+        hopDouble.current = true;
         hopAt.current = t;
-        hopBig.current = true;
+      } else if (up > 0.5) {
+        [hopAt.current, hopBig.current, hopFrom.current, hopDouble.current] = [t, true, 0, false];
       }
     }
     const h = t - hopAt.current;
     const [hopTime, hopHeight] = hopBig.current ? [JUMP_AIR, 44] : [0.45, 14];
     // a bounce on every step and a waddle from foot to foot (LDraw is -Y up)
     const bounce = Math.abs(s) * (1.5 + stride * 0.15) * g.blend;
-    root.current.position.y = at[1] + (sit ? 6 : 0) - bounce - (h < hopTime ? Math.sin((h / hopTime) * Math.PI) * hopHeight : 0);
+    root.current.position.y = at[1] + (sit ? 6 : 0) - bounce - (h < hopTime ? (hopBig.current ? lift(h) : Math.sin((h / hopTime) * Math.PI) * hopHeight) : 0);
     root.current.rotation.order = "YXZ"; // the lean is about its own sideways axis, whichever way it faces
     root.current.rotation.z = s * 0.075 * g.blend;
-    root.current.rotation.y = turn; // standing, it stands put (only the head looks about)
+    // standing, it stands put (only the head looks about); a double jump spins it right round
+    const spinK = hopDouble.current && h < JUMP_AIR ? Math.min(1, h / (JUMP_AIR * 0.8)) : 0;
+    root.current.rotation.y = turn + (spinK > 0 ? Math.PI * 2 * (spinK < 0.5 ? 2 * spinK * spinK : 1 - (-2 * spinK + 2) ** 2 / 2) : 0);
     // leaning into it: a little when walking, well forward when running (its front is +z)
     root.current.rotation.x = -(stride > 15 ? 0.17 : 0.05) * g.blend;
     // and a squash on landing from a jump: down and out for a moment, then back
@@ -3716,7 +3730,7 @@ function Walker({
     puff(x - dx * 14 + dz * side * 6, z - dz * 14 - dx * side * 6, now);
   };
   // and a ring of them where you land from a jump (the minifig's jump lasts JUMP_AIR seconds)
-  const landing = useRef({ seen: 0, at: -1, last: -9 });
+  const landing = useRef({ seen: 0, at: -1, last: -9, double: false });
   const animatePuffs = (now: number) => {
     const m = puffs.current;
     if (!m) return;
@@ -3740,7 +3754,9 @@ function Walker({
     const l = landing.current;
     if (jumpRef && jumpRef.current !== l.seen) {
       l.seen = jumpRef.current;
-      if (now - l.last > 0.5) [l.last, l.at] = [now, now + JUMP_AIR];
+      // (as the minifig counts them: a press in the air is a double jump, landing a jump's length later)
+      if (l.at > now && !l.double) [l.at, l.double] = [now + JUMP_AIR, true];
+      else if (now - l.last > 0.5) [l.last, l.at, l.double] = [now, now + JUMP_AIR, false];
     }
     if (l.at > 0 && now >= l.at) {
       l.at = -1;
