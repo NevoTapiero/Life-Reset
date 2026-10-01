@@ -2968,16 +2968,33 @@ function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) 
     t.needsUpdate = true;
     return t;
   }, []);
-  const water = useRef<THREE.Mesh>(null);
-  useFrame((_, dt) => {
-    const map = (water.current?.material as THREE.MeshStandardMaterial | undefined)?.map;
-    if (map) map.offset.x = (map.offset.x - dt * 1.4) % 1;
+  // the water moves the LEGO way (as the LEGO Skylines trailer does it): no sliding studs, but
+  // ordered waves rolling across the stud grid as one body, each stud lighting up in its turn, in
+  // steps. A few lines in the fragment shader: the stud's cell, a travelling wave, three levels
+  const waterMat = useRef<THREE.MeshStandardMaterial>(null);
+  useEffect(() => {
+    const mat = waterMat.current;
+    if (!mat) return;
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = { value: 0 };
+      shader.fragmentShader = shader.fragmentShader
+        .replace("#include <common>", "#include <common>\nuniform float uTime;")
+        .replace(
+          "#include <map_fragment>",
+          "#include <map_fragment>\n#ifdef USE_MAP\nvec2 cell = floor(vMapUv);\nfloat wave = sin(cell.x * 0.55 + cell.y * 0.9 - floor(uTime * 6.0) / 6.0 * 2.6);\nwave = floor(wave * 1.5 + 1.5) / 3.0;\ndiffuseColor.rgb *= 0.88 + wave * 0.26;\n#endif",
+        );
+      mat.userData.shader = shader;
+    };
+    mat.needsUpdate = true;
+  }, []);
+  useFrame(({ clock }) => {
+    if (waterMat.current?.userData.shader) waterMat.current.userData.shader.uniforms.uTime.value = clock.elapsedTime;
   });
   return (
     <>
       {meshes.map((m) => (
-        <mesh key={m.key} ref={m.color === WATER ? water : undefined} geometry={m.geometry} castShadow={shadows} receiveShadow={shadows}>
-          <meshStandardMaterial color={m.color} map={m.studs ? (m.color === WATER ? waterMap : studMap) : null} roughness={m.color === WATER ? 0.25 : 0.7} />
+        <mesh key={m.key} geometry={m.geometry} castShadow={shadows} receiveShadow={shadows}>
+          <meshStandardMaterial ref={m.color === WATER ? waterMat : undefined} color={m.color} map={m.studs ? (m.color === WATER ? waterMap : studMap) : null} roughness={m.color === WATER ? 0.25 : 0.7} />
         </mesh>
       ))}
     </>
@@ -3102,7 +3119,7 @@ function Smoke({ at, seed = 0 }: { at: [number, number, number]; seed?: number }
     if (!m) return;
     const t = clock.elapsedTime + seed * 7;
     for (let i = 0; i < PUFFS; i++) {
-      const f = (t * 0.22 + i / PUFFS) % 1; // 0 leaving the chimney, 1 gone
+      const f = Math.floor(((t * 0.22 + i / PUFFS) % 1) * 12) / 12; // 0 leaving the chimney, 1 gone; in twelve steps, the LEGO way
       const wobble = Math.sin(t * 1.3 + i) * 0.25;
       o.position.set(at[0] + f * 1.6 + wobble, at[1] + f * 5.5, at[2] + f * 0.8 - wobble * 0.5);
       const sz = 0.18 + Math.sin(f * Math.PI) * 0.5;
@@ -3693,7 +3710,8 @@ function DriftingClouds() {
     let i = 0;
     for (const c of CLOUDS) {
       // along the wind, wrapped into the square; across it, a slow sway
-      const along = ((((c.x * WIND[0] + c.z * WIND[1] + t * c.speed + CLOUD_EXTENT) % span) + span) % span) - CLOUD_EXTENT;
+      // a whole stud at a time, like stop-motion, not a glide
+      const along = Math.round(((((c.x * WIND[0] + c.z * WIND[1] + t * c.speed + CLOUD_EXTENT) % span) + span) % span - CLOUD_EXTENT) / 20) * 20;
       const across = -c.x * WIND[1] + c.z * WIND[0] + Math.sin(t * 0.05 + c.y) * 40;
       const [cx, cz] = [along * WIND[0] - across * WIND[1], along * WIND[1] + across * WIND[0]];
       for (const [dx, dy, dz, r] of c.puffs) {
