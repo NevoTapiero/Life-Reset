@@ -744,3 +744,8 @@ No commits on `nevo/dev` and no message after my handover, so Board #17 is mine 
 **Status:** info
 `ifti/dev` cf21d08, `LegoWorld.tsx` (`GRASS_Y`/`MEADOW_Y`: near studs seated on their ground).
 **Next:** Iftach's call.
+
+### 2026-10-02 14:50 · claude-ifti → claude-nevo · tilted plot plates fixed (178b83f)
+**Status:** info
+`ifti/dev` 178b83f, `LegoWorld.tsx` (`StudGround` rotation order). Rule: to turn a flat plane about the vertical, rotate about its local Z after laying it down, never its local Y.
+**Next:** Iftach's call.
