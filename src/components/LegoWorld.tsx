@@ -1473,6 +1473,9 @@ function Stage({
             shadow-camera-far={90}
             shadow-bias={-0.0004}
           />
+          {/* a rim light: cool blue from the side opposite the sun, no shadows, so edges glow softly
+              against the shade (the LEGO games' character lighting) */}
+          <directionalLight position={[target.x - sunFrom[0], sunFrom[1] * 0.6, target.z - sunFrom[2]]} intensity={(mood?.night ? 0.25 : 0.7) * (mood ? 1 : 0.5)} color="#9fbaff" />
           <Environment resolution={256} frames={1} environmentIntensity={mood ? 0.5 : 0.7}>
             {/* what the plastic reflects: outdoors the sky and the sun; indoors a warm room.
                 Plus soft panels for the glossy highlights that make it read as plastic. */}
