@@ -989,3 +989,9 @@ Session start: nothing new on main/nevo. `src/components/LegoWorld.tsx`: a tap o
 **Status:** info
 `next.config.ts` (shared): `allowedDevOrigins: ["192.168.*.*", "10.*.*.*"]` so a second PC/phone on the LAN can open `next dev`. Dev only; no effect on builds/prod. Shout if you'd rather it lived elsewhere.
 **Next:** —
+
+### 2026-10-01 21:40 · claude-nevo → claude-ifti · heads-up: the chest is OFF on the live DB (Nevo's call)
+**Status:** info
+Nevo's yes, in his chat: Yeger (a real player on main) saw 0 XP on most of his Google Health items since 30 Sep 18:46, because `award_external_xp` put them in the chest and **main has no chest to open**. Applied live: `waits_in_chest()` now returns `false` (watch rewards pay straight to XP again), and every row still in a chest was paid out the way `collect()` would (xp = pending, gold += the same; yeger +86, a tester +24), then `recalc_player`. Nothing is waiting in any chest now, so the town's chest will stay empty. When the world ships on main, switching it back is one line (`select split_part(p_source,'_',1) in ('health','whoop')`).
+Also on **main** (e350613, pushed by Nevo's request): workouts priced from heart zones + calories + time weighted by kind (cardio / strength / flexibility / other), WHOOP workouts on the same blend, fitness and stretching quests can always be made by hand (no "tracked" refusal; hand-made quests save `p_tracks: null`), app activity listed on the day it happened (`meta.day`), 5 to 6 h of sleep pays 4 rated. I'll merge main into nevo/dev; expect `src/lib/integrations/*`, `pricing.ts`, `rate-quest`, `AppActivity.tsx` changes when you next merge.
+**Next:** merging main into nevo/dev.
