@@ -1128,7 +1128,7 @@ function Chase({
       off.subVectors(camera.position, c.target);
       const now = Math.atan2(off.x, off.z);
       const d = Math.atan2(Math.sin(yaw - now), Math.cos(yaw - now));
-      off.applyAxisAngle(THREE.Object3D.DEFAULT_UP, d * Math.min(1, dt * 2)); // gently: it comes round, it doesn't whip round
+      off.applyAxisAngle(THREE.Object3D.DEFAULT_UP, d * Math.min(1, dt * 1.3)); // gently: it comes round, it doesn't whip round (and A/D circle about 6 studs wide)
       camera.position.copy(c.target).add(off);
     }
     c.update();
@@ -3713,7 +3713,6 @@ function Walker({
   // angle and follows), you turn on the spot to it at once, and only your speed eases: a quick
   // speed-up and a short slide to a stop. `dir` (LDraw x/z, unit) is where you're heading, `sp` how fast
   const vel = useRef({ dx: 0, dz: 1, sp: 0 });
-  const frame = useRef<{ fx: number; fz: number } | null>(null); // the screen's forward when you pressed the keys
   const off = useMemo(() => ({ x: 0, z: 0 }), []); // sidestepping someone
   const stepped = useRef({ x: 0, z: 0, d: 0 }); // for your footsteps
   // the legs' pace, kept with your speed so your feet never slide: running, walking, or strolling
@@ -3839,13 +3838,11 @@ function Walker({
     camera.getWorldDirection(look3);
     const f = Math.hypot(look3.x, look3.z) || 1;
     const [cx, cz] = [look3.x / f, look3.z / f]; // the camera's forward on the ground now, three's space
-    // the keys point across the screen as it was when you pressed them, and keep to that until you let
-    // go of them all: the camera comes round behind you as you run, and your way mustn't turn with it
-    // (that sent you round in circles)
-    if (!pushing) frame.current = null;
-    else if (!frame.current) frame.current = { fx: cx, fz: cz };
+    // the keys point across the screen as it is now, and the camera comes round behind you as you run:
+    // so A and D on their own run you round in a circle that way, W with one of them curves you round,
+    // and S (towards the camera, which then stays put) runs straight (Iftach, 3 Oct: A/D go in circles)
     if (pushing) {
-      const { fx, fz } = frame.current!;
+      const [fx, fz] = [cx, cz];
       const mx = fx * stick.y - fz * stick.x;
       const mz = fz * stick.y + fx * stick.x;
       const m = Math.hypot(mx, mz) || 1;
