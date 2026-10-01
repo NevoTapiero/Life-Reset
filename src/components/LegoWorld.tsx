@@ -1170,7 +1170,7 @@ export type Pin = { key: string; at: [number, number, number] | (() => [number, 
 // (the painted studs stay underneath, and take over further off). Instanced
 // low-poly cylinders, laid out again whenever you've moved a few studs.
 const STUD_REACH = 30; // studs from you: far enough that the painted studs beyond are small
-const STUD_MAX = 2 * (2 * STUD_REACH + 1) ** 2; // the plots' and the open ground's
+const STUD_MAX = 3 * (2 * STUD_REACH + 1) ** 2; // room for the plots' studs (laid in their own turned frames) and the open ground's, with the overlaps; a cap that bit left the ground behind you bare
 function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vector3>; grass: string; lots: Lot[] }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const laid = useRef({ x: 1e9, z: 1e9 });
@@ -1223,8 +1223,9 @@ function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vect
   });
   return (
     <instancedMesh ref={mesh} args={[undefined, undefined, STUD_MAX]} frustumCulled={false} receiveShadow>
-      <cylinderGeometry args={[0.3, 0.3, 0.17, 12]} />
-      <meshPhysicalMaterial roughness={0.42} clearcoat={0.6} clearcoatRoughness={0.3} />
+      <cylinderGeometry args={[0.3, 0.3, 0.17, 16]} />
+      {/* flat-shaded: a crisp rim and a flat bright top, the way a stud reads, not a soft blob */}
+      <meshPhysicalMaterial roughness={0.5} clearcoat={0.3} clearcoatRoughness={0.4} flatShading />
     </instancedMesh>
   );
 }
@@ -3680,13 +3681,18 @@ function StudGround({
   /** turned about Y (three's space, radians) */
   yaw?: number;
 }) {
+  const [ax, az] = at;
   const map = useMemo(() => {
     if (flat) return null;
     const t = studTexture().clone();
     t.repeat.set(radius ? 1 : size, radius ? 1 : size); // a shape's UVs are its coordinates (one stud a unit); a plane's run 0..1
+    // a rounded plate's UVs start at its own centre, which can sit anywhere: shift them so its
+    // painted studs land on the world's stud grid, where the real studs round the player are
+    // (a shape's y runs along -z once it lies flat)
+    if (radius) t.offset.set(((ax % 1) + 1) % 1, ((-az % 1) + 1) % 1);
     t.needsUpdate = true;
     return t;
-  }, [size, flat, radius]);
+  }, [size, flat, radius, ax, az]);
   const w = size * 20 * LDU;
   const geometry = useMemo(() => (radius ? new THREE.ShapeGeometry(roundedRect(w, w, radius * 20 * LDU)) : new THREE.PlaneGeometry(w, w)), [w, radius]);
   useEffect(() => () => geometry.dispose(), [geometry]);
