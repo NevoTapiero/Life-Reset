@@ -17,7 +17,7 @@ import { LDrawUtils } from "three/examples/jsm/utils/LDrawUtils.js";
 import VEHICLES from "@/lib/legoVehicles.json";
 import PROPS from "@/lib/legoProps.json";
 import PACKS from "@/lib/legoPacks.json";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import {
@@ -2404,23 +2404,11 @@ export function LegoTown({
         <FountainSpray />
         <StatuePlaque name="ADAM KABANOS" />
         {/* Adam's statue on top of the fountain (Iftach's friend, from his photo), in his real colours: his
-            dark curls, snow goggles with a red mirror lens, one hand up, in a black One Piece hoodie and jeans,
+            dark curls, ski goggles with a red mirror lens, one hand up, in a black One Piece hoodie and jeans,
             facing the street */}
         <group position={[FOUNTAIN[0], -STATUE_AT, FOUNTAIN[1]]} scale={1.8}>
           <Minifig look={STATUE} at={[0, 0, 0]} statue />
-          {/* his snow goggles: a chunky white frame, a big red mirror lens, the strap round his head */}
-          <mesh position={[0, -86, 10.4]}>
-            <boxGeometry args={[25, 10, 3]} />
-            <meshStandardMaterial color="#f4f4f0" roughness={0.4} />
-          </mesh>
-          <mesh position={[0, -86, 12]}>
-            <boxGeometry args={[22, 7.4, 1]} />
-            <meshStandardMaterial color="#c8323c" metalness={0.75} roughness={0.08} />
-          </mesh>
-          <mesh position={[0, -86, 0]}>
-            <cylinderGeometry args={[10.9, 10.9, 4.5, 24, 1, true]} />
-            <meshStandardMaterial color="#1d1d1d" roughness={0.7} side={THREE.DoubleSide} />
-          </mesh>
+          <SnowGoggles />
           <ShirtPrint />
           <Hoodie />
         </group>
@@ -4359,6 +4347,70 @@ function ShirtPrint() {
       <planeGeometry args={[14, 14]} />
       <meshStandardMaterial map={map} transparent roughness={0.6} />
     </mesh>
+  );
+}
+
+// Adam's snow goggles, ski style, on the statue's head (LDU, minifig frame: -y up, front +z; head a cylinder of
+// radius 13 round y, eyes at y -86; his hair reaches out to ~19 at the sides and back): a padded white frame, a
+// wide red mirror lens standing out of it, both the real goggle outline (rounded corners, a cut-out over the nose)
+// bent round the face, and the black strap round the outside of his hair
+function goggleGeometry(w: number, h: number, corner: number, nose: [number, number], depth: number, radius: number) {
+  // the outline, flat (y up), half-width w, half-height h; the nose cut-out nose[0] wide each side, nose[1] high
+  const o = new THREE.Shape();
+  const [nw, nh] = nose;
+  o.moveTo(-w + corner, h);
+  o.lineTo(w - corner, h);
+  o.quadraticCurveTo(w, h, w, h - corner);
+  o.lineTo(w, -h + corner);
+  o.quadraticCurveTo(w, -h, w - corner, -h);
+  o.lineTo(nw, -h);
+  o.bezierCurveTo(nw * 0.6, -h, nw * 0.45, -h + nh, 0, -h + nh);
+  o.bezierCurveTo(-nw * 0.45, -h + nh, -nw * 0.6, -h, -nw, -h);
+  o.lineTo(-w + corner, -h);
+  o.quadraticCurveTo(-w, -h, -w, -h + corner);
+  o.lineTo(-w, h - corner);
+  o.quadraticCurveTo(-w, h, -w + corner, h);
+  // resampled finely, so its faces are thin slivers that bend smoothly round the head
+  const g = new THREE.ExtrudeGeometry(new THREE.Shape(o.getSpacedPoints(180)), { depth, curveSegments: 1, bevelEnabled: true, bevelThickness: 0.5, bevelSize: 0.5, bevelSegments: 2 });
+  const p = g.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < p.count; i++) {
+    const a = -p.getX(i) / radius; // x runs round the head, flipped with y so the faces stay outward
+    const r = radius + p.getZ(i);
+    p.setXYZ(i, r * Math.sin(a), -p.getY(i), r * Math.cos(a));
+  }
+  g.deleteAttribute("normal");
+  g.deleteAttribute("uv");
+  const smooth = mergeVertices(g);
+  g.dispose();
+  smooth.computeVertexNormals();
+  // the front and back faces point straight out from (and into) the head, not along the slivers' slant
+  const sp = smooth.attributes.position as THREE.BufferAttribute;
+  const sn = smooth.attributes.normal as THREE.BufferAttribute;
+  for (let i = 0; i < sp.count; i++) {
+    const [x, z] = [sp.getX(i), sp.getZ(i)];
+    const r = Math.hypot(x, z);
+    if (Math.abs(r - (radius + depth + 0.5)) < 0.01) sn.setXYZ(i, x / r, 0, z / r);
+    else if (Math.abs(r - (radius - 0.5)) < 0.01) sn.setXYZ(i, -x / r, 0, -z / r);
+  }
+  return smooth;
+}
+function SnowGoggles() {
+  const [frame, lens] = useMemo(() => [goggleGeometry(13.4, 6.6, 4.2, [4.6, 3], 1.6, 13.4), goggleGeometry(11.6, 5, 3.2, [3.6, 2.4], 0.6, 15.1)], []);
+  useEffect(() => () => [frame, lens].forEach((g) => g.dispose()), [frame, lens]);
+  return (
+    <group position={[0, -86, 0]}>
+      <mesh geometry={frame}>
+        <meshStandardMaterial color="#f4f4f0" roughness={0.45} />
+      </mesh>
+      <mesh geometry={lens}>
+        <meshStandardMaterial color="#d8343c" emissive="#5a0a10" emissiveIntensity={0.35} metalness={0.7} roughness={0.12} />
+      </mesh>
+      {/* an ellipse from the frame's ends (x ±13, z 8.4) out round the hair (x ±19, back z -19) */}
+      <mesh position={[0, 0, -3.1]} scale={[19, 1, 15.9]}>
+        <cylinderGeometry args={[1, 1, 4, 48, 1, true, 0.71, Math.PI * 2 - 1.42]} />
+        <meshStandardMaterial color="#1d1d1d" roughness={0.7} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
   );
 }
 
