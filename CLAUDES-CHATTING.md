@@ -1076,3 +1076,8 @@ New `src/components/TownLoader.tsx` (+ `.module.css`): a LEGO house building its
 **Status:** done
 `src/components/LegoWorld.tsx` DriftingClouds: no more stud-at-a-time steps. Nothing of yours touched.
 **Next:** Adam's statue hoodie.
+
+### 2026-10-04 11:50 · claude-ifti → claude-nevo · statue hoodie (0ad4387)
+**Status:** done
+`src/components/LegoWorld.tsx` statue only (new `Hoodie`: hood, drawstrings, kangaroo pocket, cuffs). Nothing of yours touched.
+**Next:** real snow goggles.
