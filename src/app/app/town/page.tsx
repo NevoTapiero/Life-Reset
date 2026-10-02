@@ -19,16 +19,15 @@ const TOWN_BOX = "rounded-2xl overflow-hidden h-[68vh] min-h-[380px]";
 const LegoTown = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoTown), { ssr: false, loading: () => <TownLoader className={TOWN_BOX} /> });
 const LegoRoom = dynamic(() => import("@/components/LegoWorld").then((m) => m.LegoRoom), { ssr: false });
 
-// ponytail: you and your top 7 friends by rank; more towns (or a bigger square) when friend lists get long
-const MAX_PLOTS = 8;
-
 type VisitRow = { username: string; knocked_by_me: boolean; allowed: boolean };
 
-// Your town: your plot in the middle of the street, your friends' either side.
-// Each house is built from that player's rank, each garden from their streak.
-// Knock on a friend's door to be let in; answer the people at yours.
+// Your own town (Clash of Clans style, Iftach + Nevo, 2 Oct): your house in the middle, the spots round it
+// yours to fill as you level up; your house is built from your rank, your garden from your streak.
+// /app/town?visit=<username> opens that friend's town instead, with you walking round it as a guest.
 export default function TownPage() {
+  const [visit] = useState(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("visit")));
   const [residents, setResidents] = useState<Resident[] | null>(null);
+  const [me, setMe] = useState<Resident | null>(null);
   // /app/town?visit=<username>: open on that friend's house
   // your energy today: last night's sleep and today's steps, from the ledger's watch rows
   const [energy, setEnergy] = useState<number | null>(null);
@@ -44,8 +43,7 @@ export default function TownPage() {
         .gte("created_at", since)
         .then(({ data: rows }) => setEnergy(energyFrom((rows ?? []).map((r) => r.meta as LedgerMeta), todayKey())));
     });
-  }, []);
-  const [visit] = useState(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("visit")));
+  }, [visit]);
   const [visits, setVisits] = useState<Record<string, Visit>>({});
   const [atDoor, setAtDoor] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -67,11 +65,11 @@ export default function TownPage() {
         me: r.is_me,
         character: r.archetype,
       });
-      // you first (your house is right behind the shop), then your top friends
-      // around the square -- you're always in, however many friends outrank you
+      // your town is yours alone; a friend's town is theirs (you come along as a guest)
       const me = rows.filter((r) => r.is_me).map(toResident);
-      const friends = rows.filter((r) => !r.is_me).slice(0, MAX_PLOTS - me.length).map(toResident);
-      setResidents([...me, ...friends]);
+      const host = visit ? rows.filter((r) => r.username === visit).map(toResident) : [];
+      setMe(me[0] ?? null);
+      setResidents(visit ? host : me);
     });
     supabase.rpc("my_visits").then(({ data, error }) => {
       if (error) return; // visits need the house-visits migration; the town works without it
@@ -79,7 +77,7 @@ export default function TownPage() {
       setVisits(Object.fromEntries(rows.filter((v) => v.knocked_by_me).map((v) => [v.username, v.allowed ? "allowed" : "knocked"])));
       setAtDoor(rows.filter((v) => !v.knocked_by_me && !v.allowed).map((v) => v.username));
     });
-  }, []);
+  }, [visit]);
 
   async function knock(name: string) {
     setError(null);
@@ -113,7 +111,7 @@ export default function TownPage() {
       {bricks}
       <div className="flex items-center justify-between mb-3">
         <h1 className="display text-[19px]">Town</h1>
-        <span className="hud-label">{residents.length === 1 ? "Just you so far" : `${residents.length} houses`}</span>
+        <span className="hud-label">{visit ? `Visiting ${visit}` : "Your town"}</span>
       </div>
 
       {atDoor.map((name) => (
@@ -157,19 +155,21 @@ export default function TownPage() {
         prices={prices}
         owned={owned}
         onBuy={buy}
-        onInvite={() => router.push("/app/leaderboard")}
         visit={visit}
+        guest={visit && me ? me : undefined}
+        backLabel={visit ? "My town" : "World"}
         energy={energy}
         garden={garden}
         onPlace={place}
-        onBack={() => router.push("/app/world")}
+        onBack={() => router.push(visit ? "/app/town" : "/app/world")}
         className={TOWN_BOX} />
 
-      {residents.length === 1 && (
+      {!visit && (
         <p className="text-muted text-sm mt-3 text-center">
-          Your street is empty. <Link href="/app/leaderboard" className="underline">Add friends</Link> and their houses move in next door.
+          This town is yours. Level up to fill the spots round your house, and <Link href="/app/world" className="underline">visit your friends&apos; towns</Link>.
         </p>
       )}
+      {visit && residents.length === 0 && <p className="text-muted text-sm mt-3 text-center">{visit} isn&apos;t in your town yet. Add them as a friend first.</p>}
     </div>
   );
 }

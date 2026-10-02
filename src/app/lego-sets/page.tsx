@@ -86,7 +86,8 @@ export default function LegoPreview() {
   const [time, setTime] = useState<string | undefined>(undefined); // undefined = your clock
   const [hero, setHero] = useState(5); // your level: what you wear in your room
   const [season, setSeason] = useState<Season | undefined>(undefined); // undefined = the date
-  const [friends, setFriends] = useState(5); // how many friends live in the demo town
+  const [friends, setFriends] = useState(5); // how many friends live in the demo town (the old shared street)
+  const [visiting, setVisiting] = useState(false); // nevo's own town, you as a guest
   // nevo already let you in, omer hasn't answered; a new knock is answered after a moment
   const [visits, setVisits] = useState<Record<string, Visit>>({
     nevo: "allowed",
@@ -151,12 +152,18 @@ export default function LegoPreview() {
         {[0, 2, 5, 7].map((n) => (
           <button
             key={n}
-            onClick={() => setFriends(n)}
-            className={button(friends === n)}
+            onClick={() => {
+              setFriends(n);
+              setVisiting(false);
+            }}
+            className={button(friends === n && !visiting)}
           >
             {n} friends
           </button>
         ))}
+        <button onClick={() => setVisiting((v) => !v)} className={button(visiting)}>
+          Visit nevo
+        </button>
         {["day", "golden", "dusk", "night"].map((t) => (
           <button
             key={t}
@@ -205,7 +212,12 @@ export default function LegoPreview() {
       <div className="absolute inset-0">
         {house === null ? (
           <LegoTown
-            residents={DEMO_TOWN.slice(0, friends + 1)}
+            key={visiting ? "visit" : "home"}
+            residents={visiting ? [DEMO_TOWN[1]] : DEMO_TOWN.slice(0, friends + 1)}
+            guest={visiting ? DEMO_TOWN[0] : undefined}
+            visit={visiting ? "nevo" : undefined}
+            backLabel={visiting ? "My town" : "World"}
+            onBack={visiting ? () => setVisiting(false) : undefined}
             visits={visits}
             onKnock={knock}
             stations={stations}

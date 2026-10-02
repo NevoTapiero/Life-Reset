@@ -1856,11 +1856,12 @@ export function LegoTown({
   prices = null,
   owned = [],
   onBuy,
-  onInvite,
   time,
   season: seasonProp,
   visit,
+  guest,
   onBack,
+  backLabel = "World",
   energy = null,
   garden = [],
   onPlace,
@@ -1880,16 +1881,17 @@ export function LegoTown({
   prices?: Record<string, number> | null;
   owned?: string[];
   onBuy?: (id: string) => Promise<string | null>;
-  /** an empty plot's "invite a friend" button */
-  onInvite?: () => void;
   /** force a time of day ("day", "golden", "dusk", "night"); otherwise it follows the clock */
   time?: string;
   /** force a season; otherwise it follows the date */
   season?: Season;
   /** open on this friend's house (walk there) instead of your own */
   visit?: string | null;
-  /** a way back out of the town (the app's World page) */
+  /** you, visiting: the town is the residents' (a friend's own town) and you walk round it as a guest */
+  guest?: Resident;
+  /** a way back out of the town (the app's World page; when visiting, your own town) */
   onBack?: () => void;
+  backLabel?: string;
   /** your energy today (0..100, from sleep and steps); null: no energy yet, no limits */
   energy?: number | null;
   /** the garden things on your plot */
@@ -1923,6 +1925,10 @@ export function LegoTown({
     0,
     residents.findIndex((r) => r.me),
   );
+  // whose house is yours to walk out of and into (none when you're a guest in someone else's town),
+  // and who you are on screen
+  const youAt = guest ? -1 : meIndex;
+  const player = guest ?? residents[meIndex];
   // the town opens on the whole square, then (once it's built) glides down to your house
   const [focus, setFocus] = useState(OVERVIEW);
   const built = !!town;
@@ -2090,7 +2096,7 @@ export function LegoTown({
     // straight to where you'll stand, and you build yourself again there
     if (focus === OVERVIEW) {
       setTeleports((n) => n + 1);
-      const [x, , z] = i === FOUNTAIN_FOCUS ? FOUNTAIN_WALK.at(-1)! : i === SHOP_FOCUS || !residents[i] ? SHOP_WALK.at(-1)! : i === meIndex ? doorWalk(lots[i], residents[i].level).at(-1)! : doorWalk(lots[i], residents[i].level, VISIT_SIDE, VISIT_AHEAD).at(-1)!;
+      const [x, , z] = i === FOUNTAIN_FOCUS ? FOUNTAIN_WALK.at(-1)! : i === SHOP_FOCUS || !residents[i] ? SHOP_WALK.at(-1)! : i === youAt ? doorWalk(lots[i], residents[i].level).at(-1)! : doorWalk(lots[i], residents[i].level, VISIT_SIDE, VISIT_AHEAD).at(-1)!;
       setArrive(new THREE.Vector3(x * LDU, 0, -z * LDU));
       setArriveTurn(i === SHOP_FOCUS || !residents[i] ? 0 : lots[meIndex].yaw - lots[i].yaw);
     } else setArrive(null);
@@ -2117,7 +2123,7 @@ export function LegoTown({
     go(best);
   };
 
-  if (room && inside === meIndex)
+  if (room && !guest && inside === meIndex)
     return (
       <div className={`relative ${className ?? ""}`}>
         {room(() => wipeTo(() => setInside(null)), mood)}
@@ -2188,7 +2194,7 @@ export function LegoTown({
     ),
   });
   const talkingTo = talk ? GUIDES[talk.g] : null;
-  const talkLines = talk ? guideLines(GUIDES[talk.g], talked[talk.g], residents[meIndex]?.name ?? "friend", stations) : [];
+  const talkLines = talk ? guideLines(GUIDES[talk.g], talked[talk.g], player?.name ?? "friend", guest ? undefined : stations) : [];
   // the next line, or the end of the talk (the next talk with this guide tells the next story)
   const nextLine = () => {
     if (!talk) return;
@@ -2204,7 +2210,7 @@ export function LegoTown({
   const chatPin = (name: string) => {
     let h = 0;
     for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) | 0;
-    const line = CHATTER[Math.abs(h + meetings) % CHATTER.length](residents[meIndex]?.name ?? "friend");
+    const line = CHATTER[Math.abs(h + meetings) % CHATTER.length](player?.name ?? "friend");
     return {
       key: `chat-${name}-${meetings}`,
       at: () => {
@@ -2234,7 +2240,7 @@ export function LegoTown({
                     setInside(here);
                   };
                   // your own room is a new scene: brick-wipe into it
-                  if (room && here === meIndex) wipeTo(go);
+                  if (room && !guest && here === meIndex) wipeTo(go);
                   else go();
                 },
                 tone: "green",
@@ -2244,7 +2250,7 @@ export function LegoTown({
               : onKnock
                 ? { icon: "knock", text: `Knock`, onClick: () => onKnock(r!.name) }
                 : null;
-  const me = residents[meIndex];
+  const me = player;
   // walking up to a door, its button stands on the building, at the door, with the place's name
   // over it (Shop on the shop, Go inside / Visit / Knock on the house), not down in the corner
   const actionPin = (i: number) => {
@@ -2270,6 +2276,28 @@ export function LegoTown({
     };
   };
   const doorButtonOnBuilding = following && inside === null && action !== null && near !== null;
+  // you: you walk to wherever you last looked (the whole-town view doesn't move you)
+  const youWalker = (() => {
+    const fountain = dest === FOUNTAIN_FOCUS;
+    const shop = !fountain && (dest === SHOP_FOCUS || !residents[dest]);
+    let to = fountain ? FOUNTAIN_WALK : SHOP_WALK;
+    if (!shop && !fountain) {
+      const { level, name } = residents[dest];
+      const side = dest === youAt ? 0 : 40;
+      const house = houseFor(level, name);
+      const r = rooms.get(houseUrl(house));
+      const [hx, , hz] = houseAt(houseSpec(level), house);
+      to =
+        inside === dest
+          ? insideWalk(lots[dest], level, side, r && { x: hx + r.x, z: hz + r.z, front: hz + r.front })
+          : dest === youAt
+            ? doorWalk(lots[dest], level)
+            : doorWalk(lots[dest], level, VISIT_SIDE, VISIT_AHEAD);
+    }
+    // you wave at the friend you've come to see
+    const wave = inside === null && !shop && !fountain && dest !== youAt;
+    return <Walker key="me" id="me" wave={wave} go={goes} teleport={teleports} runRef={runRef} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(player.level, player.character ?? undefined)} to={to} turn={shop || fountain ? Math.PI : lots[dest].yaw} />;
+  })();
 
   return (
     <div className={`relative ${className ?? ""}`}>
@@ -2343,9 +2371,7 @@ export function LegoTown({
             key: `empty-${k}`,
             at: [lot.x * LDU, 6, -lot.z * LDU] as [number, number, number],
             node: (
-              <button onClick={onInvite} disabled={!onInvite} className="lego lego-sm lego-green">
-                {onInvite ? "Free plot · invite a friend" : "Free plot"}
-              </button>
+              <span className="lego lego-sm lego-green">Building spot</span>
             ),
           })),
           ...residents.flatMap((res, i) => {
@@ -2465,31 +2491,11 @@ export function LegoTown({
         ))}
         {residents.map((res, i) => {
           // you walk to where you last looked, and into the house you're visiting; everyone else stays at their door
-          if (i === meIndex) {
-            // you walk to wherever you last looked (the whole-town view doesn't move you)
-            const fountain = dest === FOUNTAIN_FOCUS;
-            const shop = !fountain && (dest === SHOP_FOCUS || !residents[dest]);
-            let to = fountain ? FOUNTAIN_WALK : SHOP_WALK;
-            if (!shop && !fountain) {
-              const { level, name } = residents[dest];
-              const side = dest === meIndex ? 0 : 40;
-              const house = houseFor(level, name);
-              const r = rooms.get(houseUrl(house));
-              const [hx, , hz] = houseAt(houseSpec(level), house);
-              to =
-                inside === dest
-                  ? insideWalk(lots[dest], level, side, r && { x: hx + r.x, z: hz + r.z, front: hz + r.front })
-                  : dest === meIndex
-                    ? doorWalk(lots[dest], level)
-                    : doorWalk(lots[dest], level, VISIT_SIDE, VISIT_AHEAD);
-            }
-            // you wave at the friend you've come to see
-            const wave = inside === null && !shop && !fountain && dest !== meIndex;
-            return <Walker key="me" id="me" wave={wave} go={goes} teleport={teleports} runRef={runRef} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(res.level, res.character ?? undefined)} to={to} turn={shop || fountain ? Math.PI : lots[dest].yaw} />;
-          }
+          if (i === youAt) return youWalker;
           // friends: at home, at their door, waving when you come to see them
           return <Walker key={res.name} id={res.name} wave={dest === i} look={loadoutFor(res.level, res.character ?? undefined)} to={doorWalk(lots[i], res.level)} turn={lots[i].yaw} />;
         })}
+        {guest && youWalker}
       </Stage>
 
       {/* while the town loads (it stutters then), the LEGO loading screen over everything (the HUD too); it fades as the town builds itself */}
@@ -2498,7 +2504,7 @@ export function LegoTown({
       {/* the HUD, LEGO-game style. Top left: you (head, name, level, gold). */}
       {me && (
         <div className="absolute top-2 left-3 flex items-start gap-2 pointer-events-none">
-          {onBack && <RoundAction icon="back" text="World" tone="dark" small onClick={onBack} />}
+          {onBack && <RoundAction icon="back" text={backLabel} tone="dark" small onClick={onBack} />}
           <div className="lego-hud">
             <HeadIcon />
             <div className="flex flex-col gap-0.5 min-w-0">
