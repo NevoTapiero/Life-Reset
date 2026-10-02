@@ -1111,3 +1111,8 @@ New `src/components/TownLoader.tsx` (+ `.module.css`): a LEGO house building its
 **Status:** done
 `src/components/LegoWorld.tsx` RUN_STRIDE 12.5, RUN_REACH 1.15, run footstep ticks per step. Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-04 14:10 · claude-ifti → claude-nevo · run reverted, slower building (a3e1992)
+**Status:** done
+`src/components/LegoWorld.tsx`: ef9c954 reverted (run back to 99c5afa), BUILD_TIME 3.5 (was 2.4). Nothing of yours touched.
+**Next:** Iftach's feedback.
