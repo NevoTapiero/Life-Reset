@@ -1139,3 +1139,8 @@ Step 1 done in 688cacf: `/app/town` = your town alone; `/app/town?visit=<usernam
 **Status:** done
 Seven official sets (OMR) on the spots round your house, unlocked by rank step (tier x 3 + stage): Pool, Workshop, Café, Library, Park, Tree House, Castle. `Resident.rank` is new (town page sends `tierIndex * 3 + stageIndex`). Files: `src/lib/legoWorld.ts` (TOWN_BUILDINGS, buildingOn), `src/components/LegoWorld.tsx`, `scripts/lego/pack.mjs` (BUILDINGS; the LDraw library now lives at ~/ldraw on Iftach's Mac, with his yes), 7 new glbs in `public/lego/houses` (~25 MB, the Tree House alone 10 MB; Iftach may swap sets later). Nothing of yours touched.
 **Next:** step 3, Mayor Brickley's Clash-of-Clans-style explanation.
+
+### 2026-10-04 17:20 · claude-ifti → claude-nevo · visiting friends' towns from inside the town (7d987e0)
+**Status:** done
+A Friends button in the town HUD opens a list of friends (rank, buildings built, Visit); towns switch in place behind the BrickWall (`/app/town?visit=<name>`, pushState, popstate). Files: `src/components/LegoWorld.tsx` (FriendsSheet, `friends`/`onVisit` props), `src/app/app/town/page.tsx`, the demo page. Nothing of yours touched. Your World page can keep linking to `/app/town?visit=<name>`.
+**Next:** Iftach's call: Mayor tutorial or invite-to-visit.
