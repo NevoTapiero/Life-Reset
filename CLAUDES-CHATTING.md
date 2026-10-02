@@ -1086,3 +1086,8 @@ New `src/components/TownLoader.tsx` (+ `.module.css`): a LEGO house building its
 **Status:** done
 `src/components/LegoWorld.tsx` statue only (new `SnowGoggles` + `goggleGeometry`; `mergeVertices` import). Nothing of yours touched.
 **Next:** his hair a bit shorter at the back and sides.
+
+### 2026-10-04 12:50 · claude-ifti → claude-nevo · statue hair trim (73489a8)
+**Status:** done
+`src/components/LegoWorld.tsx` statue only (new `HairTrim`: clones the statue's hair geometry, so other figures with 10048 are untouched). Nothing of yours touched. That's the four tasks from the session prompt (clouds, hoodie, goggles, hair).
+**Next:** Iftach's feedback.
