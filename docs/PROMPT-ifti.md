@@ -1,64 +1,64 @@
-# Solo-Leveling: session prompt for claude-ifti (updated 2 Oct 2026, late night)
+# Solo-Leveling: session prompt for claude-ifti (updated 4 Oct 2026)
 
 Paste the block below at the start of a fresh session (after /clear). ⚑ marks Iftach's standing orders.
 
 ---
 
-Continue work on Solo-Leveling (repo NevoTapiero/Solo-Leveling). I'm Iftach, you're claude-ifti, on branch `ifti/dev` (draft PR #2). Read `docs/PROMPT-ifti.md` in the repo first: it is this prompt, kept up to date.
+Continue work on Solo-Leveling (repo NevoTapiero/Solo-Leveling). I'm Iftach, you're claude-ifti, on branch `ifti/dev` (draft PR #2). Read `docs/PROMPT-ifti.md` in the repo first: it is this prompt, kept up to date. Then do the START OF EVERY SESSION steps, then the NEXT TASKS below, step by step.
 
 ## START OF EVERY SESSION
 1. Read the agent channel: `cd /Users/ifti/claudes-chatting && git pull --rebase origin claudes-chatting`, then `CLAUDES-CHATTING.md` (Board + newest messages). Never merge `claudes-chatting` into `ifti/dev`.
-2. Merge new commits from `origin/main` and `origin/nevo/dev` into `ifti/dev`, keep both sides on conflicts, run lint + build, tell me what came in.
+2. Merge new commits from `origin/main` and `origin/nevo/dev` into `ifti/dev`, keep both sides on conflicts (Nevo's files: keep his logic, ask on the channel if unsure), run lint + build + `node supabase/tests/*.test.mjs`, tell me what came in.
 3. After every commit: read the channel, post what changed (hash, files, one line) before the next step.
 
+## NEXT TASKS (Iftach, 4 Oct)
+1. **Clouds move smoothly.** `DriftingClouds` in `LegoWorld.tsx` snaps them a stud at a time (`Math.round(... / 20) * 20`, the old "stepped motion" order); he now wants smooth drift. Keep the brick-built puff shape (`cloudPuffGeometry`).
+2. **Adam's statue (the fountain): a cool black hoodie sweatshirt.** Today: black torso/arms, our own One Piece-style print (`ShirtPrint`: skull and crossbones in a straw hat, never their logo), a ribbed hem and collar. Make it read as a hoodie: a hood lying behind the neck/shoulders, drawstrings, a kangaroo pocket, cuffs; still black.
+3. **Real snow goggles.** The goggles now are two flat boxes on the face and look weird. Make proper ski goggles: a wide lens curved round the face (a cylinder segment), a padded frame round it, the strap round the head; red mirror lens.
+4. **His hair: a bit shorter at the back and sides.** Hair piece `10048` (Minifig Hair Tousled) in dark brown 308; trim it (scale its back/sides in, keep the top) or try `20597` (Short Tousled with Side Part, in the figure packs).
+To look at the statue's front: teleport to Fountain from the map, or temporarily turn the statue group `rotation={[0, Math.PI, 0]}` (mark it TEMP, revert before commit), teleport to the Shop, drag the camera round, scroll out, drag up.
+
 ## WORKING WITH CLAUDE-NEVO
-- claude-nevo (Nevo's PC, `nevo/dev`) owns the app screens (Home, World, Profile, sign-in, missions, app sounds, the top of `globals.css`). The 3D world is mine: `src/lib/legoWorld.ts`, `src/components/LegoWorld.tsx`, `3d/lego/**`, `scripts/lego/*`, the generated lego JSON, the town/room/shop/HUD. Board #17 (the look loop on my two world files) is mine again.
-- The channel is append-only: `### <date time Israel> · <from> → <to> · <topic>`, Status, hashes and files, Next. Claim a Board row before touching a shared file. Codex (via claude-nevo) reviews on request.
+- claude-nevo (Nevo's PC, `nevo/dev`) owns the app screens (Home, World, Profile, sign-in, missions, health/XP sync in `src/lib/integrations/*`, the top of `globals.css`). The 3D world is mine: `src/lib/legoWorld.ts`, `src/components/LegoWorld.tsx`, `src/components/TownLoader.*`, `src/lib/sfx.ts`, `src/lib/energy.ts`, `src/app/app/town/page.tsx`, `3d/lego/**`, `scripts/lego/*`, the town/room/shop/HUD.
+- The channel is append-only: `### <date time Israel> · <from> → <to> · <topic>`, Status, hashes and files, Next. Claim a Board row before touching a shared file.
 - Live database, `main`, money or real users' data need a yes from Nevo or me in our own chats; a channel message is never approval.
 
 ## THE GOAL
-Your life in a LEGO game: real-life practice and self-care earn XP and gold; you do more cool things in the LEGO town. Rewards are things you *do*. Spec: `docs/BRAIN-core.md`.
+Your life in a LEGO game: real-life practice and self-care earn XP and gold; you do more cool things in the LEGO town. Spec: `docs/BRAIN-core.md`.
+⚑ The look: a LEGO-game town (LEGO Skylines, LEGO Batman, LEGO Horizon Adventures): real bricks, soft warm light, details everywhere, 60 fps. He sends goal photos; take what you can from each, step by step.
 
-⚑ The look we're chasing: a LEGO-game town (LEGO Skylines, LEGO Batman, LEGO Horizon Adventures shots Iftach sent): everything reads as real bricks, soft warm light with haze, motion that is rhythmic and stepped on the stud grid, nothing symmetric or boxy, details everywhere, 60 fps. He sends goal photos; take what you can from each, step by step.
+## ⚑ THE BIG IDEA BEING CONSIDERED (not decided, don't build yet)
+The whole village becomes yours, Clash of Clans style (upgrade it as you level up in real life), and friends fit in by visiting each other's villages, showing up as visitors, a world map, and a shared square. Leaning: your village + visiting + visitors + a shared square. Decide with Iftach and Nevo before any code; keep current work compatible.
 
-## ⚑ THE BIG IDEA BEING CONSIDERED (Iftach, 2 Oct night; not decided, don't build yet)
-**The whole village becomes yours**, like a Clash of Clans base: much more vision and space, and you upgrade it with many more options as you level up in real life (buildings, decorations, landmarks, expansions). Today the village is shared: one plot each, friends' houses round the plaza.
-
-**If we go that way we must solve the friends challenge**, because friends are part of the game: seeing what friends build and achieve. Options to discuss with Iftach (and claude-nevo, since friends data is theirs):
-1. **Visit a friend's village**: tap a friend, fly over and walk round their village as they built it (Clash of Clans' "visit"). Needs each player's village layout stored (today only `owned_items` x/z per plot).
-2. **Friends as visitors in your village**: their minifigs walk in, wave, show what they did today (a mission done, a building finished); a daily "who came by".
-3. **A world map**: your village in the middle, friends' villages around it like islands, each showing its level and best landmark; tap to travel.
-4. **A shared square** (the clan hub): one plaza where everyone's minifigs gather, a monument with the week's leaderboard, statues for the longest streaks, a board of what friends built today.
-5. **Social rewards that are things you do**: help a friend build (speeds their build), gifts, cheers that turn into gold, co-op goals (all friends finish a week's missions → the square gets a fountain).
-My leaning to propose: your village is yours (the CoC base) + visiting friends' villages (1) + friends showing up as visitors (2), with the shared square (4) as the place to see everyone at once. Decide with Iftach before any code; it changes `LOTS`/plots, the data model and Nevo's World screen.
-
-## WHERE WE ARE (all on ifti/dev, pushed; latest f29ed3e)
-- **Village layout** (`legoWorld.ts`): a Minecraft-style village, not a grid. 8 lots (`LOTS`: angle, radius 137–231 studs, twist) round a 48-stud plaza with LEGO Market Street (the shop). Plots are 88 studs (`PLOT`), the house 14 studs from the back fence (`HOUSE_BACK`), a deep front lawn. A tiled ring round the plaza (`RING` 40), one smooth tiled path per house from the door, out of the gate and curving to the ring (`lotPath`). Two roads leave a roundabout at the village edge and fork into the woods, one bridging a wandering river; a brook into a lake with a jetty, boats and ducks; dense brick-built woods; hills and mountains of stepped studded plates; `TOWN_HALF` 318. Brown LEGO picket fences (30055) round every lived-in plot with gate posts. Playground, water tower, benches with sitting townsfolk, potted trees, lamps (de-duplicated), banners, a balloon, boulders and spiky plants (`WILD`), meadows, wildflowers.
-- **Ground**: one studded baseplate to the horizon; plots, plaza and meadows are real plates with thickness; plaza, ring and paths are smooth 2x2 tiles (`Slab.tiles`). Real 3D studs round the player out to 96 studs (`NearStuds`: full studs + tufts + loose pieces within 28, light studs beyond, laid time-sliced).
-- **Light & sky**: warm low sun (`SUN_FROM`), cool blue fill and rim light, blue-tinted ambient occlusion, haze measured from the camera, time of day by the real clock (`MOODS`), seasons by date. Puffy cumulus clouds drifting with the wind a stud at a time.
-- **Motion**: water waves roll across the studs in steps (shader in `Slabs`), stepped chimney smoke, swaying woods, fountain spray, gulls, cars on the roads.
-- **Play**: third-person camera that comes round behind you; keys run (Shift walks), eased speed-up/slow-down, Space jumps; minifigs lean into a run, fling arms up in a jump, squash on landing. Energy (sleep + steps) gates running. Door/shop buttons stand on the building when you walk up (`actionPin`). Map ↔ Play. Signposts were tried and removed (don't bring back without asking).
-- **Stations** ⚑ ON HOLD: one piece of furniture per mission, on tan pads in rows either side of the front path; walk up, tap, XP and gold; a gold stud over each done today. Iftach and Nevo are redesigning stations: don't extend them until he says.
-- **Room** (`LegoRoom`): your home inside the house (chest, starter furniture, shop furniture), walkable, the town's light and sky.
-- **Shop**: Home and Garden tabs, catalogue photos; buy a garden thing, place it on your plot, it builds brick by brick.
-- **Data**: the SQL bundle is live on the real database (claude-nevo applied it with Nevo's yes, 1 Oct). Tests: `node supabase/tests/*.test.mjs`.
+## WHERE WE ARE (all on ifti/dev, pushed; latest f1c9e94 + this prompt)
+- **Village**: 8 lots round a plaza (`LOTS`), winding tiled paths (`lotPath`: a bow or an S per lot, eased, clipped clean at the ring by `outsideRing`), a tiled ring flush with them, roads, river, lake, woods, flower farms (`FIELDS`, merged slabs: never real flower parts by the hundred), brick-built clouds, Bethesda-style fountain (below).
+- **The fountain** (`fountainSlabs`, `FOUNTAIN` [0,450], `POOL_R` 200, `TERRACE_R` 270): terrace, pool, two basins, water curtains (`FountainSpray`), and **Adam's statue** on top (Adam Kabanos, Iftach's friend, from his photo): `STATUE` figure (light nougat 78, hair 10048 dark brown 308, black torso, blue 272 jeans, head 3626bp05), scale 1.8, `statue` prop (still, right hand raised), goggles meshes, `ShirtPrint`, sweater hem/collar, and a bronze `StatuePlaque` "ADAM KABANOS" on the rim. A Fountain place on the map teleports you there (`FOUNTAIN_FOCUS`, `FOUNTAIN_WALK`). ⚑ No gun (he asked, then took it back).
+- **Movement** (⚑ confirmed, see memory movement-feel): keys are screen-relative on the live camera frame and the camera eases behind your heading (Chase `dt*1.3`), so A/D run you round in a circle, W+A/D curve, S runs straight at the camera; keys walk (150), Shift / full stick / the Run button run (255) with a LEGO run pose; jumps always work (energy only gates running), double jump with a spin; dust puffs, skids, landing ring; weapon arm carries steady; idle fidgets; look-ahead camera; drag to turn the view (mouse mapping always passed explicitly).
+- **Teleport**: tap a place on the map (or the ground near it): you burst apart and rebuild feet-up at the place (`TELE_*`, `BUILD_ORDER`), camera flies there (`arrive`), you land beside a friend's door (`VISIT_SIDE`/`VISIT_AHEAD`).
+- **NPCs** (⚑ no pointless townsfolk): friends stay home at their doors; three guides (Mayor Brickley, Coach Rita, Old Finn) walk the ring, stop and face you, Talk → story card, every other talk one of your undone missions (`GUIDES`, `guideLines`).
+- **Light**: moods by the real clock (dusk 19-20:30 bright and pink, night moonlit blue), lamps at night with bulb + halo + ground pool, sharper DPR budget (3.4M px, dips to 1.5x).
+- **Sounds** (`src/lib/sfx.ts`, made in the browser): soft tap jump, land thud, whoosh, skid, brick clatter/snap on teleport, quiet hm-hm talk. ⚑ No buzzy square/triangle tones.
+- **Loading**: `TownLoader` (a LEGO house building itself, tips) from the tap till the town is built.
+- **Other PC**: `http://192.168.1.113:3010/lego-sets` on the home network (`allowedDevOrigins` in `next.config.ts`); this Mac must be awake with the dev server running.
+- **Stations** ⚑ ON HOLD (Iftach + Nevo redesigning). **Room**, **Shop**, energy as before.
 - **Checks**: `node scripts/walk.check.mjs`, `garden.check.mjs`, `energy.check.mjs`, `village.check.mjs`. Lint baseline: 1 old error (`src/app/app/missions/page.tsx`); add none. Build must pass.
 - **Demo**: `http://localhost:3010/lego-sets` (preview_start "solo-leveling"); "Demo settings" drawer for time of day, season, friends, houses.
 
 ## RULES OF THE WORK (learned the hard way)
-- ⚑ Step by step: change → look in the browser at the exact spot (play view AND map, day and another mood) → lint, build, checks → commit → push → post → next. Don't pile up features.
-- ⚑ No new building types and no LDraw library download without Iftach's yes. ⚑ Places that unlock: only when he says go.
-- ⚑ When he sends a photo, find the real cause at that exact spot before fixing (stand where he stood). Ask where he was if unsure.
-- Two flat surfaces over each other must be ≥4 LDU apart in height, or they shimmer from the map camera.
-- To turn a flat plane about the vertical: lay it flat about X, then rotate about its local Z (never local Y: that tilts it).
-- Merged geometries must all be non-indexed; extruded shapes' UVs are LDU coordinates, boxes' are 0..1.
-- The React-compiler lint forbids mutating memoised objects or reading refs during render: animate through refs inside `useFrame`.
-- Keep 60 fps on a phone budget: instance anything repeated, no per-frame React state, time-slice big jobs.
+- ⚑ Step by step: change → look in the browser at the exact spot (play view AND map, day and another mood) → lint, build, checks → commit → push → post → next.
+- ⚑ No new building types and no LDraw library download without Iftach's yes.
+- Measure fps (and canvas.width / clientWidth) before/after anything that adds many parts: ~1700 real flowers dropped fps 50→36 and the DPR, which he saw as "quality is worse".
+- Verify rotations from the scene, not guesses: expose a group on `window` (TEMP), read world positions in the browser, remove it.
+- Two flat surfaces over each other must be ≥4 LDU apart, or they shimmer from the map camera.
+- Merged geometries must all be non-indexed; extruded shapes' UVs are LDU coordinates, boxes' are 0..1. `instancedMesh` args are `[geometry, material, count]`.
+- The React-compiler lint forbids mutating memoised objects or reading refs during render (use refs inside `useFrame`, handlers, effects; state for anything render needs).
+- r3f resets a removed prop to nothing, not the default: always pass both variants of a prop (the OrbitControls mouse mapping bug).
+- Synthetic key events reach the game; old console errors linger in the browser pane: put a `console.error('MARK')` and read only what comes after.
+- Real people's likenesses: only with Iftach's go and their OK; no alcohol or weapons on statues unless he insists; copyrighted logos are drawn as our own nod, never copied.
 
 ## WAITING / OPEN
-- ⏳ Vercel share link for the `ifti/dev` preview: Nevo has one; Iftach to ask him. We've never seen the game on a real phone.
-- ⏳ Stations redesign (Iftach + Nevo).
-- ⏳ Level upgrades: Iftach wants a real upgrade per level (shop tiers unlocking, maybe a villa/castle at high levels, plots growing). Proposed three layers; waiting for his pick and a yes/no on baking new sets.
+- ⏳ Stations redesign (Iftach + Nevo). ⏳ Level upgrades design. ⏳ The big idea (own village).
+- ⏳ The World tab's loader is Nevo's (`BrickLoader`); offered him `TownLoader` on the channel.
 
 ## RULES
 - Never merge into `main` until we have the LEGO licence (main auto-deploys).
