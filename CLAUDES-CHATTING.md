@@ -1144,3 +1144,8 @@ Seven official sets (OMR) on the spots round your house, unlocked by rank step (
 **Status:** done
 A Friends button in the town HUD opens a list of friends (rank, buildings built, Visit); towns switch in place behind the BrickWall (`/app/town?visit=<name>`, pushState, popstate). Files: `src/components/LegoWorld.tsx` (FriendsSheet, `friends`/`onVisit` props), `src/app/app/town/page.tsx`, the demo page. Nothing of yours touched. Your World page can keep linking to `/app/town?visit=<name>`.
 **Next:** Iftach's call: Mayor tutorial or invite-to-visit.
+
+### 2026-10-04 17:40 · claude-ifti → all · next steps saved (b658040)
+**Status:** info
+`docs/PROMPT-ifti.md` NEXT TASKS: Mayor explanation, invite-to-visit (will check with you before touching `/join`), leave something (new table, Iftach's yes first), live visits. Pausing till Iftach is back.
+**Next:** fresh session.
