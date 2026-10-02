@@ -1,4 +1,4 @@
-# Solo-Leveling: session prompt for claude-ifti (updated 4 Oct 2026)
+# Solo-Leveling: session prompt for claude-ifti (updated 2 Oct 2026, evening)
 
 Paste the block below at the start of a fresh session (after /clear). ⚑ marks Iftach's standing orders.
 
@@ -11,12 +11,13 @@ Continue work on Solo-Leveling (repo NevoTapiero/Solo-Leveling). I'm Iftach, you
 2. Merge new commits from `origin/main` and `origin/nevo/dev` into `ifti/dev`, keep both sides on conflicts (Nevo's files: keep his logic, ask on the channel if unsure), run lint + build + `node supabase/tests/*.test.mjs`, tell me what came in.
 3. After every commit: read the channel, post what changed (hash, files, one line) before the next step.
 
-## DONE 4 Oct (keep for reference)
-1. **Clouds move smoothly.** `DriftingClouds` in `LegoWorld.tsx` snaps them a stud at a time (`Math.round(... / 20) * 20`, the old "stepped motion" order); he now wants smooth drift. Keep the brick-built puff shape (`cloudPuffGeometry`).
-2. **Adam's statue (the fountain): a cool black hoodie sweatshirt.** Today: black torso/arms, our own One Piece-style print (`ShirtPrint`: skull and crossbones in a straw hat, never their logo), a ribbed hem and collar. Make it read as a hoodie: a hood lying behind the neck/shoulders, drawstrings, a kangaroo pocket, cuffs; still black.
-3. **Real snow goggles.** The goggles now are two flat boxes on the face and look weird. Make proper ski goggles: a wide lens curved round the face (a cylinder segment), a padded frame round it, the strap round the head; red mirror lens.
-4. **His hair: a bit shorter at the back and sides.** Hair piece `10048` (Minifig Hair Tousled) in dark brown 308; trim it (scale its back/sides in, keep the top) or try `20597` (Short Tousled with Side Part, in the figure packs).
-To look at the statue's front: teleport to Fountain from the map, or temporarily turn the statue group `rotation={[0, Math.PI, 0]}` (mark it TEMP, revert before commit), teleport to the Shop, drag the camera round, scroll out, drag up.
+## NEXT TASKS (own towns, Iftach 2 Oct evening: "I'll come back later, save the next steps")
+Ask Iftach which comes first (he hadn't picked yet): 3 or 4.
+3. **Mayor Brickley's explanation, Clash of Clans style.** First time in your town only, skippable, one step at a time: Mayor Brickley (already one of the `GUIDES`) pops up with a speech bubble and a pointing arrow at the real button: walk (stick / WASD), run + jump, your house (Go inside, the chest), your missions (the stations on your plot), the Shop, the building spots ("rank up to unlock"), Friends (visit a town). Remember "seen" per device (try/catch localStorage) or per account later. Copy must match the real mechanics (see npc-guides memory).
+4. **Invite a friend to visit your town.** A "Invite" button in the town (and/or the Friends sheet) that shares a link; the friend code join flow already exists (`/join/<code>`, Nevo's); after joining, the link should land them in your town (`/app/town?visit=<you>`). Check with Nevo before touching `/join`.
+5. **Leave something in a friend's town** (a like or a gift they see next time they're home): needs a new table + RPC → write the migration, but **ask Iftach before applying it to the live database**.
+6. **Visit together live**: you see friends who are in the same town walking around (Supabase Realtime presence on a channel per town: no table). Positions a few times a second, smoothed.
+Also open: Iftach may swap the seven building sets (`pack.mjs` BUILDINGS, `TITLES`/`RANK_STEPS` in `legoWorld.ts`); the Tree House glb is 10 MB, the Bookshop 6.6 MB (offer lighter sets if loading is slow). The real `/app/town` Friends → Visit switch hasn't been tried logged in (only the demo): try it first next session.
 
 ## WORKING WITH CLAUDE-NEVO
 - claude-nevo (Nevo's PC, `nevo/dev`) owns the app screens (Home, World, Profile, sign-in, missions, health/XP sync in `src/lib/integrations/*`, the top of `globals.css`). The 3D world is mine: `src/lib/legoWorld.ts`, `src/components/LegoWorld.tsx`, `src/components/TownLoader.*`, `src/lib/sfx.ts`, `src/lib/energy.ts`, `src/app/app/town/page.tsx`, `3d/lego/**`, `scripts/lego/*`, the town/room/shop/HUD.
