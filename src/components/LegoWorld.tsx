@@ -115,6 +115,7 @@ import {
   SHOP_FRONT,
   FOUNTAIN,
   STATUE_AT,
+  POOL_R,
   type Station,
   type MinifigLook,
   type Figure,
@@ -2401,6 +2402,7 @@ export function LegoTown({
           <Prop key={k} {...PARK_BURGER_STAND} lot={lot} />
         ))}
         <FountainSpray />
+        <StatuePlaque name="ADAM KABANOS" />
         {/* Adam's statue on top of the fountain (Iftach's friend, from his photo), in his real colours: his
             dark curls, snow goggles with a red mirror lens, one hand up, in a black One Piece sweater and jeans,
             facing the street */}
@@ -4365,6 +4367,47 @@ function ShirtPrint() {
     <mesh position={[0, -56, 11]} rotation={[0, 0, Math.PI]}>{/* upright in the LDraw frame (-y up), facing out */}
       <planeGeometry args={[18, 18]} />
       <meshStandardMaterial map={map} transparent roughness={0.6} />
+    </mesh>
+  );
+}
+
+// ---- the statue's name, on a bronze plaque on the front of the fountain's rim, facing the street ----
+function StatuePlaque({ name }: { name: string }) {
+  const texture = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = 512;
+    c.height = 112;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#4a3320";
+    g.fillRect(0, 0, 512, 112);
+    g.strokeStyle = "#c9a14a";
+    g.lineWidth = 6;
+    g.strokeRect(9, 9, 494, 94);
+    g.fillStyle = "#f0cd6e";
+    g.font = "bold 54px Georgia, 'Times New Roman', serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText(name, 256, 60, 460);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    // the LDraw frame is upside down (-Y up) and seen from the other side: flip both ways (as TownSign)
+    t.flipY = false;
+    t.repeat.x = -1;
+    t.offset.x = 1;
+    return t;
+  }, [name]);
+  useEffect(() => () => texture.dispose(), [texture]);
+  const bronze = "#4a3320";
+  // LDraw frame: -Y is up; it faces +Z, on the rim's outside (the rim runs 4..28 LDU up)
+  return (
+    <mesh position={[FOUNTAIN[0], -16, FOUNTAIN[1] + POOL_R + 16 + 2]} castShadow>
+      <boxGeometry args={[100, 20, 4]} />
+      <meshStandardMaterial attach="material-0" color={bronze} />
+      <meshStandardMaterial attach="material-1" color={bronze} />
+      <meshStandardMaterial attach="material-2" color={bronze} />
+      <meshStandardMaterial attach="material-3" color={bronze} />
+      <meshStandardMaterial attach="material-4" map={texture} metalness={0.3} roughness={0.5} />
+      <meshStandardMaterial attach="material-5" color={bronze} />
     </mesh>
   );
 }

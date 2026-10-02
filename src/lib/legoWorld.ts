@@ -1606,8 +1606,9 @@ export function rideSpot(lot: Lot, level: number): P3 {
  *  `k` of 0..3 stands further along the front (so friends shopping don't stand in each other) */
 export const shopWalk = (k = 0): P3[] => [nearestStreet([-330, 0, 300]), [-330, 0, 300], [-120 + 45 * k, 0, 222]]; // round the fountain's pool
 export const SHOP_WALK = shopWalk(0);
-/** to the fountain: in from the ring to the terrace on the street side, in front of the pool, looking up at the statue */
-export const FOUNTAIN_WALK: P3[] = [nearestStreet([FOUNTAIN[0], 0, FOUNTAIN[1] + POOL_R + 60]), [FOUNTAIN[0], 0, FOUNTAIN[1] + POOL_R + 60]];
+/** to the fountain: in from the ring to the terrace on the street side, in front of the pool, looking up at the statue
+ *  (a little off to the side, so you don't stand in front of the name plaque on the rim) */
+export const FOUNTAIN_WALK: P3[] = [nearestStreet([FOUNTAIN[0] + 90, 0, FOUNTAIN[1] + POOL_R + 60]), [FOUNTAIN[0] + 90, 0, FOUNTAIN[1] + POOL_R + 60]];
 /** on the ring round the plaza? */
 export const onRing = (p: P3) => Math.abs(Math.hypot(p[0], p[2]) - RING_R) < 1;
 const same = (p: P3, q: P3) => Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2]) < 1;
