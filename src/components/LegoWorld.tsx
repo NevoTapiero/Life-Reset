@@ -2401,8 +2401,8 @@ export function LegoTown({
           <Prop key={k} {...PARK_BURGER_STAND} lot={lot} />
         ))}
         <FountainSpray />
-        {/* a friend's statue on top of the fountain, as in the photo Iftach sent, in his real colours: his
-            dark curls, snow goggles with a red mirror lens, one hand up, in a black One Piece tee and jeans,
+        {/* Adam's statue on top of the fountain (Iftach's friend, from his photo), in his real colours: his
+            dark curls, snow goggles with a red mirror lens, one hand up, in a black One Piece sweater and jeans,
             facing the street */}
         <group position={[FOUNTAIN[0], -STATUE_AT, FOUNTAIN[1]]} scale={1.8}>
           <Minifig look={STATUE} at={[0, 0, 0]} statue />
@@ -2420,6 +2420,15 @@ export function LegoTown({
             <meshStandardMaterial color="#1d1d1d" roughness={0.7} side={THREE.DoubleSide} />
           </mesh>
           <ShirtPrint />
+          {/* the sweater's knitted edges: a ribbed band round the hem and a round collar */}
+          <mesh position={[0, -41.5, 0]}>
+            <boxGeometry args={[40.6, 3.2, 20.6]} />
+            <meshStandardMaterial color="#383838" roughness={0.9} />
+          </mesh>
+          <mesh position={[0, -72.5, 0]}>
+            <cylinderGeometry args={[7.2, 7.2, 2.4, 20, 1, true]} />
+            <meshStandardMaterial color="#383838" roughness={0.9} side={THREE.DoubleSide} />
+          </mesh>
         </group>
         <TownSign name={residents[meIndex]?.name ?? "Your"} />
         {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
@@ -4305,12 +4314,12 @@ function FountainSpray() {
     </instancedMesh>
   );
 }
-// the statue, after a friend of Iftach's, in his real colours: light nougat skin, dark brown tousled hair,
-// a black tee, blue jeans
+// Adam's statue (Iftach's friend), in his real colours: light nougat skin, dark brown tousled hair,
+// a black sweater (black sleeves), blue jeans
 const STATUE: Figure = {
   parts: { ...figureOf({ skin: 78, hair: 308, torso: 0, legs: 272 }).parts, hair: { part: "10048", color: 308 }, head: { part: "3626bp05", color: 78 } }, // his dark brows
 };
-// the print on his black tee, a One Piece nod (our own drawing, not their logo): a white skull and crossbones
+// the print on his black sweater, a One Piece nod (our own drawing, not their logo): a white skull and crossbones
 // in a yellow straw hat with a red band
 function ShirtPrint() {
   const map = useMemo(() => {
@@ -4354,7 +4363,7 @@ function ShirtPrint() {
   // on the torso's front, mid-chest (LDU, minifig frame: -y up, front +z)
   return (
     <mesh position={[0, -56, 11]} rotation={[0, 0, Math.PI]}>{/* upright in the LDraw frame (-y up), facing out */}
-      <planeGeometry args={[15, 15]} />
+      <planeGeometry args={[18, 18]} />
       <meshStandardMaterial map={map} transparent roughness={0.6} />
     </mesh>
   );
