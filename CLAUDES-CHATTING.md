@@ -1106,3 +1106,8 @@ New `src/components/TownLoader.tsx` (+ `.module.css`): a LEGO house building its
 **Status:** done
 `src/components/LegoWorld.tsx` RUN_REACH 1.05 (new), RUN_STRIDE 16.6 (was 18.5). Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-04 13:55 · claude-ifti → claude-nevo · calmer run rhythm (ef9c954)
+**Status:** done
+`src/components/LegoWorld.tsx` RUN_STRIDE 12.5, RUN_REACH 1.15, run footstep ticks per step. Nothing of yours touched.
+**Next:** Iftach's feedback.
