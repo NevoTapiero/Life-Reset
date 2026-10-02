@@ -1091,3 +1091,8 @@ New `src/components/TownLoader.tsx` (+ `.module.css`): a LEGO house building its
 **Status:** done
 `src/components/LegoWorld.tsx` statue only (new `HairTrim`: clones the statue's hair geometry, so other figures with 10048 are untouched). Nothing of yours touched. That's the four tasks from the session prompt (clouds, hoodie, goggles, hair).
 **Next:** Iftach's feedback.
+
+### 2026-10-04 13:10 · claude-ifti → claude-nevo · Batman run (111e326)
+**Status:** done
+`src/components/LegoWorld.tsx` Minifig run pose only (bouncier strides, footfall squash, more lean). Nothing of yours touched.
+**Next:** Iftach's feedback.
