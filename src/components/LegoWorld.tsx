@@ -545,7 +545,7 @@ function measureRooms(scene: THREE.Object3D) {
 // hidden): it goes up a row of bricks at a time while bricks shower down onto
 // each new row -- when the town opens, and again whenever the house changes
 // (a level up).
-const BUILD_TIME = 2.4;
+const BUILD_TIME = 3.5; // seconds (was 2.4: a touch slower, so you can watch it go up)
 const ROW = 24; // LDU: one brick
 const OPEN = 1e5; // a clipping plane that clips nothing
 function Building({
@@ -3739,10 +3739,8 @@ const WALK_SPEED = 150; // LDU a second: an easy walk, with legs that keep up (s
 // camera to follow. A new `go` (the same place again included) walks you there.
 const DRIVE_SPEED = 150; // LDU a second, walking (running: RUN times that)
 const RUN = 1.7; // a LEGO run: clearly quicker than the walk, not a blur (fast reads wrong on a minifig)
-const RUN_REACH = 1.15; // how far a running leg swings (radians): long bounding steps
-// the run's leg pace: ~4 steps a second, the LEGO-game rhythm. Planted feet would need ~15 at this reach and
-// speed (step ~ 2 x leg x sin(reach)), but that pace reads as fast-forward; a little skate reads better
-const RUN_STRIDE = 12.5;
+const RUN_REACH = 1.05; // how far a running leg swings (radians): long steps
+const RUN_STRIDE = 16.6; // the legs' pace that keeps a run's feet planted at that reach (step ~ 2 x leg x sin(reach))
 const WALK_PUSH = 0.7; // how far the keys push the stick when you walk (Shift: all the way, a run)
 function Walker({
   id,
@@ -3881,9 +3879,8 @@ function Walker({
         const f = stepped.current;
         f.d += Math.hypot(x - f.x, z - f.z);
         [f.x, f.z] = [x, z];
-        const step = stride === RUN_STRIDE ? (WALK_SPEED * RUN * Math.PI) / RUN_STRIDE : 38; // a run's step is longer
-        if (f.d > step && f.d < 400) sfx.step();
-        if (f.d > step) f.d = 0;
+        if (f.d > 38 && f.d < 400) sfx.step();
+        if (f.d > 38) f.d = 0;
       }
       where?.current.set(x * LDU, -s.pos[1] * LDU, -z * LDU);
     };
