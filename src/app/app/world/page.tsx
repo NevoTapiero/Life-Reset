@@ -8,7 +8,7 @@ import Icon from "@/components/Icon";
 import Minifig from "@/components/Minifig";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import TownArt from "@/components/TownArt";
-import BrickWipe from "@/components/BrickWipe";
+import BrickWall, { JUMP_FLAG } from "@/components/BrickWall";
 import TownNews from "@/components/TownNews";
 import ShopWindow from "@/components/ShopWindow";
 import { legoLevel, levelTitle, photoOf } from "@/lib/brick";
@@ -182,11 +182,18 @@ export default function WorldPage() {
       <section className="scene overflow-hidden">
         <TownArt residents={residents} className="w-full h-auto block" />
       </section>
-      <button className="btn-primary brick-yellow w-full py-4 mt-4 !text-[19px]" onClick={() => setJumping(true)}>
+      <button
+        className="btn-primary brick-yellow w-full py-4 mt-4 !text-[19px]"
+        onClick={() => {
+          brickSound.wipe();
+          sessionStorage.setItem(JUMP_FLAG, "1"); // the town opens behind the same wall, which then comes down
+          setJumping(true);
+        }}
+      >
         <Icon name="play" size={18} />
         Jump into the world
       </button>
-      {jumping && <BrickWipe onCovered={jump} />}
+      {jumping && <BrickWall phase="in" className="fixed inset-0 z-[80]" onDone={jump} />}
       {knocks.map((name) => {
         const r = rows.find((x) => x.username === name);
         return (

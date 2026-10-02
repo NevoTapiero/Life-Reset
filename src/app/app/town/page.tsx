@@ -11,6 +11,7 @@ import { energyFrom, todayKey, type LedgerMeta } from "@/lib/energy";
 import type { Visit } from "@/components/LegoWorld";
 import { useStations } from "@/lib/useStations";
 import TownLoader from "@/components/TownLoader";
+import BrickWall, { JUMP_FLAG } from "@/components/BrickWall";
 
 // the same LEGO loading screen from the tap until the town has built: while friends load, while the 3D
 // code downloads (here), and inside the town while it builds itself (LegoTown)
@@ -48,6 +49,10 @@ export default function TownPage() {
   const [visits, setVisits] = useState<Record<string, Visit>>({});
   const [atDoor, setAtDoor] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // jumped in from World: the brick wall that covered it is still up here, and comes down brick by brick
+  const [wall, setWall] = useState(() => typeof window !== "undefined" && sessionStorage.getItem(JUMP_FLAG) === "1");
+  useEffect(() => sessionStorage.removeItem(JUMP_FLAG), []);
+  const bricks = wall && <BrickWall phase="out" className="fixed inset-0 z-[80]" onDone={() => setWall(false)} />;
   const { stations, complete, chest, gold, collect, prices, owned, buy, garden, place } = useStations();
   const router = useRouter();
 
@@ -94,6 +99,7 @@ export default function TownPage() {
       <p className="text-danger text-sm py-10 text-center">{error}</p>
     ) : (
       <div className="slide-in">
+        {bricks}
         <div className="flex items-center justify-between mb-3">
           <h1 className="display text-[19px]">Town</h1>
         </div>
@@ -104,6 +110,7 @@ export default function TownPage() {
 
   return (
     <div className="slide-in">
+      {bricks}
       <div className="flex items-center justify-between mb-3">
         <h1 className="display text-[19px]">Town</h1>
         <span className="hud-label">{residents.length === 1 ? "Just you so far" : `${residents.length} houses`}</span>

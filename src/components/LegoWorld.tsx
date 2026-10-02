@@ -8,6 +8,7 @@ import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, N8AO, ToneMap
 import { ToneMappingMode } from "postprocessing";
 import { sfx, setSound, soundOn } from "@/lib/sfx";
 import TownLoader from "@/components/TownLoader";
+import BrickWall, { WALL_IN, WALL_OUT } from "@/components/BrickWall";
 import { CAN_RUN_AT, ENERGY_MAX, RUN_COST, TRICKLE } from "@/lib/energy";
 import * as THREE from "three";
 import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
@@ -2491,8 +2492,8 @@ export function LegoTown({
         })}
       </Stage>
 
-      {/* while the town loads (it stutters then), the LEGO loading screen; it fades as the town builds itself */}
-      <TownLoader className={`absolute inset-0 pointer-events-none ${settled ? "fade-away" : ""}`} />
+      {/* while the town loads (it stutters then), the LEGO loading screen over everything (the HUD too); it fades as the town builds itself */}
+      <TownLoader className={`absolute inset-0 z-30 pointer-events-none ${settled ? "fade-away" : ""}`} />
 
       {/* the HUD, LEGO-game style. Top left: you (head, name, level, gold). */}
       {me && (
@@ -2910,36 +2911,13 @@ function HeadIcon() {
   );
 }
 
-// The brick wipe: a wall of LEGO bricks tumbles in, row by row from the
-// bottom, to cover the screen; then falls away (going into / out of a room).
-const WIPE_COLOURS = ["#d01012", "#0055bf", "#f5cd2f", "#4b9f4a", "#fe8a18", "#ffffff", "#a0a5a9", "#582a12"];
+// The brick wipe going into / out of a room: the LEGO brick wall (BrickWall), over the 3D box
 function BrickWipe({ phase }: { phase: "in" | "out" }) {
   useEffect(() => sfx.clatter(), [phase]);
-  const rows = 12;
-  const cols = 6;
-  return (
-    <div className={`brick-wipe ${phase} ${phase === "in" ? "covering" : ""}`} aria-hidden>
-      {Array.from({ length: rows * cols }, (_, i) => {
-        const row = Math.floor(i / cols);
-        return (
-          <span
-            key={i}
-            className="wipe-brick"
-            style={
-              {
-                "--c": WIPE_COLOURS[Math.floor(hash(i + 7) * WIPE_COLOURS.length)],
-                // in: the bottom rows land first (a wall building up); out: the top rows go first
-                animationDelay: `${(phase === "in" ? (rows - 1 - row) * 14 : row * 12) + hash(i) * 40}ms`,
-              } as React.CSSProperties
-            }
-          />
-        );
-      })}
-    </div>
-  );
+  return <BrickWall phase={phase} className="absolute inset-0 z-40" />;
 }
-const WIPE_IN = 360 + 11 * 14 + 40; // ms until the wall is complete
-const WIPE_OUT = 460 + 11 * 12 + 40;
+const WIPE_IN = WALL_IN;
+const WIPE_OUT = WALL_OUT;
 
 // A handful of little LEGO bricks bursting out of the middle of whatever it's
 // inside (a button, the screen) and tumbling down: something good happened.
