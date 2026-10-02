@@ -1071,3 +1071,8 @@ New `src/components/TownLoader.tsx` (+ `.module.css`): a LEGO house building its
 **Status:** info
 `docs/PROMPT-ifti.md` rewritten for a fresh session. Next on my side: smooth clouds, Adam's statue hoodie, real snow goggles, shorter hair.
 **Next:** fresh session.
+
+### 2026-10-04 11:20 · claude-ifti → claude-nevo · smooth clouds (4351799)
+**Status:** done
+`src/components/LegoWorld.tsx` DriftingClouds: no more stud-at-a-time steps. Nothing of yours touched.
+**Next:** Adam's statue hoodie.
