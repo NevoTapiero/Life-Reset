@@ -87,7 +87,7 @@ export default function LegoPreview() {
   const [hero, setHero] = useState(5); // your level: what you wear in your room
   const [season, setSeason] = useState<Season | undefined>(undefined); // undefined = the date
   const [friends, setFriends] = useState(5); // how many friends live in the demo town (the old shared street)
-  const [visiting, setVisiting] = useState(false); // nevo's own town, you as a guest
+  const [visiting, setVisiting] = useState<string | null>(null); // a friend's own town, you as a guest
   // nevo already let you in, omer hasn't answered; a new knock is answered after a moment
   const [visits, setVisits] = useState<Record<string, Visit>>({
     nevo: "allowed",
@@ -154,14 +154,14 @@ export default function LegoPreview() {
             key={n}
             onClick={() => {
               setFriends(n);
-              setVisiting(false);
+              setVisiting(null);
             }}
             className={button(friends === n && !visiting)}
           >
             {n} friends
           </button>
         ))}
-        <button onClick={() => setVisiting((v) => !v)} className={button(visiting)}>
+        <button onClick={() => setVisiting((v) => (v ? null : "nevo"))} className={button(!!visiting)}>
           Visit nevo
         </button>
         {["day", "golden", "dusk", "night"].map((t) => (
@@ -212,12 +212,14 @@ export default function LegoPreview() {
       <div className="absolute inset-0">
         {house === null ? (
           <LegoTown
-            key={visiting ? "visit" : "home"}
-            residents={visiting ? [DEMO_TOWN[1]] : DEMO_TOWN.slice(0, friends + 1)}
+            key={visiting ?? "home"}
+            residents={visiting ? DEMO_TOWN.filter((r) => r.name === visiting) : DEMO_TOWN.slice(0, friends + 1)}
             guest={visiting ? DEMO_TOWN[0] : undefined}
-            visit={visiting ? "nevo" : undefined}
+            visit={visiting ?? undefined}
+            friends={DEMO_TOWN.slice(1)}
+            onVisit={setVisiting}
             backLabel={visiting ? "My town" : "World"}
-            onBack={visiting ? () => setVisiting(false) : undefined}
+            onBack={visiting ? () => setVisiting(null) : undefined}
             visits={visits}
             onKnock={knock}
             stations={stations}

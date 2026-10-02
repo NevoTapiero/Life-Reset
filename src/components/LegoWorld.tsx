@@ -112,6 +112,8 @@ import {
   buildingOn,
   buildingAt,
   buildingWalk,
+  TOWN_BUILDINGS,
+  rankOf,
   ICE_CREAM_CART,
   PARK_BURGER_STAND,
   type Lot,
@@ -1866,6 +1868,8 @@ export function LegoTown({
   season: seasonProp,
   visit,
   guest,
+  friends = [],
+  onVisit,
   onBack,
   backLabel = "World",
   energy = null,
@@ -1895,6 +1899,10 @@ export function LegoTown({
   visit?: string | null;
   /** you, visiting: the town is the residents' (a friend's own town) and you walk round it as a guest */
   guest?: Resident;
+  /** your friends, for the Friends list (Clash of Clans style): tap one to visit their town */
+  friends?: Resident[];
+  /** go to a friend's town (null: back to your own) */
+  onVisit?: (name: string | null) => void;
   /** a way back out of the town (the app's World page; when visiting, your own town) */
   onBack?: () => void;
   backLabel?: string;
@@ -1959,6 +1967,7 @@ export function LegoTown({
   // (your friends stay at home, one at each house's door: Iftach, 3 Oct, the ones wandering about had no point)
   if (focus !== OVERVIEW && focus !== dest) setDest(focus);
   const [shopOpen, setShopOpen] = useState(false);
+  const [friendsOpen, setFriendsOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   // placing a garden thing you've just bought: where it's hovering on your plot, and whether it fits there
   const [placing, setPlacing] = useState<Placed | null>(null);
@@ -2578,6 +2587,7 @@ export function LegoTown({
           </span>
         )}
         <SoundToggle />
+        {onVisit && inside === null && !isPlacing && <RoundAction icon="friends" text="Friends" tone="yellow" small onClick={() => setFriendsOpen(true)} />}
         {inside === null &&
           !isPlacing &&
           (following ? (
@@ -2649,6 +2659,17 @@ export function LegoTown({
             setNote(`${bought} is waiting in your house`);
             setTimeout(() => setNote(null), 2500);
           }}
+        />
+      )}
+      {friendsOpen && onVisit && (
+        <FriendsSheet
+          friends={friends}
+          here={guest ? residents[0]?.name : null}
+          onVisit={(name) => {
+            setFriendsOpen(false);
+            onVisit(name);
+          }}
+          onClose={() => setFriendsOpen(false)}
         />
       )}
       {wipe && <BrickWipe phase={wipe} />}
@@ -2863,6 +2884,8 @@ const ICONS: Record<string, React.ReactNode> = {
   check: <path d="M5 12.5 10 17.5 19 7" strokeWidth="3.2" />,
   x: <path d="M6 6l12 12M18 6 6 18" strokeWidth="3" />,
   mute: <path d="M4 10v4h4l5 4V6L8 10H4Zm12 0 5 5m0-5-5 5" strokeWidth="2.2" />,
+  friends: <path d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9v-1.5A4.5 4.5 0 0 1 7.5 14h3a4.5 4.5 0 0 1 4.5 4.5V20m1-9.2a3 3 0 1 0 0-6M18 14a4 4 0 0 1 3 4v2" strokeWidth="2.1" />,
+  home: <path d="M4 11 12 4l8 7M6 9.5V20h12V9.5M10 20v-5h4v5" strokeWidth="2.3" />,
 };
 function Icon({ name }: { name: keyof typeof ICONS }) {
   return (
@@ -3126,6 +3149,60 @@ function Thumb({ id, name }: { id: string; name: string }) {
 }
 
 // Inside the shop: the furniture for sale, what you have, what you can afford.
+// Your friends, Clash of Clans style: each one's rank and how much of their town is built, and a Visit
+// button that takes you there (and Home, from a friend's town, back to yours)
+function FriendsSheet({ friends, here, onVisit, onClose }: { friends: Resident[]; here: string | null; onVisit: (name: string | null) => void; onClose: () => void }) {
+  const ranked = [...friends].sort((a, b) => rankOf(b) - rankOf(a));
+  return (
+    <div className="absolute inset-0 z-20 flex items-end" style={{ background: "rgba(0,0,0,0.35)" }} onClick={onClose}>
+      <div className="lego-panel w-full max-h-[75%] overflow-y-auto rounded-t-2xl p-4 slide-in" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <span className="display text-[17px]">Friends&apos; towns</span>
+          {here && (
+            <button onClick={() => onVisit(null)} className="lego lego-sm lego-green">
+              My town
+            </button>
+          )}
+        </div>
+        {ranked.length === 0 ? (
+          <p className="text-sm font-bold opacity-70 py-6 text-center">No friends yet. Add one on the World page and their town shows up here.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {ranked.map((f) => {
+              const built = TOWN_BUILDINGS.filter((b) => rankOf(f) >= b.rank).length;
+              const isHere = f.name === here;
+              return (
+                <div key={f.name} className="flex items-center gap-3 rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.55)" }}>
+                  <HeadIcon />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-extrabold text-[15px] truncate">{f.name}</div>
+                    <div className="text-[12.5px] font-bold opacity-70">
+                      {rankLabel(rankOf(f))} · {built}/{TOWN_BUILDINGS.length} buildings
+                    </div>
+                  </div>
+                  {isHere ? (
+                    <span className="lego lego-sm lego-white">You&apos;re here</span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        sfx.click();
+                        onVisit(f.name);
+                      }}
+                      className="lego lego-sm lego-yellow"
+                    >
+                      Visit
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ShopSheet({
   gold,
   prices,
