@@ -2404,7 +2404,7 @@ export function LegoTown({
         <FountainSpray />
         <StatuePlaque name="ADAM KABANOS" />
         {/* Adam's statue on top of the fountain (Iftach's friend, from his photo), in his real colours: his
-            dark curls, snow goggles with a red mirror lens, one hand up, in a black One Piece sweater and jeans,
+            dark curls, snow goggles with a red mirror lens, one hand up, in a black One Piece hoodie and jeans,
             facing the street */}
         <group position={[FOUNTAIN[0], -STATUE_AT, FOUNTAIN[1]]} scale={1.8}>
           <Minifig look={STATUE} at={[0, 0, 0]} statue />
@@ -2422,15 +2422,7 @@ export function LegoTown({
             <meshStandardMaterial color="#1d1d1d" roughness={0.7} side={THREE.DoubleSide} />
           </mesh>
           <ShirtPrint />
-          {/* the sweater's knitted edges: a ribbed band round the hem and a round collar */}
-          <mesh position={[0, -41.5, 0]}>
-            <boxGeometry args={[40.6, 3.2, 20.6]} />
-            <meshStandardMaterial color="#383838" roughness={0.9} />
-          </mesh>
-          <mesh position={[0, -72.5, 0]}>
-            <cylinderGeometry args={[7.2, 7.2, 2.4, 20, 1, true]} />
-            <meshStandardMaterial color="#383838" roughness={0.9} side={THREE.DoubleSide} />
-          </mesh>
+          <Hoodie />
         </group>
         <TownSign name={residents[meIndex]?.name ?? "Your"} />
         {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
@@ -4316,11 +4308,11 @@ function FountainSpray() {
   );
 }
 // Adam's statue (Iftach's friend), in his real colours: light nougat skin, dark brown tousled hair,
-// a black sweater (black sleeves), blue jeans
+// a black hoodie (black sleeves), blue jeans
 const STATUE: Figure = {
   parts: { ...figureOf({ skin: 78, hair: 308, torso: 0, legs: 272 }).parts, hair: { part: "10048", color: 308 }, head: { part: "3626bp05", color: 78 } }, // his dark brows
 };
-// the print on his black sweater, a One Piece nod (our own drawing, not their logo): a white skull and crossbones
+// the print on his black hoodie, a One Piece nod (our own drawing, not their logo): a white skull and crossbones
 // in a yellow straw hat with a red band
 function ShirtPrint() {
   const map = useMemo(() => {
@@ -4363,10 +4355,88 @@ function ShirtPrint() {
   useEffect(() => () => map.dispose(), [map]);
   // on the torso's front, mid-chest (LDU, minifig frame: -y up, front +z)
   return (
-    <mesh position={[0, -56, 11]} rotation={[0, 0, Math.PI]}>{/* upright in the LDraw frame (-y up), facing out */}
-      <planeGeometry args={[18, 18]} />
+    <mesh position={[0, -57.5, 10.6]} rotation={[0, 0, Math.PI]}>{/* upright in the LDraw frame (-y up), facing out */}
+      <planeGeometry args={[14, 14]} />
       <meshStandardMaterial map={map} transparent roughness={0.6} />
     </mesh>
+  );
+}
+
+// Adam's black hoodie over the statue's torso (LDU, minifig frame: -y up, front +z, torso -72..-40, front face
+// z 10): the hood bunched behind the neck and hanging down the back, its rim round the neck, white drawstrings,
+// a kangaroo pocket, ribbed cuffs and waistband. The cuffs sit at the hands of the statue's pose (measured).
+const HOODIE_CUFFS: [number, number, number, number, number, number][] = [
+  [23.5, -46.3, 8.8, -0.12, -0.7, -0.71], // left sleeve's end, hanging: centre, the sleeve's axis (its hand's z)
+  [-23.5, -67, 18.4, 0.12, 0.49, -0.86], // right, raised
+];
+function Hoodie() {
+  const cuffTurn = useMemo(() => HOODIE_CUFFS.map(([, , , ax, ay, az]) => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(ax, ay, az).normalize())), []);
+  // the torso's own LDraw black (#1b2a34), so the hood and pocket read as one piece with it; the ribbing a shade up
+  const cloth = <meshStandardMaterial color="#1b2a34" roughness={0.5} />;
+  const rib = <meshStandardMaterial color="#2f3e49" roughness={0.75} />;
+  const pocket = useMemo(() => {
+    const p = new THREE.Shape([new THREE.Vector2(-12, 0), new THREE.Vector2(12, 0), new THREE.Vector2(8.5, 6.6), new THREE.Vector2(-8.5, 6.6)]);
+    return new THREE.ExtrudeGeometry(p, { depth: 0.6, bevelEnabled: true, bevelThickness: 0.5, bevelSize: 0.5, bevelSegments: 2 });
+  }, []);
+  const hood = useMemo(() => {
+    const h = new THREE.Shape();
+    h.moveTo(-11, 0);
+    h.lineTo(-10, -8);
+    h.quadraticCurveTo(-8, -15, 0, -16);
+    h.quadraticCurveTo(8, -15, 10, -8);
+    h.lineTo(11, 0);
+    h.closePath();
+    return new THREE.ExtrudeGeometry(h, { depth: 1.5, bevelEnabled: true, bevelThickness: 1.6, bevelSize: 1.6, bevelSegments: 4 });
+  }, []);
+  useEffect(() => () => [pocket, hood].forEach((g) => g.dispose()), [pocket, hood]);
+  return (
+    <group>
+      {/* the hood: a thick roll round the back of the neck, a thinner rim across the front */}
+      <mesh position={[0, -73.5, -0.5]} rotation={[-Math.PI / 2, 0, -0.3]}>
+        <torusGeometry args={[10.5, 3.8, 10, 24, Math.PI + 0.6]} />
+        {cloth}
+      </mesh>
+      <mesh position={[0, -72.6, -0.5]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[10.5, 1.6, 8, 20, Math.PI]} />
+        {cloth}
+      </mesh>
+      {/* and lying down the back: a padded pouch, a seam down its middle */}
+      <mesh geometry={hood} position={[0, -72.5, -10.5]} rotation={[Math.PI, 0, 0]}>
+        {cloth}
+      </mesh>
+      <mesh position={[0, -65.5, -13.7]}>
+        <boxGeometry args={[0.8, 13, 0.6]} />
+        {rib}
+      </mesh>
+      {/* the drawstrings, with their tips */}
+      {[-3.2, 3.2].map((x) => (
+        <group key={x} position={[x, -68.5, 10.8]} rotation={[0, 0, x * 0.03]}>
+          <mesh>
+            <cylinderGeometry args={[0.65, 0.65, 6, 8]} />
+            <meshStandardMaterial color="#f4f4f0" roughness={0.6} />
+          </mesh>
+          <mesh position={[0, 3.6, 0]}>
+            <cylinderGeometry args={[0.9, 0.9, 2.2, 8]} />
+            <meshStandardMaterial color="#b9bcc0" metalness={0.6} roughness={0.3} />
+          </mesh>
+        </group>
+      ))}
+      {/* the kangaroo pocket: a padded trapezoid, its slanted sides the openings */}
+      <mesh geometry={pocket} position={[0, -43.4, 10.5]} rotation={[Math.PI, 0, 0]}>
+        {cloth}
+      </mesh>
+      {/* the ribbed waistband and cuffs */}
+      <mesh position={[0, -41.5, 0]}>
+        <boxGeometry args={[40.6, 3.2, 20.6]} />
+        {rib}
+      </mesh>
+      {HOODIE_CUFFS.map(([x, y, z], k) => (
+        <mesh key={k} position={[x, y, z]} quaternion={cuffTurn[k]}>
+          <cylinderGeometry args={[5.7, 5.7, 3.2, 18]} />
+          {rib}
+        </mesh>
+      ))}
+    </group>
   );
 }
 
