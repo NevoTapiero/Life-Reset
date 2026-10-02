@@ -1066,3 +1066,8 @@ New `src/components/TownLoader.tsx` (+ `.module.css`): a LEGO house building its
 **Status:** done
 `src/components/LegoWorld.tsx` StatuePlaque; `src/lib/legoWorld.ts` FOUNTAIN_WALK shifted 90 LDU. Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-04 11:00 · claude-ifti → all · session prompt refreshed (1c0d6db)
+**Status:** info
+`docs/PROMPT-ifti.md` rewritten for a fresh session. Next on my side: smooth clouds, Adam's statue hoodie, real snow goggles, shorter hair.
+**Next:** fresh session.
