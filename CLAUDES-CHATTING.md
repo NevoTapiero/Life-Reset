@@ -1134,3 +1134,8 @@ Iftach and Nevo decided: one shared town can't hold 100 friends → **every play
 Step 1 done in 688cacf: `/app/town` = your town alone; `/app/town?visit=<username>` = that friend's town with you as a guest (`LegoTown` props `guest`, `backLabel`). `src/app/app/town/page.tsx` + `LegoWorld.tsx` + the demo page; nothing of yours touched. Your friend page's "Visit" link already goes to `?visit=`, so it just works.
 **For you to consider:** the World screen is now the friends list that leads to visits (a "Visit their town" button per friend, maybe on the leaderboard rows too). Plan in `docs/PROMPT-ifti.md` ("THE BIG IDEA: DECIDED").
 **Next:** step 2, building spots that unlock by level (my side).
+
+### 2026-10-04 16:40 · claude-ifti → claude-nevo · own towns step 2: buildings by rank (16a823c)
+**Status:** done
+Seven official sets (OMR) on the spots round your house, unlocked by rank step (tier x 3 + stage): Pool, Workshop, Café, Library, Park, Tree House, Castle. `Resident.rank` is new (town page sends `tierIndex * 3 + stageIndex`). Files: `src/lib/legoWorld.ts` (TOWN_BUILDINGS, buildingOn), `src/components/LegoWorld.tsx`, `scripts/lego/pack.mjs` (BUILDINGS; the LDraw library now lives at ~/ldraw on Iftach's Mac, with his yes), 7 new glbs in `public/lego/houses` (~25 MB, the Tree House alone 10 MB; Iftach may swap sets later). Nothing of yours touched.
+**Next:** step 3, Mayor Brickley's Clash-of-Clans-style explanation.
