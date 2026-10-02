@@ -941,7 +941,7 @@ function Minifig({
     // wherever you are, higher, with a full spin
     const lift = (h: number) => {
       const k = Math.min(1, h / JUMP_AIR);
-      return hopFrom.current * (1 - k) + Math.sin(k * Math.PI) * (hopDouble.current ? 40 : 44);
+      return hopFrom.current * (1 - k) + Math.sin(k * Math.PI) * (hopDouble.current ? JUMP_HIGH * 0.9 : JUMP_HIGH);
     };
     if (jumpRef && jumpRef.current !== jumpsSeen.current) {
       jumpsSeen.current = jumpRef.current;
@@ -956,7 +956,7 @@ function Minifig({
       }
     }
     const h = t - hopAt.current;
-    const [hopTime, hopHeight] = hopBig.current ? [JUMP_AIR, 44] : [0.45, 14];
+    const [hopTime, hopHeight] = hopBig.current ? [JUMP_AIR, JUMP_HIGH] : [0.45, 14];
     // a bounce on every step and a waddle from foot to foot (LDraw is -Y up); a run bounds the LEGO Batman way,
     // every stride a little leap that springs up off the foot and hangs a moment before the next one lands
     const running = stride > 15 ? g.blend : 0;
@@ -4033,7 +4033,8 @@ const BUILD_GAP = 0.12;
 const BUILD_HOP = 0.24;
 const CARRY = 0.6; // radians the weapon arm comes up while on the move (the blade rests back over the shoulder)
 const FIDGET_EVERY = 6; // seconds between a standing minifig's fidgets
-const JUMP_AIR = 0.62; // seconds a jump keeps you in the air
+const JUMP_AIR = 0.74; // seconds a jump keeps you in the air
+const JUMP_HIGH = 64; // LDU a jump lifts you (the double jump: 0.9 of it, again from wherever you are)
 const DUST_LIFE = 0.5; // seconds
 
 // ---- props: small official sets (the ice cream cart, the parks' burger stands) ----
