@@ -4231,9 +4231,8 @@ function DriftingClouds() {
     const span = 2 * CLOUD_EXTENT;
     let i = 0;
     for (const c of CLOUDS) {
-      // along the wind, wrapped into the square; across it, a slow sway
-      // a whole stud at a time, like stop-motion, not a glide
-      const along = Math.round(((((c.x * WIND[0] + c.z * WIND[1] + t * c.speed + CLOUD_EXTENT) % span) + span) % span - CLOUD_EXTENT) / 20) * 20;
+      // along the wind, wrapped into the square, a smooth glide; across it, a slow sway
+      const along = ((((c.x * WIND[0] + c.z * WIND[1] + t * c.speed + CLOUD_EXTENT) % span) + span) % span) - CLOUD_EXTENT;
       const across = -c.x * WIND[1] + c.z * WIND[0] + Math.sin(t * 0.05 + c.y) * 40;
       const [cx, cz] = [along * WIND[0] - across * WIND[1], along * WIND[1] + across * WIND[0]];
       for (const [dx, dy, dz, r] of c.puffs) {
