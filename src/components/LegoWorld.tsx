@@ -889,7 +889,7 @@ function Minifig({
     // the LEGO-game walk: stiff legs swinging from the hips, arms (with hands and whatever
     // they hold) swinging the other way, shorter strides when strolling, longer when running
     const parts = ["legL", "legR", "swingL", "swingR"].map((n) => model.getObjectByName(n));
-    const reach = Math.min(0.95, 0.3 + stride * 0.032) * g.blend;
+    const reach = (stride > 15 ? RUN_REACH : Math.min(0.95, 0.3 + stride * 0.032)) * g.blend; // a run: long bounding steps
     const s = Math.sin(g.phase);
     if (parts.every(Boolean)) {
       if (!limbs.current.length) limbs.current = parts.map((p) => p!.quaternion.clone());
@@ -3739,7 +3739,8 @@ const WALK_SPEED = 150; // LDU a second: an easy walk, with legs that keep up (s
 // camera to follow. A new `go` (the same place again included) walks you there.
 const DRIVE_SPEED = 150; // LDU a second, walking (running: RUN times that)
 const RUN = 1.7; // a LEGO run: clearly quicker than the walk, not a blur (fast reads wrong on a minifig)
-const RUN_STRIDE = 18.5; // the legs' pace that keeps a run's feet planted
+const RUN_REACH = 1.05; // how far a running leg swings (radians): long steps
+const RUN_STRIDE = 16.6; // the legs' pace that keeps a run's feet planted at that reach (step ~ 2 x leg x sin(reach))
 const WALK_PUSH = 0.7; // how far the keys push the stick when you walk (Shift: all the way, a run)
 function Walker({
   id,
