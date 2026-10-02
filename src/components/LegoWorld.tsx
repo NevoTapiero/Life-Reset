@@ -894,7 +894,7 @@ function Minifig({
     if (parts.every(Boolean)) {
       if (!limbs.current.length) limbs.current = parts.map((p) => p!.quaternion.clone());
       // running (a long stride) pumps the arms right through, as far as the legs; walking swings them less
-      const arms = stride > 15 ? 1 : 0.8;
+      const arms = stride > 15 ? 1.15 : 0.8;
       const swing = sit ? [-1.5, -1.5, 0, 0] : [s * reach, -s * reach, -s * reach * arms, s * reach * arms]; // legL legR armL armR
       // a hand holding something (a sword, a staff) carries it the LEGO-game way: that arm barely swings and
       // comes up a little, which tips the blade back to rest steady over the shoulder (swung like the empty
@@ -957,8 +957,10 @@ function Minifig({
     }
     const h = t - hopAt.current;
     const [hopTime, hopHeight] = hopBig.current ? [JUMP_AIR, 44] : [0.45, 14];
-    // a bounce on every step and a waddle from foot to foot (LDraw is -Y up)
-    const bounce = Math.abs(s) * (1.5 + stride * 0.15) * (stride > 15 ? 1.35 : 1) * g.blend; // a run bounds
+    // a bounce on every step and a waddle from foot to foot (LDraw is -Y up); a run bounds the LEGO Batman way,
+    // every stride a little leap that springs up off the foot and hangs a moment before the next one lands
+    const running = stride > 15 ? g.blend : 0;
+    const bounce = running ? Math.abs(s) ** 0.6 * 11 * running : Math.abs(s) * (1.5 + stride * 0.15) * g.blend;
     root.current.position.y = at[1] + (sit ? 6 : 0) - bounce - (h < hopTime ? (hopBig.current ? lift(h) : Math.sin((h / hopTime) * Math.PI) * hopHeight) : 0);
     root.current.rotation.order = "YXZ"; // the lean is about its own sideways axis, whichever way it faces
     root.current.rotation.z = s * 0.075 * g.blend;
@@ -966,10 +968,11 @@ function Minifig({
     const spinK = hopDouble.current && h < JUMP_AIR ? Math.min(1, h / (JUMP_AIR * 0.8)) : 0;
     root.current.rotation.y = turn + (spinK > 0 ? Math.PI * 2 * (spinK < 0.5 ? 2 * spinK * spinK : 1 - (-2 * spinK + 2) ** 2 / 2) : 0);
     // leaning into it: a little when walking, well forward when running (its front is +z)
-    root.current.rotation.x = -(stride > 15 ? 0.24 : 0.05) * g.blend;
+    root.current.rotation.x = -(stride > 15 ? 0.32 : 0.05) * g.blend;
     // and a squash on landing from a jump: down and out for a moment, then back
     const land = h - hopTime;
-    const squash = hopBig.current && land > 0 && land < 0.16 ? Math.sin((land / 0.16) * Math.PI) : 0;
+    // (and a little one on every running footfall)
+    const squash = hopBig.current && land > 0 && land < 0.16 ? Math.sin((land / 0.16) * Math.PI) : (h < hopTime ? 0 : (1 - Math.abs(s)) ** 6 * running * 0.45);
     root.current.scale.set(1 + squash * 0.07, 1 - squash * 0.13, 1 + squash * 0.07);
     teleport(t);
   });
