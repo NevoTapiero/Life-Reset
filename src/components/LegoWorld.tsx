@@ -2408,6 +2408,7 @@ export function LegoTown({
             facing the street */}
         <group position={[FOUNTAIN[0], -STATUE_AT, FOUNTAIN[1]]} scale={1.8}>
           <Minifig look={STATUE} at={[0, 0, 0]} statue />
+          <HairTrim />
           <SnowGoggles />
           <ShirtPrint />
           <Hoodie />
@@ -4295,7 +4296,7 @@ function FountainSpray() {
     </instancedMesh>
   );
 }
-// Adam's statue (Iftach's friend), in his real colours: light nougat skin, dark brown tousled hair,
+// Adam's statue (Iftach's friend), in his real colours: light nougat skin, dark brown tousled hair (trimmed: HairTrim),
 // a black hoodie (black sleeves), blue jeans
 const STATUE: Figure = {
   parts: { ...figureOf({ skin: 78, hair: 308, torso: 0, legs: 272 }).parts, hair: { part: "10048", color: 308 }, head: { part: "3626bp05", color: 78 } }, // his dark brows
@@ -4348,6 +4349,46 @@ function ShirtPrint() {
       <meshStandardMaterial map={map} transparent roughness={0.6} />
     </mesh>
   );
+}
+
+// Adam's hair, a bit shorter at the back and sides: once his figure is in, the tousled hair (10048) gets its own
+// copy of its geometry (other figures share the part's), the lower back and sides lifted and drawn in towards his
+// head; the top and the fringe over his face stay as they are. Statue frame: LDU, -y up, front +z, axis x = z = 0.
+function HairTrim() {
+  const me = useRef<THREE.Group>(null);
+  useFrame(() => {
+    const hair = me.current?.parent?.getObjectByName("hair");
+    if (!hair || hair.userData.trimmed) return;
+    hair.userData.trimmed = true;
+    const frame = me.current!.parent!;
+    frame.updateMatrixWorld(true);
+    const toFrame = new THREE.Matrix4();
+    const back = new THREE.Matrix4();
+    const v = new THREE.Vector3();
+    const smooth = (a: number, b: number, x: number) => THREE.MathUtils.smoothstep(x, a, b);
+    hair.traverse((o) => {
+      const m = o as THREE.Mesh; // the shell and any edge lines alike
+      if (!m.geometry?.attributes.position) return;
+      m.geometry = m.geometry.clone();
+      toFrame.copy(frame.matrixWorld).invert().multiply(m.matrixWorld);
+      back.copy(toFrame).invert();
+      const p = m.geometry.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i).applyMatrix4(toFrame);
+        const low = smooth(-94, -74, v.y); // 0 above the eyes, 1 at the bottom edge
+        const behind = 1 - smooth(-2, 8, v.z); // 1 at the back and sides, 0 over the face
+        const k = low * behind;
+        v.y -= 6 * k; // the bottom edge up about a third of a brick
+        const r = Math.hypot(v.x, v.z);
+        const r2 = Math.max(Math.min(r, 14), r * (1 - 0.1 * k)); // drawn in, never into his head
+        v.x *= r2 / (r || 1);
+        v.z *= r2 / (r || 1);
+        p.setXYZ(i, ...v.applyMatrix4(back).toArray());
+      }
+      m.geometry.computeBoundingSphere();
+    });
+  });
+  return <group ref={me} />;
 }
 
 // Adam's snow goggles, ski style, on the statue's head (LDU, minifig frame: -y up, front +z; head a cylinder of
@@ -4405,9 +4446,9 @@ function SnowGoggles() {
       <mesh geometry={lens}>
         <meshStandardMaterial color="#d8343c" emissive="#5a0a10" emissiveIntensity={0.35} metalness={0.7} roughness={0.12} />
       </mesh>
-      {/* an ellipse from the frame's ends (x ±13, z 8.4) out round the hair (x ±19, back z -19) */}
-      <mesh position={[0, 0, -3.1]} scale={[19, 1, 15.9]}>
-        <cylinderGeometry args={[1, 1, 4, 48, 1, true, 0.71, Math.PI * 2 - 1.42]} />
+      {/* an ellipse from the frame's ends (x ±12.4, z 8.9) out round his trimmed hair (x ±18.4, back z -18.4) */}
+      <mesh position={[0, 0, -2.7]} scale={[18.4, 1, 15.7]}>
+        <cylinderGeometry args={[1, 1, 4, 48, 1, true, 0.74, Math.PI * 2 - 1.48]} />
         <meshStandardMaterial color="#1d1d1d" roughness={0.7} side={THREE.DoubleSide} />
       </mesh>
     </group>
