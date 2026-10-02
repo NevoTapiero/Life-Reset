@@ -61,6 +61,7 @@ export default function TownPage() {
       const toResident = (r: (typeof rows)[number]) => ({
         name: r.username,
         level: rankForXp(r.xp).tierIndex + 1,
+        rank: rankForXp(r.xp).tierIndex * 3 + rankForXp(r.xp).stageIndex,
         streak: r.streak_current,
         me: r.is_me,
         character: r.archetype,

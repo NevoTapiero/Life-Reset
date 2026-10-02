@@ -2,6 +2,7 @@ import HOUSES from "./legoHouses.json" with { type: "json" };
 import SHOP from "./legoShop.json" with { type: "json" };
 import LOADOUTS from "./legoLoadouts.generated.json" with { type: "json" };
 import PROPS from "./legoProps.json" with { type: "json" };
+import BUILDINGS from "./legoBuildings.json" with { type: "json" };
 
 // The plot, built from real LDraw parts (the community library that models
 // every LEGO element). This file only writes LDraw text: which part, which
@@ -260,6 +261,8 @@ export type Resident = {
   level: number;
   streak: number;
   me?: boolean;
+  /** their rank step (tier x 3 + stage, 0..17): what's unlocked in their town; none: from their level */
+  rank?: number;
   /** their character (archetype key); none: the Warrior */
   character?: string | null;
   /** their stations (a piece of furniture per mission), out on their plot */
@@ -293,6 +296,31 @@ const LOTS: [number, number, number][] = [
   [40, 193, 5],
 ];
 export const MAX_RESIDENTS = LOTS.length;
+
+// ---- your town's buildings (Clash of Clans style, Iftach + Nevo, 2 Oct): the spots round your house ----
+// Lot k (1..7) holds TOWN_BUILDINGS[k - 1], an official set baked like the houses (pack.mjs BUILDINGS),
+// once the town's owner has reached its rank step; until then the lot is a little park with a sign.
+export type TownBuilding = House & { title: string; rank: number; turn: number };
+const RANK_STEPS = [1, 3, 5, 7, 10, 13, 16]; // Bronze II, Silver I, Silver III, Gold II, Platinum II, Diamond II, Champion II
+const TITLES = ["Pool", "Workshop", "Café", "Library", "Park", "Tree House", "Castle"];
+const TURNS = [0, 0, 0, 0, 0, 0, 0]; // quarter turns so the front faces the street (checked by eye)
+export const TOWN_BUILDINGS: TownBuilding[] = (BUILDINGS as House[]).map((b, k) => ({ ...b, title: TITLES[k], rank: RANK_STEPS[k], turn: TURNS[k] }));
+/** a resident's rank step (3 stages a tier, game.ts): given, or the middle stage of their level */
+export const rankOf = (r: Resident) => r.rank ?? (Math.max(r.level, 1) - 1) * 3 + 1;
+/** the building on lot i (none on lot 0, the owner's house), and whether the owner has it yet */
+export function buildingOn(i: number, owner: Resident | undefined): { b: TownBuilding; open: boolean } | null {
+  const b = TOWN_BUILDINGS[i - 1];
+  return b ? { b, open: !!owner && rankOf(owner) >= b.rank } : null;
+}
+const BUILDING_FRONT = 26; // studs of lawn in front of a building (its front edge, from the lot's front)
+/** where a building's model goes on its lot (LDU, lot frame): centred, its front this far from the street */
+export const buildingAt = (b: TownBuilding): [number, number, number] => [-(b.w * S) / 2, 0, (PLOT / 2 - BUILDING_FRONT) * S];
+/** the walk to a building: in at the gate, up to its front */
+export function buildingWalk(lot: Lot, b: TownBuilding): P3[] {
+  const front = (PLOT / 2 - BUILDING_FRONT) * S;
+  const x = b.w % 2 ? 10 : 0; // an odd width: off the centre line by half a stud, as the model is
+  return [inLot(lot, [x, 0, (PLOT / 2 + 3) * S]), inLot(lot, [x, 0, front + 50])];
+}
 /** a turn about Y (LDraw), as ROT is for the quarter turns */
 export const yawMat = (yaw: number): Mat => [Math.cos(yaw), 0, Math.sin(yaw), 0, 1, 0, -Math.sin(yaw), 0, Math.cos(yaw)];
 export const lotMat = (lot: Lot): Mat => yawMat(lot.yaw);
@@ -1087,7 +1115,7 @@ export const POND_STREAK = 20;
 // ---- empty plots: a little park until a friend moves in ----
 // Trees in the corners, flower beds either side of a path, a bench -- in the
 // plot's own frame (front +Z), turned with the lot like a house would be.
-export function emptyLotsText(first: number): string {
+export function emptyLotsText(lots: number[]): string {
   const park: Piece[] = [
     ["3470", COL.green, -360, 0, -360],
     // (the back-right corner holds the burger stand, PARK_BURGER_STAND)
@@ -1099,7 +1127,7 @@ export function emptyLotsText(first: number): string {
     ...POND.map(([p, c, dx, h, dz, m]) => [p, c, dx - 240, h, dz + 280, m] as Piece), // a pond, front left
   ];
   const out: string[] = [];
-  for (let i = first; i < MAX_RESIDENTS; i++) {
+  for (const i of lots) {
     const lot = lotFor(i);
     const f = lotMat(lot);
     for (const [part, color, dx, h, dz, m] of park)
@@ -1667,6 +1695,15 @@ export function townBlockers(residents: Resident[]): Blocker[] {
       out.push({ cx, cz, hw: 62, hd: 62, yaw: lot.yaw });
     });
   });
+  // the town's buildings on the lots nobody lives on
+  for (let i = residents.length; i < MAX_RESIDENTS; i++) {
+    const on = buildingOn(i, residents[0]);
+    if (!on?.open) continue;
+    const lot = lotFor(i);
+    const [bx, , bz] = buildingAt(on.b);
+    const [cx, , cz] = inLot(lot, [bx + (on.b.w * S) / 2, 0, bz - (on.b.d * S) / 2]);
+    out.push({ cx, cz, hw: (on.b.w * S) / 2 - 10, hd: (on.b.d * S) / 2 - 10, yaw: lot.yaw });
+  }
   const shop = SHOP as House;
   out.push({ x0: (-shop.w / 2) * S + 10, x1: (shop.w / 2) * S - 10, z0: SHOP_FRONT - shop.d * S, z1: SHOP_FRONT - 10 });
   out.push({ cx: FOUNTAIN[0], cz: FOUNTAIN[1], r: POOL_R + 18 }); // the rim

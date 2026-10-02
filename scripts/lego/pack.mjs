@@ -131,6 +131,17 @@ const HOUSES = [
 ];
 // the building in the middle of the town where you spend gold
 const SHOP = { id: "10190-1", name: "Market Street", turn: 2 };
+// the buildings that unlock on the spots round your house as you rank up (Clash of Clans style, Iftach 2 Oct);
+// official sets, baked like the houses, facing +Z (`turn` checked by eye, like the houses)
+const BUILDINGS = [
+  { id: "3931-1", name: "Splash Pool", turn: 0 },
+  { id: "3933-1", name: "Invention Workshop", turn: 0 },
+  { id: "10037-1", name: "Breezeway Cafe", turn: 0 },
+  { id: "10270-1", name: "Bookshop", turn: 0 },
+  { id: "10359-1", name: "Fountain Garden", turn: 0 },
+  { id: "21318-1", name: "Tree House", turn: 0 },
+  { id: "10176-1", name: "Royal King's Castle", turn: 0 },
+];
 // cars that drive round the town: a sub-model of an official set, turned to face +Z
 const VEHICLES = [
   { id: "car-1", name: "Car", turn: 1, set: "1472-1", model: "1472 - car 1.ldr" },
@@ -142,7 +153,7 @@ const PROPS = [
   { id: "6601-1", name: "Ice Cream Cart", turn: 0, keep: true },
   { id: "6683-1", name: "Burger Stand", turn: 0, keep: true },
 ];
-const EXTRAS = /minifig|\bcar( \d)?\.ldr|smallcar|trailer|boat|quad|moose|bird|turtle|jetski|female|male|girl|guy|90397|4719c01|anna|olivia|peter/i;
+const EXTRAS = /minifig|\bcar( \d)?\.ldr|smallcar|trailer|boat|quad|moose|bird|turtle|jetski|female|male|girl|guy|90397|4719c01|anna|olivia|peter|emma|stephanie|mia\b|andrea/i;
 
 // GLTFExporter reads its Blobs with the browser's FileReader; Node only has Blob
 globalThis.FileReader ??= class {
@@ -166,7 +177,7 @@ const HOUSE_OUT = `${OUT}houses/`;
 mkdirSync(HOUSE_OUT, { recursive: true });
 const tmp = mkdtempSync(join(tmpdir(), "lego-"));
 const manifest = [];
-for (const { id, name, turn, set, model: sub, keep } of [...HOUSES, SHOP, ...VEHICLES, ...PROPS]) {
+for (const { id, name, turn, set, model: sub, keep } of [...HOUSES, SHOP, ...VEHICLES, ...PROPS, ...BUILDINGS]) {
   // (some sets end lines with spaces: "0 FILE x.ldr " would never match a reference to x.ldr)
   let text = readFileSync(`${SETS}${set ?? id}.mpd`, "utf8").replace(/\r/g, "").replace(/[ \t]+$/gm, "");
   if (sub) {
@@ -222,3 +233,4 @@ writeFileSync(fileURLToPath(new URL("../../src/lib/legoHouses.json", import.meta
 writeFileSync(fileURLToPath(new URL("../../src/lib/legoVehicles.json", import.meta.url)), JSON.stringify(manifest.filter((m) => VEHICLES.some((v) => v.id === m.id)), null, 2) + "\n");
 writeFileSync(fileURLToPath(new URL("../../src/lib/legoProps.json", import.meta.url)), JSON.stringify(manifest.filter((m) => PROPS.some((v) => v.id === m.id)), null, 2) + "\n");
 writeFileSync(fileURLToPath(new URL("../../src/lib/legoShop.json", import.meta.url)), JSON.stringify(manifest.find((m) => m.id === SHOP.id), null, 2) + "\n");
+writeFileSync(fileURLToPath(new URL("../../src/lib/legoBuildings.json", import.meta.url)), JSON.stringify(manifest.filter((m) => BUILDINGS.some((v) => v.id === m.id)), null, 2) + "\n");

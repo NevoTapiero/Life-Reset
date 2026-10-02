@@ -8,6 +8,7 @@ import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, N8AO, ToneMap
 import { ToneMappingMode } from "postprocessing";
 import { sfx, setSound, soundOn } from "@/lib/sfx";
 import TownLoader from "@/components/TownLoader";
+import { STAGES, TIERS } from "@/lib/game";
 import BrickWall, { WALL_IN, WALL_OUT } from "@/components/BrickWall";
 import { CAN_RUN_AT, ENERGY_MAX, RUN_COST, TRICKLE } from "@/lib/energy";
 import * as THREE from "three";
@@ -108,6 +109,9 @@ import {
   RING,
   type Slab,
   emptyLotsText,
+  buildingOn,
+  buildingAt,
+  buildingWalk,
   ICE_CREAM_CART,
   PARK_BURGER_STAND,
   type Lot,
@@ -1844,6 +1848,8 @@ const STILL = new THREE.Vector3(); // a target that never changes (the camera fo
 // (up, to the right and behind the usual view), just inside the sky dome
 const SUN_AT = new THREE.Vector3(...SUN_FROM).normalize().multiplyScalar(420);
 const toThree = ([x, y, z]: [number, number, number]): [number, number, number] => [x * LDU, y, -z * LDU];
+// a rank step's name ("Gold II"): what a locked building spot is waiting for
+const rankLabel = (step: number) => `${TIERS[Math.min(TIERS.length - 1, Math.floor(step / 3))].name} ${STAGES[step % 3]}`;
 
 export function LegoTown({
   residents: all,
@@ -1917,7 +1923,11 @@ export function LegoTown({
   const plaza = useModel(useMemo(() => textIn(plazaText(), season), [season]), true);
   const decor = useModel(useMemo(() => townDecorText(), []), true);
   // plots nobody lives on yet are little parks
-  const parks = useModel(useMemo(() => textIn(emptyLotsText(residents.length), season), [residents.length, season]), true);
+  // the lots nobody lives on: the town's buildings once its owner (residents[0]) has them, little parks till then
+  const owner = residents[0];
+  const lotBuilding = (i: number) => (i >= residents.length ? buildingOn(i, owner) : null);
+  const lockedLots = useMemo(() => Array.from({ length: MAX_RESIDENTS - residents.length }, (_, k) => residents.length + k).filter((i) => !buildingOn(i, owner)?.open), [residents.length, owner]);
+  const parks = useModel(useMemo(() => textIn(emptyLotsText(lockedLots), season), [lockedLots, season]), true);
   const emptyLots = useMemo(() => Array.from({ length: MAX_RESIDENTS - residents.length }, (_, k) => lotFor(residents.length + k)), [residents.length]);
   const lots = useMemo(() => residents.map((_, i) => lotFor(i)), [residents]);
   const paths = useMemo(() => doorPaths(residents), [residents]);
@@ -2052,8 +2062,13 @@ export function LegoTown({
     () => [
       { id: SHOP_FOCUS, at: SHOP_WALK[SHOP_WALK.length - 1] },
       ...residents.map((res, i) => ({ id: i, at: doorWalk(lots[i], res.level).at(-1)! })),
+      ...emptyLots.flatMap((lot, k) => {
+        const on = lotBuilding(residents.length + k);
+        return on?.open ? [{ id: residents.length + k, at: buildingWalk(lot, on.b).at(-1)! }] : [];
+      }),
     ],
-    [residents, lots],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [residents, lots, emptyLots, owner],
   );
 
   // a house's centre on the ground, in its lot's frame (LDU)
@@ -2061,7 +2076,14 @@ export function LegoTown({
     const s = houseSpec(level);
     return [(s.x0 + s.w / 2 - PLOT / 2) * 20, 0, (s.z0 + s.d / 2 - PLOT / 2) * 20];
   };
-  const houseCentre = (i: number) => inLot(lots[i], centre(residents[i].level));
+  const houseCentre = (i: number) => {
+    const on = lotBuilding(i);
+    if (on) {
+      const [bx, , bz] = buildingAt(on.b);
+      return inLot(lotFor(i), [bx + on.b.w * 10, 0, bz - on.b.d * 10]);
+    }
+    return inLot(lots[i], centre(residents[i].level));
+  };
 
   const target = useMemo(() => {
     if (following) return STILL; // the camera follows you instead
@@ -2083,7 +2105,7 @@ export function LegoTown({
     const base = inside === null ? FRONT_RIGHT : LOOK_IN;
     if (focus === OVERVIEW) return LOOK_DOWN;
     if (focus === SHOP_FOCUS) return base;
-    return base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -lots[focus].yaw);
+    return base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -lotFor(focus).yaw);
   }, [focus, inside, lots, following, isPlacing, meIndex, arriveTurn]);
   const bounds = useMemo(() => {
     const h = (TOWN_HALF - 8) * 20 * LDU;
@@ -2096,9 +2118,10 @@ export function LegoTown({
     // straight to where you'll stand, and you build yourself again there
     if (focus === OVERVIEW) {
       setTeleports((n) => n + 1);
-      const [x, , z] = i === FOUNTAIN_FOCUS ? FOUNTAIN_WALK.at(-1)! : i === SHOP_FOCUS || !residents[i] ? SHOP_WALK.at(-1)! : i === youAt ? doorWalk(lots[i], residents[i].level).at(-1)! : doorWalk(lots[i], residents[i].level, VISIT_SIDE, VISIT_AHEAD).at(-1)!;
+      const on = lotBuilding(i);
+      const [x, , z] = i === FOUNTAIN_FOCUS ? FOUNTAIN_WALK.at(-1)! : on?.open ? buildingWalk(lotFor(i), on.b).at(-1)! : i === SHOP_FOCUS || !residents[i] ? SHOP_WALK.at(-1)! : i === youAt ? doorWalk(lots[i], residents[i].level).at(-1)! : doorWalk(lots[i], residents[i].level, VISIT_SIDE, VISIT_AHEAD).at(-1)!;
       setArrive(new THREE.Vector3(x * LDU, 0, -z * LDU));
-      setArriveTurn(i === SHOP_FOCUS || !residents[i] ? 0 : lots[meIndex].yaw - lots[i].yaw);
+      setArriveTurn(i === SHOP_FOCUS || (!residents[i] && !on?.open) ? 0 : lots[meIndex].yaw - lotFor(i).yaw);
     } else setArrive(null);
     setFocus(i);
     setInside(null);
@@ -2113,7 +2136,8 @@ export function LegoTown({
     let bestD = x * x + z * z;
     const f = (x - FOUNTAIN[0]) ** 2 + (z - FOUNTAIN[1]) ** 2;
     if (f < bestD) [best, bestD] = [FOUNTAIN_FOCUS, f];
-    lots.forEach((lot, i) => {
+    [...lots, ...emptyLots].forEach((lot, i) => {
+      if (i >= residents.length && !lotBuilding(i)?.open) return; // a locked spot: nothing to walk to yet
       const d = (x - lot.x) ** 2 + (z - lot.z) ** 2;
       if (d < bestD) {
         best = i;
@@ -2155,6 +2179,13 @@ export function LegoTown({
         node: <span className="lego lego-sm lego-white">Market Street</span>,
       };
     const [x, , z] = toThree(houseCentre(i));
+    const on = lotBuilding(i);
+    if (on)
+      return {
+        key: `b-${i}`,
+        at: [x, on.b.h * LDU + 3, z] as [number, number, number],
+        node: <span className="lego lego-sm lego-white">{on.b.title}</span>,
+      };
     const res = residents[i];
     return {
       key: res.name,
@@ -2222,7 +2253,7 @@ export function LegoTown({
   };
   // what the big round button does where you are
   const action: { icon: keyof typeof ICONS; text: string; onClick?: () => void; tone?: "" | "dark" | "yellow" | "green" } | null =
-    here === null || here === OVERVIEW
+    here === null || here === OVERVIEW || (here !== SHOP_FOCUS && !r)
       ? null
       : here === SHOP_FOCUS
         ? prices
@@ -2279,9 +2310,10 @@ export function LegoTown({
   // you: you walk to wherever you last looked (the whole-town view doesn't move you)
   const youWalker = (() => {
     const fountain = dest === FOUNTAIN_FOCUS;
-    const shop = !fountain && (dest === SHOP_FOCUS || !residents[dest]);
-    let to = fountain ? FOUNTAIN_WALK : SHOP_WALK;
-    if (!shop && !fountain) {
+    const building = !fountain && dest >= 0 ? lotBuilding(dest) : null;
+    const shop = !fountain && !building?.open && (dest === SHOP_FOCUS || !residents[dest]);
+    let to = fountain ? FOUNTAIN_WALK : building?.open ? buildingWalk(lotFor(dest), building.b) : SHOP_WALK;
+    if (!shop && !fountain && !building?.open) {
       const { level, name } = residents[dest];
       const side = dest === youAt ? 0 : 40;
       const house = houseFor(level, name);
@@ -2296,7 +2328,7 @@ export function LegoTown({
     }
     // you wave at the friend you've come to see
     const wave = inside === null && !shop && !fountain && dest !== youAt;
-    return <Walker key="me" id="me" wave={wave} go={goes} teleport={teleports} runRef={runRef} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(player.level, player.character ?? undefined)} to={to} turn={shop || fountain ? Math.PI : lots[dest].yaw} />;
+    return <Walker key="me" id="me" wave={wave} go={goes} teleport={teleports} runRef={runRef} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(player.level, player.character ?? undefined)} to={to} turn={shop || fountain ? Math.PI : lotFor(dest).yaw} />;
   })();
 
   return (
@@ -2367,13 +2399,20 @@ export function LegoTown({
             at: [FOUNTAIN[0] * LDU, (STATUE_AT + 220) * LDU, -FOUNTAIN[1] * LDU] as [number, number, number],
             node: label("Fountain", false, () => go(FOUNTAIN_FOCUS)),
           },
-          ...emptyLots.map((lot, k) => ({
-            key: `empty-${k}`,
-            at: [lot.x * LDU, 6, -lot.z * LDU] as [number, number, number],
-            node: (
-              <span className="lego lego-sm lego-green">Building spot</span>
-            ),
-          })),
+          ...emptyLots.map((lot, k) => {
+            const i = residents.length + k;
+            const on = lotBuilding(i);
+            const [x, , z] = toThree(houseCentre(i));
+            return {
+              key: `empty-${k}`,
+              at: on?.open ? ([x, on.b.h * LDU + 3, z] as [number, number, number]) : ([lot.x * LDU, 6, -lot.z * LDU] as [number, number, number]),
+              node: on?.open ? (
+                label(on.b.title, false, () => go(i))
+              ) : (
+                <span className="lego lego-sm lego-dark">{on ? `🔒 ${on.b.title} · ${rankLabel(on.b.rank)}` : "Building spot"}</span>
+              ),
+            };
+          }),
           ...residents.flatMap((res, i) => {
             if (i === inside) return [];
             const [x, , z] = toThree(houseCentre(i));
@@ -2428,9 +2467,17 @@ export function LegoTown({
         <Banner at={[-(RING - 7) * 20, 0, 0]} />
         {season === "winter" && <Slabs slabs={snowCaps} shadows={false} />}
         <Prop {...ICE_CREAM_CART} />
-        {emptyLots.map((lot, k) => (
-          <Prop key={k} {...PARK_BURGER_STAND} lot={lot} />
-        ))}
+        {emptyLots.map((lot, k) => {
+          const i = residents.length + k;
+          const on = lotBuilding(i);
+          if (!on?.open) return <Prop key={k} {...PARK_BURGER_STAND} lot={lot} />;
+          // the town's buildings, each on its lot facing the street, built after the houses
+          return (
+            <group key={k} position={[lot.x, 0, lot.z]} rotation={[0, lot.yaw + (on.b.turn * Math.PI) / 2, 0]}>
+              <Building url={houseUrl(on.b)} at={buildingAt(on.b)} lit={mood.night} build={settled ? 0.5 + (residents.length + k) * 0.35 : null} />
+            </group>
+          );
+        })}
         <FountainSpray />
         <StatuePlaque name="ADAM KABANOS" />
         {/* Adam's statue on top of the fountain (Iftach's friend, from his photo), in his real colours: his
