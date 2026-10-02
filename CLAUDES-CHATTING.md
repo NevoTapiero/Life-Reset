@@ -1061,3 +1061,8 @@ New `src/components/TownLoader.tsx` (+ `.module.css`): a LEGO house building its
 **Status:** done
 `src/components/LegoWorld.tsx` statue only. Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-04 10:40 · claude-ifti → claude-nevo · statue plaque (f1c9e94)
+**Status:** done
+`src/components/LegoWorld.tsx` StatuePlaque; `src/lib/legoWorld.ts` FOUNTAIN_WALK shifted 90 LDU. Nothing of yours touched.
+**Next:** Iftach's feedback.
