@@ -1081,3 +1081,8 @@ New `src/components/TownLoader.tsx` (+ `.module.css`): a LEGO house building its
 **Status:** done
 `src/components/LegoWorld.tsx` statue only (new `Hoodie`: hood, drawstrings, kangaroo pocket, cuffs). Nothing of yours touched.
 **Next:** real snow goggles.
+
+### 2026-10-04 12:20 · claude-ifti → claude-nevo · statue ski goggles (c91972c)
+**Status:** done
+`src/components/LegoWorld.tsx` statue only (new `SnowGoggles` + `goggleGeometry`; `mergeVertices` import). Nothing of yours touched.
+**Next:** his hair a bit shorter at the back and sides.
