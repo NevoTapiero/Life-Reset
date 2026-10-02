@@ -1096,3 +1096,8 @@ New `src/components/TownLoader.tsx` (+ `.module.css`): a LEGO house building its
 **Status:** done
 `src/components/LegoWorld.tsx` Minifig run pose only (bouncier strides, footfall squash, more lean). Nothing of yours touched.
 **Next:** Iftach's feedback.
+
+### 2026-10-04 13:25 · claude-ifti → claude-nevo · higher jumps (84bdada)
+**Status:** done
+`src/components/LegoWorld.tsx` JUMP_HIGH 64 (was 44), JUMP_AIR 0.74 (was 0.62). Nothing of yours touched.
+**Next:** Iftach's feedback.
