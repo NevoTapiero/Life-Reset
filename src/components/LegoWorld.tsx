@@ -1870,6 +1870,7 @@ export function LegoTown({
   guest,
   friends = [],
   onVisit,
+  tour = false,
   onBack,
   backLabel = "World",
   energy = null,
@@ -1903,6 +1904,8 @@ export function LegoTown({
   friends?: Resident[];
   /** go to a friend's town (null: back to your own) */
   onVisit?: (name: string | null) => void;
+  /** the Mayor shows you round the first time you're in your own town */
+  tour?: boolean;
   /** a way back out of the town (the app's World page; when visiting, your own town) */
   onBack?: () => void;
   backLabel?: string;
@@ -2582,16 +2585,16 @@ export function LegoTown({
       {/* top right: the map (the whole town), and from it, back to playing */}
       <div className="absolute top-3 right-3 flex items-start gap-2">
         {following && stations && stations.length > 0 && (
-          <span className={`lego lego-sm mt-1 ${stations.every((st) => st.done) ? "lego-green" : "lego-white"}`}>
+          <span className={`lego lego-sm mt-1 ${stations.every((st) => st.done) ? "lego-green" : "lego-white"}`} data-tour="todo">
             {stations.every((st) => st.done) ? "All done today ✓" : `${stations.filter((st) => !st.done).length} to do`}
           </span>
         )}
         <SoundToggle />
-        {onVisit && inside === null && !isPlacing && <RoundAction icon="friends" text="Friends" tone="yellow" small onClick={() => setFriendsOpen(true)} />}
+        {onVisit && inside === null && !isPlacing && <RoundAction icon="friends" text="Friends" tone="yellow" small onClick={() => setFriendsOpen(true)} tour="friends" />}
         {inside === null &&
           !isPlacing &&
           (following ? (
-            <RoundAction icon="map" text="Map" tone="dark" small onClick={() => go(OVERVIEW)} />
+            <RoundAction icon="map" text="Map" tone="dark" small onClick={() => go(OVERVIEW)} tour="map" />
           ) : (
             <RoundAction icon="play" text="Play" small onClick={() => setFocus(dest)} />
           ))}
@@ -2621,7 +2624,7 @@ export function LegoTown({
       {/* bottom left: the stick (while you're out and about); bottom right: what you can do
           where you're standing (the big round button) and Jump */}
       <div className="absolute inset-x-0 bottom-3 flex items-end justify-between gap-2 px-3 pointer-events-none">
-        <div className="flex-none">{following && <Joystick outRef={stick} />}</div>
+        <div className="flex-none pointer-events-auto" data-tour="stick">{following && <Joystick outRef={stick} />}</div>
         {placing && (
           <div className="flex items-end gap-3 mx-auto">
             <RoundAction icon="x" text="Cancel" tone="dark" small onClick={() => setPlacing(null)} />
@@ -2639,8 +2642,8 @@ export function LegoTown({
         )}
         {!isPlacing && (
           <div className="flex items-end gap-3">
-            {following && <RoundAction icon="run" text={runOn ? "Running" : "Run"} tone={runOn ? "yellow" : "dark"} small onClick={toggleRun} />}
-            {following && <RoundAction icon="jump" text="Jump" tone="dark" small onClick={jump} />}
+            {following && <RoundAction icon="run" text={runOn ? "Running" : "Run"} tone={runOn ? "yellow" : "dark"} small onClick={toggleRun} tour="run" />}
+            {following && <RoundAction icon="jump" text="Jump" tone="dark" small onClick={jump} tour="jump" />}
             {action && !doorButtonOnBuilding && <RoundAction icon={action.icon} text={action.text} onClick={action.onClick} disabled={!action.onClick} tone={action.tone} />}
           </div>
         )}
@@ -2661,6 +2664,8 @@ export function LegoTown({
           }}
         />
       )}
+      {/* (kept mounted while hidden, so a peek at the shop or the map doesn't send it back to the start) */}
+      {tour && !guest && <MayorTour name={player?.name ?? "friend"} hidden={!settled || !following || !!talk || shopOpen || friendsOpen} />}
       {friendsOpen && onVisit && (
         <FriendsSheet
           friends={friends}
@@ -2903,6 +2908,7 @@ function RoundAction({
   disabled,
   tone = "",
   small,
+  tour,
 }: {
   icon: keyof typeof ICONS;
   text?: string;
@@ -2910,9 +2916,11 @@ function RoundAction({
   disabled?: boolean;
   tone?: "" | "dark" | "yellow" | "green";
   small?: boolean;
+  /** what the Mayor's tour calls this button (it points at it) */
+  tour?: string;
 }) {
   return (
-    <div className="flex flex-col items-center gap-1.5 pointer-events-auto">
+    <div className="flex flex-col items-center gap-1.5 pointer-events-auto" data-tour={tour}>
       <button
         onClick={() => {
           sfx.click();
@@ -3149,6 +3157,119 @@ function Thumb({ id, name }: { id: string; name: string }) {
 }
 
 // Inside the shop: the furniture for sale, what you have, what you can afford.
+// ---- the Mayor's tour (Clash of Clans style): the first time in your own town, Mayor Brickley shows you
+// round, one thing at a time, a yellow arrow bouncing on the button he's talking about; Next, or Skip.
+// Seen once per device (Iftach: "take the explanation from Clash of Clans, make it simple").
+const TOUR_SEEN = "sl-mayor-tour";
+const TOUR: { tour?: string; text: (name: string) => string }[] = [
+  { text: (n) => `Hello ${n}! I'm Mayor Brickley. Welcome to your very own town. Let me show you round.` },
+  { tour: "stick", text: () => "Drag this stick to walk about (on a keyboard: W A S D)." },
+  { tour: "run", text: () => "Tap Run to run (or hold Shift). Running uses your energy, which comes back when you sleep well and walk your steps." },
+  { tour: "jump", text: () => "And Jump! Tap it again while you're up there for a double jump." },
+  { tour: "todo", text: () => "Your missions stand outside your house. Do one in real life, walk up to it here and tap it: that's XP and gold." },
+  { text: () => "Walk up to your front door and tap Go inside: your room, and the chest with what your watch earned." },
+  { tour: "map", text: () => "Open the map to see your whole town. Every rank you reach puts up a new building round your house: a pool, a café, one day a castle." },
+  { tour: "friends", text: () => "Tap Friends to visit your friends' towns, and see how far they've built." },
+  { text: () => "That's all! Go on, the town is yours." },
+];
+const tourSeen = () => {
+  try {
+    return localStorage.getItem(TOUR_SEEN) === "1";
+  } catch {
+    return false;
+  }
+};
+function MayorTour({ name, hidden }: { name: string; hidden: boolean }) {
+  const [step, setStep] = useState(() => (tourSeen() ? -1 : 0));
+  const me = useRef<HTMLDivElement>(null);
+  // where the arrow goes: over the middle of the button this step is about (relative to the town's box)
+  const [arrow, setArrow] = useState<{ x: number; y: number; up: boolean } | null>(null);
+  const t = step >= 0 && !hidden ? TOUR[step] : null;
+  useEffect(() => {
+    if (!t) return;
+    const place = () => {
+      const box = me.current?.parentElement;
+      const el = t.tour && box?.querySelector(`[data-tour="${t.tour}"]`);
+      if (!box || !el) return setArrow(null);
+      const [b, r] = [box.getBoundingClientRect(), (el as HTMLElement).getBoundingClientRect()];
+      // a button along the top gets the arrow from below, pointing up (above it there's no room)
+      const up = r.top - b.top < 60;
+      setArrow({ x: r.left + r.width / 2 - b.left, y: (up ? r.bottom : r.top) - b.top, up });
+    };
+    const f = requestAnimationFrame(place);
+    window.addEventListener("resize", place);
+    return () => {
+      cancelAnimationFrame(f);
+      window.removeEventListener("resize", place);
+    };
+  }, [t]);
+  if (!t) return null;
+  const done = () => {
+    try {
+      localStorage.setItem(TOUR_SEEN, "1");
+    } catch {}
+    setStep(-1);
+  };
+  const next = () => {
+    sfx.mumble();
+    if (step + 1 < TOUR.length) setStep(step + 1);
+    else done();
+  };
+  const last = step === TOUR.length - 1;
+  return (
+    <div ref={me} className="absolute inset-0 z-20 pointer-events-none">
+      {arrow && (
+        <div className={`tour-arrow absolute ${arrow.up ? "up" : ""}`} style={{ left: arrow.x, top: arrow.y }} aria-hidden>
+          <svg viewBox="0 0 40 48" width="34" height="41">
+            <path d="M12 2h16v22h10L20 46 2 24h10Z" fill="#f5cd2f" stroke="#1b2a34" strokeWidth="3" strokeLinejoin="round" />
+          </svg>
+        </div>
+      )}
+      <div className="absolute inset-x-3 top-24 flex justify-center">
+        <div className="lego-panel pointer-events-auto w-full max-w-md rounded-2xl p-3.5 flex gap-3 items-start slide-in" key={step}>
+          <MayorHead />
+          <div className="flex-1 min-w-0">
+            <span className="lego lego-sm lego-yellow">Mayor Brickley</span>
+            <p className="mt-2 text-[15px] leading-snug font-semibold">{t.text(name)}</p>
+            <div className="mt-2.5 flex items-center justify-between">
+              {last ? <span /> : (
+                <button onClick={done} className="text-xs font-bold opacity-60 underline">
+                  Skip
+                </button>
+              )}
+              <span className="flex items-center gap-2">
+                <span className="text-xs font-bold opacity-50">
+                  {step + 1}/{TOUR.length}
+                </span>
+                <button onClick={next} className="lego lego-sm lego-green">
+                  {last ? "Let's go!" : "Next"}
+                </button>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+// the Mayor's head: a minifig head in a black top hat, white sideburns
+function MayorHead() {
+  return (
+    <svg viewBox="0 0 44 56" width="44" height="56" aria-hidden className="flex-none">
+      <rect x="10" y="1" width="24" height="16" rx="2" fill="#1b2a34" />
+      <rect x="4" y="15" width="36" height="5" rx="2.5" fill="#1b2a34" />
+      <rect x="10" y="12" width="24" height="3" fill="#c91a09" />
+      <rect x="6" y="20" width="32" height="32" rx="9" fill="#f5d33f" stroke="#b58f12" strokeWidth="1.4" />
+      <rect x="6" y="22" width="6" height="16" rx="3" fill="#f4f4f0" />
+      <rect x="32" y="22" width="6" height="16" rx="3" fill="#f4f4f0" />
+      <circle cx="17" cy="32" r="2.3" fill="#1b1b1b" />
+      <circle cx="27" cy="32" r="2.3" fill="#1b1b1b" />
+      <path d="M14 39c3 2 6 2 8 1 2 1 5 1 8-1" fill="none" stroke="#f4f4f0" strokeWidth="3" strokeLinecap="round" />
+      <path d="M16 44c4 3 8 3 12 0" fill="none" stroke="#1b1b1b" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 // Your friends, Clash of Clans style: each one's rank and how much of their town is built, and a Visit
 // button that takes you there (and Home, from a friend's town, back to yours)
 function FriendsSheet({ friends, here, onVisit, onClose }: { friends: Resident[]; here: string | null; onVisit: (name: string | null) => void; onClose: () => void }) {

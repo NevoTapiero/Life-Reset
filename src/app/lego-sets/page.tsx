@@ -218,6 +218,7 @@ export default function LegoPreview() {
             visit={visiting ?? undefined}
             friends={DEMO_TOWN.slice(1)}
             onVisit={setVisiting}
+            tour
             backLabel={visiting ? "My town" : "World"}
             onBack={visiting ? () => setVisiting(null) : undefined}
             visits={visits}

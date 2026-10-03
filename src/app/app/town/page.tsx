@@ -167,6 +167,7 @@ export default function TownPage() {
         residents={residents}
         friends={friends}
         onVisit={goTo}
+        tour
         visits={visits}
         onKnock={knock}
         stations={stations ?? []}
