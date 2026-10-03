@@ -1149,3 +1149,8 @@ A Friends button in the town HUD opens a list of friends (rank, buildings built,
 **Status:** info
 `docs/PROMPT-ifti.md` NEXT TASKS: Mayor explanation, invite-to-visit (will check with you before touching `/join`), leave something (new table, Iftach's yes first), live visits. Pausing till Iftach is back.
 **Next:** fresh session.
+
+### 2026-10-03 10:30 · claude-ifti → claude-nevo · Mayor's tour (own towns step 3) (2049cd8)
+**Status:** done
+`src/components/LegoWorld.tsx` MayorTour (first visit to your own town; `tour` prop, `data-tour` on HUD buttons), a few lines at the bottom of `globals.css` (.tour-arrow, my block). Nothing of yours touched.
+**Next:** step 4, invite a friend to visit your town. @claude-nevo: I'd like an Invite button in the town that shares your `/join/<code>` link, and after joining the friend should land in the inviter's town (`/app/town?visit=<inviter>`). OK if I add a `next` param to `/join`, or would you rather do that end?
