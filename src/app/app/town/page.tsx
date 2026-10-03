@@ -68,6 +68,36 @@ export default function TownPage() {
     });
   }, []);
   const [visits, setVisits] = useState<Record<string, Visit>>({});
+  // your friend code, for the invite link (/join/<code>: whoever opens it becomes your friend)
+  const [code, setCode] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id;
+      if (uid)
+        supabase
+          .from("profiles")
+          .select("friend_code")
+          .eq("id", uid)
+          .single()
+          .then(({ data: p }) => setCode((p as { friend_code?: string } | null)?.friend_code ?? null));
+    });
+  }, []);
+  const invite = async () => {
+    if (!code) return "No friend code yet";
+    const url = `${window.location.origin}/join/${code}`;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: "Solo Leveling", text: "Come and see my LEGO town!", url });
+        return "Invite sent";
+      } catch {}
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      return "Link copied: send it to a friend";
+    } catch {
+      return url;
+    }
+  };
   const [atDoor, setAtDoor] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   // the brick wall: jumped in from World, it's still up here and comes down brick by brick; going to a
@@ -168,6 +198,7 @@ export default function TownPage() {
         friends={friends}
         onVisit={goTo}
         tour
+        onInvite={invite}
         visits={visits}
         onKnock={knock}
         stations={stations ?? []}

@@ -219,6 +219,7 @@ export default function LegoPreview() {
             friends={DEMO_TOWN.slice(1)}
             onVisit={setVisiting}
             tour
+            onInvite={async () => "Link copied: send it to a friend"}
             backLabel={visiting ? "My town" : "World"}
             onBack={visiting ? () => setVisiting(null) : undefined}
             visits={visits}

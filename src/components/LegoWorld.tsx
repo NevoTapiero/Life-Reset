@@ -1871,6 +1871,7 @@ export function LegoTown({
   friends = [],
   onVisit,
   tour = false,
+  onInvite,
   onBack,
   backLabel = "World",
   energy = null,
@@ -1906,6 +1907,8 @@ export function LegoTown({
   onVisit?: (name: string | null) => void;
   /** the Mayor shows you round the first time you're in your own town */
   tour?: boolean;
+  /** share an invite to your town (resolves with what happened: "Link copied", ...) */
+  onInvite?: () => Promise<string | null>;
   /** a way back out of the town (the app's World page; when visiting, your own town) */
   onBack?: () => void;
   backLabel?: string;
@@ -2669,6 +2672,7 @@ export function LegoTown({
       {friendsOpen && onVisit && (
         <FriendsSheet
           friends={friends}
+          onInvite={onInvite}
           here={guest ? residents[0]?.name : null}
           onVisit={(name) => {
             setFriendsOpen(false);
@@ -3272,8 +3276,21 @@ function MayorHead() {
 
 // Your friends, Clash of Clans style: each one's rank and how much of their town is built, and a Visit
 // button that takes you there (and Home, from a friend's town, back to yours)
-function FriendsSheet({ friends, here, onVisit, onClose }: { friends: Resident[]; here: string | null; onVisit: (name: string | null) => void; onClose: () => void }) {
+function FriendsSheet({
+  friends,
+  here,
+  onVisit,
+  onInvite,
+  onClose,
+}: {
+  friends: Resident[];
+  here: string | null;
+  onVisit: (name: string | null) => void;
+  onInvite?: () => Promise<string | null>;
+  onClose: () => void;
+}) {
   const ranked = [...friends].sort((a, b) => rankOf(b) - rankOf(a));
+  const [invited, setInvited] = useState<string | null>(null);
   return (
     <div className="absolute inset-0 z-20 flex items-end" style={{ background: "rgba(0,0,0,0.35)" }} onClick={onClose}>
       <div className="lego-panel w-full max-h-[75%] overflow-y-auto rounded-t-2xl p-4 slide-in" onClick={(e) => e.stopPropagation()}>
@@ -3285,8 +3302,19 @@ function FriendsSheet({ friends, here, onVisit, onClose }: { friends: Resident[]
             </button>
           )}
         </div>
+        {onInvite && (
+          <button
+            onClick={async () => {
+              sfx.click();
+              setInvited(await onInvite());
+            }}
+            className="lego lego-green w-full mb-3 py-2.5 text-[15px]"
+          >
+            {invited ?? "Invite a friend to your town"}
+          </button>
+        )}
         {ranked.length === 0 ? (
-          <p className="text-sm font-bold opacity-70 py-6 text-center">No friends yet. Add one on the World page and their town shows up here.</p>
+          <p className="text-sm font-bold opacity-70 py-6 text-center">No friends yet. Invite one: once they join, their town shows up here.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {ranked.map((f) => {
