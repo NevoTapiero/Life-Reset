@@ -72,8 +72,8 @@ const DEMO_STATIONS = [
 const DEMO_TOWN = [
   { name: "ifti", level: 5, streak: 24, me: true, character: "warrior", rank: 13 },
   { name: "nevo", level: 3, streak: 6, character: "wizard", rank: 7 },
-  { name: "dana", level: 1, streak: 2, character: "mentalist" },
-  { name: "omer", level: 2, streak: 0, character: "guardian" },
+  { name: "Ron", level: 1, streak: 2, character: "mentalist" },
+  { name: "Barak", level: 2, streak: 0, character: "guardian" },
   { name: "maya", level: 4, streak: 30, character: "shadow" },
   { name: "tal", level: 1, streak: 9, character: "wizard" },
   { name: "noa", level: 2, streak: 4, character: "guardian" },
@@ -89,10 +89,10 @@ export default function LegoPreview() {
   const [friends, setFriends] = useState(5); // how many friends live in the demo town (the old shared street)
   const [visiting, setVisiting] = useState<string | null>(null); // a friend's own town, you as a guest
   const [starred, setStarred] = useState<string[]>([]); // the towns you've left a star in today
-  // nevo already let you in, omer hasn't answered; a new knock is answered after a moment
+  // nevo already let you in, Barak hasn't answered; a new knock is answered after a moment
   const [visits, setVisits] = useState<Record<string, Visit>>({
     nevo: "allowed",
-    omer: "knocked",
+    Barak: "knocked",
   });
   const knock = (name: string) => {
     setVisits((v) => ({ ...v, [name]: "knocked" }));
