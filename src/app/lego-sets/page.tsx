@@ -88,6 +88,7 @@ export default function LegoPreview() {
   const [season, setSeason] = useState<Season | undefined>(undefined); // undefined = the date
   const [friends, setFriends] = useState(5); // how many friends live in the demo town (the old shared street)
   const [visiting, setVisiting] = useState<string | null>(null); // a friend's own town, you as a guest
+  const [starred, setStarred] = useState<string[]>([]); // the towns you've left a star in today
   // nevo already let you in, omer hasn't answered; a new knock is answered after a moment
   const [visits, setVisits] = useState<Record<string, Visit>>({
     nevo: "allowed",
@@ -220,6 +221,8 @@ export default function LegoPreview() {
             onVisit={setVisiting}
             tour
             onInvite={async () => "Link copied: send it to a friend"}
+            stars={visiting ? { total: 12 + (starred.includes(visiting) ? 1 : 0), mine: starred.includes(visiting) } : null}
+            onStar={() => visiting && setStarred((s) => [...s, visiting])}
             backLabel={visiting ? "My town" : "World"}
             onBack={visiting ? () => setVisiting(null) : undefined}
             visits={visits}

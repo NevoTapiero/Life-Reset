@@ -1872,6 +1872,8 @@ export function LegoTown({
   onVisit,
   tour = false,
   onInvite,
+  stars = null,
+  onStar,
   onBack,
   backLabel = "World",
   energy = null,
@@ -1909,6 +1911,10 @@ export function LegoTown({
   tour?: boolean;
   /** share an invite to your town (resolves with what happened: "Link copied", ...) */
   onInvite?: () => Promise<string | null>;
+  /** the town's stars (friends leave one a day): its total, and whether you've left one today; null: none to show */
+  stars?: { total: number; mine: boolean } | null;
+  /** leave a star in the friend's town you're visiting */
+  onStar?: () => void;
   /** a way back out of the town (the app's World page; when visiting, your own town) */
   onBack?: () => void;
   backLabel?: string;
@@ -2585,15 +2591,15 @@ export function LegoTown({
           </div>
         </div>
       )}
-      {/* top right: the map (the whole town), and from it, back to playing */}
-      <div className="absolute top-3 right-3 flex items-start gap-2">
-        {following && stations && stations.length > 0 && (
-          <span className={`lego lego-sm mt-1 ${stations.every((st) => st.done) ? "lego-green" : "lego-white"}`} data-tour="todo">
-            {stations.every((st) => st.done) ? "All done today ✓" : `${stations.filter((st) => !st.done).length} to do`}
-          </span>
-        )}
-        <SoundToggle />
-        {onVisit && inside === null && !isPlacing && <RoundAction icon="friends" text="Friends" tone="yellow" small onClick={() => setFriendsOpen(true)} tour="friends" />}
+      {/* your missions today, under your card (top left) */}
+      {following && !guest && stations && stations.length > 0 && (
+        <span className={`absolute left-3 top-[86px] lego lego-sm pointer-events-none ${stations.every((st) => st.done) ? "lego-green" : "lego-white"}`} data-tour="todo">
+          {stations.every((st) => st.done) ? "All done today ✓" : `${stations.filter((st) => !st.done).length} to do`}
+        </span>
+      )}
+      {/* down the right edge, Clash of Clans style: the map (and from it, back to playing), Friends, a star
+          for the friend whose town this is, sound (a column, so a phone's width never runs them into your card) */}
+      <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
         {inside === null &&
           !isPlacing &&
           (following ? (
@@ -2601,6 +2607,11 @@ export function LegoTown({
           ) : (
             <RoundAction icon="play" text="Play" small onClick={() => setFocus(dest)} />
           ))}
+        {onVisit && inside === null && !isPlacing && <RoundAction icon="friends" text="Friends" tone="yellow" small onClick={() => setFriendsOpen(true)} tour="friends" />}
+        {guest && stars && onStar && inside === null && !isPlacing && (
+          <RoundAction icon="star" text={stars.mine ? `Starred · ${stars.total}` : "Leave a star"} tone={stars.mine ? "dark" : "yellow"} small disabled={stars.mine} onClick={onStar} />
+        )}
+        <SoundToggle />
       </div>
       {note && !shopOpen && (
         <div className="absolute top-3 inset-x-0 flex justify-center pointer-events-none">
@@ -2895,6 +2906,7 @@ const ICONS: Record<string, React.ReactNode> = {
   mute: <path d="M4 10v4h4l5 4V6L8 10H4Zm12 0 5 5m0-5-5 5" strokeWidth="2.2" />,
   friends: <path d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9v-1.5A4.5 4.5 0 0 1 7.5 14h3a4.5 4.5 0 0 1 4.5 4.5V20m1-9.2a3 3 0 1 0 0-6M18 14a4 4 0 0 1 3 4v2" strokeWidth="2.1" />,
   home: <path d="M4 11 12 4l8 7M6 9.5V20h12V9.5M10 20v-5h4v5" strokeWidth="2.3" />,
+  star: <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z" strokeWidth="2.1" />,
 };
 function Icon({ name }: { name: keyof typeof ICONS }) {
   return (

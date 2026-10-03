@@ -46,6 +46,28 @@ export default function TownPage() {
   // (a name that isn't on your friends list opens your own town)
   const host = visit ? friends.find((f) => f.name === visit) : undefined;
   const residents = useMemo(() => (rows ? (host ? [host] : me ? [me] : []) : null), [rows, host, me]);
+  // stars (friends leave one a day): the town you're visiting (its total, whether you've left one today);
+  // and, home again, who left you one since you last looked. Null till the town-stars migration is in.
+  const [stars, setStars] = useState<{ total: number; mine: boolean } | null>(null);
+  const [newStars, setNewStars] = useState<{ username: string; stars: number }[]>([]);
+  useEffect(() => {
+    if (!host) return;
+    supabase.rpc("town_stars", { p_host: host.name }).then(({ data, error }) => {
+      const t = (data as { total: number; mine_today: boolean }[] | null)?.[0];
+      setStars(error || !t ? null : { total: t.total, mine: t.mine_today });
+    });
+  }, [host]);
+  useEffect(() => {
+    if (host || !rows) return;
+    supabase.rpc("collect_stars").then(({ data, error }) => !error && setNewStars((data as { username: string; stars: number }[]) ?? []));
+  }, [host, rows]);
+  const leaveStar = async () => {
+    if (!host || stars?.mine) return;
+    const { data, error } = await supabase.rpc("leave_star", { p_host: host.name });
+    if (error) return setError(error.message);
+    brickSound.stud(3);
+    setStars({ total: data as number, mine: true });
+  };
   // the browser's back and forward buttons step between the towns you've been to
   useEffect(() => {
     const back = () => setVisit(visitIn());
@@ -190,6 +212,16 @@ export default function TownPage() {
           </span>
         </div>
       ))}
+      {!host && newStars.length > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 mb-3 rise" style={{ background: "var(--lego-yellow)" }}>
+          <span className="text-sm font-bold">
+            ⭐ {newStars.map((s) => s.username).join(", ")} left you {newStars.reduce((n, s) => n + s.stars, 0) === 1 ? "a star" : `${newStars.reduce((n, s) => n + s.stars, 0)} stars`}!
+          </span>
+          <button onClick={() => setNewStars([])} className="text-sm font-bold opacity-70">
+            OK
+          </button>
+        </div>
+      )}
       {error && <p className="text-danger text-sm mb-3">{error}</p>}
 
       <LegoTown
@@ -199,6 +231,8 @@ export default function TownPage() {
         onVisit={goTo}
         tour
         onInvite={invite}
+        stars={host ? stars : null}
+        onStar={leaveStar}
         visits={visits}
         onKnock={knock}
         stations={stations ?? []}
