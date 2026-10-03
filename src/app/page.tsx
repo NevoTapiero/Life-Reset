@@ -2,49 +2,65 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import Backdrop from "@/components/Backdrop";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import BrickLogo from "@/components/BrickLogo";
 import Icon from "@/components/Icon";
-import Logo from "@/components/Logo";
+import LegoIcon from "@/components/LegoIcon";
+import HeroLineup from "@/components/HeroLineup";
 import { resetTheme } from "@/lib/theme";
 
+const STEPS = [
+  { icon: "check", color: "green" as const, title: "Do your missions", body: "Real habits: training, sleep, reading, your tasks." },
+  { icon: "home", color: "orange" as const, title: "Build your world", body: "XP levels up your minifig, your house and your ride." },
+  { icon: "users", color: "blue" as const, title: "Play with friends", body: "One LEGO town, everyone's progress, one leaderboard." },
+];
+
 export default function Landing() {
-  // the landing and auth screens always wear the original orange theme
-  useEffect(() => resetTheme(), []);
+  const router = useRouter();
+  useEffect(() => {
+    resetTheme();
+    // already signed in: straight to Home
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) router.replace("/app");
+    });
+  }, [router]);
   return (
     <main className="flex-1 flex flex-col py-8">
-      <Backdrop>
-      <div className="my-auto py-8 text-center rise">
-        <div className="flex justify-center mb-6">
-          <Logo size={132} />
-        </div>
-
-        <h1 className="display-hero text-[76px] leading-[0.92]">
-          SOLO
-          <br />
-          <span
-            className="text-accent"
-            style={{ textShadow: "0 0 38px rgb(var(--accent-rgb) / 0.55)" }}
-          >
-            LEVELING
-          </span>
-        </h1>
-        <p className="mt-5 text-muted text-[15px] max-w-xs mx-auto">
-          Real habits. Real XP. Level up in real life.
-        </p>
+      <div className="text-center rise">
+        <BrickLogo />
+        <p className="mt-5 display tt-text text-[23px] leading-tight text-balance">Real habits build your LEGO world.</p>
       </div>
 
-      <div className="flex flex-col gap-4 rise pb-3 pt-4">
-        <Link href="/auth" className="btn-primary py-4 text-[15px]">
-          Start leveling
-          <span className="btn-icon-slot">
-            <Icon name="arrow-right" size={14} strokeWidth={2} />
-          </span>
+      <div className="mt-6 rise" style={{ animationDelay: "80ms" }}>
+        <HeroLineup />
+      </div>
+
+      <div className="flex flex-col gap-2.5 mt-6 stagger">
+        {STEPS.map((s, i) => (
+          <div key={s.title} className="card px-4 py-3 flex items-center gap-3">
+            {/* numbered like a page of building instructions */}
+            <span className="display tt-text text-[30px] w-6 text-center flex-none" aria-hidden>
+              {i + 1}
+            </span>
+            <LegoIcon name={s.icon} color={s.color} size={44} />
+            <span>
+              <span className="display block text-[17px]">{s.title}</span>
+              <span className="block text-[13px] font-bold text-muted">{s.body}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-3 mt-auto pt-8 rise">
+        <Link href="/auth" className="btn-primary brick-yellow py-4 !text-[19px]">
+          Start playing
+          <Icon name="arrow-right" size={18} strokeWidth={2.6} />
         </Link>
         <Link href="/auth?mode=signin" className="btn-ghost py-3.5">
           I already have an account
         </Link>
       </div>
-      </Backdrop>
     </main>
   );
 }

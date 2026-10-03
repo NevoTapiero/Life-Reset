@@ -1,0 +1,98 @@
+[
+  {
+    "id": "31009-1",
+    "name": "Small Cottage",
+    "w": 22,
+    "d": 16,
+    "h": 372,
+    "level": 1
+  },
+  {
+    "id": "349-1",
+    "name": "Swiss Chalet",
+    "w": 24,
+    "d": 16,
+    "h": 303,
+    "level": 1
+  },
+  {
+    "id": "6365-1",
+    "name": "Summer Cottage",
+    "w": 17,
+    "d": 24,
+    "h": 260,
+    "level": 1
+  },
+  {
+    "id": "1472-1",
+    "name": "Holiday Home",
+    "w": 33,
+    "d": 16,
+    "h": 268,
+    "level": 2
+  },
+  {
+    "id": "1484-1",
+    "name": "Weetabix Town House",
+    "w": 33,
+    "d": 16,
+    "h": 304,
+    "level": 2
+  },
+  {
+    "id": "346-2",
+    "name": "House with Car",
+    "w": 32,
+    "d": 24,
+    "h": 343,
+    "level": 2
+  },
+  {
+    "id": "1854-1",
+    "name": "House with Roof Windows",
+    "w": 17,
+    "d": 18,
+    "h": 252,
+    "level": 2
+  },
+  {
+    "id": "31025-1",
+    "name": "Mountain Hut",
+    "w": 22,
+    "d": 32,
+    "h": 332,
+    "level": 3
+  },
+  {
+    "id": "31038-1",
+    "name": "Changing Seasons",
+    "w": 27,
+    "d": 25,
+    "h": 364,
+    "level": 3
+  },
+  {
+    "id": "31048-1",
+    "name": "Lakeside Lodge",
+    "w": 21,
+    "d": 20,
+    "h": 268,
+    "level": 4
+  },
+  {
+    "id": "31063-1",
+    "name": "Beachside Vacation",
+    "w": 33,
+    "d": 10,
+    "h": 456,
+    "level": 4
+  },
+  {
+    "id": "3315-1",
+    "name": "Olivia's House",
+    "w": 41,
+    "d": 25,
+    "h": 516,
+    "level": 5
+  }
+]

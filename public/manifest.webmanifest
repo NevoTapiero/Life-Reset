@@ -1,29 +1,64 @@
 {
   "name": "Solo Leveling",
   "short_name": "Solo Leveling",
-  "description": "Real habits become quests. Earn XP, keep the streak, climb the ranks.",
+  "description": "Real habits build your LEGO world. Earn XP, level up your minifig, play with friends.",
   "id": "/",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0c0c0e",
-  "theme_color": "#0c0c0e",
+  "background_color": "#b9d6f2",
+  "theme_color": "#7fb3ea",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
     {
-      "name": "Today's quests",
-      "url": "/app",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "name": "Build your day",
+      "url": "/app?build=1",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
-      "name": "Board",
-      "url": "/app/leaderboard",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "name": "Missions",
+      "url": "/app",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "World",
+      "url": "/app/world",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

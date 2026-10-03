@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import Link from "next/link";
+import BrickLoader from "@/components/BrickLoader";
 import Icon from "@/components/Icon";
+import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
+import { brickSound } from "@/lib/brickSound";
 import {
   PERIODS,
   PERIOD_LABEL,
@@ -71,11 +75,17 @@ export default function QuestManager() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loads from the server, then sets state
     load();
   }, [load]);
 
+  // the idea just added (only that one snaps down, not the ones already on)
+  const [snapId, setSnapId] = useState<string | null>(null);
   async function toggleActive(q: Quest) {
     const on = activeIds.has(q.id);
+    if (on) brickSound.unsnap();
+    else brickSound.snap();
+    setSnapId(on ? null : q.id);
     setActiveIds((prev) => {
       const next = new Set(prev);
       if (on) next.delete(q.id);
@@ -199,7 +209,11 @@ export default function QuestManager() {
   }
 
   if (!loaded) {
-    return <div className="hud-label pulse-glow text-center py-20">Opening the armory…</div>;
+    return (
+      <div className="py-24 flex justify-center">
+        <BrickLoader label="Opening your missions" />
+      </div>
+    );
   }
 
   const customs = quests.filter((q) => q.user_id === uid && uid);
@@ -207,33 +221,42 @@ export default function QuestManager() {
 
   return (
     <div className="slide-in">
-      <h1 className="display text-[28px]">Armory</h1>
-      <p className="hud-label mt-1.5">Active quests appear on Today</p>
+      <div className="flex items-center gap-3">
+        <Link href="/app" className="icon-tile !w-10 !h-10 !bg-white" aria-label="Back to Home">
+          <Icon name="chevron-left" size={20} strokeWidth={2.4} />
+        </Link>
+        <div>
+          <h1 className="display tt-text text-[28px]">Your missions</h1>
+          <p className="text-[13px] font-bold text-[var(--ink)]">Tap one to put it on Home, tap again to take it off.</p>
+        </div>
+      </div>
 
-      {error && <p className="text-danger text-sm mt-3">{error}</p>}
+      {error && <p className="card px-4 py-3 mt-4 text-sm font-bold" style={{ color: "var(--danger)" }}>{error}</p>}
 
       {/* custom quests */}
-      <h2 className="display text-[15px] mt-6 mb-3">Yours · {customs.length}</h2>
+      <h2 className="section-title mt-7 mb-3" style={{ "--brick": "var(--lego-blue)" } as React.CSSProperties}>
+        Made by you <span className="chip !text-[12px]">{customs.length}</span>
+      </h2>
       {!form && !stForm && (
         <div className="grid grid-cols-2 gap-2.5 mb-3">
           <button
-            className="btn-ghost !text-xs py-3 gap-1.5"
+            className="btn-ghost !text-[14px] py-3 gap-1.5"
             onClick={() => setStForm({ app: "", minutes: 60 })}
           >
-            <Icon name="phone-off" size={13} strokeWidth={2} />
+            <Icon name="phone-off" size={16} strokeWidth={2.2} />
             Screen time
           </button>
-          <button className="btn-primary !text-xs py-3 gap-1.5" onClick={() => setForm(EMPTY_FORM)}>
-            <Icon name="plus" size={13} strokeWidth={2.2} />
-            New quest
+          <button className="btn-primary brick-yellow !text-[14px] py-3 gap-1.5" onClick={() => setForm(EMPTY_FORM)}>
+            <Icon name="plus" size={16} strokeWidth={2.6} />
+            New mission
           </button>
         </div>
       )}
 
       {stForm && (
         <div className="hud-frame p-4 mb-3 rise">
-          <div className="display text-[15px] mb-1">Screen time</div>
-          <p className="hud-label mb-3.5">Tighter limit · bigger XP</p>
+          <div className="display text-[19px]">Screen time</div>
+          <p className="text-[13px] font-bold text-muted mb-3.5">The tighter the limit, the bigger the XP.</p>
           <input
             className="field w-full px-4 py-3 text-[15px]"
             placeholder="App name (e.g. TikTok, Instagram)"
@@ -271,28 +294,28 @@ export default function QuestManager() {
 
       {verdict && !form && (
         <div className="hud-frame p-4 mb-3 rise">
-          <div className="display text-[15px]" style={{ color: "var(--accent)" }}>Verdict</div>
+          <div className="display text-[18px]" style={{ color: "var(--lego-blue)" }}>The AI Judge says</div>
           <p className="text-sm mt-1.5">
             <span className="font-semibold">{verdict.title}</span> is worth{" "}
-            <span className="display text-[16px]" style={{ color: "var(--accent)" }}>+{questBase(verdict.xp)} XP</span>
+            <span className="chip chip-green">+{questBase(verdict.xp)} XP</span>
           </p>
           <p className="text-xs text-muted mt-1">
             Pays more each {PERIOD_UNIT[verdict.period].toLowerCase()} in a row, up to +{cardXp(verdict.xp, 7)} XP on{" "}
             {PERIOD_UNIT[verdict.period].toLowerCase()} 7.
           </p>
           {verdict.reason && <p className="text-xs text-muted mt-1.5">{verdict.reason}</p>}
-          <button className="hud-label mt-2.5 underline underline-offset-4" onClick={() => setVerdict(null)}>
-            Accepted
+          <button className="btn-ghost brick-flat px-4 py-2 mt-3 !text-[13px]" onClick={() => setVerdict(null)}>
+            Got it
           </button>
         </div>
       )}
 
       {form && (
         <div className="hud-frame p-4 mb-3 rise">
-          <div className="display text-[15px] mb-3">{form.id ? "Edit quest" : "Forge a quest"}</div>
+          <div className="display text-[19px] mb-3">{form.id ? "Edit mission" : "New mission"}</div>
           <input
             className="field w-full px-4 py-3 text-[15px]"
-            placeholder="Quest name (e.g. Stretch 10 minutes)"
+            placeholder="What will you do? (e.g. Stretch 10 minutes)"
             value={form.title}
             maxLength={60}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -305,7 +328,7 @@ export default function QuestManager() {
                 className={`option-row px-1 py-2.5 flex flex-col items-center gap-1.5 ${form.pillar === p ? "selected" : ""}`}
                 onClick={() => setForm({ ...form, pillar: p })}
               >
-                <Icon name={PILLAR_ICONS[p]} size={21} />
+                <LegoIcon name={PILLAR_ICONS[p]} color={form.pillar === p ? PILLAR_BRICK_COLOR[p] : "grey"} size={34} />
                 <span className="hud-label !text-ink">{PILLAR_STAT[p]}</span>
               </button>
             ))}
@@ -330,7 +353,7 @@ export default function QuestManager() {
               ))}
             </div>
           )}
-          <p className="hud-label mt-4">The judge sets the XP</p>
+          <p className="text-[13px] font-bold text-muted mt-4">The AI Judge sets the XP, the same way for everyone and for the same thing a watch counts.</p>
           <div className="flex gap-2.5 mt-4">
             <button className="btn-ghost flex-1 py-3" onClick={() => setForm(null)}>
               Cancel
@@ -340,7 +363,7 @@ export default function QuestManager() {
               disabled={busy || form.title.trim().length < 2}
               onClick={saveForm}
             >
-              {busy ? "Judging…" : form.id ? "Save & re-judge" : "Forge it"}
+              {busy ? "Judging..." : form.id ? "Save and re-judge" : "Add it"}
             </button>
           </div>
         </div>
@@ -351,17 +374,17 @@ export default function QuestManager() {
           const on = activeIds.has(q.id);
           return (
             <div key={q.id} className={`option-row px-4 py-3.5 flex items-center gap-3 ${on ? "selected" : ""}`}>
-              <button className="icon-tile active:scale-95 transition-transform" onClick={() => toggleActive(q)} aria-label={on ? "Deactivate" : "Activate"}>
-                <Icon name={on ? "check" : PILLAR_ICONS[q.pillar]} size={21} strokeWidth={on ? 2.2 : 1.6} className={on ? "text-accent" : undefined} />
+              <button className="active:scale-95 transition-transform flex-none" onClick={() => toggleActive(q)} aria-label={on ? "Deactivate" : "Activate"}>
+                <LegoIcon name={on ? "check" : PILLAR_ICONS[q.pillar]} color={on ? "green" : "grey"} size={42} />
               </button>
               <button className="flex-1 text-left min-w-0" onClick={() => toggleActive(q)}>
-                <span className={`block text-[15px] truncate ${on ? "" : "text-muted"}`}>{q.title}</span>
-                <span className="hud-label mt-0.5">
+                <span className={`block text-[15px] font-extrabold truncate ${on ? "" : "text-muted"}`}>{q.title}</span>
+                <span className="text-[12.5px] font-bold text-muted">
                   {periodOf(q) !== "daily" ? `${PERIOD_LABEL[periodOf(q)]} · ` : ""}
-                  {q.pillar} · +{questBase(q.xp)} XP {on ? "· active" : ""}
+                  {q.pillar} · +{questBase(q.xp)} XP {on ? "· on Home" : ""}
                 </span>
                 {trackedBy(q, trackers) && (
-                  <span className="hud-label mt-0.5 block" style={{ color: "var(--accent)" }}>
+                  <span className="chip !text-[11px] !py-0 mt-1">
                     Paid by {TRACKER_NAME[trackedBy(q, trackers)!]}
                   </span>
                 )}
@@ -384,14 +407,16 @@ export default function QuestManager() {
           );
         })}
         {customs.length === 0 && !form && (
-          <div className="card p-5 text-center text-muted text-sm">
-            Nothing forged yet. Your own quests live here.
+          <div className="card p-5 text-center text-[14px] font-bold text-muted">
+            Missions you make yourself show up here. The AI Judge prices each one fairly.
           </div>
         )}
       </div>
 
       {/* catalog */}
-      <h2 className="display text-[15px] mt-7 mb-3">Catalog · {catalog.length}</h2>
+      <h2 className="section-title mt-8 mb-3" style={{ "--brick": "var(--lego-green)" } as React.CSSProperties}>
+        Ideas to add <span className="chip !text-[12px]">{catalog.length}</span>
+      </h2>
       <div className="flex flex-col gap-2.5 pb-4">
         {catalog.map((q) => {
           const on = activeIds.has(q.id);
@@ -399,25 +424,25 @@ export default function QuestManager() {
             <button
               key={q.id}
               className={`option-row px-4 py-3.5 flex items-center gap-3 ${on ? "selected" : ""}`}
+              data-own-sound
               onClick={() => toggleActive(q)}
             >
-              <span className="icon-tile" style={on ? { color: "var(--accent)", borderColor: "rgb(var(--accent-rgb) / 0.4)" } : undefined}>
-                <Icon name={PILLAR_ICONS[q.pillar]} size={23} />
+              {/* added: the brick takes its colour and snaps down */}
+              <span key={on ? "on" : "off"} className={on && snapId === q.id ? "brick-snap" : ""}>
+                <LegoIcon name={PILLAR_ICONS[q.pillar]} color={on ? PILLAR_BRICK_COLOR[q.pillar] : "grey"} size={42} />
               </span>
               <span className="flex-1 text-left min-w-0">
-                <span className={`block text-[15px] truncate ${on ? "" : "text-muted"}`}>{q.title}</span>
-                <span className="hud-label mt-0.5">{q.pillar} · +{questBase(q.xp)} XP</span>
+                <span className={`block text-[15px] font-extrabold truncate ${on ? "" : "text-muted"}`}>{q.title}</span>
+                <span className="text-[12.5px] font-bold text-muted">{q.pillar} · +{questBase(q.xp)} XP</span>
                 {trackedBy(q, trackers) && (
-                  <span className="hud-label mt-0.5 block" style={{ color: "var(--accent)" }}>
+                  <span className="chip !text-[11px] !py-0 mt-1">
                     Paid by {TRACKER_NAME[trackedBy(q, trackers)!]}
                   </span>
                 )}
               </span>
-              <span
-                className="hud-label flex-none"
-                style={{ color: on ? "var(--accent)" : "var(--muted)" }}
-              >
-                {on ? "Active" : "Add"}
+              <span className={`chip flex-none ${on ? "chip-green" : ""}`}>
+                {on ? <Icon name="check" size={13} strokeWidth={3} /> : <Icon name="plus" size={13} strokeWidth={3} />}
+                {on ? "On Home" : "Add"}
               </span>
             </button>
           );

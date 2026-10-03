@@ -1,0 +1,164 @@
+/* The town's loading screen: a LEGO house building itself on a baseplate, brick by brick */
+.screen {
+  /* (no position here: whoever places it decides: over the town, absolute; on the page, in the flow) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #8fd0ff 0%, #d9efff 58%, #7cc36a 58%, #58ab41 100%);
+}
+
+.stage {
+  position: relative;
+  width: 200px;
+  height: 150px;
+  transform: scale(1.5);
+  margin: 38px 0 30px; /* room for it, scaled */
+}
+
+/* the green baseplate: a plate with a row of studs on top */
+.plate {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 14px;
+  border-radius: 3px;
+  background: #4b9f4a;
+  box-shadow: inset 0 -4px 0 #256a2b;
+}
+.plate::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: -5px;
+  height: 6px;
+  background: radial-gradient(circle at 50% 100%, #5cb85a 0 5px, transparent 5.5px) 0 0 / 16px 6px repeat-x;
+}
+
+/* a brick: a coloured block with studs on top and a darker lip, dropping in and snapping home */
+.brick {
+  position: absolute;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--c);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.22), inset 0 2px 0 rgba(255, 255, 255, 0.35);
+  opacity: 0;
+  animation: drop 4.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.brick::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: -4px;
+  height: 5px;
+  background: radial-gradient(ellipse at 50% 100%, var(--c) 0 4px, transparent 4.5px) 0 0 / 10px 5px repeat-x;
+  filter: brightness(1.08);
+}
+.slope {
+  position: absolute;
+  height: 30px;
+  background: var(--c);
+  opacity: 0;
+  animation: drop 4.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.slope.left {
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+.slope.right {
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+
+@keyframes drop {
+  0% {
+    transform: translateY(-70px);
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  11% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  12.5% {
+    transform: translateY(2px); /* a little press as it clicks home */
+  }
+  14% {
+    transform: translateY(0);
+  }
+  85% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  95%,
+  100% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+}
+
+.title {
+  font-family: var(--font-display, inherit);
+  font-size: 22px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.5px;
+  -webkit-text-stroke: 5px #1d2b46;
+  paint-order: stroke fill;
+}
+
+/* a row of studs lighting up, one after another */
+.studs {
+  display: flex;
+  gap: 8px;
+}
+.studs span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #f5cd2f;
+  box-shadow: inset 0 -3px 0 #b88a06, 0 0 0 2px #1d2b46;
+  opacity: 0.25;
+  animation: light 1.6s ease-in-out infinite;
+}
+@keyframes light {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.9);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+.tip {
+  min-height: 2.6em;
+  max-width: 280px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #243322;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brick,
+  .slope {
+    animation: none;
+    opacity: 1;
+  }
+  .studs span {
+    animation: none;
+    opacity: 1;
+  }
+}

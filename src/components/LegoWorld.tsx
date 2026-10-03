@@ -1,0 +1,5440 @@
+"use client";
+
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
+import { ContactShadows, Environment, Lightformer, OrbitControls, PerformanceMonitor, Sky } from "@react-three/drei";
+import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, N8AO, ToneMapping, Vignette } from "@react-three/postprocessing";
+import { ToneMappingMode } from "postprocessing";
+import { sfx, setSound, soundOn } from "@/lib/sfx";
+import TownLoader from "@/components/TownLoader";
+import { STAGES, TIERS } from "@/lib/game";
+import BrickWall, { WALL_IN, WALL_OUT } from "@/components/BrickWall";
+import { CAN_RUN_AT, ENERGY_MAX, RUN_COST, TRICKLE } from "@/lib/energy";
+import * as THREE from "three";
+import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { LDrawConditionalLineMaterial } from "three/examples/jsm/materials/LDrawConditionalLineMaterial.js";
+import { LDrawUtils } from "three/examples/jsm/utils/LDrawUtils.js";
+import VEHICLES from "@/lib/legoVehicles.json";
+import PROPS from "@/lib/legoProps.json";
+import PACKS from "@/lib/legoPacks.json";
+import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import {
+  BASE_HUNTER,
+  COL,
+  RING_R,
+  jogAt,
+  MINIFIG_PARTS,
+  PLOT,
+  buildGarden,
+  splitInstanced,
+  townInstances,
+  type Placement,
+  type Season,
+  seasonAt,
+  placementsIn,
+  textIn,
+  buildMinifig,
+  houseAt,
+  houseFor,
+  houseUrl,
+  houseById,
+  houseSpec,
+  doorPath,
+  doorPaths,
+  minifigSpot,
+  doorWalk,
+  VISIT_SIDE,
+  VISIT_AHEAD,
+  insideWalk,
+  rideSpot,
+  type Loadout,
+  SHOP_WALK,
+  FOUNTAIN_WALK,
+  walkRoute,
+  rerouteFrom,
+  walkFrom,
+  stepFree,
+  townBlockers,
+  type Blocker,
+  GARDEN,
+  gardenItem,
+  gardenItemLines,
+  gardenPropAt,
+  itemPreviewLines,
+  footprint,
+  canPlace,
+  firstFreeSpot,
+  fromLot,
+  type Placed,
+  CROWD,
+  sidestep,
+  intoSomeone,
+  type P3,
+  type Route,
+  modelText,
+  CHEST_SPOT,
+  DECOR,
+  roomText,
+  roomBlockers,
+  ROOM_START,
+  stationSpots,
+  stationAt,
+  PLAZA,
+  TOWN_HALF,
+  MAX_RESIDENTS,
+  SHOP_BUILDING,
+  lotFor,
+  inLot,
+  townText,
+  plazaText,
+  townDecorText,
+  townFlats,
+  forestTrees,
+  carLoop,
+  townClouds,
+  CLOUD_EXTENT,
+  balloonSlabs,
+  WILD,
+  waterTowerSlabs,
+  MEADOWS,
+  openGround,
+  boatSlabs,
+  BOATS,
+  duckText,
+  LAKE,
+  RING,
+  type Slab,
+  emptyLotsText,
+  buildingOn,
+  buildingAt,
+  buildingWalk,
+  TOWN_BUILDINGS,
+  rankOf,
+  ICE_CREAM_CART,
+  PARK_BURGER_STAND,
+  type Lot,
+  PLAZA_LAMPS,
+  STREET_LAMP_LIGHTS,
+  SHOP_FRONT,
+  FOUNTAIN,
+  STATUE_AT,
+  POOL_R,
+  type Station,
+  type MinifigLook,
+  type Figure,
+  figureOf,
+  loadoutFor,
+  type Resident,
+  type House as Baked,
+} from "@/lib/legoWorld";
+
+// Your plot in real parts: the 48x48 baseplate, your house, your garden, and
+// your minifigure outside the door. The parts are loaded once (public/lego);
+// every model after that is just LDraw text parsed against them.
+
+const LDU = 0.05; // three units per LDraw unit: a stud is 1
+
+// The colours and the packed parts are fetched once. Each model is parsed as
+// one packed file: its own lines first, then every part embedded after it,
+// the same shape as an official "_Packed.mpd".
+// Smoothing normals is quadratic in a part's size: fine for a minifig, but it
+// takes half a minute on a 48x48 baseplate, so the ground is parsed without it.
+const setups = new Map<boolean, Promise<{ loader: LDrawLoader; parts: string }>>();
+function getLoader(smooth: boolean) {
+  let setup = setups.get(smooth);
+  if (!setup)
+    setups.set(
+      smooth,
+      (setup = (async () => {
+        const loader = new LDrawLoader();
+        loader.setConditionalLineMaterial(LDrawConditionalLineMaterial);
+        loader.smoothNormals = smooth;
+        const [, parts] = await Promise.all([
+          loader.preloadMaterials("/lego/LDConfig.ldr"),
+          fetch("/lego/parts.mpd").then((r) => r.text()),
+        ]);
+        // drop the index model at the top: only the embedded parts are needed
+        return {
+          loader,
+          parts: parts.slice(parts.indexOf("0 NOFILE") + "0 NOFILE".length),
+        };
+      })()),
+    );
+  return setup;
+}
+// LEGO ABS: a glossy clear coat over a slightly rough colour, so bricks catch the
+// sky and the sun the way real ones do. Metals and glass keep what the loader gave them.
+// Every model passes through finish(), which swaps each mesh's material for its plastic
+// twin -- one twin per material, so models keep sharing what they shared.
+const PLASTIC = new Map<THREE.Material, THREE.Material>();
+function plasticOf(m: THREE.Material): THREE.Material {
+  if (!(m as THREE.MeshStandardMaterial).isMeshStandardMaterial || (m as THREE.MeshPhysicalMaterial).isMeshPhysicalMaterial) return m;
+  let p = PLASTIC.get(m);
+  if (!p) PLASTIC.set(m, (p = asPlastic(m as THREE.MeshStandardMaterial)));
+  return p;
+}
+function asPlastic(m: THREE.MeshStandardMaterial): THREE.MeshPhysicalMaterial {
+  const p = new THREE.MeshPhysicalMaterial();
+  // the standard fields only: the physical copy() expects a physical source
+  THREE.MeshStandardMaterial.prototype.copy.call(p, m);
+  p.userData = m.userData; // the loader keeps the edge material and colour code here
+  if (m.metalness < 0.5) {
+    p.roughness = m.transparent ? 0.15 : 0.42;
+    p.clearcoat = m.transparent ? 0.9 : 0.6;
+    p.clearcoatRoughness = 0.3;
+  }
+  return p;
+}
+function parse(loader: LDrawLoader, text: string): Promise<THREE.Group> {
+  return new Promise((resolve, reject) => loader.parse(text, resolve, reject));
+}
+
+// plastic look: no drawn outlines, shadows on
+function finish(group: THREE.Object3D): THREE.Object3D {
+  group.traverse((o) => {
+    if ((o as THREE.LineSegments).isLineSegments) o.visible = false;
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh) {
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(plasticOf) : plasticOf(mesh.material);
+    }
+  });
+  return group;
+}
+
+function useModel(text: string, merge: boolean) {
+  const [group, setGroup] = useState<THREE.Object3D | null>(null);
+  useEffect(() => {
+    let live = true;
+    let made: THREE.Object3D | null = null;
+    // merged models are the ground (plots, gardens, streets): no smoothing
+    getLoader(!merge)
+      .then(({ loader, parts }) => parse(loader, text + parts))
+      .then((g) => {
+        if (!live) return;
+        made = finish(merge ? LDrawUtils.mergeObject(g) : g);
+        setGroup(made);
+      })
+      .catch((e) => console.error("brick world:", e));
+    return () => {
+      live = false;
+      // a merged model's geometry is its own (a plain parse shares the loader's
+      // cached parts, and the materials are the loader's): free it with the model
+      if (merge) made?.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+    };
+  }, [text, merge]);
+  return group;
+}
+
+// Trees and flowers (legoWorld INSTANCED_PARTS) repeat by the hundred: each
+// part + colour is parsed once, and every copy is one instance of it.
+const props = new Map<string, Promise<THREE.Mesh[]>>();
+function loadProp(part: string, color: number) {
+  const key = `${part}|${color}`;
+  let p = props.get(key);
+  if (!p)
+    props.set(
+      key,
+      (p = getLoader(false)
+        .then(({ loader, parts }) => parse(loader, modelText([`1 ${color} 0 0 0 1 0 0 0 1 0 0 0 1 ${part}.dat`], "prop.ldr") + parts))
+        .then((g) => {
+          const merged = LDrawUtils.mergeObject(g);
+          merged.updateMatrixWorld(true);
+          const meshes: THREE.Mesh[] = [];
+          merged.traverse((o) => {
+            if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
+          });
+          return meshes;
+        })),
+    );
+  return p;
+}
+
+// The loadouts' printed torsos, helmets and gear, and their rides, live in packs
+// per character (figures-<name>.mpd, rides-<name>.mpd from scripts/lego/pack.mjs),
+// each fetched once, only when a model uses a part in it: plain townsfolk fetch none.
+const packFiles = new Map<string, Promise<string>>();
+const getPack = (file: string) => {
+  let p = packFiles.get(file);
+  if (!p)
+    packFiles.set(
+      file,
+      (p = fetch(`/lego/${file}`)
+        .then((r) => r.text())
+        .then((t) => t.slice(t.indexOf("0 NOFILE") + "0 NOFILE".length))),
+    );
+  return p;
+};
+/** the packs holding these parts (the first character's pack that has each one) */
+function packsFor(kind: keyof typeof PACKS, parts: string[]) {
+  const files = new Set<string>();
+  for (const part of parts) {
+    const name = Object.keys(PACKS[kind]).find((n) => (PACKS[kind] as Record<string, string[]>)[n].includes(part.toLowerCase().replace(/\.dat$/, "")));
+    if (name) files.add(`${kind}-${name}.mpd`);
+  }
+  return Promise.all([...files].map(getPack)).then((t) => t.join(""));
+}
+const refsIn = (lines: string[]) =>
+  lines.map((l) => l.trim().split(/\s+/)).filter((a) => a[0] === "1" && a.length >= 15).map((a) => a.slice(14).join(" "));
+
+// Each figure is parsed once; every minifig wearing it is a clone (sharing its
+// geometry and materials).
+const minifigs = new Map<string, Promise<THREE.Object3D>>();
+function loadMinifig(fig: Figure) {
+  const key = JSON.stringify(fig);
+  let p = minifigs.get(key);
+  if (!p)
+    minifigs.set(
+      key,
+      (p = Promise.all([getLoader(true), packsFor("figures", refsIn(buildMinifig(fig)))])
+        .then(async ([{ loader, parts }, figures]) => rig(finish(await parse(loader, modelText(buildMinifig(fig), "minifig.ldr") + figures + parts)), fig, loader))),
+    );
+  return p;
+}
+
+// The rides (skateboard, horse, motorcycle, dragon...) come with the loadouts,
+// their parts in their own pack; each ride is parsed only once someone needs it,
+// laid lengthways along x with its wheels (or feet) at 0 and its corner at the
+// origin: it runs off along -x and out along +z (from the pavement into the
+// street), so a dragon grows away from the path, not across it.
+const rides = new Map<string, Promise<THREE.Object3D>>();
+function loadRide(ride: Loadout["ride"]) {
+  let p = rides.get(ride.ldr);
+  if (!p)
+    rides.set(
+      ride.ldr,
+      (p = Promise.all([getLoader(true), packsFor("rides", refsIn(ride.ldr.split("\n")))]).then(async ([{ loader, parts }, pack]) => {
+        const g = finish(await parse(loader, modelText(ride.ldr.split("\n"), "ride.ldr") + pack + parts));
+        const size = new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3());
+        const turn = new THREE.Group();
+        turn.rotation.y = size.z > size.x ? Math.PI / 2 : 0; // longer front to back: turn it to run along x
+        turn.add(g);
+        turn.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(turn);
+        turn.position.set(-box.max.x, -box.max.y, -box.min.z); // LDraw is -Y up: the bottom is max y
+        const holder = new THREE.Group();
+        holder.add(turn);
+        holder.userData.length = Math.max(size.x, size.z); // LDU
+        return holder;
+      })),
+    );
+  return p;
+}
+// Anything longer than this (the dragon) doesn't park: it flies slow circles
+// above its owner's street, wings and all.
+const PARKS_UP_TO = 260; // LDU, 13 studs
+const BODY_AXIS = new THREE.Vector3(0, 0, 1); // a ride's long axis, as it was built (along z)
+const NOSE_X = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2); // laid along x: nose to +Z
+function Ride({ ride, at, turn }: { ride: Loadout["ride"]; at: P3; turn: number }) {
+  const [model, setModel] = useState<THREE.Object3D | null>(null);
+  const flier = useRef<THREE.Group>(null);
+  const flies = (model?.userData.length ?? 0) > PARKS_UP_TO;
+  // flying about its middle, not the corner it parks by
+  const middle = useMemo(() => (model ? new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3()).negate() : null), [model]);
+  const path = useMemo(
+    () => (t: number) => {
+      // big lazy loops round its owner's street, swinging wide and back, high over the roofs;
+      // each wingbeat lifts it a little
+      const a = t * 0.2 + at[0] * 0.001;
+      const r = 420 + 140 * Math.sin(t * 0.13);
+      return new THREE.Vector3(at[0] + Math.cos(a) * r, -900 - Math.sin(t * 1.5) * 26 - Math.sin(t * 0.3) * 80, at[2] + Math.sin(a) * r);
+    },
+    [at],
+  );
+  // its wings (the big wedge plates) beat: found once by part name, each turned about the
+  // body's long axis from where it was built -- down to a spread, then up and down
+  const wings = useMemo(() => {
+    const out: { o: THREE.Object3D; base: THREE.Quaternion; side: number }[] = [];
+    model?.traverse((o) => {
+      if (/^3035[56]\.dat$/i.test(o.name)) out.push({ o, base: o.quaternion.clone(), side: Math.sign(o.position.x) || 1 });
+    });
+    return out;
+  }, [model]);
+  const beat = useMemo(() => new THREE.Quaternion(), []);
+  useFrame(({ clock }) => {
+    if (!flies || !flier.current) return;
+    const t = clock.elapsedTime;
+    fly(flier.current, path, t, NOSE_X);
+    const flap = 0.55 + Math.sin(t * 3) * 0.45; // radians down from how it was built
+    for (const w of wings) w.o.quaternion.copy(w.base).premultiply(beat.setFromAxisAngle(BODY_AXIS, flap * w.side));
+  });
+  useEffect(() => {
+    let live = true;
+    loadRide(ride)
+      .then((o) => live && setModel(o.clone()))
+      .catch((e) => console.error("ride:", e));
+    return () => {
+      live = false;
+    };
+  }, [ride]);
+  if (!model) return null;
+  if (flies)
+    return (
+      <group ref={flier}>
+        <primitive object={model} position={middle ?? undefined} />
+      </group>
+    );
+  return <primitive object={model} position={at} rotation={[0, turn, 0]} />;
+}
+
+// Ready a parsed figure to move: its parts named (MINIFIG_PARTS, then its
+// gear), each arm on a shoulder pivot ("swingL"/"swingR") that also carries
+// its hand and whatever that hand holds, and the shoes painted on the feet.
+function rig(model: THREE.Object3D, fig: Figure, loader: LDrawLoader) {
+  const gear = fig.gear ?? [];
+  model.children.forEach((c, i) => (c.name = i < MINIFIG_PARTS.length ? MINIFIG_PARTS[i] : `gear:${gear[i - MINIFIG_PARTS.length]?.attach}`));
+  model.updateMatrixWorld(true);
+  if (fig.shoes) {
+    const shoe = (loader.getMaterial(String(fig.shoes.color)) as THREE.MeshStandardMaterial | null)?.clone() ?? new THREE.MeshStandardMaterial({ color: "#333" });
+    const f = fig.shoes.finish;
+    if (f === "gold" || f === "steel" || f === "iron") Object.assign(shoe, { metalness: f === "gold" ? 0.7 : 0.55, roughness: f === "gold" ? 0.3 : 0.4 });
+    for (const leg of ["legL", "legR"]) model.getObjectByName(leg)?.traverse((o) => (o as THREE.Mesh).isMesh && paintFeet(o as THREE.Mesh, shoe));
+  }
+  for (const side of ["L", "R"]) {
+    const arm = model.getObjectByName(`arm${side}`);
+    if (!arm) continue;
+    const pivot = new THREE.Group();
+    pivot.name = `swing${side}`;
+    pivot.position.copy(arm.position);
+    model.add(pivot);
+    pivot.updateMatrixWorld(true);
+    const held = model.children.filter((c) => c.name === `hand${side}` || c.name === `gear:hand${side}` || c.name === `gear:arm${side}`);
+    for (const o of [arm, ...held]) pivot.attach(o);
+  }
+  return model;
+}
+
+// Shoes have no LDraw part: the feet are moulded into the legs. Triangles in
+// the bottom 8 LDU (soles at y = 0, -Y up) get the shoe material instead.
+function paintFeet(mesh: THREE.Mesh, shoe: THREE.Material) {
+  const g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+  const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  const pos = g.getAttribute("position");
+  const tris = pos.count / 3;
+  const matOf = new Int32Array(tris);
+  for (const gr of g.groups) for (let t = gr.start / 3; t < (gr.start + gr.count) / 3; t++) matOf[t] = gr.materialIndex ?? 0;
+  const v = new THREE.Vector3();
+  for (let t = 0; t < tris; t++) {
+    let foot = true;
+    for (let k = 0; k < 3 && foot; k++) foot = v.fromBufferAttribute(pos, t * 3 + k).applyMatrix4(mesh.matrixWorld).y > -8.5;
+    if (foot) matOf[t] = mats.length;
+  }
+  // regroup: triangles sorted by material, one group per run
+  const order = Array.from({ length: tris }, (_, t) => t).sort((a, b) => matOf[a] - matOf[b]);
+  for (const name of Object.keys(g.attributes)) {
+    const a = g.getAttribute(name) as THREE.BufferAttribute;
+    const n = a.itemSize * 3;
+    const out = new (a.array.constructor as Float32ArrayConstructor)(a.array.length);
+    order.forEach((t, i) => out.set(a.array.subarray(t * n, t * n + n), i * n));
+    g.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize, a.normalized));
+  }
+  g.clearGroups();
+  for (let i = 0; i < tris; ) {
+    let j = i;
+    while (j < tris && matOf[order[j]] === matOf[order[i]]) j++;
+    g.addGroup(i * 3, (j - i) * 3, matOf[order[i]]);
+    i = j;
+  }
+  mesh.geometry = g;
+  mesh.material = [...mats, shoe];
+}
+
+// Every placement drawn with one InstancedMesh per part, colour and material.
+// Lives inside the LDraw-space group, so placements are plain LDraw matrices.
+function InstancedParts({ placements }: { placements: Placement[] }) {
+  // a stable key: the caller's array is rebuilt on every render
+  const sig = JSON.stringify(placements);
+  const [meshes, setMeshes] = useState<THREE.InstancedMesh[]>([]);
+  useEffect(() => {
+    let live = true;
+    const groups = new Map<string, Placement[]>();
+    for (const pl of JSON.parse(sig) as Placement[]) {
+      const k = `${pl.part}|${pl.color}`;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k)!.push(pl);
+    }
+    const built: THREE.InstancedMesh[] = [];
+    Promise.all(
+      [...groups].map(async ([k, list]) => {
+        const [part, color] = k.split("|");
+        for (const mesh of await loadProp(part, Number(color))) {
+          const im = new THREE.InstancedMesh(mesh.geometry, mesh.material, list.length);
+          const m = new THREE.Matrix4();
+          list.forEach((pl, i) => {
+            const [x, y, z, a, b, c, d, e, f, g, h, j] = pl.m;
+            m.set(a, b, c, x, d, e, f, y, g, h, j, z, 0, 0, 0, 1).multiply(mesh.matrixWorld);
+            im.setMatrixAt(i, m);
+          });
+          im.instanceMatrix.needsUpdate = true;
+          im.computeBoundingSphere();
+          im.castShadow = true;
+          im.receiveShadow = true;
+          built.push(im);
+        }
+      }),
+    )
+      .then(() => live && setMeshes(built))
+      .catch((e) => console.error("props:", e));
+    return () => {
+      live = false;
+      // the instance buffers are ours; geometry and materials stay cached for reuse
+      built.forEach((im) => im.dispose());
+    };
+  }, [sig]);
+  return (
+    <>
+      {meshes.map((im) => (
+        <primitive key={im.uuid} object={im} />
+      ))}
+    </>
+  );
+}
+
+// The houses are official sets baked to glb (scripts/lego/pack.mjs); each file
+// is fetched once and every plot that needs it gets a clone sharing its geometry.
+const gltf = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+const houses = new Map<string, Promise<THREE.Object3D>>();
+function loadHouse(url: string) {
+  let p = houses.get(url);
+  if (!p)
+    houses.set(
+      url,
+      (p = gltf.loadAsync(url).then((g) => {
+        rooms.set(url, measureRooms(g.scene));
+        return finish(g.scene); // (plastic too, like everything finish() touches)
+      })),
+    );
+  return p;
+}
+
+// Where a set's rooms are: official sets come with yards, decks and porches,
+// so the building isn't simply the middle of the model. The cells (1 stud)
+// where the model rises past half its height are the building; their middle is
+// the room, and going forward from there, where they end is the front wall. In the glb's own frame
+// (LDU, origin its front-left corner, -Y up); filled in as each house loads.
+const rooms = new Map<string, { x: number; z: number; front: number }>();
+function measureRooms(scene: THREE.Object3D) {
+  scene.updateMatrixWorld(true);
+  const top = new Map<string, number>();
+  const v = new THREE.Vector3();
+  let highest = 0;
+  scene.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const pos = mesh.geometry.getAttribute("position");
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      const k = `${Math.floor(v.x / 20)},${Math.floor(v.z / 20)}`;
+      top.set(k, Math.max(top.get(k) ?? 0, -v.y));
+      highest = Math.max(highest, -v.y);
+    }
+  });
+  const tall = [...top].filter(([, h]) => h > highest / 2).map(([k]) => k.split(",").map(Number));
+  if (!tall.length) return { x: 0, z: 0, front: 0 };
+  const cx = Math.floor(tall.reduce((a, [x]) => a + x, 0) / tall.length);
+  const cz = Math.floor(tall.reduce((a, [, z]) => a + z, 0) / tall.length);
+  const isTall = new Set(tall.map(([x, z]) => `${x},${z}`));
+  let front = cz;
+  while (isTall.has(`${cx},${front + 1}`)) front++;
+  return { x: (cx + 0.5) * 20, z: (cz + 0.5) * 20, front: (front + 1) * 20 };
+}
+
+// A baked building placed at `at` (LDU). `cut`: a height (three's y) above
+// which it is clipped away -- the roof comes off and you look down into the
+// rooms, dollhouse style.
+// `lit`: after dark the window glass glows warm -- somebody's home.
+// `build`: it builds itself (after this many seconds; null: not yet, keep it
+// hidden): it goes up a row of bricks at a time while bricks shower down onto
+// each new row -- when the town opens, and again whenever the house changes
+// (a level up).
+const BUILD_TIME = 3.5; // seconds (was 2.4: a touch slower, so you can watch it go up)
+const ROW = 24; // LDU: one brick
+const OPEN = 1e5; // a clipping plane that clips nothing
+function Building({
+  url,
+  at,
+  cut,
+  lit = false,
+  build,
+}: {
+  url: string;
+  at: [number, number, number];
+  cut?: number;
+  lit?: boolean;
+  build?: number | null;
+}) {
+  const [model, setModel] = useState<{
+    url: string;
+    obj: THREE.Object3D;
+    /** its box in its own frame (LDU, -Y up) */
+    box: THREE.Box3;
+  } | null>(null);
+  // the house that has finished building (none yet: this one still has to go up)
+  const [built, setBuilt] = useState<string | null>(build === undefined ? url : null);
+  const building = build !== undefined && built !== url;
+  // Both clipping planes are always on every material (clipping nothing when not
+  // in use): switching planes on and off recompiles the shaders, which is what
+  // made the town hitch as each house started and finished building.
+  const rise = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), -1), []);
+  const lid = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), OPEN), []);
+  const progress = useRef(0);
+  const started = useRef<number | null>(null);
+  const lastRow = useRef(0);
+  useEffect(() => {
+    let live = true;
+    let own: THREE.Material[] = [];
+    loadHouse(url)
+      .then((o) => {
+        if (!live) return;
+        const obj = o.clone();
+        // its own materials, so cutting this house leaves the others whole
+        obj.traverse((m) => {
+          const mesh = m as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          mesh.material = (mesh.material as THREE.Material).clone();
+          own.push(mesh.material);
+        });
+        setModel({ url, obj, box: new THREE.Box3().setFromObject(obj) });
+      })
+      .catch((e) => console.error("house:", e));
+    return () => {
+      live = false;
+      // the geometry is the shared cache's; the cloned materials are this house's
+      own.forEach((m) => m.dispose());
+      own = [];
+    };
+  }, [url]);
+  useEffect(() => {
+    if (!model) return;
+    model.obj.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const m = mesh.material as THREE.Material;
+      m.clippingPlanes = [lid, rise];
+      m.clipShadows = true;
+      m.needsUpdate = true;
+    });
+  }, [model, lid, rise]);
+  // the roof off (you're inside): just move the lid
+  useEffect(() => void lid.set(lid.normal, cut ?? OPEN), [lid, cut]);
+  // going up: everything below the rising plane is there (three's y; the LDraw
+  // group is scaled by LDU and -Y up, so the model's top is -box.min.y * LDU)
+  useFrame(({ clock }) => {
+    if (!model || model.url !== url) return;
+    if (!building) {
+      if (rise.constant !== OPEN) rise.set(rise.normal, OPEN);
+      return;
+    }
+    if (typeof build !== "number") {
+      rise.set(rise.normal, -1); // waiting its turn: nothing shows yet
+      return;
+    }
+    started.current ??= clock.elapsedTime + build;
+    const k = Math.min(1, Math.max(0, (clock.elapsedTime - started.current) / BUILD_TIME));
+    progress.current = k;
+    // a whole row of bricks at a time, the way LEGO goes up
+    const rows = Math.ceil(-model.box.min.y / ROW);
+    const row = k === 0 ? 0 : Math.min(rows, Math.floor(k * rows) + 1);
+    if (row !== lastRow.current) {
+      lastRow.current = row;
+      if (row > 0) sfx.snap(); // a row of bricks snaps on
+    }
+    rise.set(rise.normal, row === 0 ? -1 : row * ROW * LDU + 0.02);
+    if (k === 1) {
+      started.current = null;
+      setBuilt(url);
+    }
+  });
+  useEffect(() => {
+    if (!model) return;
+    model.obj.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      const m = mesh.material as THREE.MeshStandardMaterial | undefined;
+      if (!mesh.isMesh || !m?.transparent || !m.emissive) return; // glass is the transparent part
+      m.emissive.set(lit ? "#ffc56b" : "#000000");
+      m.emissiveIntensity = lit ? 0.9 : 0;
+    });
+  }, [model, lit]);
+  if (!model || model.url !== url) return null;
+  return (
+    <>
+      <primitive object={model.obj} position={at} />
+      {building && (
+        <group position={at}>
+          <BrickShower box={model.box} progress={progress} />
+        </group>
+      )}
+    </>
+  );
+}
+
+// Bricks raining down onto a house while it builds: each one falls from high
+// above to the height the house has reached when it lands, and is gone into
+// the wall. LDraw frame (LDU, -Y up), in the house model's own frame.
+const SHOWER = 44;
+const hash = (n: number) => {
+  const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+const SHOWER_COLOURS = ["#c91a09", "#0055bf", "#f2cd37", "#237841", "#ffffff", "#fe8a18", "#a0a5a9", "#582a12"];
+function BrickShower({ box, progress }: { box: THREE.Box3; progress: React.RefObject<number> }) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const bricks = useMemo(
+    () =>
+      Array.from({ length: SHOWER }, (_, i) => ({
+        x: box.min.x + hash(i * 4) * (box.max.x - box.min.x),
+        z: box.min.z + hash(i * 4 + 1) * (box.max.z - box.min.z),
+        at: (i + hash(i * 4 + 2)) / SHOWER, // when it lands, as a share of the build
+        turn: hash(i * 4 + 3) * Math.PI,
+      })),
+    [box],
+  );
+  useEffect(() => {
+    if (!mesh.current) return;
+    const c = new THREE.Color();
+    bricks.forEach((_, i) => mesh.current!.setColorAt(i, c.set(SHOWER_COLOURS[i % SHOWER_COLOURS.length])));
+    mesh.current.instanceColor!.needsUpdate = true;
+  }, [bricks]);
+  const o = useMemo(() => new THREE.Object3D(), []);
+  useFrame(() => {
+    if (!mesh.current) return;
+    const k = progress.current ?? 0;
+    const top = -box.min.y;
+    const rows = Math.ceil(top / ROW);
+    bricks.forEach((b, i) => {
+      const fall = 0.12; // share of the build a brick spends falling
+      const f = (k - (b.at - fall)) / fall; // 0 when it starts falling, 1 when it lands
+      const on = k > 0 && f > 0 && f < 1;
+      // it lands on the row that goes up when it does
+      const land = Math.min(rows, Math.floor(b.at * rows) + 1) * ROW;
+      o.position.set(b.x, on ? -(land + (1 - f * f) * 500) : 1e5, b.z);
+      o.rotation.set(0, b.turn + f * 2, 0);
+      o.updateMatrix();
+      mesh.current!.setMatrixAt(i, o.matrix);
+    });
+    mesh.current.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, SHOWER]} frustumCulled={false}>
+      {/* a 2x4 brick: 80 x 24 x 40 LDU */}
+      <boxGeometry args={[80, 24, 40]} />
+      <meshStandardMaterial roughness={0.35} />
+    </instancedMesh>
+  );
+}
+
+// A house on its plot (in the plot's own frame).
+// Previews only: a house turned about its own centre.
+function SpunHouse({ level, id, spin }: { level: number; id?: string; spin: number }) {
+  const house = (id && houseById(id)) || houseFor(level);
+  const [x, , z] = houseAt(houseSpec(level), house);
+  const c: [number, number, number] = [x + (house.w * 20) / 2, 0, z - (house.d * 20) / 2];
+  return (
+    <group position={c} rotation={[0, (spin * Math.PI) / 2, 0]}>
+      <Building url={houseUrl(house)} at={[-(house.w * 20) / 2, 0, (house.d * 20) / 2]} />
+    </group>
+  );
+}
+
+// A player's house on their plot: which of the level's houses is theirs comes from their name.
+function House({ level, name, id, cut, lit, build }: { level: number; name?: string; id?: string; cut?: number; lit?: boolean; build?: number | null }) {
+  const house = (id && houseById(id)) || houseFor(level, name);
+  return <Building url={houseUrl(house)} at={houseAt(houseSpec(level), house)} cut={cut} lit={lit} build={build} />;
+}
+
+// `turn`: which way the figure faces (radians about the vertical, LDraw frame)
+// how far into the jump pose a minifig is, `h` seconds into a hop: 0 on the ground, 1 mid-air
+// (a big jump only; little hops stay as they are)
+function airPose(h: number, big: boolean): number {
+  if (!big || h < 0 || h > 0.62) return 0;
+  return Math.min(1, h / 0.08) * Math.min(1, (0.62 - h) / 0.1);
+}
+function Minifig({
+  look,
+  at,
+  turn = 0,
+  walking,
+  wave = false,
+  stride = 10,
+  jumpRef,
+  sit = false,
+  teleRef,
+  statue = false,
+}: {
+  /** four colours (townsfolk) or a whole figure (a character's loadout) */
+  look: MinifigLook | Figure;
+  at: [number, number, number];
+  turn?: number;
+  /** sitting: legs out in front, a little lower (on a bench) */
+  sit?: boolean;
+  /** while true, the legs and arms swing */
+  walking?: React.RefObject<boolean>;
+  /** standing, it raises an arm and waves (hello!) */
+  wave?: boolean;
+  /** how fast the legs go while walking (running: faster) */
+  stride?: number;
+  /** bumped to jump (the Jump button, Space) */
+  jumpRef?: React.RefObject<number>;
+  /** the clock time a teleport began (-1: none): it bursts apart, then builds itself again (TELE_*) */
+  teleRef?: React.RefObject<number>;
+  /** a statue: stands stock still (no fidgets, no looking about) */
+  statue?: boolean;
+}) {
+  const [model, setModel] = useState<THREE.Object3D | null>(null);
+  const key = JSON.stringify("parts" in look ? { parts: look.parts, gear: look.gear, shoes: look.shoes } : figureOf(look));
+  useEffect(() => {
+    let live = true;
+    loadMinifig(JSON.parse(key))
+      .then((o) => live && setModel(o.clone()))
+      .catch((e) => console.error("minifig:", e));
+    return () => {
+      live = false;
+    };
+  }, [key]);
+  const root = useRef<THREE.Group>(null);
+  const taps = useRef(0); // bumped by a tap
+  const seen = useRef(0);
+  const hopAt = useRef(-10); // frame-clock time the current hop started
+  const hopBig = useRef(false); // a jump, not a little hop
+  const hopFrom = useRef(0); // how high you were when this jump began (a double jump starts in the air)
+  const hopDouble = useRef(false); // this jump is the second, in the air
+  const jumpsSeen = useRef(0);
+  const base = useRef<THREE.Quaternion[]>([]);
+  const limbs = useRef<THREE.Quaternion[]>([]);
+  const gait = useRef({ blend: 0, phase: 0, still: 0 }); // 0 standing .. 1 walking; where it is in the step; when it last stopped
+  // each figure fidgets on its own clock (an offset from its id), so the town never moves in step
+  const id = useId();
+  const fidgetOffset = useMemo(() => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 9973, 7) / 9973 * FIDGET_EVERY, [id]);
+
+  // a teleport, the LEGO way: the pieces pop apart and are gone; then at the other end they're built
+  // again the way the LEGO games build things: one group at a time from the feet up (both legs, the
+  // hips, the torso, both arms, the head, the hair, then anything else), each hopping in on a short arc
+  // from beside where it goes, straightening as it comes, and clicking home with a little press
+  const homes = useRef<{ p: THREE.Vector3; q: THREE.Quaternion }[] | null>(null);
+  const teleDone = useRef(-1);
+  const clicked = useRef(-1); // the last group that has clicked home (one click sound each)
+  const spin = useMemo(() => new THREE.Quaternion(), []);
+  const teleport = (t: number) => {
+    const start = teleRef?.current ?? -1;
+    if (!model || start < 0 || teleDone.current === start) return;
+    const pieces = model.children;
+    if (!homes.current || homes.current.length !== pieces.length) homes.current = pieces.map((c) => ({ p: c.position.clone(), q: c.quaternion.clone() }));
+    const home = homes.current;
+    const e = t - start;
+    const done = e >= TELE_ARRIVE + TELE_BUILD;
+    if (e < TELE_ARRIVE) clicked.current = -1;
+    pieces.forEach((c, k) => {
+      const h = home[k];
+      const animated = LIMBS.has(c.name); // the walk sets these every frame; the rest keep their home turn
+      const side = /L$/.test(c.name) ? -1 : /R$/.test(c.name) ? 1 : 0;
+      let [dx, dy, roll, size] = [0, 0, 0, 1];
+      if (done) {
+        // home
+      } else if (e < TELE_BREAK) {
+        // popping apart: out to its side (the middle pieces up), a quarter turn, shrinking away
+        const u = e / TELE_BREAK;
+        const o = 1 - (1 - u) ** 3;
+        [dx, dy, roll, size] = [side * 46 * o, -(side ? 28 : 50) * o, (side || 1) * 1.2 * o, 1 - u * u];
+      } else if (e < TELE_ARRIVE) {
+        size = 0;
+      } else {
+        const g = BUILD_ORDER(c.name);
+        const v = Math.min(1, Math.max(0, (e - TELE_ARRIVE - g * BUILD_GAP) / BUILD_HOP));
+        if (v <= 0) size = 0;
+        else {
+          const o = 1 - (1 - v) ** 3; // fast, then easing home
+          const after = (e - TELE_ARRIVE - g * BUILD_GAP - BUILD_HOP) / 0.1; // the click: a little press, and back
+          [dx, dy, roll, size] = [side * 26 * (1 - o), -46 * (1 - o) - Math.sin(Math.PI * v) * 10 + (after > 0 && after < 1 ? Math.sin(Math.PI * after) * 2.5 : 0), (side || 1) * 0.5 * (1 - o), 0.6 + 0.4 * Math.min(1, v * 1.8)];
+          if (v === 1 && g > clicked.current) {
+            clicked.current = g;
+            sfx.snap(); // a brick clicking home
+          }
+        }
+      }
+      c.position.set(h.p.x + dx, h.p.y + dy, h.p.z);
+      c.scale.setScalar(Math.max(0.0001, size));
+      spin.setFromAxisAngle(Z_AXIS, roll);
+      if (animated) c.quaternion.premultiply(spin);
+      else c.quaternion.copy(h.q).premultiply(spin);
+    });
+    if (done) teleDone.current = start;
+  };
+
+  const posed = useRef<THREE.Object3D | null>(null);
+  useFrame(({ clock }, dt) => {
+    const t = clock.elapsedTime;
+    if (!model || !root.current) return;
+    if (statue) {
+      // stock still, one hand raised as in the photo (set once, for this model)
+      if (posed.current !== model) {
+        posed.current = model;
+        model.getObjectByName("swingR")?.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(X_AXIS, 1.3));
+      }
+      return;
+    }
+    // ease into and out of the walk (no snapping between standing and striding)
+    const g = gait.current;
+    g.blend += ((walking?.current ? 1 : 0) - g.blend) * Math.min(1, dt * 10);
+    g.phase += dt * stride * (0.4 + 0.6 * g.blend);
+    if (walking?.current) g.still = t;
+    if (teleRef && t - teleRef.current < TELE_ARRIVE + TELE_BUILD + 1) g.still = t; // no fidgeting mid-teleport
+    // the head and hair turn together, glancing around while standing; on the move they look
+    // straight ahead, where they're going (a face looking one way while the legs go another reads wrong)
+    const head = model.getObjectByName("head");
+    const hair = model.getObjectByName("hair");
+    if (head && hair) {
+      if (!base.current.length) base.current = [head.quaternion.clone(), hair.quaternion.clone()];
+      const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.sin(t * 0.5) * 0.45 * (1 - g.blend));
+      head.quaternion.copy(base.current[0]).premultiply(yaw);
+      hair.quaternion.copy(base.current[1]).premultiply(yaw);
+    }
+    // the LEGO-game walk: stiff legs swinging from the hips, arms (with hands and whatever
+    // they hold) swinging the other way, shorter strides when strolling, longer when running
+    const parts = ["legL", "legR", "swingL", "swingR"].map((n) => model.getObjectByName(n));
+    const reach = (stride > 15 ? RUN_REACH : Math.min(0.95, 0.3 + stride * 0.032)) * g.blend; // a run: long bounding steps
+    const s = Math.sin(g.phase);
+    if (parts.every(Boolean)) {
+      if (!limbs.current.length) limbs.current = parts.map((p) => p!.quaternion.clone());
+      // running (a long stride) pumps the arms right through, as far as the legs; walking swings them less
+      const arms = stride > 15 ? 1.15 : 0.8;
+      const swing = sit ? [-1.5, -1.5, 0, 0] : [s * reach, -s * reach, -s * reach * arms, s * reach * arms]; // legL legR armL armR
+      // a hand holding something (a sword, a staff) carries it the LEGO-game way: that arm barely swings and
+      // comes up a little, which tips the blade back to rest steady over the shoulder (swung like the empty
+      // hand, it swept from straight out in front to over the head every stride)
+      const holds = [2, 3].map((k) => parts[k]!.children.some((c) => c.name.startsWith("gear:")));
+      for (const k of [2, 3]) if (holds[k - 2] && !sit) swing[k] = swing[k] * 0.15 + CARRY * g.blend;
+      const free = holds[1] && !holds[0] ? 2 : 3; // the arm that fidgets: the empty one
+      // standing a while, it fidgets the LEGO-game way, now and then: checks its wrist, swings its
+      // arms, taps a foot (each eased in and out, then a rest)
+      if (!sit && !(wave && t % 5 < 3) && g.blend < 0.05 && t - g.still > 2) {
+        const it = t + fidgetOffset;
+        const u = (it % FIDGET_EVERY) / 1.6;
+        if (u < 1) {
+          const env = Math.sin(u * Math.PI);
+          const kind = Math.floor(it / FIDGET_EVERY) % 3;
+          if (kind === 0) swing[free] += 1.3 * env; // the free arm up in front: a look at the watch
+          else if (kind === 1) swing[free] += Math.sin(it * 7) * 0.45 * env; // the free arm swinging, bored
+          else swing[1] += Math.max(0, Math.sin(it * 16)) * 0.35 * env; // a foot tapping
+        }
+      }
+      // in the air (a jump, the LEGO-game way): arms flung up, legs split, eased in and out
+      const air = airPose(t - hopAt.current, hopBig.current);
+      if (air > 0) {
+        const pose = [0.75, -0.55, 2.5, 2.3];
+        for (let k = 0; k < 4; k++) swing[k] += (pose[k] - swing[k]) * air;
+      }
+      parts.forEach((p, k) =>
+        p!.quaternion.copy(limbs.current[k]).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), swing[k])),
+      );
+      // waving: one arm up (about the shoulder), rocking side to side; a few seconds, then a rest
+      if (wave && !walking?.current && t % 5 < 3) {
+        const up = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 2.6);
+        const rock = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.sin(t * 9) * 0.35);
+        parts[3]!.quaternion.copy(limbs.current[3]).premultiply(up).premultiply(rock);
+      }
+    }
+    // a hop when tapped (LDraw is -Y up)
+    if (taps.current !== seen.current) {
+      seen.current = taps.current;
+      hopAt.current = t;
+      hopBig.current = false;
+    }
+    // a jump; and a second press while still up in the air, the LEGO-game double jump: up again from
+    // wherever you are, higher, with a full spin
+    const lift = (h: number) => {
+      const k = Math.min(1, h / JUMP_AIR);
+      return hopFrom.current * (1 - k) + Math.sin(k * Math.PI) * (hopDouble.current ? JUMP_HIGH * 0.9 : JUMP_HIGH);
+    };
+    if (jumpRef && jumpRef.current !== jumpsSeen.current) {
+      jumpsSeen.current = jumpRef.current;
+      const up = t - hopAt.current;
+      if (hopBig.current && up < JUMP_AIR && !hopDouble.current) {
+        hopFrom.current = lift(up);
+        hopDouble.current = true;
+        hopAt.current = t;
+        sfx.whoosh();
+      } else if (up > 0.5) {
+        [hopAt.current, hopBig.current, hopFrom.current, hopDouble.current] = [t, true, 0, false];
+      }
+    }
+    const h = t - hopAt.current;
+    const [hopTime, hopHeight] = hopBig.current ? [JUMP_AIR, JUMP_HIGH] : [0.45, 14];
+    // a bounce on every step and a waddle from foot to foot (LDraw is -Y up); a run bounds the LEGO Batman way,
+    // every stride a little leap that springs up off the foot and hangs a moment before the next one lands
+    const running = stride > 15 ? g.blend : 0;
+    const bounce = running ? Math.abs(s) ** 0.6 * 11 * running : Math.abs(s) * (1.5 + stride * 0.15) * g.blend;
+    root.current.position.y = at[1] + (sit ? 6 : 0) - bounce - (h < hopTime ? (hopBig.current ? lift(h) : Math.sin((h / hopTime) * Math.PI) * hopHeight) : 0);
+    root.current.rotation.order = "YXZ"; // the lean is about its own sideways axis, whichever way it faces
+    root.current.rotation.z = s * 0.075 * g.blend;
+    // standing, it stands put (only the head looks about); a double jump spins it right round
+    const spinK = hopDouble.current && h < JUMP_AIR ? Math.min(1, h / (JUMP_AIR * 0.8)) : 0;
+    root.current.rotation.y = turn + (spinK > 0 ? Math.PI * 2 * (spinK < 0.5 ? 2 * spinK * spinK : 1 - (-2 * spinK + 2) ** 2 / 2) : 0);
+    // leaning into it: a little when walking, well forward when running (its front is +z)
+    root.current.rotation.x = -(stride > 15 ? 0.32 : 0.05) * g.blend;
+    // and a squash on landing from a jump: down and out for a moment, then back
+    const land = h - hopTime;
+    // (and a little one on every running footfall)
+    const squash = hopBig.current && land > 0 && land < 0.16 ? Math.sin((land / 0.16) * Math.PI) : (h < hopTime ? 0 : (1 - Math.abs(s)) ** 6 * running * 0.45);
+    root.current.scale.set(1 + squash * 0.07, 1 - squash * 0.13, 1 + squash * 0.07);
+    teleport(t);
+  });
+  if (!model) return null;
+  return (
+    <group
+      ref={root}
+      position={at}
+      onClick={(e) => {
+        e.stopPropagation();
+        taps.current++;
+      }}
+    >
+      <primitive object={model} />
+    </group>
+  );
+}
+
+const FRONT_RIGHT = new THREE.Vector3(0.55, 0.65, -0.8).normalize();
+const PAN_MOUSE = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+const TURN_MOUSE = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+const PAN_TOUCH = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
+const TURN_TOUCH = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+
+// Frames `target` so `width` fits the view, looking from `dir`. The first
+// time it jumps there; after that the camera glides (under a second, eased),
+// and grabbing the view mid-flight hands it straight back to you.
+function FitCamera({
+  target,
+  width,
+  dir = FRONT_RIGHT,
+  controls,
+  follow,
+  flyingRef,
+  arrive,
+}: {
+  target: THREE.Vector3;
+  width: number;
+  dir?: THREE.Vector3;
+  controls: React.RefObject<OrbitControlsImpl | null>;
+  /** following someone: frame where they are when following starts, not `target` */
+  follow?: React.RefObject<THREE.Vector3>;
+  /** set while a glide is under way (the follow camera waits for it) */
+  flyingRef?: React.RefObject<boolean>;
+  /** following someone who's about to land somewhere else (a teleport): frame there instead */
+  arrive?: THREE.Vector3 | null;
+}) {
+  const { camera, size } = useThree();
+  const flight = useRef<{ from: THREE.Vector3; fromAim: THREE.Vector3; to: THREE.Vector3; toAim: THREE.Vector3; t: number } | null>(null);
+  const placed = useRef(false);
+  useLayoutEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera;
+    const vfov = (cam.fov * Math.PI) / 180;
+    const hfov = 2 * Math.atan(Math.tan(vfov / 2) * (size.width / size.height));
+    const dist = width / 2 / Math.tan(Math.min(hfov, vfov) / 2);
+    const aim = follow ? (arrive ?? follow.current).clone().add(CHASE_LIFT) : target;
+    // by default from the front-right, looking down at the house (the front faces three's -Z)
+    const to = aim.clone().addScaledVector(dir, dist);
+    const c = controls.current;
+    if (!placed.current || !c) {
+      cam.position.copy(to);
+      cam.lookAt(aim);
+      c?.target.copy(aim);
+      c?.update();
+      placed.current = !!c;
+      return;
+    }
+    flight.current = { from: cam.position.clone(), fromAim: c.target.clone(), to, toAim: aim.clone(), t: 0 };
+    // (follow is a ref: only where they are when following starts matters)
+  }, [camera, size, target, width, dir, controls, follow, arrive]);
+  useEffect(() => {
+    const c = controls.current;
+    if (!c) return;
+    const grab = () => (flight.current = null);
+    c.addEventListener("start", grab);
+    return () => c.removeEventListener("start", grab);
+  }, [controls]);
+  useFrame((_, dt) => {
+    const f = flight.current;
+    const c = controls.current;
+    if (flyingRef) flyingRef.current = !!f;
+    if (!f || !c) return;
+    f.t = Math.min(1, f.t + dt / 0.9);
+    const e = f.t < 0.5 ? 4 * f.t ** 3 : 1 - (-2 * f.t + 2) ** 3 / 2; // ease in and out
+    camera.position.lerpVectors(f.from, f.to, e);
+    c.target.lerpVectors(f.fromAim, f.toAim, e);
+    c.update();
+    if (f.t === 1) flight.current = null;
+  });
+  return null;
+}
+
+// Never more pixels than this: a big window renders at a lower ratio, since fill rate (bloom,
+// anti-aliasing, the ground) is what makes big windows crawl. Big enough that a laptop window
+// still renders at ~1.6x: at ~1.3x the bricks' edges go soft and the town looks smeared.
+const PIXEL_BUDGET = 3.4e6;
+// (reported up to the Canvas's own dpr prop: r3f re-applies that prop, so setting the store alone doesn't stick)
+function PixelBudget({ onSize }: { onSize: (w: number, h: number) => void }) {
+  const size = useThree((s) => s.size);
+  useEffect(() => onSize(size.width, size.height), [size.width, size.height, onSize]);
+  return null;
+}
+
+// The lens can change (a wider one while playing); before FitCamera frames anything.
+function FovSync({ fov }: { fov: number }) {
+  const { camera } = useThree();
+  useLayoutEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera;
+    if (Math.abs(cam.fov - fov) < 0.01) return;
+    // (the same as setting fov; it updates the projection too)
+    cam.setFocalLength((0.5 * cam.getFilmHeight()) / Math.tan(THREE.MathUtils.degToRad(fov) / 2));
+  }, [camera, fov]);
+  return null;
+}
+
+// The LEGO-game camera: once you're being followed, the view keeps you in
+// frame as you move -- eased, not rigid -- at whatever angle and distance you
+// have swung it to.
+const CHASE_LIFT = new THREE.Vector3(0, 3.2, 0); // aim a little over the minifig's head: it sits low in the frame, the way ahead fills it
+function Chase({
+  follow,
+  aim,
+  controls,
+  flying,
+  cut,
+}: {
+  follow: React.RefObject<THREE.Vector3>;
+  /** swing round behind (an angle round the target), or null: stay */
+  aim?: React.RefObject<number | null>;
+  controls: React.RefObject<OrbitControlsImpl | null>;
+  flying: React.RefObject<boolean>;
+  /** the camera cut: whatever is nearer the camera than this plane isn't drawn */
+  cut: THREE.Plane;
+}) {
+  const { camera } = useThree();
+  const want = useMemo(() => new THREE.Vector3(), []);
+  const off = useMemo(() => new THREE.Vector3(), []);
+  const ahead = useMemo(() => new THREE.Vector3(), []);
+  // the LEGO-game camera leads a little the way you're going (you see where you're heading, not
+  // where you've been): a third of a second of your movement, at most 5 studs, eased in and out
+  const leadRef = useRef({ last: new THREE.Vector3(), at: new THREE.Vector3(), want: new THREE.Vector3(), primed: false });
+  // when this camera goes (the map, a house), the cut goes too
+  useEffect(() => () => void cut.set(cut.normal, 1e6), [cut]);
+  const dragging = useRef(false);
+  useEffect(() => {
+    const c = controls.current;
+    if (!c) return;
+    const on = () => (dragging.current = true);
+    const offDrag = () => (dragging.current = false);
+    c.addEventListener("start", on);
+    c.addEventListener("end", offDrag);
+    return () => {
+      c.removeEventListener("start", on);
+      c.removeEventListener("end", offDrag);
+    };
+  }, [controls]);
+  useFrame((_, dt) => {
+    const c = controls.current;
+    if (!c || flying.current) return;
+    const p = follow.current;
+    const lead = leadRef.current;
+    lead.want.subVectors(p, lead.last).divideScalar(Math.max(dt, 1e-3)).multiplyScalar(0.33).setY(0);
+    if (!lead.primed || lead.want.length() > 40) lead.want.set(0, 0, 0); // a jump across town (into a house): no lead
+    lead.want.clampLength(0, 5);
+    lead.at.lerp(lead.want, Math.min(1, dt * 2.5));
+    lead.last.copy(p);
+    lead.primed = true;
+    want.copy(p).add(CHASE_LIFT).add(lead.at).sub(c.target).multiplyScalar(Math.min(1, dt * 10));
+    c.target.add(want);
+    camera.position.add(want);
+    // ease round behind you as you go (never while you're turning the view yourself)
+    const yaw = aim?.current;
+    if (yaw !== null && yaw !== undefined && !dragging.current) {
+      off.subVectors(camera.position, c.target);
+      const now = Math.atan2(off.x, off.z);
+      const d = Math.atan2(Math.sin(yaw - now), Math.cos(yaw - now));
+      off.applyAxisAngle(THREE.Object3D.DEFAULT_UP, d * Math.min(1, dt * 1.3)); // gently: it comes round, it doesn't whip round (and A/D circle about 6 studs wide)
+      camera.position.copy(c.target).add(off);
+    }
+    c.update();
+    // cut away what stands between the camera and you (a lamp, a tree, a wall): a plane
+    // most of the way to you, but short of where the bottom of the view meets the ground,
+    // so the ground always stays
+    camera.getWorldDirection(ahead);
+    const half = THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov / 2);
+    const pitch = Math.asin(-ahead.y); // how far down it looks
+    const low = Math.sin(pitch + half); // the bottom edge's downward slope
+    const groundNear = low > 0.05 ? (camera.position.y / low) * Math.cos(half) : Infinity;
+    // and always short of you: the plane stops three units before your feet, so no part of you
+    // (the head is the nearest to a camera looking down) is ever cut away
+    const reach = Math.min(camera.position.distanceTo(c.target) * 0.62, groundNear * 0.9, camera.position.distanceTo(follow.current) - 3);
+    cut.setFromNormalAndCoplanarPoint(ahead, off.copy(camera.position).addScaledVector(ahead, reach));
+  });
+  return null;
+}
+
+export default function LegoWorld({
+  houseLevel = 1,
+  name,
+  house,
+  spin = 0,
+  streak = 0,
+  look = BASE_HUNTER,
+  character,
+  className,
+}: {
+  houseLevel?: number;
+  /** whose house: picks which of the level's houses (same as in their town) */
+  name?: string;
+  /** show this exact house (an id from legoHouses.json), for previews */
+  house?: string;
+  /** previews only: extra quarter turns of the house, to find its front */
+  spin?: number;
+  streak?: number;
+  look?: MinifigLook;
+  /** the player's character (archetype key): they wear its loadout for houseLevel (instead of `look`) */
+  character?: string | null;
+  className?: string;
+}) {
+  const spec = houseSpec(houseLevel);
+  // the baseplate is drawn flat (StudGround, like the town) instead of 2,304
+  // real studs, and the garden's trees and flowers are instanced
+  const garden = useMemo(() => splitInstanced(buildGarden(streak, houseSpec(houseLevel))), [houseLevel, streak]);
+  const worldText = useMemo(() => modelText(garden.kept, "plot.ldr"), [garden]);
+  const doorSlab = useMemo(() => [doorPath(houseSpec(houseLevel))], [houseLevel]);
+  const world = useModel(worldText, true);
+  const at = minifigSpot(spec);
+  // the house centre in three's space: x as is, LDraw z flipped by the container's half-turn
+  const target = useMemo(() => {
+    const cx = (spec.x0 + spec.w / 2 - PLOT / 2) * 20 * LDU;
+    const cz = (spec.z0 + spec.d / 2 - PLOT / 2) * 20 * LDU;
+    return new THREE.Vector3(cx, 3, -cz - 3);
+  }, [spec.x0, spec.w, spec.z0, spec.d]);
+
+  return (
+    <Stage
+      className={className}
+      label="Your house and garden"
+      target={target}
+      width={Math.max(34, spec.w + 14)}
+      overlay={<StudGround at={[0, 0]} size={PLOT} color="#4b9b3c" />}
+    >
+      {world && <primitive object={world} />}
+      <Slabs slabs={doorSlab} />
+      <InstancedParts placements={garden.placed} />
+      {spin ? <SpunHouse level={houseLevel} id={house} spin={spin} /> : <House level={houseLevel} name={name} id={house} />}
+      <Minifig look={character ? loadoutFor(houseLevel, character) : look} at={at} />
+    </Stage>
+  );
+}
+
+// ---- time of day ----
+// The town follows your real clock: blue day, golden sunrise and sunset, a
+// dusk when the lamps come on, and night with stars and moonlight.
+// ponytail: four fixed moods; blend between them if the switch ever jars
+export type Mood = { name: string; top: string; horizon: string; sun: number; sunColor: string; ambient: number; night: boolean; /** the light from the sky (the hemisphere light's colour) */ skyLight?: string };
+const MOODS: Record<string, Mood> = {
+  // a soft, slightly hazy day: a pale horizon, warm sun, blue-tinted light from the sky
+  day: { name: "day", top: "#4d9ae8", horizon: "#d9ecf8", sun: 2.5, sunColor: "#ffe8c4", ambient: 1, night: false, skyLight: "#dfe9ff" },
+  golden: { name: "golden", top: "#5a86d6", horizon: "#ffd6a6", sun: 2.0, sunColor: "#ffb870", ambient: 0.85, night: false, skyLight: "#ffe6c8" },
+  // LEGO-game nights stay readable: a cool blue moonlight, not just darker
+  // dusk keeps LEGO colours bright: a pink sunset sun and a cool lilac sky (orange light on green plastic reads olive)
+  dusk: { name: "dusk", top: "#2c3f7e", horizon: "#f4a487", sun: 1.6, sunColor: "#ffc6aa", ambient: 0.85, night: true, skyLight: "#d8dcff" },
+  night: { name: "night", top: "#0c1740", horizon: "#2b3f78", sun: 0.75, sunColor: "#a9c2ff", ambient: 0.6, night: true, skyLight: "#a9bcff" },
+};
+export function moodAt(hour: number): Mood {
+  if (hour >= 20.5 || hour < 5) return MOODS.night;
+  if (hour >= 19 || hour < 6) return MOODS.dusk;
+  if (hour >= 17 || hour < 8) return MOODS.golden;
+  return MOODS.day;
+}
+export const MOOD_NAMES = Object.keys(MOODS);
+export const moodNamed = (name: string) => MOODS[name] ?? MOODS.day;
+
+// A gradient dome round the whole scene, and stars when it's dark.
+function SkyDome({ mood }: { mood: Mood }) {
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: { top: { value: new THREE.Color() }, horizon: { value: new THREE.Color() } },
+        vertexShader: "varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+        fragmentShader:
+          "uniform vec3 top; uniform vec3 horizon; varying vec3 vDir;\nvoid main() {\n  float h = clamp(vDir.y * 1.8, 0.0, 1.0);\n  gl_FragColor = vec4(mix(horizon, top, pow(h, 0.7)), 1.0);\n#include <colorspace_fragment>\n}",
+        side: THREE.BackSide,
+        depthWrite: false,
+        fog: false,
+      }),
+    [],
+  );
+  useEffect(() => {
+    material.uniforms.top.value.set(mood.top);
+    material.uniforms.horizon.value.set(mood.horizon);
+  }, [material, mood]);
+  const stars = useMemo(() => {
+    const pts: number[] = [];
+    let seed = 5;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 500; i++) {
+      const a = rnd() * Math.PI * 2;
+      const y = 0.15 + rnd() * 0.85; // upper sky only
+      const r = Math.sqrt(1 - y * y);
+      pts.push(Math.cos(a) * r * 440, y * 440, Math.sin(a) * r * 440);
+    }
+    return new Float32Array(pts);
+  }, []);
+  return (
+    <>
+      <mesh material={material} scale={450} renderOrder={-1}>
+        <sphereGeometry args={[1, 32, 16]} />
+      </mesh>
+      {mood.night && (
+        <points>
+          <bufferGeometry>
+            <bufferAttribute attach="attributes-position" args={[stars, 3]} />
+          </bufferGeometry>
+          <pointsMaterial color="#ffffff" size={1.6} sizeAttenuation={false} fog={false} />
+        </points>
+      )}
+    </>
+  );
+}
+
+// Warm glows round the lamps after dark: additive sprites, no real lights.
+let glowTexture: THREE.CanvasTexture | null = null;
+function glow() {
+  if (glowTexture) return glowTexture;
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d")!;
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, "rgba(255,226,150,1)");
+  r.addColorStop(0.25, "rgba(255,200,110,0.55)");
+  r.addColorStop(1, "rgba(255,180,90,0)");
+  g.fillStyle = r;
+  g.fillRect(0, 0, 64, 64);
+  glowTexture = new THREE.CanvasTexture(c);
+  return glowTexture;
+}
+// a pool of lamplight on the ground: warm in the middle, fading out soft
+let poolTexture: THREE.CanvasTexture | null = null;
+function pool() {
+  if (poolTexture) return poolTexture;
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  r.addColorStop(0, "rgba(255,214,140,0.62)");
+  r.addColorStop(0.45, "rgba(255,190,110,0.28)");
+  r.addColorStop(1, "rgba(255,170,90,0)");
+  g.fillStyle = r;
+  g.fillRect(0, 0, 128, 128);
+  poolTexture = new THREE.CanvasTexture(c);
+  return poolTexture;
+}
+// The lamps after dark, the LEGO-game way: a bright bulb inside each dome (it blooms), a small soft halo
+// round it (a big one hid the lamp's head in a fuzzy blob), and a warm pool of light on the ground under
+// it. `at`: the lamp heads (LDU, LDraw frame); all instanced
+function LampGlows({ at }: { at: [number, number, number][] }) {
+  const halo = useMemo(() => glow(), []);
+  const ground = useMemo(() => pool(), []);
+  const bulbs = useRef<THREE.InstancedMesh>(null);
+  const pools = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const o = new THREE.Object3D();
+    at.forEach(([x, y, z], i) => {
+      o.position.set(x, y + 4, z);
+      o.rotation.set(0, 0, 0);
+      o.updateMatrix();
+      bulbs.current?.setMatrixAt(i, o.matrix);
+      o.position.set(x, -5, z); // just above the paving (LDraw: -y is up)
+      o.rotation.set(Math.PI / 2, 0, 0);
+      o.updateMatrix();
+      pools.current?.setMatrixAt(i, o.matrix);
+    });
+    if (bulbs.current) bulbs.current.instanceMatrix.needsUpdate = true;
+    if (pools.current) pools.current.instanceMatrix.needsUpdate = true;
+  }, [at]);
+  return (
+    <>
+      <instancedMesh ref={bulbs} args={[undefined, undefined, at.length]} frustumCulled={false}>
+        <sphereGeometry args={[9, 12, 8]} />
+        <meshBasicMaterial color="#fff3cf" toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={pools} args={[undefined, undefined, at.length]} frustumCulled={false} renderOrder={1}>
+        <planeGeometry args={[300, 300]} />
+        <meshBasicMaterial map={ground} blending={THREE.AdditiveBlending} depthWrite={false} transparent fog={false} side={THREE.DoubleSide} />
+      </instancedMesh>
+      {at.map((p, i) => (
+        <sprite key={i} position={p} scale={[70, 70, 1]}>
+          <spriteMaterial map={halo} blending={THREE.AdditiveBlending} depthWrite={false} transparent fog={false} opacity={0.75} />
+        </sprite>
+      ))}
+    </>
+  );
+}
+
+/** `at`: a point in three's space, or a function giving it each frame (for someone walking about) */
+export type Pin = { key: string; at: [number, number, number] | (() => [number, number, number] | null); node: React.ReactNode };
+
+// Real studs on the ground round you: a stud a stud, on the plots and the plaza
+// (the painted studs stay underneath, and take over further off). Instanced
+// low-poly cylinders, laid out again whenever you've moved a few studs.
+const NEAR_REACH = 28; // studs from you: full studs (16-sided), tufts and loose pieces, relaid every few steps
+const FAR_REACH = 96; // and out to here: light six-sided studs, relaid less often (so you never see where studs stop)
+const NEAR_MAX = 3 * (2 * NEAR_REACH + 1) ** 2; // room for the plots' studs (in their own turned frames) and the open ground's
+const FAR_MAX = Math.round(1.6 * (2 * FAR_REACH + 1) ** 2);
+// a tuft of grass: three thin blades leaning apart (unit size, scaled where it stands)
+function tuftGeometry(): THREE.BufferGeometry {
+  const blades: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 3; k++) {
+    const g = new THREE.ConeGeometry(0.09, 0.5, 4);
+    g.translate(0, 0.25, 0);
+    g.rotateZ(0.5 - k * 0.5);
+    g.rotateY(k * 2.1);
+    blades.push(g);
+  }
+  return mergeGeometries(blades.map((g) => g.toNonIndexed()));
+}
+const TUFT_MAX = 900;
+const BITS_MAX = 260;
+const GRASS_Y = -0.3; // the open grass's height (three units), under everything else
+const MEADOW_Y = -0.2; // a meadow patch lies on it
+function NearStuds({ follow, grass, lots }: { follow: React.RefObject<THREE.Vector3>; grass: string; lots: Lot[] }) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const farMesh = useRef<THREE.InstancedMesh>(null);
+  const tufts = useRef<THREE.InstancedMesh>(null);
+  const bits = useRef<THREE.InstancedMesh>(null); // loose round plates and pebbles lying on the studs
+  const bitColours = useMemo(() => ["#a0a5a9", "#6c6e68", "#d8c79c", new THREE.Color(grass).multiplyScalar(0.82).getStyle()].map((c) => new THREE.Color(c)), [grass]);
+  const tuftGeo = useMemo(() => tuftGeometry(), []);
+  const tuftGreen = useMemo(() => new THREE.Color(grass).multiplyScalar(0.78), [grass]);
+  const jittered = useMemo(() => new THREE.Color(), []);
+  const nearLaid = useRef({ x: 1e9, z: 1e9 });
+  const farLaid = useRef({ x: 1e9, z: 1e9 });
+  const o = useMemo(() => new THREE.Object3D(), []);
+  const green = useMemo(() => new THREE.Color(grass), [grass]);
+  const meadowGreens = useMemo(() => [0, 1, 2].map((k) => new THREE.Color(meadowShade(grass, k))), [grass]);
+  // every stud within `reach` of (px, pz): on the plaza and the plots in their own turned frames,
+  // then on the open grass and meadows (none on anything flat). `each` gets three's x, the ground's
+  // height, z, its colour, and (open ground only) the cell's hash
+  // (a generator: it pauses after each plot and each row, so a big pass can be spread over frames)
+  function* layRows(px: number, pz: number, reach: number, each: (x: number, base: number, z: number, c: THREE.Color, hash: number) => void) {
+    for (const lot of lots) { // (the plaza is smooth tiles: no studs there)
+      const size = PLOT;
+      const [u, v] = fromLot(lot, [px * 20, -pz * 20]); // studs from the plot's centre, its frame (LDraw z)
+      const [cu, cv] = [Math.round(u / 20), Math.round(v / 20)];
+      if (Math.abs(cu) > size / 2 + reach || Math.abs(cv) > size / 2 + reach) continue;
+      for (let i = Math.max(cu - reach, -size / 2); i <= Math.min(cu + reach, size / 2 - 1); i++)
+        for (let k = Math.max(cv - reach, -size / 2); k <= Math.min(cv + reach, size / 2 - 1); k++) {
+          const [x, , z] = inLot(lot, [(i + 0.5) * 20, 0, (k + 0.5) * 20]);
+          each(x * LDU, 0, -z * LDU, green, -1);
+        }
+      yield;
+    }
+    for (let i = px - reach; i <= px + reach; i++) {
+      yield;
+      for (let k = pz - reach; k <= pz + reach; k++) {
+        const [x, z] = [(i + 0.5) * 20, -(k + 0.5) * 20]; // LDU
+        if (lots.some((lot) => { const [u, v] = fromLot(lot, [x, z]); return Math.abs(u) < (PLOT / 2 + 0.5) * 20 && Math.abs(v) < (PLOT / 2 + 0.5) * 20; })) continue;
+        const g = openGround(x, z);
+        if (g < 0) continue;
+        const hash = ((i * 73856093) ^ (k * 19349663)) >>> 0; // the same stud always gets the same shade and tuft
+        // seated on the ground it stands on: the open grass lies at GRASS_Y, a meadow at MEADOW_Y
+        each(i + 0.5, g === 0 ? GRASS_Y : MEADOW_Y, k + 0.5, jittered.copy(g === 0 ? green : meadowGreens[g - 1]).multiplyScalar(0.96 + ((hash % 1000) / 1000) * 0.08), hash);
+      }
+    }
+  }
+  const lay = (px: number, pz: number, reach: number, each: (x: number, base: number, z: number, c: THREE.Color, hash: number) => void) => {
+    for (const _ of layRows(px, pz, reach, each)) void _;
+  };
+  const farJob = useRef<{ rows: Generator; count: { n: number } } | null>(null);
+  // show the first `c` instances, uploading only those (the far mesh's buffer is megabytes)
+  const done = (mm: THREE.InstancedMesh, c: number) => {
+    mm.count = c;
+    mm.instanceMatrix.clearUpdateRanges();
+    mm.instanceMatrix.addUpdateRange(0, c * 16);
+    mm.instanceMatrix.needsUpdate = true;
+    if (mm.instanceColor) {
+      mm.instanceColor.clearUpdateRanges();
+      mm.instanceColor.addUpdateRange(0, c * 3);
+      mm.instanceColor.needsUpdate = true;
+    }
+  };
+  useFrame(() => {
+    const m = mesh.current;
+    const fm = farMesh.current;
+    const tm = tufts.current;
+    const bm = bits.current;
+    if (!m || !fm || !tm || !bm) return;
+    const px = Math.round(follow.current.x);
+    const pz = Math.round(follow.current.z);
+    // far off: light studs everywhere out to FAR_REACH, a touch smaller and lower than the full
+    // ones, so where both are laid the full stud hides the light one inside it. A big job, so it's
+    // done a few milliseconds a frame (it picks up where it left off) and shown when complete
+    if (!farJob.current && (Math.abs(px - farLaid.current.x) >= 10 || Math.abs(pz - farLaid.current.z) >= 10)) {
+      farLaid.current = { x: px, z: pz };
+      const count = { n: 0 };
+      farJob.current = {
+        count,
+        rows: layRows(px, pz, FAR_REACH, (x, base, z, c) => {
+          if (count.n >= FAR_MAX) return;
+          o.position.set(x, base + 0.08, z);
+          o.updateMatrix();
+          fm.setMatrixAt(count.n, o.matrix);
+          fm.setColorAt(count.n++, c);
+        }),
+      };
+    }
+    const job = farJob.current;
+    if (job) {
+      const until = performance.now() + 4;
+      let finished = false;
+      while (performance.now() < until) if (job.rows.next().done) {
+        finished = true;
+        break;
+      }
+      if (finished) {
+        done(fm, job.count.n);
+        farJob.current = null;
+      }
+    }
+    if (Math.abs(px - nearLaid.current.x) < 4 && Math.abs(pz - nearLaid.current.z) < 4) return;
+    nearLaid.current = { x: px, z: pz };
+    let n = 0;
+    let nt = 0;
+    let nb = 0;
+    lay(px, pz, NEAR_REACH, (x, base, z, c, hash) => {
+      if (n >= NEAR_MAX) return;
+      o.position.set(x, base + 0.085, z);
+      o.updateMatrix();
+      m.setMatrixAt(n, o.matrix);
+      m.setColorAt(n++, c);
+      if (hash < 0) return;
+      // now and then a loose round piece lying on the studs: a 2x2 round plate, or a 1x1 pebble
+      // (only well clear of paths, roads and water: never half on a path's edge)
+      if (nb < BITS_MAX && hash % 41 === 3 && [[2, 0], [-2, 0], [0, 2], [0, -2]].every(([dx, dz]) => openGround((x + dx) * 20, -(z + dz) * 20) >= 0)) {
+        const big = hash % 3 === 0;
+        o.position.set(x + ((hash % 9) / 9 - 0.5) * 0.3, base + 0.2, z + ((hash % 7) / 7 - 0.5) * 0.3);
+        o.scale.set(big ? 1 : 0.42, 1, big ? 1 : 0.42);
+        o.updateMatrix();
+        bm.setMatrixAt(nb, o.matrix);
+        bm.setColorAt(nb++, bitColours[hash % bitColours.length]);
+        o.scale.set(1, 1, 1);
+      }
+      // and a tuft of grass on about one cell in eleven
+      if (nt < TUFT_MAX && hash % 11 === 0) {
+        o.position.set(x + ((hash % 7) / 7 - 0.5) * 0.5, base + 0.17, z + ((hash % 5) / 5 - 0.5) * 0.5);
+        o.rotation.set(0, (hash % 360) * (Math.PI / 180), 0);
+        const sz = 0.7 + ((hash % 13) / 13) * 0.6;
+        o.scale.set(sz, sz, sz);
+        o.updateMatrix();
+        tm.setMatrixAt(nt++, o.matrix);
+        o.rotation.set(0, 0, 0);
+        o.scale.set(1, 1, 1);
+      }
+    });
+    done(m, n);
+    done(tm, nt);
+    done(bm, nb);
+  });
+  return (
+    <>
+      <instancedMesh ref={mesh} args={[undefined, undefined, NEAR_MAX]} frustumCulled={false} receiveShadow>
+        <cylinderGeometry args={[0.3, 0.3, 0.17, 16]} />
+        {/* flat-shaded: a crisp rim and a flat bright top, the way a stud reads, not a soft blob */}
+        <meshPhysicalMaterial roughness={0.5} clearcoat={0.3} clearcoatRoughness={0.4} flatShading />
+      </instancedMesh>
+      {/* further off: six-sided studs inside the full ones' outline, a plain material (a few pixels across there) */}
+      <instancedMesh ref={farMesh} args={[undefined, undefined, FAR_MAX]} frustumCulled={false}>
+        <cylinderGeometry args={[0.29, 0.29, 0.16, 6]} />
+        <meshStandardMaterial roughness={0.55} flatShading />
+      </instancedMesh>
+      <instancedMesh ref={bits} args={[undefined, undefined, BITS_MAX]} frustumCulled={false} castShadow receiveShadow>
+        <cylinderGeometry args={[0.95, 0.95, 0.12, 20]} />
+        <meshPhysicalMaterial roughness={0.45} clearcoat={0.5} clearcoatRoughness={0.3} />
+      </instancedMesh>
+      <instancedMesh ref={tufts} args={[undefined, undefined, TUFT_MAX]} geometry={tuftGeo} frustumCulled={false} castShadow>
+        <meshStandardMaterial color={tuftGreen} roughness={0.8} flatShading />
+      </instancedMesh>
+    </>
+  );
+}
+
+// Following someone round the town, the sunlight (and its shadow area, only
+// ~44 units across) goes with them, so you and what's around you always cast shadows.
+// the sun's direction from what it lights (three's space): lower than noon, so shadows run long
+// and every brick stands out, the way the LEGO games light a scene
+const SUN_FROM: [number, number, number] = [22, 22, -18];
+function SunFollows({
+  follow,
+  sun,
+  light,
+}: {
+  follow: React.RefObject<THREE.Vector3>;
+  sun: THREE.Object3D;
+  light: React.RefObject<THREE.DirectionalLight | null>;
+}) {
+  useFrame(() => {
+    const p = follow.current;
+    sun.position.set(p.x, 0, p.z);
+    light.current?.position.set(p.x + SUN_FROM[0], SUN_FROM[1], p.z + SUN_FROM[2]);
+  });
+  return null;
+}
+
+// Moves each pinned button to its point's place on screen, every frame.
+// (drei's Html gives each label its own React root, and under React 19 the
+// first one is dropped; plain DOM moved by hand has no such trouble.)
+function PinTracker({ pins, els }: { pins: Pin[]; els: React.RefObject<Map<string, HTMLDivElement>> }) {
+  const v = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ camera, size }) => {
+    for (const p of pins) {
+      const el = els.current.get(p.key);
+      if (!el) continue;
+      const at = typeof p.at === "function" ? p.at() : p.at;
+      if (!at) {
+        el.style.transform = "translate(-9999px, 0)";
+        continue;
+      }
+      v.set(...at).project(camera);
+      const x = ((v.x + 1) / 2) * size.width;
+      const y = ((1 - v.y) / 2) * size.height;
+      el.style.transform = v.z > 1 ? "translate(-9999px, 0)" : `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+    }
+  });
+  return null;
+}
+
+// Sky, light and camera around whatever LDraw models are passed in. The light
+// and the contact shadow follow the target, so a long town is lit wherever you look.
+function Stage({
+  className,
+  label,
+  target,
+  width,
+  pan = false,
+  dir,
+  fov = 32,
+  sky = "#bfe3ff",
+  mood,
+  far = 500,
+  maxDistance = 110,
+  bounds,
+  onPick,
+  overlay,
+  pins = [],
+  follow,
+  arrive,
+  aim,
+  sunFrom = SUN_FROM,
+  children,
+}: {
+  className?: string;
+  label: string;
+  target: THREE.Vector3;
+  width: number;
+  pan?: boolean;
+  dir?: THREE.Vector3;
+  /** vertical field of view: narrow for the diorama outside, wide for being in a room */
+  fov?: number;
+  /** outdoors: the time of day -- a gradient sky, the sun (or moon), stars at night.
+   *  Without it the scene sits in a plain `sky` colour (the room). */
+  mood?: Mood;
+  /** how far the camera sees, and how far out you may pull it (the town overview needs more) */
+  far?: number;
+  maxDistance?: number;
+  /** the colour beyond the scene: sky outside, a warm ceiling glow inside */
+  sky?: string;
+  /** the camera's target stays inside this box (three's space) */
+  bounds?: THREE.Box3;
+  /** a tap on the ground (not a drag), at this point in three's space */
+  onPick?: (p: THREE.Vector3) => void;
+  /** things placed in three's space rather than LDraw's (hills) */
+  overlay?: React.ReactNode;
+  /** buttons pinned over points in three's space (names, station bubbles) */
+  pins?: Pin[];
+  /** follow someone (their position in three's space, kept up to date), LEGO-game style */
+  follow?: React.RefObject<THREE.Vector3>;
+  /** where they're about to land (a teleport): the camera flies there, not to where they are */
+  arrive?: THREE.Vector3 | null;
+  /** while following: which way round to swing the camera (behind them), or null */
+  aim?: React.RefObject<number | null>;
+  /** where the sun stands, from the target (three's space): behind and right outdoors, in
+   *  through the open front of a room */
+  sunFrom?: [number, number, number];
+  children: React.ReactNode;
+}) {
+  const [sun] = useState(() => new THREE.Object3D());
+  // full sharpness (up to 2x) while the device keeps up; a step down if it can't
+  const [dpr, setDpr] = useState(2);
+  // and never more pixels than a phone screen at 2x (PixelBudget)
+  const [box, setBox] = useState({ w: 400, h: 700 });
+  const sized = useCallback((w: number, h: number) => setBox({ w, h }), []);
+  const near = !!follow || !mood; // a close view (playing, or a room) rather than the whole town
+  const camDist = width / 2 / Math.tan(THREE.MathUtils.degToRad(fov / 2)); // about how far back the camera sits to frame `width`
+  const budget = Math.max(1, Math.min(dpr, Math.sqrt(PIXEL_BUDGET / (box.w * box.h))));
+  const controls = useRef<OrbitControlsImpl>(null);
+  const light = useRef<THREE.DirectionalLight>(null);
+  const flying = useRef(false);
+  // one global clipping plane, always installed (so shaders never recompile when it starts
+  // or stops cutting); it clips nothing until a follow camera moves it (Chase)
+  const [cameraCut] = useState(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 1e6));
+  const pinEls = useRef(new Map<string, HTMLDivElement>());
+  // keep the camera over the town: pull the target back inside, camera with it
+  const clamp = () => {
+    const c = controls.current;
+    if (!c || !bounds) return;
+    const d = c.target.clone().clamp(bounds.min, bounds.max).sub(c.target);
+    if (d.lengthSq() === 0) return;
+    c.target.add(d);
+    c.object.position.add(d);
+  };
+  return (
+    <div className={className} role="img" aria-label={label}>
+      <div className="relative w-full h-full">
+        <Canvas
+          shadows="soft"
+          dpr={[1, budget]}
+          camera={{ fov, near: 1, far: far }}
+          gl={{ antialias: true }}
+          onCreated={({ gl }) => {
+            gl.localClippingEnabled = true;
+            gl.clippingPlanes.push(cameraCut);
+            // LEGO colours stay LEGO colours: the neutral curve keeps hue and saturation
+            // where the default filmic one washes bright plastic out
+            gl.toneMapping = THREE.NeutralToneMapping;
+            gl.toneMappingExposure = 1.05;
+          }}
+        >
+          <PerformanceMonitor onDecline={() => setDpr(1.5)} onIncline={() => setDpr(2)} />
+          <PixelBudget onSize={sized} />
+          <color attach="background" args={[mood?.horizon ?? sky]} />
+          {/* the haze scales with how much is in view: a house, the shop, or the whole town */}
+          {/* the air: distance turns the sky's colour. Playing, the woods fade at their far edge; from the
+              map, the hills and mountains sit in haze (the look of a city seen from high up) */}
+          <fog attach="fog" args={[mood?.horizon ?? sky, mood ? camDist * 1.05 + 40 : 200, mood ? camDist + Math.max(440, width * 1.4) * (mood.night ? 2 : 1) : 520]} />
+          {mood && <SkyDome mood={mood} />}
+          {/* the fill: a cool blue from the sky, so shadows read blue-violet against the warm sun (the LEGO-game look) */}
+          <hemisphereLight args={[mood?.skyLight ?? "#fff8ef", "#5d6f9a", (mood?.ambient ?? 0.9) * 1.1]} />
+          <primitive object={sun} position={[target.x, 0, target.z]} />
+          {follow && <SunFollows follow={follow} sun={sun} light={light} />}
+          <directionalLight
+            ref={light}
+            target={sun}
+            position={[target.x + sunFrom[0], sunFrom[1], target.z + sunFrom[2]]}
+            intensity={mood?.sun ?? 2.3}
+            color={mood?.sunColor ?? "#ffffff"}
+            castShadow
+            shadow-mapSize={[2048, 2048]}
+            shadow-camera-left={-22}
+            shadow-camera-right={22}
+            shadow-camera-top={22}
+            shadow-camera-bottom={-22}
+            shadow-camera-far={90}
+            shadow-bias={-0.0004}
+          />
+          {/* a rim light: cool blue from the side opposite the sun, no shadows, so edges glow softly
+              against the shade (the LEGO games' character lighting) */}
+          <directionalLight position={[target.x - sunFrom[0], sunFrom[1] * 0.6, target.z - sunFrom[2]]} intensity={(mood?.night ? 0.25 : 0.7) * (mood ? 1 : 0.5)} color="#9fbaff" />
+          <Environment resolution={256} frames={1} environmentIntensity={mood ? 0.5 : 0.7}>
+            {/* what the plastic reflects: outdoors the sky and the sun; indoors a warm room.
+                Plus soft panels for the glossy highlights that make it read as plastic. */}
+            {mood ? (
+              <Sky sunPosition={mood.night ? [0, -1, 0] : sunFrom} turbidity={6} rayleigh={mood.name === "day" ? 1.2 : 2.5} />
+            ) : (
+              <mesh scale={100}>
+                <sphereGeometry args={[1, 16, 8]} />
+                <meshBasicMaterial color="#f4e9d6" side={THREE.BackSide} />
+              </mesh>
+            )}
+            <Lightformer intensity={2.6 * (mood?.ambient ?? 1)} position={[0, 10, 10]} scale={[20, 8, 1]} />
+            <Lightformer intensity={1.4 * (mood?.ambient ?? 1)} position={[-10, 4, -6]} scale={[8, 8, 1]} />
+            <Lightformer intensity={1.2 * (mood?.ambient ?? 1)} position={[10, 6, -8]} scale={[10, 6, 1]} />
+          </Environment>
+
+          {/* LDraw is -Y up: a half-turn about X stands it upright */}
+          <group
+            rotation={[Math.PI, 0, 0]}
+            scale={LDU}
+            onClick={
+              onPick &&
+              ((e) => {
+                if (e.delta > 6) return; // a drag, not a tap
+                onPick(e.point);
+              })
+            }
+          >
+            {children}
+          </group>
+          {overlay}
+          <PinTracker pins={pins} els={pinEls} />
+
+          <ContactShadows position={[target.x, 0.02, target.z]} opacity={0.2} scale={36} blur={2} far={10} />
+          <OrbitControls
+            ref={controls}
+            onChange={clamp}
+            enablePan={pan}
+            screenSpacePanning={false}
+            // on the map a one-finger drag walks along the street, two fingers turn and zoom; playing,
+            // a drag turns the view round you. Both always given: a prop that goes away is reset to
+            // nothing, not to the controls' default (left drag did nothing once you'd been on the map)
+            mouseButtons={pan ? PAN_MOUSE : TURN_MOUSE}
+            touches={pan ? PAN_TOUCH : TURN_TOUCH}
+            minDistance={fov > 40 ? 6 : 14}
+            maxDistance={maxDistance}
+            minPolarAngle={0.45}
+            maxPolarAngle={1.25}
+          />
+          {/* after the controls, so it can move them */}
+          <FovSync fov={fov} />
+          <FitCamera target={target} width={width} dir={dir} controls={controls} follow={follow} flyingRef={flying} arrive={arrive} />
+          {follow && <Chase follow={follow} aim={aim} controls={controls} flying={flying} cut={cameraCut} />}
+          {/* outdoors: lamps and lit windows glowing after dark, a soft vignette. Everything
+              stays sharp (no blur: it read as low quality). The effects draw off screen, so the
+              neutral tone mapping moves in here. */}
+          {/* keyed: the close views and the whole-town view get their own composer (changing a
+              live composer's passes breaks its render) */}
+          <EffectComposer key={near ? "near" : "far"} multisampling={2}>
+            {/* ambient occlusion: the soft dark in the gaps between bricks and round every stud,
+                the thing that makes LEGO renders look like LEGO (a stud is one unit here). Close
+                views only: from above it barely shows and it draws the whole town a second time. */}
+            {near ? <N8AO aoRadius={1.5} distanceFalloff={0.8} intensity={2.3} color="#1d2a4a" quality="medium" halfRes /> : null}
+            {mood ? <Bloom luminanceThreshold={0.85} luminanceSmoothing={0.2} intensity={mood.night ? 1.1 : 0.25} mipmapBlur /> : null}
+            {mood ? <Vignette offset={0.35} darkness={0.28} /> : null}
+            <ToneMapping mode={ToneMappingMode.NEUTRAL} />
+            {/* toy-box colour: a touch more saturation and contrast than life */}
+            <HueSaturation saturation={0.1} />
+            <BrightnessContrast contrast={0.12} />
+          </EffectComposer>
+        </Canvas>
+        {/* pinned buttons: plain DOM over the canvas, moved every frame by PinTracker */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {pins.map((p) => (
+            <div
+              key={p.key}
+              ref={(el) => {
+                if (el) pinEls.current.set(p.key, el);
+                else pinEls.current.delete(p.key);
+              }}
+              className="absolute left-0 top-0 pointer-events-auto"
+              style={{ transform: "translate(-9999px, 0)" }}
+            >
+              {p.node}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Your town: the shop on a plaza in the middle, your house and your
+// friends' around it, all facing the plaza, forest all round. Drag to walk;
+// tap a house or the shop to go to it. Knock on a friend's door; once they let
+// you in (or it's your own house) you can go inside. The shop sells furniture
+// for your house.
+export type Visit = "allowed" | "knocked";
+const SHOP_FOCUS = -1;
+const FOUNTAIN_FOCUS = -3; // the big fountain on the plaza (a place you can teleport to)
+const OVERVIEW = -2; // the whole town from above
+const LOOK_DOWN = new THREE.Vector3(0.25, 0.95, -0.75).normalize(); // a high three-quarter view: the hills and the sky in the frame
+// playing: the camera behind and above you, looking down at about 40 degrees, close
+// enough that you're the star (LEGO-game style); you can swing it round with a drag
+const CHASE_DIR = new THREE.Vector3(0.1, 0.44, -0.9).normalize(); // about 25 degrees down: the horizon shows
+const CHASE_WIDTH = 27;
+const CHASE_FOV = 62; // a game camera's wide lens: you see well ahead and to the sides (the diorama views keep a narrow one)
+const STILL = new THREE.Vector3(); // a target that never changes (the camera follows you instead)
+// where the sun hangs in the sky (three's space): where the sunlight comes from
+// (up, to the right and behind the usual view), just inside the sky dome
+const SUN_AT = new THREE.Vector3(...SUN_FROM).normalize().multiplyScalar(420);
+const toThree = ([x, y, z]: [number, number, number]): [number, number, number] => [x * LDU, y, -z * LDU];
+// a rank step's name ("Gold II"): what a locked building spot is waiting for
+const rankLabel = (step: number) => `${TIERS[Math.min(TIERS.length - 1, Math.floor(step / 3))].name} ${STAGES[step % 3]}`;
+
+export function LegoTown({
+  residents: all,
+  visits = {},
+  onKnock,
+  room,
+  stations,
+  onTap,
+  gold = null,
+  prices = null,
+  owned = [],
+  onBuy,
+  time,
+  season: seasonProp,
+  visit,
+  guest,
+  friends = [],
+  onVisit,
+  tour = false,
+  onInvite,
+  stars = null,
+  onStar,
+  onBack,
+  backLabel = "World",
+  energy = null,
+  garden = [],
+  onPlace,
+  className,
+}: {
+  residents: Resident[];
+  /** by friend's name: they let you in, or you knocked and they haven't answered */
+  visits?: Record<string, Visit>;
+  onKnock?: (name: string) => void;
+  /** your own house's inside (your room); without it you get the roof-off view */
+  room?: (leave: () => void, mood: Mood) => React.ReactNode;
+  /** your missions, a station each out on your plot; walk up to one and tap it to do it (resolves with the XP paid) */
+  stations?: Station[];
+  onTap?: (id: string) => Promise<number | null>;
+  /** the shop: your gold, prices by item id (null: no shop yet), what you own, and buying */
+  gold?: number | null;
+  prices?: Record<string, number> | null;
+  owned?: string[];
+  onBuy?: (id: string) => Promise<string | null>;
+  /** force a time of day ("day", "golden", "dusk", "night"); otherwise it follows the clock */
+  time?: string;
+  /** force a season; otherwise it follows the date */
+  season?: Season;
+  /** open on this friend's house (walk there) instead of your own */
+  visit?: string | null;
+  /** you, visiting: the town is the residents' (a friend's own town) and you walk round it as a guest */
+  guest?: Resident;
+  /** your friends, for the Friends list (Clash of Clans style): tap one to visit their town */
+  friends?: Resident[];
+  /** go to a friend's town (null: back to your own) */
+  onVisit?: (name: string | null) => void;
+  /** the Mayor shows you round the first time you're in your own town */
+  tour?: boolean;
+  /** share an invite to your town (resolves with what happened: "Link copied", ...) */
+  onInvite?: () => Promise<string | null>;
+  /** the town's stars (friends leave one a day): its total, and whether you've left one today; null: none to show */
+  stars?: { total: number; mine: boolean } | null;
+  /** leave a star in the friend's town you're visiting */
+  onStar?: () => void;
+  /** a way back out of the town (the app's World page; when visiting, your own town) */
+  onBack?: () => void;
+  backLabel?: string;
+  /** your energy today (0..100, from sleep and steps); null: no energy yet, no limits */
+  energy?: number | null;
+  /** the garden things on your plot */
+  garden?: Placed[];
+  /** put a garden thing you've bought on your plot; resolves with an error message, or null when it's there */
+  onPlace?: (p: Placed) => Promise<string | null>;
+  className?: string;
+}) {
+  // your stations stand on your plot (a friend's come with their resident row, when the app sends them)
+  const residents = useMemo(() => all.slice(0, MAX_RESIDENTS).map((r) => (r.me && stations ? { ...r, stations } : r)), [all, stations]);
+  const [hour, setHour] = useState(() => new Date().getHours() + new Date().getMinutes() / 60);
+  useEffect(() => {
+    const t = setInterval(() => setHour(new Date().getHours() + new Date().getMinutes() / 60), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const mood = time ? moodNamed(time) : moodAt(hour);
+  const season = seasonProp ?? seasonAt(new Date());
+  const grass = GRASS[season];
+  const town = useModel(
+    useMemo(() => townText(residents), [residents]),
+    true,
+  );
+  const plaza = useModel(useMemo(() => textIn(plazaText(), season), [season]), true);
+  const decor = useModel(useMemo(() => townDecorText(), []), true);
+  // plots nobody lives on yet are little parks
+  // the lots nobody lives on: the town's buildings once its owner (residents[0]) has them, little parks till then
+  const owner = residents[0];
+  const lotBuilding = (i: number) => (i >= residents.length ? buildingOn(i, owner) : null);
+  const lockedLots = useMemo(() => Array.from({ length: MAX_RESIDENTS - residents.length }, (_, k) => residents.length + k).filter((i) => !buildingOn(i, owner)?.open), [residents.length, owner]);
+  const parks = useModel(useMemo(() => textIn(emptyLotsText(lockedLots), season), [lockedLots, season]), true);
+  const emptyLots = useMemo(() => Array.from({ length: MAX_RESIDENTS - residents.length }, (_, k) => lotFor(residents.length + k)), [residents.length]);
+  const lots = useMemo(() => residents.map((_, i) => lotFor(i)), [residents]);
+  const paths = useMemo(() => doorPaths(residents), [residents]);
+  const meIndex = Math.max(
+    0,
+    residents.findIndex((r) => r.me),
+  );
+  // whose house is yours to walk out of and into (none when you're a guest in someone else's town),
+  // and who you are on screen
+  const youAt = guest ? -1 : meIndex;
+  const player = guest ?? residents[meIndex];
+  // the town opens on the whole square, then (once it's built) glides down to your house
+  const [focus, setFocus] = useState(OVERVIEW);
+  const built = !!town;
+  // "settled": the town has loaded and frames come smoothly (parsing is done).
+  // Only then does it build itself, from above, and a moment later the camera
+  // glides down to your house.
+  const [settled, setSettled] = useState(false);
+  const visitIndex = visit ? residents.findIndex((r) => r.name === visit) : -1;
+  useEffect(() => {
+    if (!settled) return;
+    const first = visitIndex >= 0 ? visitIndex : meIndex;
+    const t = setTimeout(() => setFocus((f) => (f === OVERVIEW ? first : f)), 3000);
+    return () => clearTimeout(t);
+  }, [settled, meIndex, visitIndex]);
+  const [inside, setInside] = useState<number | null>(null);
+  // where your minifig is walking to: the last place you looked at
+  const [dest, setDest] = useState(meIndex);
+  // (your friends stay at home, one at each house's door: Iftach, 3 Oct, the ones wandering about had no point)
+  if (focus !== OVERVIEW && focus !== dest) setDest(focus);
+  const [shopOpen, setShopOpen] = useState(false);
+  const [friendsOpen, setFriendsOpen] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  // placing a garden thing you've just bought: where it's hovering on your plot, and whether it fits there
+  const [placing, setPlacing] = useState<Placed | null>(null);
+  const [fresh, setFresh] = useState<string | null>(null); // the thing just placed, still building
+  const [watching, setWatching] = useState(false); // the camera stays over the plot while it builds
+  const meRes = residents[meIndex];
+  const placeOk = placing ? canPlace(placing, meRes.level, meRes.streak, garden) : false;
+  const startPlacing = (item: string) => {
+    setShopOpen(false);
+    setInside(null);
+    setFocus(meIndex);
+    setPlacing(firstFreeSpot(item, meRes.level, meRes.streak, garden) ?? { item, x: 2, z: 2, turn: 0 });
+  };
+  // the pointer over the plot: the thing follows it, snapped to two studs, its footprint kept on the plot
+  const hoverTo = (p: THREE.Vector3) => {
+    if (!placing) return;
+    const g = gardenItem(placing.item)!;
+    const { w, d } = footprint(g, placing.turn);
+    const [px, pz] = fromLot(lots[meIndex], [p.x / LDU, -p.z / LDU]);
+    const snap = (v: number, size: number) => Math.max(1, Math.min(PLOT - 1 - size, Math.round((v / 20 + PLOT / 2 - size / 2) / 2) * 2));
+    const x = snap(px, w);
+    const z = snap(pz, d);
+    if (x !== placing.x || z !== placing.z) setPlacing({ ...placing, x, z });
+  };
+  const placeIt = async () => {
+    if (!placing || !placeOk) return;
+    const err = onPlace ? await onPlace(placing) : null;
+    if (err) {
+      setNote(err);
+      setTimeout(() => setNote(null), 2500);
+      return;
+    }
+    setFresh(`${placing.item}:${placing.x}:${placing.z}`);
+    setPlacing(null);
+    setWatching(true);
+    setTimeout(() => setWatching(false), BUILD_TIME * 1000 + 800);
+  };
+  // the brick wipe, for switching between the town and your room
+  const [wipe, setWipe] = useState<"in" | "out" | null>(null);
+  const wipeTo = (swap: () => void) => {
+    setWipe("in");
+    setTimeout(() => {
+      swap();
+      setWipe("out");
+      setTimeout(() => setWipe(null), WIPE_OUT);
+    }, WIPE_IN);
+  };
+
+  // playing: outside, the camera follows you and you walk where you like (stick or keys);
+  // the whole-town view and being inside a house frame the scene instead
+  const isPlacing = placing !== null || watching; // over your plot: placing, or watching it build
+  const following = focus !== OVERVIEW && inside === null && !isPlacing;
+  const stick = useRef({ x: 0, y: 0 });
+  const jumps = useRef(0);
+  // energy: the walker drains it as you run; the bar reads it. Jumping is free, always (Iftach, 3 Oct: a
+  // jump that cost energy just didn't happen once you'd run a while, walking or not)
+  const energyRef = useRef(energy ?? ENERGY_MAX);
+  useEffect(() => {
+    if (energy !== null) energyRef.current = energy;
+  }, [energy]);
+  // the Run button (phones; on a keyboard, Shift): while it's on, any push runs
+  const runRef = useRef(false);
+  const [runOn, setRunOn] = useState(false);
+  const toggleRun = () => {
+    runRef.current = !runRef.current;
+    setRunOn(runRef.current);
+  };
+  const jump = () => {
+    jumps.current++;
+    sfx.jump();
+  };
+  useKeysToStick(stick, undefined, jump);
+  const energyNow = useEnergyReadout(energy === null ? undefined : energyRef, energy ?? ENERGY_MAX);
+  const me3 = useRef(new THREE.Vector3());
+  const meAim = useRef<number | null>(null);
+  const blockers = useMemo(() => townBlockers(residents), [residents]);
+  // winter: a white round-cornered plate of snow on every roof
+  const snowCaps = useMemo<Slab[]>(() => {
+    const out: Slab[] = [];
+    residents.forEach((res, i) => {
+      const h = houseFor(res.level, res.name);
+      const sp = houseSpec(res.level);
+      const [x, , z] = inLot(lots[i], [(sp.x0 + sp.w / 2 - PLOT / 2) * 20, 0, (sp.z0 + sp.d / 2 - PLOT / 2) * 20]);
+      out.push({ x, z, w: h.w * 20 * 0.92, d: h.d * 20 * 0.92, h: 8, y: h.h, radius: 24, yaw: lots[i].yaw, color: "#f4f6f8", studs: true });
+    });
+    out.push({ x: 0, z: SHOP_FRONT - SHOP_BUILDING.d * 10, w: SHOP_BUILDING.w * 20 * 0.92, d: SHOP_BUILDING.d * 20 * 0.92, h: 8, y: SHOP_BUILDING.h, radius: 24, color: "#f4f6f8", studs: true });
+    return out;
+  }, [residents, lots]);
+  const [goes, setGoes] = useState(0); // bumped by every "walk there", so the same place twice still walks
+  const [teleports, setTeleports] = useState(0); // bumped with it when you go from the map: you teleport there
+  const [arrive, setArrive] = useState<THREE.Vector3 | null>(null); // where a teleport lands you (three's space): the camera flies there
+  const [arriveTurn, setArriveTurn] = useState(0); // and how far round from the usual view, so you see the door from the street
+  const [near, setNear] = useState<number | null>(null);
+  // who you've walked up to (they say something), and a new line each time you meet
+  const [talker, setTalker] = useState<string | null>(null);
+  const [meetings, setMeetings] = useState(0);
+  // talking with a guide: which, and how far through what they're saying; how often you've talked to each
+  const [talk, setTalk] = useState<{ g: number; line: number } | null>(null);
+  const [talked, setTalked] = useState<number[]>(() => GUIDES.map(() => 0));
+  const places = useMemo(
+    () => [
+      { id: SHOP_FOCUS, at: SHOP_WALK[SHOP_WALK.length - 1] },
+      ...residents.map((res, i) => ({ id: i, at: doorWalk(lots[i], res.level).at(-1)! })),
+      ...emptyLots.flatMap((lot, k) => {
+        const on = lotBuilding(residents.length + k);
+        return on?.open ? [{ id: residents.length + k, at: buildingWalk(lot, on.b).at(-1)! }] : [];
+      }),
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [residents, lots, emptyLots, owner],
+  );
+
+  // a house's centre on the ground, in its lot's frame (LDU)
+  const centre = (level: number): [number, number, number] => {
+    const s = houseSpec(level);
+    return [(s.x0 + s.w / 2 - PLOT / 2) * 20, 0, (s.z0 + s.d / 2 - PLOT / 2) * 20];
+  };
+  const houseCentre = (i: number) => {
+    const on = lotBuilding(i);
+    if (on) {
+      const [bx, , bz] = buildingAt(on.b);
+      return inLot(lotFor(i), [bx + on.b.w * 10, 0, bz - on.b.d * 10]);
+    }
+    return inLot(lots[i], centre(residents[i].level));
+  };
+
+  const target = useMemo(() => {
+    if (following) return STILL; // the camera follows you instead
+    if (isPlacing) {
+      const [x, , z] = toThree([lots[meIndex].x, 0, lots[meIndex].z]);
+      return new THREE.Vector3(x, 1, z);
+    }
+    // the shop and the fountain in front of it, looking up at the building
+    if (focus === OVERVIEW) return new THREE.Vector3(0, 0, 0);
+    if (focus === SHOP_FOCUS) return new THREE.Vector3(0, 10, -((SHOP_FRONT + FOUNTAIN[1]) / 2) * LDU);
+    const [x, , z] = toThree(houseCentre(focus));
+    return new THREE.Vector3(x, inside === null ? 3 : 2, z);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, inside, lots, following, isPlacing, meIndex]);
+  // look at a house from its front: turn the view with the lot
+  const dir = useMemo(() => {
+    if (following) return arriveTurn ? CHASE_DIR.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), arriveTurn) : CHASE_DIR;
+    if (isPlacing) return LOOK_DOWN.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -lots[meIndex].yaw);
+    const base = inside === null ? FRONT_RIGHT : LOOK_IN;
+    if (focus === OVERVIEW) return LOOK_DOWN;
+    if (focus === SHOP_FOCUS) return base;
+    return base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -lotFor(focus).yaw);
+  }, [focus, inside, lots, following, isPlacing, meIndex, arriveTurn]);
+  const bounds = useMemo(() => {
+    const h = (TOWN_HALF - 8) * 20 * LDU;
+    return new THREE.Box3(new THREE.Vector3(-h, 0, -h), new THREE.Vector3(h, 12, h));
+  }, []);
+
+  // walk to a place (a name tapped): the camera follows you there
+  const go = (i: number) => {
+    // from the map you teleport there (a minute's walk was too long: Iftach, 3 Oct): the camera flies
+    // straight to where you'll stand, and you build yourself again there
+    if (focus === OVERVIEW) {
+      setTeleports((n) => n + 1);
+      const on = lotBuilding(i);
+      const [x, , z] = i === FOUNTAIN_FOCUS ? FOUNTAIN_WALK.at(-1)! : on?.open ? buildingWalk(lotFor(i), on.b).at(-1)! : i === SHOP_FOCUS || !residents[i] ? SHOP_WALK.at(-1)! : i === youAt ? doorWalk(lots[i], residents[i].level).at(-1)! : doorWalk(lots[i], residents[i].level, VISIT_SIDE, VISIT_AHEAD).at(-1)!;
+      setArrive(new THREE.Vector3(x * LDU, 0, -z * LDU));
+      setArriveTurn(i === SHOP_FOCUS || (!residents[i] && !on?.open) ? 0 : lots[meIndex].yaw - lotFor(i).yaw);
+    } else setArrive(null);
+    setFocus(i);
+    setInside(null);
+    setGoes((n) => n + 1);
+  };
+
+  // a tap on the ground: go to whatever is nearest -- the plaza or a lot
+  const pick = (p: THREE.Vector3) => {
+    const x = p.x / LDU;
+    const z = -p.z / LDU;
+    let best = SHOP_FOCUS;
+    let bestD = x * x + z * z;
+    const f = (x - FOUNTAIN[0]) ** 2 + (z - FOUNTAIN[1]) ** 2;
+    if (f < bestD) [best, bestD] = [FOUNTAIN_FOCUS, f];
+    [...lots, ...emptyLots].forEach((lot, i) => {
+      if (i >= residents.length && !lotBuilding(i)?.open) return; // a locked spot: nothing to walk to yet
+      const d = (x - lot.x) ** 2 + (z - lot.z) ** 2;
+      if (d < bestD) {
+        best = i;
+        bestD = d;
+      }
+    });
+    go(best);
+  };
+
+  if (room && !guest && inside === meIndex)
+    return (
+      <div className={`relative ${className ?? ""}`}>
+        {room(() => wipeTo(() => setInside(null)), mood)}
+        {wipe && <BrickWipe phase={wipe} />}
+      </div>
+    );
+
+  // the action button is about where you're standing (following) or what you're looking at
+  const here = following ? near : focus;
+  const r = here === null || here < 0 ? null : residents[here]; // the shop and the overview are nobody's house
+  const access = r && (r.me ? "allowed" : visits[r.name]);
+  const label = (text: string, me: boolean, onClick: () => void) => (
+    <button
+      onClick={() => {
+        sfx.click();
+        onClick();
+      }}
+      className={`lego lego-sm ${me ? "" : "lego-white"}`}
+    >
+      {text}
+    </button>
+  );
+  // playing: just the name of the place you're standing at, over it
+  const nearPin = (i: number) => {
+    if (i === SHOP_FOCUS)
+      return {
+        key: "shop",
+        at: [0, SHOP_BUILDING.h * LDU + 3, -(SHOP_FRONT - (SHOP_BUILDING.d / 2) * 20) * LDU] as [number, number, number],
+        node: <span className="lego lego-sm lego-white">Market Street</span>,
+      };
+    const [x, , z] = toThree(houseCentre(i));
+    const on = lotBuilding(i);
+    if (on)
+      return {
+        key: `b-${i}`,
+        at: [x, on.b.h * LDU + 3, z] as [number, number, number],
+        node: <span className="lego lego-sm lego-white">{on.b.title}</span>,
+      };
+    const res = residents[i];
+    return {
+      key: res.name,
+      at: [x, houseFor(res.level, res.name).h * LDU + 3, z] as [number, number, number],
+      node: <span className={`lego lego-sm ${res.me ? "" : "lego-white"}`}>{res.me ? "Your house" : `${res.name}'s house`}</span>,
+    };
+  };
+  // your stations: a button over each once you've walked up to it (tap to do the mission)
+  const stationPins = () => {
+    if (!onTap || !stations || !residents[meIndex]?.me) return [];
+    const spots = stationSpots(houseSpec(residents[meIndex].level));
+    return stations.slice(0, spots.length).map((st, i) => {
+      const [px, pz] = stationAt(spots[i]);
+      const [x, y, z] = toThree(inLot(lots[meIndex], [px, 0, pz]));
+      return {
+        key: `st-${st.id}`,
+        at: () => (Math.hypot(me3.current.x - x, me3.current.z - z) < 8 ? ([x, y + 4, z] as [number, number, number]) : null),
+        node: <StationButton st={st} onTap={onTap} gold={gold} />,
+      };
+    });
+  };
+  // a guide you've walked up to: its name and a Talk button over its head
+  const guidePin = (g: number) => ({
+    key: `guide-${g}`,
+    at: () => {
+      const p = CROWD.get(GUIDES[g].id);
+      return p ? ([p.x * LDU, 7.2, -p.z * LDU] as [number, number, number]) : null;
+    },
+    node: (
+      <div className="flex flex-col items-center gap-1">
+        <span className="lego lego-sm lego-white pointer-events-none">{GUIDES[g].name}</span>
+        <RoundAction icon="talk" text="Talk" tone="yellow" small onClick={() => {
+            setTalk({ g, line: 0 });
+            sfx.mumble();
+          }} />
+      </div>
+    ),
+  });
+  const talkingTo = talk ? GUIDES[talk.g] : null;
+  const talkLines = talk ? guideLines(GUIDES[talk.g], talked[talk.g], player?.name ?? "friend", guest ? undefined : stations) : [];
+  // the next line, or the end of the talk (the next talk with this guide tells the next story)
+  const nextLine = () => {
+    if (!talk) return;
+    if (talk.line + 1 < talkLines.length) {
+      sfx.mumble(); // they say the next bit
+      return setTalk({ ...talk, line: talk.line + 1 });
+    }
+    sfx.click();
+    setTalked((n) => n.map((v, k) => (k === talk.g ? v + 1 : v)));
+    setTalk(null);
+  };
+  // a friend's speech bubble, over their head wherever they walk
+  const chatPin = (name: string) => {
+    let h = 0;
+    for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) | 0;
+    const line = CHATTER[Math.abs(h + meetings) % CHATTER.length](player?.name ?? "friend");
+    return {
+      key: `chat-${name}-${meetings}`,
+      at: () => {
+        const p = CROWD.get(name);
+        return p ? ([p.x * LDU, 6.4, -p.z * LDU] as [number, number, number]) : null;
+      },
+      node: <span className="lego-bubble">{line}</span>,
+    };
+  };
+  // what the big round button does where you are
+  const action: { icon: keyof typeof ICONS; text: string; onClick?: () => void; tone?: "" | "dark" | "yellow" | "green" } | null =
+    here === null || here === OVERVIEW || (here !== SHOP_FOCUS && !r)
+      ? null
+      : here === SHOP_FOCUS
+        ? prices
+          ? { icon: "shop", text: "Shop", onClick: () => setShopOpen(true), tone: "yellow" }
+          : null
+        : inside !== null
+          ? { icon: "out", text: "Step outside", onClick: () => setInside(null) }
+          : access === "allowed"
+            ? {
+                icon: "door",
+                text: r!.me ? "Go inside" : `Visit ${r!.name}`,
+                onClick: () => {
+                  const go = () => {
+                    setFocus(here);
+                    setInside(here);
+                  };
+                  // your own room is a new scene: brick-wipe into it
+                  if (room && !guest && here === meIndex) wipeTo(go);
+                  else go();
+                },
+                tone: "green",
+              }
+            : access === "knocked"
+              ? { icon: "wait", text: `Waiting for ${r!.name}…`, tone: "dark" }
+              : onKnock
+                ? { icon: "knock", text: `Knock`, onClick: () => onKnock(r!.name) }
+                : null;
+  const me = player;
+  // walking up to a door, its button stands on the building, at the door, with the place's name
+  // over it (Shop on the shop, Go inside / Visit / Knock on the house), not down in the corner
+  const actionPin = (i: number) => {
+    if (!action) return nearPin(i);
+    const at: [number, number, number] =
+      i === SHOP_FOCUS
+        ? [0, 7, -(SHOP_FRONT + 10) * LDU]
+        : (() => {
+            const d = doorWalk(lots[i], residents[i].level).at(-1)!;
+            const [x, , z] = toThree([d[0], 0, d[2]]);
+            return [x, 7, z];
+          })();
+    const label = i === SHOP_FOCUS ? "Market Street" : residents[i].me ? "Your house" : `${residents[i].name}'s house`;
+    return {
+      key: `door-${i}`,
+      at,
+      node: (
+        <div className="flex flex-col items-center gap-1">
+          <span className="lego lego-sm lego-white pointer-events-none">{label}</span>
+          <RoundAction icon={action.icon} text={action.text} onClick={action.onClick} disabled={!action.onClick} tone={action.tone} small />
+        </div>
+      ),
+    };
+  };
+  const doorButtonOnBuilding = following && inside === null && action !== null && near !== null;
+  // you: you walk to wherever you last looked (the whole-town view doesn't move you)
+  const youWalker = (() => {
+    const fountain = dest === FOUNTAIN_FOCUS;
+    const building = !fountain && dest >= 0 ? lotBuilding(dest) : null;
+    const shop = !fountain && !building?.open && (dest === SHOP_FOCUS || !residents[dest]);
+    let to = fountain ? FOUNTAIN_WALK : building?.open ? buildingWalk(lotFor(dest), building.b) : SHOP_WALK;
+    if (!shop && !fountain && !building?.open) {
+      const { level, name } = residents[dest];
+      const side = dest === youAt ? 0 : 40;
+      const house = houseFor(level, name);
+      const r = rooms.get(houseUrl(house));
+      const [hx, , hz] = houseAt(houseSpec(level), house);
+      to =
+        inside === dest
+          ? insideWalk(lots[dest], level, side, r && { x: hx + r.x, z: hz + r.z, front: hz + r.front })
+          : dest === youAt
+            ? doorWalk(lots[dest], level)
+            : doorWalk(lots[dest], level, VISIT_SIDE, VISIT_AHEAD);
+    }
+    // you wave at the friend you've come to see
+    const wave = inside === null && !shop && !fountain && dest !== youAt;
+    return <Walker key="me" id="me" wave={wave} go={goes} teleport={teleports} runRef={runRef} input={stick} jumpRef={jumps} aimRef={meAim} energyRef={energy === null ? undefined : energyRef} blockers={blockers} where={me3} look={loadoutFor(player.level, player.character ?? undefined)} to={to} turn={shop || fountain ? Math.PI : lotFor(dest).yaw} />;
+  })();
+
+  return (
+    <div className={`relative ${className ?? ""}`}>
+      <Stage
+        className="absolute inset-0"
+        label="Your town"
+        target={target}
+        width={
+          inside !== null
+            ? houseFor(residents[inside].level, residents[inside].name).w + 10
+            : following
+              ? CHASE_WIDTH
+              : placing
+                ? PLOT + 14
+                : focus === OVERVIEW
+                ? TOWN_HALF * 2.2
+                : focus === SHOP_FOCUS
+                  ? 95
+                  : 62
+        }
+        far={1500}
+        // the house and shop framings rely on the usual 110 limit; only the overview pulls further out
+        maxDistance={focus === OVERVIEW ? 1100 : 110}
+        dir={dir}
+        bounds={bounds}
+        pan={!following}
+        follow={following ? me3 : undefined}
+        arrive={arrive}
+        aim={meAim}
+        fov={following ? CHASE_FOV : 32}
+        mood={mood}
+        onPick={placing || following ? undefined : pick}
+        overlay={
+          <>
+            <Scenery color={grass} season={season} sunAt={mood.night ? undefined : SUN_AT} shadows={following} />
+            {following && <NearStuds follow={me3} grass={grass} lots={[...lots, ...emptyLots]} />}
+            <Wild season={season} />
+            {/* chimney smoke over the shop and every house */}
+            <Smoke at={toThree([(-SHOP_BUILDING.w / 4) * 20, -SHOP_BUILDING.h - 10, SHOP_FRONT - SHOP_BUILDING.d * 10])} />
+            {residents.map((res, i) => {
+              const h = houseFor(res.level, res.name);
+              const [x, , z] = toThree(houseCentre(i));
+              return <Smoke key={`smoke-${res.name}`} at={[x + 1.2, h.h * LDU + 0.5, z - 1]} seed={i + 1} />;
+            })}
+            {/* the ground: grass everywhere (the road, ring and paths are Slabs on it), the paved
+                plaza, and each plot turned its own way. Layers sit 0.1 apart (two LDU): the map
+                camera's depth buffer can't tell closer ones apart. */}
+            <StudGround at={[0, 0]} size={Math.round(TOWN_HALF * 4)} color={grass} y={GRASS_Y} />
+            {/* meadows: round patches a shade off the grass, so the green isn't one flat sheet */}
+            {MEADOWS.map((m, i) => (
+              <StudGround key={`m${i}`} at={[m.x * LDU, -m.z * LDU]} size={(2 * m.r) / 20} color={meadowShade(grass, m.k)} y={MEADOW_Y} radius={m.r / 20} thick={MEADOW_Y - GRASS_Y} />
+            ))}
+            <StudGround at={[0, 0]} size={PLAZA} color="#b9bcc0" radius={8} thick={-GRASS_Y} tiles />
+            {[...lots, ...emptyLots].map((lot, i) => (
+              <StudGround key={i} at={[lot.x * LDU, -lot.z * LDU]} size={PLOT} color={grass} yaw={-lot.yaw} thick={-GRASS_Y} />
+            ))}
+          </>
+        }
+        pins={following ? [...(near === null ? [] : [doorButtonOnBuilding ? actionPin(near) : nearPin(near)]), ...(talker ? (GUIDES.some((g) => g.id === talker) ? (talk ? [] : [guidePin(GUIDES.findIndex((g) => g.id === talker))]) : [chatPin(talker)]) : []), ...stationPins()] : [
+          {
+            key: "shop",
+            at: [0, SHOP_BUILDING.h * LDU + 3, -(SHOP_FRONT - (SHOP_BUILDING.d / 2) * 20) * LDU] as [number, number, number],
+            node: label("Shop", false, () => go(SHOP_FOCUS)),
+          },
+          {
+            key: "fountain",
+            at: [FOUNTAIN[0] * LDU, (STATUE_AT + 220) * LDU, -FOUNTAIN[1] * LDU] as [number, number, number],
+            node: label("Fountain", false, () => go(FOUNTAIN_FOCUS)),
+          },
+          ...emptyLots.map((lot, k) => {
+            const i = residents.length + k;
+            const on = lotBuilding(i);
+            const [x, , z] = toThree(houseCentre(i));
+            return {
+              key: `empty-${k}`,
+              at: on?.open ? ([x, on.b.h * LDU + 3, z] as [number, number, number]) : ([lot.x * LDU, 6, -lot.z * LDU] as [number, number, number]),
+              node: on?.open ? (
+                label(on.b.title, false, () => go(i))
+              ) : (
+                <span className="lego lego-sm lego-dark">{on ? `🔒 ${on.b.title} · ${rankLabel(on.b.rank)}` : "Building spot"}</span>
+              ),
+            };
+          }),
+          ...residents.flatMap((res, i) => {
+            if (i === inside) return [];
+            const [x, , z] = toThree(houseCentre(i));
+            return [
+              {
+                key: res.name,
+                at: [x, houseFor(res.level, res.name).h * LDU + 3, z] as [number, number, number],
+                node: label(res.me ? "You" : res.name, !!res.me, () => go(i)),
+              },
+            ];
+          }),
+        ]}
+      >
+        {town && <primitive object={town} />}
+        {built && !settled && <Settle onSettled={() => setSettled(true)} />}
+        {following && <Near where={me3} places={places} onNear={setNear} />}
+        {following && (
+          <Chatter
+            where={me3}
+            friends={[...residents.filter((res) => !res.me).map((res) => res.name), ...GUIDES.map((g) => g.id)]}
+            onTalk={(name) => {
+              // walking off ends a talk (someone else coming nearer doesn't)
+              if (talk && name !== GUIDES[talk.g].id) {
+                const p = CROWD.get(GUIDES[talk.g].id);
+                if (p && Math.hypot(me3.current.x / LDU - p.x, -me3.current.z / LDU - p.z) < TALK_RANGE) return;
+                setTalk(null);
+              }
+              setTalker(name);
+              if (!name) return;
+              setMeetings((n) => n + 1);
+              sfx.blip();
+            }}
+          />
+        )}
+        <InstancedParts placements={placementsIn(townInstances(residents), season)} />
+        {/* the shop, its front to the camera's side of the plaza */}
+        {/* the shop at the back of the plaza, the fountain and the rest of the square in front of it */}
+        <Building url={houseUrl(SHOP_BUILDING)} at={[(-SHOP_BUILDING.w / 2) * 20, 0, SHOP_FRONT]} lit={mood.night} build={settled ? 0.1 : null} />
+        {plaza && <primitive object={plaza} />}
+        {decor && <primitive object={decor} />}
+        <Slabs slabs={FLATS} />
+        <Slabs slabs={paths} />
+        <Slabs slabs={WATER_TOWER_SLABS} />
+        <LakeLife />
+        <DriftingClouds />
+        {parks && <primitive object={parks} />}
+        <Traffic night={mood.night} />
+        <Seagulls />
+        <Seagulls centre={[LAKE.x, LAKE.z]} seed={2} />
+        {/* banners either side of the plaza, waving; snow on every roof in winter */}
+        <Banner at={[(RING - 7) * 20, 0, 0]} />
+        <Banner at={[-(RING - 7) * 20, 0, 0]} />
+        {season === "winter" && <Slabs slabs={snowCaps} shadows={false} />}
+        <Prop {...ICE_CREAM_CART} />
+        {emptyLots.map((lot, k) => {
+          const i = residents.length + k;
+          const on = lotBuilding(i);
+          if (!on?.open) return <Prop key={k} {...PARK_BURGER_STAND} lot={lot} />;
+          // the town's buildings, each on its lot facing the street, built after the houses
+          return (
+            <group key={k} position={[lot.x, 0, lot.z]} rotation={[0, lot.yaw + (on.b.turn * Math.PI) / 2, 0]}>
+              <Building url={houseUrl(on.b)} at={buildingAt(on.b)} lit={mood.night} build={settled ? 0.5 + (residents.length + k) * 0.35 : null} />
+            </group>
+          );
+        })}
+        <FountainSpray />
+        <StatuePlaque name="ADAM KABANOS" />
+        {/* Adam's statue on top of the fountain (Iftach's friend, from his photo), in his real colours: his
+            dark curls, ski goggles with a red mirror lens, one hand up, in a black One Piece hoodie and jeans,
+            facing the street */}
+        <group position={[FOUNTAIN[0], -STATUE_AT, FOUNTAIN[1]]} scale={1.8}>
+          <Minifig look={STATUE} at={[0, 0, 0]} statue />
+          <HairTrim />
+          <SnowGoggles />
+          <ShirtPrint />
+          <Hoodie />
+        </group>
+        <TownSign name={residents[meIndex]?.name ?? "Your"} />
+        {mood.night && <LampGlows at={[...PLAZA_LAMPS, ...STREET_LAMP_LIGHTS]} />}
+        {GUIDES.map((g) => (
+          <GuideWalker key={g.id} guide={g} where={me3} />
+        ))}
+        {residents.map((res, i) => (
+          <Ride key={res.name} ride={loadoutFor(res.level, res.character ?? undefined).ride} at={rideSpot(lots[i], res.level)} turn={lots[i].yaw} />
+        ))}
+        {/* a spinning gold stud over every station done today, seen from the street: what you did */}
+        {residents.flatMap((r, i) => {
+          const spots = stationSpots(houseSpec(r.level));
+          return (r.stations ?? []).slice(0, spots.length).flatMap((st, k) => {
+            if (!st.done) return [];
+            const [px, pz] = stationAt(spots[k]);
+            const [x, , z] = toThree(inLot(lots[i], [px, 0, pz]));
+            return [<DoneStud key={`done-${r.name}-${st.id}`} at={[x, 3.2, z]} />];
+          });
+        })}
+        {/* the garden things on your plot, and the one you're placing with its footprint */}
+        {garden.map((p) => (
+          <PlacedThing key={`${p.item}:${p.x}:${p.z}`} lot={lots[meIndex]} placed={p} fresh={fresh === `${p.item}:${p.x}:${p.z}`} />
+        ))}
+        {placing && (
+          <>
+            <PlacedThing key={`ghost-${placing.item}`} lot={lots[meIndex]} placed={placing} />
+            <Footprint lot={lots[meIndex]} placed={placing} ok={placeOk} />
+            {/* an unseen plate over the whole plot that the pointer can land on (the lawn itself is
+                drawn outside this group), so the thing follows the finger anywhere on the plot */}
+            <mesh
+              position={[lots[meIndex].x, -0.5, lots[meIndex].z]}
+              rotation={[Math.PI / 2, 0, 0]}
+              onPointerMove={(e) => hoverTo(e.point)}
+              onClick={(e) => hoverTo(e.point)}
+            >
+              <planeGeometry args={[PLOT * 20, PLOT * 20]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
+            </mesh>
+          </>
+        )}
+        {residents.map((res, i) => (
+          <group key={res.name} position={[lots[i].x, 0, lots[i].z]} rotation={[0, lots[i].yaw, 0]}>
+            {/* the town builds itself once it's loaded (not while it's still loading, which made
+                it stutter): the shop, then each house in turn */}
+            <House level={res.level} name={res.name} cut={i === inside ? CUT : undefined} lit={mood.night} build={settled ? 0.5 + i * 0.35 : null} />
+          </group>
+        ))}
+        {residents.map((res, i) => {
+          // you walk to where you last looked, and into the house you're visiting; everyone else stays at their door
+          if (i === youAt) return youWalker;
+          // friends: at home, at their door, waving when you come to see them
+          return <Walker key={res.name} id={res.name} wave={dest === i} look={loadoutFor(res.level, res.character ?? undefined)} to={doorWalk(lots[i], res.level)} turn={lots[i].yaw} />;
+        })}
+        {guest && youWalker}
+      </Stage>
+
+      {/* while the town loads (it stutters then), the LEGO loading screen over everything (the HUD too); it fades as the town builds itself */}
+      <TownLoader className={`absolute inset-0 z-30 pointer-events-none ${settled ? "fade-away" : ""}`} />
+
+      {/* the HUD, LEGO-game style. Top left: you (head, name, level, gold). */}
+      {me && (
+        <div className="absolute top-2 left-3 flex items-start gap-2 pointer-events-none">
+          {onBack && <RoundAction icon="back" text={backLabel} tone="dark" small onClick={onBack} />}
+          <div className="lego-hud">
+            <HeadIcon />
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <span className="text-[13px] font-extrabold leading-tight truncate max-w-[110px]">{me.name}</span>
+              <div className="flex items-center gap-1">
+                <span className="lego-chip level">Lv {me.level}</span>
+                {gold !== null && (
+                  <span className="lego-chip gold">
+                    <span className="stud-icon" />
+                    {gold.toLocaleString()}
+                  </span>
+                )}
+              </div>
+              {energy !== null && <EnergyBar value={energyNow} />}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* your missions today, under your card (top left) */}
+      {following && !guest && stations && stations.length > 0 && (
+        <span className={`absolute left-3 top-[86px] lego lego-sm pointer-events-none ${stations.every((st) => st.done) ? "lego-green" : "lego-white"}`} data-tour="todo">
+          {stations.every((st) => st.done) ? "All done today ✓" : `${stations.filter((st) => !st.done).length} to do`}
+        </span>
+      )}
+      {/* down the right edge, Clash of Clans style: the map (and from it, back to playing), Friends, a star
+          for the friend whose town this is, sound (a column, so a phone's width never runs them into your card) */}
+      <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
+        {inside === null &&
+          !isPlacing &&
+          (following ? (
+            <RoundAction icon="map" text="Map" tone="dark" small onClick={() => go(OVERVIEW)} tour="map" />
+          ) : (
+            <RoundAction icon="play" text="Play" small onClick={() => setFocus(dest)} />
+          ))}
+        {onVisit && inside === null && !isPlacing && <RoundAction icon="friends" text="Friends" tone="yellow" small onClick={() => setFriendsOpen(true)} tour="friends" />}
+        {guest && stars && onStar && inside === null && !isPlacing && (
+          <RoundAction icon="star" text={stars.mine ? `Starred · ${stars.total}` : "Leave a star"} tone={stars.mine ? "dark" : "yellow"} small disabled={stars.mine} onClick={onStar} />
+        )}
+        <SoundToggle />
+      </div>
+      {note && !shopOpen && (
+        <div className="absolute top-3 inset-x-0 flex justify-center pointer-events-none">
+          <span className="lego lego-green text-sm">
+            {note}
+            <BrickBurst count={26} />
+          </span>
+        </div>
+      )}
+
+      {/* talking with a guide: who, and what they're saying; tap to go on */}
+      {talk && talkingTo && (
+        <div className="absolute inset-x-3 bottom-28 flex justify-center pointer-events-none">
+          <button onClick={nextLine} className="lego-panel pointer-events-auto w-full max-w-md rounded-2xl p-3.5 text-left slide-in">
+            <span className="lego lego-sm lego-yellow">
+              {talkingTo.name} · {talkingTo.role}
+            </span>
+            <p className={`mt-2.5 text-[15px] leading-snug ${talkLines[talk.line]?.mission ? "font-bold" : ""}`}>{talkLines[talk.line]?.text}</p>
+            <span className="mt-2 block text-right text-xs font-bold opacity-60">{talk.line + 1 < talkLines.length ? "Tap to go on ›" : "Tap to say bye"}</span>
+          </button>
+        </div>
+      )}
+
+      {/* bottom left: the stick (while you're out and about); bottom right: what you can do
+          where you're standing (the big round button) and Jump */}
+      <div className="absolute inset-x-0 bottom-3 flex items-end justify-between gap-2 px-3 pointer-events-none">
+        <div className="flex-none pointer-events-auto" data-tour="stick">{following && <Joystick outRef={stick} />}</div>
+        {placing && (
+          <div className="flex items-end gap-3 mx-auto">
+            <RoundAction icon="x" text="Cancel" tone="dark" small onClick={() => setPlacing(null)} />
+            <RoundAction icon="rotate" text="Turn" tone="dark" small onClick={() => setPlacing({ ...placing, turn: (placing.turn + 1) % 4 })} />
+            <RoundAction icon="check" text={placeOk ? "Place it" : "Not here"} tone="green" onClick={placeIt} disabled={!placeOk} />
+          </div>
+        )}
+        {placing && (
+          <span className="lego lego-sm lego-white absolute left-1/2 -translate-x-1/2 -top-10" data-at={`${placing.x},${placing.z},${placing.turn}`} data-ok={placeOk}>
+            Drag it where you want it
+          </span>
+        )}
+        {focus === OVERVIEW && (
+          <span className="lego lego-sm lego-white mb-2 self-center">Tap a place to walk there</span>
+        )}
+        {!isPlacing && (
+          <div className="flex items-end gap-3">
+            {following && <RoundAction icon="run" text={runOn ? "Running" : "Run"} tone={runOn ? "yellow" : "dark"} small onClick={toggleRun} tour="run" />}
+            {following && <RoundAction icon="jump" text="Jump" tone="dark" small onClick={jump} tour="jump" />}
+            {action && !doorButtonOnBuilding && <RoundAction icon={action.icon} text={action.text} onClick={action.onClick} disabled={!action.onClick} tone={action.tone} />}
+          </div>
+        )}
+      </div>
+
+      {shopOpen && prices && onBuy && (
+        <ShopSheet
+          gold={gold}
+          prices={prices}
+          owned={owned}
+          onBuy={onBuy}
+          onClose={(bought, gardenId) => {
+            setShopOpen(false);
+            if (gardenId) return startPlacing(gardenId);
+            if (!bought) return;
+            setNote(`${bought} is waiting in your house`);
+            setTimeout(() => setNote(null), 2500);
+          }}
+        />
+      )}
+      {/* (kept mounted while hidden, so a peek at the shop or the map doesn't send it back to the start) */}
+      {tour && !guest && <MayorTour name={player?.name ?? "friend"} hidden={!settled || !following || !!talk || shopOpen || friendsOpen} />}
+      {friendsOpen && onVisit && (
+        <FriendsSheet
+          friends={friends}
+          onInvite={onInvite}
+          here={guest ? residents[0]?.name : null}
+          onVisit={(name) => {
+            setFriendsOpen(false);
+            onVisit(name);
+          }}
+          onClose={() => setFriendsOpen(false)}
+        />
+      )}
+      {wipe && <BrickWipe phase={wipe} />}
+    </div>
+  );
+}
+
+// looking steeply down into a house with its roof off
+const LOOK_IN = new THREE.Vector3(0.3, 1.25, -0.55).normalize();
+// standing in your room: from the open front, a little to the right and above head
+// height, looking across it (the three-quarter view of a LEGO game's cutaway room)
+const ROOM_VIEW = new THREE.Vector3(0.1, 0.6, -1).normalize();
+// the room's sun: in through the open front, from the left, so everything you face is lit
+// and the furniture throws its shadows back across the floor
+const ROOM_SUN: [number, number, number] = [-14, 30, 18];
+// you can look around the room but not walk out of it
+const ROOM_BOUNDS = new THREE.Box3(new THREE.Vector3(-8, 0, -8), new THREE.Vector3(8, 6, 8));
+// how high (three units, about four bricks) the walls stay when you're inside
+const CUT = 4.6;
+
+// Calls back once frames have come smoothly for a while (nothing heavy is
+// being parsed any more): the moment to start animations that must not stutter.
+function Settle({ onSettled }: { onSettled: () => void }) {
+  const smooth = useRef(0);
+  const waited = useRef(0);
+  const done = useRef(false);
+  useFrame((_, dt) => {
+    if (done.current) return;
+    smooth.current = dt < 1 / 30 ? smooth.current + 1 : 0;
+    waited.current += dt;
+    // a slow phone may never get that smooth: go anyway after 4 s
+    if (smooth.current >= 20 || waited.current > 4) {
+      done.current = true;
+      onSettled();
+    }
+  });
+  return null;
+}
+
+// The on-screen stick (bottom left, LEGO-game style): drag the knob; it writes
+// where it points (-1..1, y up) into `out` and springs back when let go.
+function Joystick({ outRef }: { outRef: React.RefObject<{ x: number; y: number }> }) {
+  const knob = useRef<HTMLSpanElement>(null);
+  const move = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const reach = r.width / 2 - 14;
+    let x = e.clientX - (r.left + r.width / 2);
+    let y = e.clientY - (r.top + r.height / 2);
+    const d = Math.hypot(x, y);
+    if (d > reach) [x, y] = [(x / d) * reach, (y / d) * reach];
+    outRef.current = { x: x / reach, y: -y / reach };
+    if (knob.current) knob.current.style.transform = `translate(${x}px, ${y}px)`;
+  };
+  const stop = () => {
+    outRef.current = { x: 0, y: 0 };
+    if (knob.current) knob.current.style.transform = "";
+  };
+  return (
+    <div
+      className="lego-stick pointer-events-auto"
+      role="application"
+      aria-label="Walk: drag to move"
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        move(e);
+      }}
+      onPointerMove={(e) => e.buttons && move(e)}
+      onPointerUp={stop}
+      onPointerCancel={stop}
+    >
+      <span ref={knob} className="lego-stick-knob" />
+    </div>
+  );
+}
+
+// WASD or the arrow keys walk you too (on a computer)
+function useKeysToStick(outRef: React.RefObject<{ x: number; y: number }>, jumpRef?: React.RefObject<number>, onJump?: () => void) {
+  // the keys held down, kept across re-renders: this effect re-runs whenever `onJump` changes (every
+  // render of the town), and a fresh empty set forgot a key you were still holding (hold S, tap D,
+  // let go of D: you stopped instead of carrying on with S)
+  const held = useRef(new Set<string>());
+  useEffect(() => {
+    const down = held.current;
+    const set = () => {
+      const k = (a: string, b: string) => (down.has(a) || down.has(b) ? 1 : 0);
+      // keys walk; hold Shift to run, the LEGO-game way (while you have the energy): a full push, as
+      // the stick pushed right out
+      const push = down.has("shift") ? 1 : WALK_PUSH;
+      outRef.current = { x: (k("d", "arrowright") - k("a", "arrowleft")) * push, y: (k("w", "arrowup") - k("s", "arrowdown")) * push };
+    };
+    const on = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest?.("input, textarea, select")) return;
+      const key = e.key.toLowerCase();
+      if (key === " " && (jumpRef || onJump)) {
+        e.preventDefault();
+        if (e.type === "keydown" && !e.repeat) {
+          if (onJump) onJump();
+          else if (jumpRef) {
+            jumpRef.current++;
+            sfx.jump();
+          }
+        }
+        return;
+      }
+      if (!["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright", "shift"].includes(key)) return;
+      e.preventDefault();
+      if (e.type === "keydown") down.add(key);
+      else down.delete(key);
+      set();
+    };
+    // switching away (another window, a dialog) swallows the key-ups: let go of everything
+    const blur = () => {
+      down.clear();
+      set();
+    };
+    set(); // (pick up where the last subscription left off)
+    window.addEventListener("keydown", on);
+    window.addEventListener("keyup", on);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("keydown", on);
+      window.removeEventListener("keyup", on);
+      window.removeEventListener("blur", blur);
+    };
+  }, [outRef, jumpRef, onJump]);
+}
+
+// Walk up to a friend and they say something (LEGO games' chatter): whoever
+// is nearest within a few steps, reported only when it changes.
+const CHATTER = [
+  (me: string) => `Hi ${me}!`,
+  () => "Did your workout today?",
+  () => "Race you to the shop!",
+  () => "Nice house!",
+  () => "Drunk your water yet?",
+  () => "See you at the fountain!",
+  () => "Streak still going?",
+  (me: string) => `Looking strong, ${me}!`,
+];
+function Chatter({
+  where,
+  friends,
+  onTalk,
+}: {
+  where: React.RefObject<THREE.Vector3>;
+  friends: string[];
+  onTalk: (name: string | null) => void;
+}) {
+  const last = useRef<string | null | undefined>(undefined);
+  useFrame(() => {
+    const [x, z] = [where.current.x / LDU, -where.current.z / LDU];
+    let best: string | null = null;
+    let bestD = 130; // LDU: close enough to chat
+    for (const name of friends) {
+      const p = CROWD.get(name);
+      if (!p) continue;
+      const d = Math.hypot(p.x - x, p.z - z);
+      if (d < bestD) [best, bestD] = [name, d];
+    }
+    if (best !== last.current) {
+      last.current = best;
+      onTalk(best);
+    }
+  });
+  return null;
+}
+
+// Which place you're standing at (a door, the shop), for the action button:
+// checked every frame, reported only when it changes.
+function Near({
+  where,
+  places,
+  onNear,
+}: {
+  where: React.RefObject<THREE.Vector3>;
+  places: { id: number; at: P3 }[];
+  onNear: (id: number | null) => void;
+}) {
+  const last = useRef<number | null | undefined>(undefined);
+  useFrame(() => {
+    const p = where.current;
+    let best: number | null = null;
+    let bestD = 170; // LDU: a few steps from the door
+    for (const pl of places) {
+      const d = Math.hypot(pl.at[0] - p.x / LDU, pl.at[2] + p.z / LDU);
+      if (d < bestD) [best, bestD] = [pl.id, d];
+    }
+    if (best !== last.current) {
+      last.current = best;
+      onNear(best);
+    }
+  });
+  return null;
+}
+
+// ---- the HUD ----
+// Simple, chunky icons for the round buttons (24x24, drawn in currentColor).
+const ICONS: Record<string, React.ReactNode> = {
+  run: <path d="M5 6l6 6-6 6M12 6l6 6-6 6" strokeWidth="2.6" />,
+  talk: <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" strokeWidth="2.2" />,
+  door: <path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17M3 21h18M14 12.5h.01" strokeWidth="2.4" />,
+  knock: <path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V11m0-4.5a1.5 1.5 0 0 1 3 0V11m0-3a1.5 1.5 0 0 1 3 0v6a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3.6 14a1.5 1.5 0 0 1 2.4-1.8L8 14" strokeWidth="2" />,
+  shop: <path d="M5 8h14l-1.2 11.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9L5 8Zm4 0V6a3 3 0 0 1 6 0v2" strokeWidth="2.2" />,
+  out: <path d="M14 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 16l-4-4 4-4M6 12h10" strokeWidth="2.4" />,
+  wait: <path d="M12 6v6l4 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" strokeWidth="2.2" />,
+  jump: <path d="M12 19V6M6 11l6-6 6 6" strokeWidth="2.8" />,
+  map: <path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4Zm0 0v13.5m6-11v13.5" strokeWidth="2" />,
+  play: <path d="M12 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm-4 16v-5a4 4 0 0 1 8 0v5" strokeWidth="2.4" />,
+  sound: <path d="M4 10v4h4l5 4V6L8 10H4Zm12.5-1.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" strokeWidth="2.2" />,
+  back: <path d="M15 5l-7 7 7 7" strokeWidth="3" />,
+  rotate: <path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5" strokeWidth="2.6" />,
+  check: <path d="M5 12.5 10 17.5 19 7" strokeWidth="3.2" />,
+  x: <path d="M6 6l12 12M18 6 6 18" strokeWidth="3" />,
+  mute: <path d="M4 10v4h4l5 4V6L8 10H4Zm12 0 5 5m0-5-5 5" strokeWidth="2.2" />,
+  friends: <path d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9v-1.5A4.5 4.5 0 0 1 7.5 14h3a4.5 4.5 0 0 1 4.5 4.5V20m1-9.2a3 3 0 1 0 0-6M18 14a4 4 0 0 1 3 4v2" strokeWidth="2.1" />,
+  home: <path d="M4 11 12 4l8 7M6 9.5V20h12V9.5M10 20v-5h4v5" strokeWidth="2.3" />,
+  star: <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z" strokeWidth="2.1" />,
+};
+function Icon({ name }: { name: keyof typeof ICONS }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {ICONS[name]}
+    </svg>
+  );
+}
+
+// A round LEGO button with an icon, and what it does written under it.
+function RoundAction({
+  icon,
+  text,
+  onClick,
+  disabled,
+  tone = "",
+  small,
+  tour,
+}: {
+  icon: keyof typeof ICONS;
+  text?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  tone?: "" | "dark" | "yellow" | "green";
+  small?: boolean;
+  /** what the Mayor's tour calls this button (it points at it) */
+  tour?: string;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 pointer-events-auto" data-tour={tour}>
+      <button
+        onClick={() => {
+          sfx.click();
+          onClick?.();
+        }}
+        disabled={disabled}
+        aria-label={text}
+        className={`lego-round ${tone} ${small ? "small" : ""}`}
+      >
+        <Icon name={icon} />
+      </button>
+      {text && <span className="lego-chip max-w-[120px] truncate" style={{ background: "rgba(20,18,16,0.72)", color: "#fff" }}>{text}</span>}
+    </div>
+  );
+}
+
+// The speaker: sound on or off (remembered on this device)
+function SoundToggle() {
+  const [on, setOn] = useState(soundOn);
+  return (
+    <RoundAction
+      icon={on ? "sound" : "mute"}
+      text={on ? "Sound" : "Muted"}
+      tone="dark"
+      small
+      onClick={() => {
+        setSound(!on);
+        setOn(!on);
+      }}
+    />
+  );
+}
+
+// The energy bar (0..100) on the player card: ten little bricks, green, then
+// amber, then red as it runs down.
+function EnergyBar({ value }: { value: number }) {
+  const on = Math.round((Math.max(0, value) / ENERGY_MAX) * 10);
+  const colour = value > 50 ? "#4b9f4a" : value > 25 ? "#f5cd2f" : "#d01012";
+  return (
+    <span className="energy-bar" role="meter" aria-label="Energy" aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={ENERGY_MAX}>
+      <span className="bolt" aria-hidden>
+        ⚡
+      </span>
+      {Array.from({ length: 10 }, (_, i) => (
+        <i key={i} className={i < on ? "on" : ""} style={{ "--e": colour } as React.CSSProperties} />
+      ))}
+    </span>
+  );
+}
+// Reads a live energy value (a ref the walker drains) a few times a second for the bar.
+function useEnergyReadout(energyRef: React.RefObject<number> | undefined, initial: number) {
+  const [shown, setShown] = useState(initial);
+  useEffect(() => {
+    if (!energyRef) return;
+    const t = setInterval(() => setShown((v) => (Math.abs(v - energyRef.current) > 0.4 ? energyRef.current : v)), 250);
+    return () => clearInterval(t);
+  }, [energyRef]);
+  return shown;
+}
+
+// Your minifig's head, for the player card: yellow, a stud on top, a smile.
+function HeadIcon() {
+  return (
+    <svg viewBox="0 0 40 44" width="38" height="42" aria-hidden>
+      <rect x="14" y="1" width="12" height="7" rx="2" fill="#f2cd37" stroke="#b58f12" strokeWidth="1.2" />
+      <rect x="5" y="7" width="30" height="33" rx="9" fill="#f5d33f" stroke="#b58f12" strokeWidth="1.4" />
+      <rect x="9" y="10" width="7" height="26" rx="3.5" fill="#fff" opacity="0.28" />
+      <circle cx="15" cy="21" r="2.4" fill="#1b1b1b" />
+      <circle cx="25" cy="21" r="2.4" fill="#1b1b1b" />
+      <path d="M13 28c4 4 10 4 14 0" fill="none" stroke="#1b1b1b" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// The brick wipe going into / out of a room: the LEGO brick wall (BrickWall), over the 3D box
+function BrickWipe({ phase }: { phase: "in" | "out" }) {
+  useEffect(() => sfx.clatter(), [phase]);
+  return <BrickWall phase={phase} className="absolute inset-0 z-40" />;
+}
+const WIPE_IN = WALL_IN;
+const WIPE_OUT = WALL_OUT;
+
+// A handful of little LEGO bricks bursting out of the middle of whatever it's
+// inside (a button, the screen) and tumbling down: something good happened.
+const BURST_COLOURS = ["#d01012", "#0055bf", "#f5cd2f", "#4b9f4a", "#fe8a18", "#ffffff", "#a0a5a9"];
+function BrickBurst({ count = 16 }: { count?: number }) {
+  useEffect(() => sfx.ting(), []);
+  return (
+    <span className="absolute left-1/2 top-1/2 pointer-events-none" aria-hidden>
+      {Array.from({ length: count }, (_, i) => {
+        const a = (i / count) * Math.PI * 2 + hash(i) * 0.6;
+        const r = 38 + hash(i + 40) * 46;
+        return (
+          <span
+            key={i}
+            className="brick-bit"
+            style={
+              {
+                "--c": BURST_COLOURS[i % BURST_COLOURS.length],
+                "--dx": `${Math.cos(a) * r}px`,
+                "--dy": `${Math.sin(a) * r - 30}px`,
+                "--spin": `${(hash(i + 80) - 0.5) * 540}deg`,
+                animationDelay: `${hash(i + 120) * 90}ms`,
+              } as React.CSSProperties
+            }
+          />
+        );
+      })}
+    </span>
+  );
+}
+
+
+// ---- pictures of the things for sale ----
+// Each item is photographed once, LEGO-catalogue style, in a small hidden
+// renderer of its own (the parts are already loaded for the town): filling
+// the frame from the front and a little above, under studio light with
+// reflections so the plastic shines, a soft shadow under it, on nothing.
+// Shot at 4x the tile and kept for the session.
+const THUMB = 256;
+const thumbs = new Map<string, Promise<string>>();
+let thumbGl: { gl: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; stage: THREE.Group; floor: THREE.Mesh } | null = null;
+function thumbRenderer() {
+  if (thumbGl) return thumbGl;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = THUMB;
+  const gl = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+  gl.setPixelRatio(1);
+  gl.toneMapping = THREE.NeutralToneMapping;
+  gl.toneMappingExposure = 1.15;
+  gl.shadowMap.enabled = true;
+  gl.shadowMap.type = THREE.PCFSoftShadowMap;
+  const scene = new THREE.Scene();
+  // the studio: a room's reflections for the sheen, a key light with a soft shadow, a fill
+  scene.environment = new THREE.PMREMGenerator(gl).fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.9;
+  const key = new THREE.DirectionalLight("#fff6e8", 2.2);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.radius = 4;
+  scene.add(key);
+  const fill = new THREE.DirectionalLight("#dbe8ff", 0.7);
+  scene.add(fill);
+  scene.add(new THREE.HemisphereLight("#ffffff", "#c8c8c0", 0.5));
+  const stage = new THREE.Group();
+  stage.rotation.x = Math.PI; // LDraw is -Y up
+  scene.add(stage);
+  // the floor: a studded LEGO plate (green grass for garden things, the room's wood for
+  // furniture), with the thing's shadow on it
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ map: studTexture().clone(), roughness: 0.55 }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+  const camera = new THREE.PerspectiveCamera(28, 1, 1, 20000);
+  return (thumbGl = { gl, scene, camera, stage, floor });
+}
+function thumbFor(id: string): Promise<string> {
+  let p = thumbs.get(id);
+  if (p) return p;
+  p = (async () => {
+    const lines = itemPreviewLines(id);
+    let obj: THREE.Object3D;
+    if (lines) {
+      const { loader, parts } = await getLoader(true);
+      obj = finish(await parse(loader, modelText(lines, "thumb.ldr") + parts));
+    } else {
+      const g = gardenItem(id);
+      if (!g?.prop) throw new Error(`no picture for ${id}`);
+      obj = (await loadHouse(houseUrl((PROPS as Baked[]).find((x) => x.id === g.prop)!))).clone();
+    }
+    const { gl, scene, camera, stage, floor } = thumbRenderer();
+    stage.clear();
+    stage.add(obj);
+    stage.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(stage);
+    const centre = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const radius = size.length() / 2;
+    // the floor under it, big enough to fill the frame; its studs stay one stud each
+    floor.position.set(centre.x, box.min.y - 0.5, centre.z);
+    floor.scale.setScalar(radius * 20);
+    const mat = floor.material as THREE.MeshStandardMaterial;
+    mat.color.set(gardenItem(id) ? "#4b9f4a" : "#b8865a");
+    mat.map!.repeat.set(radius, radius); // one stud a stud (20 LDU) across a plate 20 radii wide
+    mat.map!.needsUpdate = true;
+    const key = scene.children.find((o) => (o as THREE.DirectionalLight).isDirectionalLight) as THREE.DirectionalLight;
+    key.position.copy(centre).add(new THREE.Vector3(-0.6, 1.2, -0.7).normalize().multiplyScalar(radius * 4));
+    key.target.position.copy(centre);
+    key.target.updateMatrixWorld();
+    const cam = key.shadow.camera;
+    cam.left = cam.bottom = -radius * 1.6;
+    cam.right = cam.top = radius * 1.6;
+    cam.near = 1;
+    cam.far = radius * 12;
+    cam.updateProjectionMatrix();
+    key.shadow.bias = -0.0005;
+    // from the front (three's -Z after the flip) and a little above, right of centre, filling the frame
+    const dist = (radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2))) * 1.02;
+    camera.position.copy(centre).add(new THREE.Vector3(0.62, 0.52, -0.75).normalize().multiplyScalar(dist));
+    camera.lookAt(centre);
+    camera.near = dist / 20;
+    camera.far = dist * 4;
+    camera.updateProjectionMatrix();
+    gl.render(scene, camera);
+    const url = gl.domElement.toDataURL("image/png");
+    stage.clear();
+    return url;
+  })();
+  thumbs.set(id, p);
+  p.catch(() => thumbs.delete(id));
+  return p;
+}
+function Thumb({ id, name }: { id: string; name: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    thumbFor(id)
+      .then((u) => live && setUrl(u))
+      .catch((e) => console.error("thumb:", e));
+    return () => {
+      live = false;
+    };
+  }, [id]);
+  return (
+    <span
+      className="flex-none w-16 h-16 rounded-lg overflow-hidden grid place-items-center"
+      style={{ background: gardenItem(id) ? "#4b9f4a" : "#b8865a", boxShadow: "inset 0 -3px 0 rgba(0,0,0,0.25)" }}
+    >
+      {/* a data URL made here, nothing for next/image to optimise */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {url ? <img src={url} alt={name} width={64} height={64} className="w-16 h-16 object-contain" /> : <span className="stud-icon" />}
+    </span>
+  );
+}
+
+// Inside the shop: the furniture for sale, what you have, what you can afford.
+// ---- the Mayor's tour (Clash of Clans style): the first time in your own town, Mayor Brickley shows you
+// round, one thing at a time, a yellow arrow bouncing on the button he's talking about; Next, or Skip.
+// Seen once per device (Iftach: "take the explanation from Clash of Clans, make it simple").
+const TOUR_SEEN = "sl-mayor-tour";
+const TOUR: { tour?: string; text: (name: string) => string }[] = [
+  { text: (n) => `Hello ${n}! I'm Mayor Brickley. Welcome to your very own town. Let me show you round.` },
+  { tour: "stick", text: () => "Drag this stick to walk about (on a keyboard: W A S D)." },
+  { tour: "run", text: () => "Tap Run to run (or hold Shift). Running uses your energy, which comes back when you sleep well and walk your steps." },
+  { tour: "jump", text: () => "And Jump! Tap it again while you're up there for a double jump." },
+  { tour: "todo", text: () => "Your missions stand outside your house. Do one in real life, walk up to it here and tap it: that's XP and gold." },
+  { text: () => "Walk up to your front door and tap Go inside: your room, and the chest with what your watch earned." },
+  { tour: "map", text: () => "Open the map to see your whole town. Every rank you reach puts up a new building round your house: a pool, a café, one day a castle." },
+  { tour: "friends", text: () => "Tap Friends to visit your friends' towns, and see how far they've built." },
+  { text: () => "That's all! Go on, the town is yours." },
+];
+const tourSeen = () => {
+  try {
+    return localStorage.getItem(TOUR_SEEN) === "1";
+  } catch {
+    return false;
+  }
+};
+function MayorTour({ name, hidden }: { name: string; hidden: boolean }) {
+  const [step, setStep] = useState(() => (tourSeen() ? -1 : 0));
+  const me = useRef<HTMLDivElement>(null);
+  // where the arrow goes: over the middle of the button this step is about (relative to the town's box)
+  const [arrow, setArrow] = useState<{ x: number; y: number; up: boolean } | null>(null);
+  const t = step >= 0 && !hidden ? TOUR[step] : null;
+  useEffect(() => {
+    if (!t) return;
+    const place = () => {
+      const box = me.current?.parentElement;
+      const el = t.tour && box?.querySelector(`[data-tour="${t.tour}"]`);
+      if (!box || !el) return setArrow(null);
+      const [b, r] = [box.getBoundingClientRect(), (el as HTMLElement).getBoundingClientRect()];
+      // a button along the top gets the arrow from below, pointing up (above it there's no room)
+      const up = r.top - b.top < 60;
+      setArrow({ x: r.left + r.width / 2 - b.left, y: (up ? r.bottom : r.top) - b.top, up });
+    };
+    const f = requestAnimationFrame(place);
+    window.addEventListener("resize", place);
+    return () => {
+      cancelAnimationFrame(f);
+      window.removeEventListener("resize", place);
+    };
+  }, [t]);
+  if (!t) return null;
+  const done = () => {
+    try {
+      localStorage.setItem(TOUR_SEEN, "1");
+    } catch {}
+    setStep(-1);
+  };
+  const next = () => {
+    sfx.mumble();
+    if (step + 1 < TOUR.length) setStep(step + 1);
+    else done();
+  };
+  const last = step === TOUR.length - 1;
+  return (
+    <div ref={me} className="absolute inset-0 z-20 pointer-events-none">
+      {arrow && (
+        <div className={`tour-arrow absolute ${arrow.up ? "up" : ""}`} style={{ left: arrow.x, top: arrow.y }} aria-hidden>
+          <svg viewBox="0 0 40 48" width="34" height="41">
+            <path d="M12 2h16v22h10L20 46 2 24h10Z" fill="#f5cd2f" stroke="#1b2a34" strokeWidth="3" strokeLinejoin="round" />
+          </svg>
+        </div>
+      )}
+      <div className="absolute inset-x-3 top-24 flex justify-center">
+        <div className="lego-panel pointer-events-auto w-full max-w-md rounded-2xl p-3.5 flex gap-3 items-start slide-in" key={step}>
+          <MayorHead />
+          <div className="flex-1 min-w-0">
+            <span className="lego lego-sm lego-yellow">Mayor Brickley</span>
+            <p className="mt-2 text-[15px] leading-snug font-semibold">{t.text(name)}</p>
+            <div className="mt-2.5 flex items-center justify-between">
+              {last ? <span /> : (
+                <button onClick={done} className="text-xs font-bold opacity-60 underline">
+                  Skip
+                </button>
+              )}
+              <span className="flex items-center gap-2">
+                <span className="text-xs font-bold opacity-50">
+                  {step + 1}/{TOUR.length}
+                </span>
+                <button onClick={next} className="lego lego-sm lego-green">
+                  {last ? "Let's go!" : "Next"}
+                </button>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+// the Mayor's head: a minifig head in a black top hat, white sideburns
+function MayorHead() {
+  return (
+    <svg viewBox="0 0 44 56" width="44" height="56" aria-hidden className="flex-none">
+      <rect x="10" y="1" width="24" height="16" rx="2" fill="#1b2a34" />
+      <rect x="4" y="15" width="36" height="5" rx="2.5" fill="#1b2a34" />
+      <rect x="10" y="12" width="24" height="3" fill="#c91a09" />
+      <rect x="6" y="20" width="32" height="32" rx="9" fill="#f5d33f" stroke="#b58f12" strokeWidth="1.4" />
+      <rect x="6" y="22" width="6" height="16" rx="3" fill="#f4f4f0" />
+      <rect x="32" y="22" width="6" height="16" rx="3" fill="#f4f4f0" />
+      <circle cx="17" cy="32" r="2.3" fill="#1b1b1b" />
+      <circle cx="27" cy="32" r="2.3" fill="#1b1b1b" />
+      <path d="M14 39c3 2 6 2 8 1 2 1 5 1 8-1" fill="none" stroke="#f4f4f0" strokeWidth="3" strokeLinecap="round" />
+      <path d="M16 44c4 3 8 3 12 0" fill="none" stroke="#1b1b1b" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Your friends, Clash of Clans style: each one's rank and how much of their town is built, and a Visit
+// button that takes you there (and Home, from a friend's town, back to yours)
+function FriendsSheet({
+  friends,
+  here,
+  onVisit,
+  onInvite,
+  onClose,
+}: {
+  friends: Resident[];
+  here: string | null;
+  onVisit: (name: string | null) => void;
+  onInvite?: () => Promise<string | null>;
+  onClose: () => void;
+}) {
+  const ranked = [...friends].sort((a, b) => rankOf(b) - rankOf(a));
+  const [invited, setInvited] = useState<string | null>(null);
+  return (
+    <div className="absolute inset-0 z-20 flex items-end" style={{ background: "rgba(0,0,0,0.35)" }} onClick={onClose}>
+      <div className="lego-panel w-full max-h-[75%] overflow-y-auto rounded-t-2xl p-4 slide-in" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <span className="display text-[17px]">Friends&apos; towns</span>
+          {here && (
+            <button onClick={() => onVisit(null)} className="lego lego-sm lego-green">
+              My town
+            </button>
+          )}
+        </div>
+        {onInvite && (
+          <button
+            onClick={async () => {
+              sfx.click();
+              setInvited(await onInvite());
+            }}
+            className="lego lego-green w-full mb-3 py-2.5 text-[15px]"
+          >
+            {invited ?? "Invite a friend to your town"}
+          </button>
+        )}
+        {ranked.length === 0 ? (
+          <p className="text-sm font-bold opacity-70 py-6 text-center">No friends yet. Invite one: once they join, their town shows up here.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {ranked.map((f) => {
+              const built = TOWN_BUILDINGS.filter((b) => rankOf(f) >= b.rank).length;
+              const isHere = f.name === here;
+              return (
+                <div key={f.name} className="flex items-center gap-3 rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.55)" }}>
+                  <HeadIcon />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-extrabold text-[15px] truncate">{f.name}</div>
+                    <div className="text-[12.5px] font-bold opacity-70">
+                      {rankLabel(rankOf(f))} · {built}/{TOWN_BUILDINGS.length} buildings
+                    </div>
+                  </div>
+                  {isHere ? (
+                    <span className="lego lego-sm lego-white">You&apos;re here</span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        sfx.click();
+                        onVisit(f.name);
+                      }}
+                      className="lego lego-sm lego-yellow"
+                    >
+                      Visit
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ShopSheet({
+  gold,
+  prices,
+  owned,
+  onBuy,
+  onClose,
+}: {
+  gold: number | null;
+  prices: Record<string, number>;
+  owned: string[];
+  onBuy: (id: string) => Promise<string | null>;
+  /** closed, with the name of what was just bought (if anything); a garden thing also gives its id, to place */
+  onClose: (bought?: string, gardenId?: string) => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const gardenSold = GARDEN.filter((g) => prices[g.id] !== undefined);
+  const [tab, setTab] = useState<"garden" | "home">(gardenSold.length ? "garden" : "home");
+  const buy = async (id: string, name: string, garden = false) => {
+    if (busy) return;
+    sfx.click();
+    setBusy(id);
+    const err = await onBuy(id);
+    setBusy(null);
+    if (err) return setError(err);
+    onClose(name, garden ? id : undefined);
+  };
+  return (
+    <div className="absolute inset-0 flex items-end" style={{ background: "rgba(0,0,0,0.35)" }} onClick={() => onClose()}>
+      <div
+        className="lego-panel w-full max-h-[70%] overflow-y-auto rounded-t-2xl p-4 slide-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <span className="display text-[17px]">Market Street</span>
+          <span className="lego lego-sm lego-yellow">{(gold ?? 0).toLocaleString()} gold</span>
+        </div>
+        {gardenSold.length > 0 && (
+          <div className="flex gap-2 mb-2">
+            <button onClick={() => setTab("garden")} className={`lego lego-sm ${tab === "garden" ? "lego-green" : "lego-white"}`}>
+              Garden
+            </button>
+            <button onClick={() => setTab("home")} className={`lego lego-sm ${tab === "home" ? "lego-green" : "lego-white"}`}>
+              Home
+            </button>
+          </div>
+        )}
+        <p className="text-xs mb-3" style={{ color: "#5d625a" }}>
+          {tab === "garden" ? "Things for your plot. Buy one, put it where you like, and watch it build." : "Furniture for your house. It's there when you get home."}
+        </p>
+        {error && (
+          <p className="text-sm mb-2 font-semibold" style={{ color: "#b3140f" }}>
+            {error}
+          </p>
+        )}
+        <div className="flex flex-col gap-2">
+          {tab === "garden" &&
+            gardenSold.map((g) => {
+              const price = prices[g.id];
+              const short = price - (gold ?? 0);
+              return (
+                <div key={g.id} className="lego-plate flex items-center gap-3 px-2.5 py-2">
+                  <Thumb id={g.id} name={g.name} />
+                  <span className="font-semibold text-sm flex-1 min-w-0">
+                    {g.name} <span className="text-xs font-normal" style={{ color: "#5d625a" }}>{g.w}×{g.d}</span>
+                  </span>
+                  {short > 0 ? (
+                    <span className="text-xs" style={{ color: "#5d625a" }}>
+                      {price} gold · need {short} more
+                    </span>
+                  ) : (
+                    <button onClick={() => buy(g.id, g.name, true)} disabled={busy === g.id} className="lego lego-sm lego-yellow">
+                      Buy · {price} gold
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          {tab === "home" && DECOR.filter((d) => prices[d.id] !== undefined)
+            .sort((a, b) => prices[a.id] - prices[b.id])
+            .map((d) => {
+              const price = prices[d.id];
+              const short = price - (gold ?? 0);
+              return (
+                <div key={d.id} className="lego-plate flex items-center gap-3 px-2.5 py-2">
+                  <Thumb id={d.id} name={d.name} />
+                  <span className="font-semibold text-sm flex-1 min-w-0">{d.name}</span>
+                  {owned.includes(d.id) ? (
+                    <span className="text-xs font-semibold" style={{ color: "#256a2b" }}>
+                      In your house
+                    </span>
+                  ) : short > 0 ? (
+                    <span className="text-xs" style={{ color: "#5d625a" }}>
+                      {price} gold · need {short} more
+                    </span>
+                  ) : (
+                    <button onClick={() => buy(d.id, d.name)} disabled={busy === d.id} className="lego lego-sm lego-yellow">
+                      Buy · {price} gold
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Plain boxes (road markings, pavements, clouds), merged into one mesh per
+// colour. LDraw frame: -Y is up, so a slab resting at height y spans -y-h..-y.
+function Slabs({ slabs, shadows = true }: { slabs: Slab[]; shadows?: boolean }) {
+  const meshes = useMemo(() => {
+    const byColor = new Map<string, THREE.BufferGeometry[]>();
+    for (const b of slabs) {
+      let g: THREE.BufferGeometry;
+      if (b.ribbon) {
+        g = ribbonGeometry(b.ribbon, b.w, b.h, -(b.y ?? 0));
+      } else if (b.radius) {
+        // a rounded rectangle (a ring, when it has a border), extruded down into the ground
+        const shape = roundedRect(b.w, b.d, b.radius);
+        if (b.border) shape.holes.push(roundedRect(b.w - 2 * b.border, b.d - 2 * b.border, b.radius - b.border));
+        g = new THREE.ExtrudeGeometry(shape, { depth: b.h, bevelEnabled: false });
+        g.rotateX(Math.PI / 2); // the shape's plane (x, y) flat on the ground (x, z), extruded downwards (+y in LDraw)
+        if (b.yaw) g.rotateY(b.yaw);
+        g.translate(b.x, -(b.y ?? 0) - b.h, b.z);
+      } else {
+        g = b.r ? new THREE.CylinderGeometry(b.r, b.r, b.h, 48) : new THREE.BoxGeometry(b.w, b.h, b.d);
+        if (b.yaw) g.rotateY(b.yaw);
+        g.translate(b.x, -(b.y ?? 0) - b.h / 2, b.z);
+      }
+      if ((b.studs || b.tiles) && !b.ribbon) {
+        // studs a stud apart: a shape's UVs are its LDU coordinates, a box's run 0..1 over each face (a ribbon's are studs already)
+        const uv = g.attributes.uv as THREE.BufferAttribute;
+        const [su, sv] = b.radius ? [1 / 20, 1 / 20] : [b.w / 20, b.d / 20];
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
+      }
+      const key = `${b.color}|${b.tiles ? "tiles" : b.studs ? "studs" : "smooth"}`;
+      if (!byColor.has(key)) byColor.set(key, []);
+      byColor.get(key)!.push(g.index ? g.toNonIndexed() : g); // extruded shapes have no index; a merge needs all alike
+    }
+    return [...byColor].map(([key, gs]) => ({ key, color: key.split("|")[0], studs: key.endsWith("studs"), tiles: key.endsWith("tiles"), geometry: mergeGeometries(gs) }));
+  }, [slabs]);
+  useEffect(() => () => meshes.forEach((m) => m.geometry.dispose()), [meshes]);
+  const studMap = useMemo(() => {
+    const t = studTexture().clone();
+    t.repeat.set(1, 1);
+    t.needsUpdate = true;
+    return t;
+  }, []);
+  // water flows: its studs slide along the band (the ribbon's u runs downstream)
+  const waterMap = useMemo(() => {
+    const t = studTexture().clone();
+    t.repeat.set(1, 1);
+    t.needsUpdate = true;
+    return t;
+  }, []);
+  const tileMap = useMemo(() => tileTexture(), []);
+  // the water moves the LEGO way (as the LEGO Skylines trailer does it): no sliding studs, but
+  // ordered waves rolling across the stud grid as one body, each stud lighting up in its turn, in
+  // steps. A few lines in the fragment shader: the stud's cell, a travelling wave, three levels
+  const waterMat = useRef<THREE.MeshStandardMaterial>(null);
+  useEffect(() => {
+    const mat = waterMat.current;
+    if (!mat) return;
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = { value: 0 };
+      shader.fragmentShader = shader.fragmentShader
+        .replace("#include <common>", "#include <common>\nuniform float uTime;")
+        .replace(
+          "#include <map_fragment>",
+          "#include <map_fragment>\n#ifdef USE_MAP\nvec2 cell = floor(vMapUv);\nfloat wave = sin(cell.x * 0.55 + cell.y * 0.9 - floor(uTime * 6.0) / 6.0 * 2.6);\nwave = floor(wave * 1.5 + 1.5) / 3.0;\ndiffuseColor.rgb *= 0.88 + wave * 0.26;\n#endif",
+        );
+      mat.userData.shader = shader;
+    };
+    mat.needsUpdate = true;
+  }, []);
+  useFrame(({ clock }) => {
+    if (waterMat.current?.userData.shader) waterMat.current.userData.shader.uniforms.uTime.value = clock.elapsedTime;
+  });
+  return (
+    <>
+      {meshes.map((m) => (
+        <mesh key={m.key} geometry={m.geometry} castShadow={shadows} receiveShadow={shadows}>
+          <meshStandardMaterial ref={m.color === WATER ? waterMat : undefined} color={m.color} map={m.tiles ? tileMap : m.studs ? (m.color === WATER ? waterMap : studMap) : null} roughness={m.color === WATER ? 0.25 : 0.7} />
+        </mesh>
+      ))}
+    </>
+  );
+}
+const WATER = "#3f8fd8";
+// A band `w` wide along a polyline (LDU, LDraw frame), `h` thick, its bottom at LDraw y
+// `bottom` (0: the ground): a top and two sides, mitred at the bends, UVs in studs along and
+// across it. One piece, so nothing overlaps and nothing fights in the depth buffer.
+function ribbonGeometry(pts: P3[], w: number, h: number, bottom: number): THREE.BufferGeometry {
+  const L: [number, number][] = [];
+  const R: [number, number][] = [];
+  const along: number[] = [];
+  let d = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(pts.length - 1, i + 1)];
+    const dir = i === 0 ? [pts[1][0] - pts[0][0], pts[1][2] - pts[0][2]] : i === pts.length - 1 ? [pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]] : [b[0] - a[0], b[2] - a[2]];
+    const len = Math.hypot(dir[0], dir[1]) || 1;
+    const [nx, nz] = [-dir[1] / len, dir[0] / len];
+    // mitre: widen the offset where the band bends, so its edges stay parallel to the legs
+    let m = 1;
+    if (i > 0 && i < pts.length - 1) {
+      const [ux, uz] = [pts[i][0] - a[0], pts[i][2] - a[2]];
+      const ul = Math.hypot(ux, uz) || 1;
+      m = Math.min(2, 1 / Math.max(0.5, Math.abs(nx * (-uz / ul) + nz * (ux / ul))));
+    }
+    L.push([pts[i][0] + nx * (w / 2) * m, pts[i][2] + nz * (w / 2) * m]);
+    R.push([pts[i][0] - nx * (w / 2) * m, pts[i][2] - nz * (w / 2) * m]);
+    if (i > 0) d += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]);
+    along.push(d / 20);
+  }
+  const top = bottom - h;
+  const pos: number[] = [];
+  const uv: number[] = [];
+  // wound to face outwards (up is -y in LDraw, so the order runs the other way round)
+  const tri = (a: number[], b: number[], c: number[], ua: number[], ub: number[], uc: number[]) => {
+    pos.push(...a, ...c, ...b);
+    uv.push(...ua, ...uc, ...ub);
+  };
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const [l0, r0, l1, r1] = [L[i], R[i], L[i + 1], R[i + 1]];
+    const [u0, u1] = [along[i], along[i + 1]];
+    const v = w / 20;
+    // the top (facing up: LDraw -y, so wound to face -y)
+    tri([l0[0], top, l0[1]], [l1[0], top, l1[1]], [r0[0], top, r0[1]], [u0, 0], [u1, 0], [u0, v]);
+    tri([l1[0], top, l1[1]], [r1[0], top, r1[1]], [r0[0], top, r0[1]], [u1, 0], [u1, v], [u0, v]);
+    // the sides
+    const hv = h / 20;
+    tri([l0[0], top, l0[1]], [l0[0], bottom, l0[1]], [l1[0], top, l1[1]], [u0, 0], [u0, hv], [u1, 0]);
+    tri([l1[0], top, l1[1]], [l0[0], bottom, l0[1]], [l1[0], bottom, l1[1]], [u1, 0], [u0, hv], [u1, hv]);
+    tri([r0[0], top, r0[1]], [r1[0], top, r1[1]], [r0[0], bottom, r0[1]], [u0, 0], [u1, 0], [u0, hv]);
+    tri([r1[0], top, r1[1]], [r1[0], bottom, r1[1]], [r0[0], bottom, r0[1]], [u1, 0], [u1, hv], [u0, hv]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  return g;
+}
+// a rounded rectangle, centred, in the shape's own plane
+function roundedRect(w: number, d: number, r: number): THREE.Shape {
+  const [x, y] = [-w / 2, -d / 2];
+  const shape = new THREE.Shape();
+  shape.moveTo(x + r, y);
+  shape.lineTo(x + w - r, y);
+  shape.absarc(x + w - r, y + r, r, -Math.PI / 2, 0, false);
+  shape.lineTo(x + w, y + d - r);
+  shape.absarc(x + w - r, y + d - r, r, 0, Math.PI / 2, false);
+  shape.lineTo(x + r, y + d);
+  shape.absarc(x + r, y + d - r, r, Math.PI / 2, Math.PI, false);
+  shape.lineTo(x, y + r);
+  shape.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false);
+  return shape;
+}
+// A banner: a tall pole with a red cloth that waves (the cloth's far edge ripples in a
+// vertex shader). LDraw frame; `at` is the pole's foot.
+function Banner({ at }: { at: [number, number, number] }) {
+  const mat = useRef<THREE.MeshStandardMaterial>(null);
+  useEffect(() => {
+    const m = mat.current;
+    if (!m) return;
+    m.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = { value: 0 };
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nuniform float uTime;")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\ntransformed.z += sin(uTime * 4.0 + position.x * 0.08) * position.x * 0.09;");
+      m.userData.shader = shader;
+    };
+    m.needsUpdate = true;
+  }, []);
+  useFrame(({ clock }) => {
+    if (mat.current?.userData.shader) mat.current.userData.shader.uniforms.uTime.value = clock.elapsedTime;
+  });
+  return (
+    <group position={at}>
+      <mesh position={[0, -110, 0]}>
+        <cylinderGeometry args={[4, 4, 220, 8]} />
+        <meshStandardMaterial color="#5c3a1e" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, -214, 0]}>
+        <sphereGeometry args={[7, 8, 6]} />
+        <meshStandardMaterial color="#e6b422" metalness={0.6} roughness={0.3} />
+      </mesh>
+      {/* the cloth hangs from the top, out to +x, 70 wide and 44 tall, ten segments to ripple */}
+      <mesh position={[39, -184, 0]}>
+        <planeGeometry args={[70, 44, 10, 2]} />
+        <meshStandardMaterial ref={mat} color="#c4281c" side={THREE.DoubleSide} roughness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+// Chimney smoke: white puffs rising from a roof, drifting a little, growing and thinning
+// away. Three's space; `at` is the chimney's top.
+const PUFFS = 9;
+function Smoke({ at, seed = 0 }: { at: [number, number, number]; seed?: number }) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const o = useMemo(() => new THREE.Object3D(), []);
+  useFrame(({ clock }) => {
+    const m = mesh.current;
+    if (!m) return;
+    const t = clock.elapsedTime + seed * 7;
+    for (let i = 0; i < PUFFS; i++) {
+      const f = Math.floor(((t * 0.22 + i / PUFFS) % 1) * 12) / 12; // 0 leaving the chimney, 1 gone; in twelve steps, the LEGO way
+      const wobble = Math.sin(t * 1.3 + i) * 0.25;
+      o.position.set(at[0] + f * 1.6 + wobble, at[1] + f * 5.5, at[2] + f * 0.8 - wobble * 0.5);
+      const sz = 0.18 + Math.sin(f * Math.PI) * 0.5;
+      o.scale.set(sz, sz * 0.8, sz);
+      o.updateMatrix();
+      m.setMatrixAt(i, o.matrix);
+    }
+    m.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, PUFFS]} frustumCulled={false}>
+      <sphereGeometry args={[1, 8, 6]} />
+      <meshStandardMaterial color="#f4f4f2" transparent opacity={0.7} roughness={1} />
+    </instancedMesh>
+  );
+}
+
+// The lake's life: the boats rock gently on the water, the ducks paddle round in slow circles
+// (LDraw frame, over LAKE).
+const BOAT_SLABS = BOATS.map((b) => boatSlabs(b.color));
+function LakeLife() {
+  const duck = useModel(duckText(), true);
+  const ducks = useMemo(() => (duck ? [0, 1, 2, 3].map(() => duck.clone()) : []), [duck]);
+  const boats = useRef<(THREE.Group | null)[]>([]);
+  const paddlers = useRef<(THREE.Group | null)[]>([]);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    boats.current.forEach((g, i) => {
+      if (!g) return;
+      g.rotation.z = Math.sin(t * 1.2 + i * 2) * 0.06;
+      g.rotation.x = Math.sin(t * 0.8 + i) * 0.04;
+      g.position.y = Math.sin(t * 1.1 + i * 1.3) * 2;
+    });
+    paddlers.current.forEach((g, i) => {
+      if (!g) return;
+      const a = t * (0.12 + i * 0.03) + i * 1.6;
+      const r = LAKE.r * (0.3 + i * 0.14);
+      g.position.set(LAKE.x + Math.cos(a) * r, Math.sin(t * 3 + i) * 1.5, LAKE.z + Math.sin(a) * r);
+      g.rotation.y = -a; // facing the way it paddles
+    });
+  });
+  return (
+    <group>
+      {BOATS.map((b, i) => (
+        <group key={i} position={[LAKE.x + b.dx, 0, LAKE.z + b.dz]} rotation={[0, b.yaw, 0]} ref={(g) => void (boats.current[i] = g)}>
+          <Slabs slabs={BOAT_SLABS[i]} shadows={false} />
+        </group>
+      ))}
+      {ducks.map((d, i) => (
+        <group key={`d${i}`} ref={(g) => void (paddlers.current[i] = g)}>
+          <primitive object={d} />
+        </group>
+      ))}
+    </group>
+  );
+}
+// Boulders and spiky plants, brick-built the LEGO-game way: a boulder is three stacked blocks,
+// each smaller and nudged off the one below, flat-shaded in greys; a plant is a fan of thin
+// leaves. Instanced, sitting on the grass. Three's space (LDraw z flipped).
+function boulderGeometry(): THREE.BufferGeometry {
+  const parts: [number, number, number, number, number, number][] = [
+    // w, h, d, x, y, z (unit: the boulder's size)
+    [1, 0.45, 0.8, 0, 0.225, 0],
+    [0.72, 0.4, 0.62, 0.1, 0.62, -0.05],
+    [0.42, 0.3, 0.38, -0.05, 0.95, 0.06],
+  ];
+  return mergeGeometries(
+    parts.map(([w, h, d, x, y, z]) => {
+      const g = new THREE.BoxGeometry(w, h, d);
+      g.translate(x, y, z);
+      return g.toNonIndexed();
+    }),
+  );
+}
+function spikyGeometry(): THREE.BufferGeometry {
+  const leaves: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 9; k++) {
+    const g = new THREE.ConeGeometry(0.11, 1, 4);
+    g.translate(0, 0.5, 0);
+    g.rotateZ(0.35 + (k % 3) * 0.22);
+    g.rotateY((k / 9) * Math.PI * 2);
+    leaves.push(g.toNonIndexed());
+  }
+  return mergeGeometries(leaves);
+}
+const ROCK_GREYS = ["#8c9196", "#6d6e6c", "#a0a5a9", "#7b7f80"].map((c) => new THREE.Color(c));
+const PLANT_GREENS = ["#2f7d5b", "#3f8f6a", "#4f9e5f", "#2d6f63"].map((c) => new THREE.Color(c));
+function Wild({ season }: { season: Season }) {
+  const rocks = useRef<THREE.InstancedMesh>(null);
+  const plants = useRef<THREE.InstancedMesh>(null);
+  const rockGeo = useMemo(() => boulderGeometry(), []);
+  const plantGeo = useMemo(() => spikyGeometry(), []);
+  const nRock = WILD.filter((w) => w.kind === 0).length;
+  useLayoutEffect(() => {
+    const o = new THREE.Object3D();
+    const snow = new THREE.Color("#eef2f6");
+    let r = 0;
+    let p = 0;
+    WILD.forEach((w, i) => {
+      o.position.set(w.x * LDU, GRASS_Y, -w.z * LDU);
+      o.rotation.set(0, w.turn, 0);
+      const sz = w.size;
+      o.scale.set(sz, sz * (w.kind === 0 ? 0.8 : 0.9), sz);
+      o.updateMatrix();
+      if (w.kind === 0) {
+        rocks.current?.setMatrixAt(r, o.matrix);
+        rocks.current?.setColorAt(r, ROCK_GREYS[i % ROCK_GREYS.length]);
+        r++;
+      } else {
+        plants.current?.setMatrixAt(p, o.matrix);
+        plants.current?.setColorAt(p, season === "winter" ? snow : PLANT_GREENS[i % PLANT_GREENS.length]);
+        p++;
+      }
+    });
+    for (const m of [rocks, plants])
+      if (m.current) {
+        m.current.instanceMatrix.needsUpdate = true;
+        if (m.current.instanceColor) m.current.instanceColor.needsUpdate = true;
+      }
+  }, [season]);
+  return (
+    <>
+      <instancedMesh ref={rocks} args={[undefined, undefined, nRock]} geometry={rockGeo} castShadow receiveShadow>
+        <meshStandardMaterial roughness={0.7} flatShading />
+      </instancedMesh>
+      <instancedMesh ref={plants} args={[undefined, undefined, WILD.length - nRock]} geometry={plantGeo} castShadow>
+        <meshStandardMaterial roughness={0.6} flatShading />
+      </instancedMesh>
+    </>
+  );
+}
+const FLATS = townFlats();
+const BALLOON = balloonSlabs();
+const WATER_TOWER_SLABS = waterTowerSlabs();
+// the balloon drifts round the village at a walking pace, high over the houses, bobbing a little
+function Balloon() {
+  const g = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    if (!g.current) return;
+    const a = t * 0.02;
+    const r = (RING + 90) * 20;
+    g.current.position.set(Math.sin(a) * r, -1300 - Math.sin(t * 0.5) * 30, Math.cos(a) * r);
+    g.current.rotation.z = Math.sin(t * 0.7) * 0.05; // leaning a little with the wind
+    g.current.rotation.x = Math.cos(t * 0.6) * 0.04;
+  });
+  return (
+    <group ref={g}>
+      <Slabs slabs={BALLOON} shadows={false} />
+    </group>
+  );
+}
+const CLOUDS = townClouds();
+
+// ---- traffic: official LEGO cars driving in on one road, round the roundabout, out the other ----
+// The loop (LDraw frame) comes from the roads, closed unseen through the hills; sampled
+// once into points with their distance along it.
+const LOOP = (() => {
+  const pts = carLoop().map(([x, z]) => ({ x, z, d: 0 }));
+  pts.push({ ...pts[0] });
+  for (let i = 1; i < pts.length; i++) pts[i].d = pts[i - 1].d + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+  return pts;
+})();
+const LOOP_LENGTH = LOOP[LOOP.length - 1].d;
+const CAR_SPEED = 360; // LDU a second: about 18 studs
+
+// where a car is `d` LDU along the loop, and which way it faces (radians about Y)
+function alongLoop(d: number): [number, number, number] {
+  const t = ((d % LOOP_LENGTH) + LOOP_LENGTH) % LOOP_LENGTH;
+  let i = 1;
+  while (LOOP[i].d < t) i++;
+  const a = LOOP[i - 1];
+  const b = LOOP[i];
+  const f = (t - a.d) / (b.d - a.d || 1);
+  // a car's own front is +Z; turning by θ about Y points it at (sin θ, cos θ)
+  return [a.x + (b.x - a.x) * f, a.z + (b.z - a.z) * f, Math.atan2(b.x - a.x, b.z - a.z)];
+}
+
+function Car({ car, start, night }: { car: Baked; start: number; night: boolean }) {
+  const map = useMemo(() => glow(), []);
+  const [obj, setObj] = useState<THREE.Object3D | null>(null);
+  const root = useRef<THREE.Group>(null);
+  useEffect(() => {
+    let live = true;
+    loadHouse(houseUrl(car))
+      .then((o) => live && setObj(o.clone()))
+      .catch((e) => console.error("car:", e));
+    return () => {
+      live = false;
+    };
+  }, [car]);
+  useFrame(({ clock }) => {
+    if (!root.current) return;
+    const [x, z, heading] = alongLoop(start + clock.elapsedTime * CAR_SPEED);
+    root.current.position.set(x, 0, z);
+    root.current.rotation.y = heading;
+  });
+  // the glb's origin is its front-left corner; centre it on the lane
+  return (
+    <group ref={root}>
+      {obj && <primitive object={obj} position={[-car.w * 10, 0, car.d * 10]} />}
+      {/* headlights after dark: two glows at the front, a little above the road */}
+      {night &&
+        [-1, 1].map((side) => (
+          <sprite key={side} position={[side * car.w * 6, -22, car.d * 10 + 6]} scale={[60, 60, 1]}>
+            <spriteMaterial map={map} color="#fff4d6" blending={THREE.AdditiveBlending} depthWrite={false} transparent fog={false} />
+          </sprite>
+        ))}
+    </group>
+  );
+}
+
+// ---- the guides: a few townsfolk who walk round the plaza and talk to you (Fortnite's NPCs: walk
+// up, tap Talk, they tell you a small story, and now and then hand you one of today's missions) ----
+type Guide = {
+  id: string;
+  name: string;
+  role: string;
+  look: MinifigLook;
+  /** where on the ring it starts (LDU round), its lane (LDU from the centre), which way it walks */
+  start: number;
+  r: number;
+  dir: 1 | -1;
+  hello: (me: string) => string;
+  /** a few small stories, told one per talk, in turn */
+  stories: string[][];
+  /** how it hands you a mission, and what it says when you've done them all */
+  mission: (title: string, xp: number) => string;
+  allDone: string;
+};
+const GUIDES: Guide[] = [
+  {
+    id: "guide-mayor",
+    name: "Mayor Brickley",
+    role: "Mayor",
+    look: { skin: COL.yellow, hair: COL.white, torso: COL.black, legs: COL.black },
+    start: 0,
+    r: RING_R - 30,
+    dir: 1,
+    hello: (me) => `Ah, ${me}! Good to see you about town.`,
+    stories: [
+      ["This town grows when you do.", "Every mission you finish out in the real world earns you XP and gold in here."],
+      ["When I was young, all this was one empty baseplate.", "Then people started keeping the promises they made to themselves, and the houses went up, brick by brick."],
+      ["Level up and your house grows with you.", "And the shop on Market Street will sell you things for your garden, for gold."],
+    ],
+    mission: (title, xp) => `Here's a job for you today: ${title}. That's ${xp} XP when it's done.`,
+    allDone: "Every mission done today? The whole town's talking about you.",
+  },
+  {
+    id: "guide-coach",
+    name: "Coach Rita",
+    role: "Coach",
+    look: { skin: COL.yellow, hair: COL.reddishBrown, torso: COL.red, legs: COL.darkBlue },
+    start: 1700,
+    r: RING_R + 30,
+    dir: -1,
+    hello: (me) => `${me}! Warmed up yet?`,
+    stories: [
+      ["Energy keeps your legs running. That's the bar up top.", "Sleep well and walk your steps, and it fills right back up."],
+      ["I ran round this plaza every morning for a year.", "The first lap was the hardest. The second was easier. Keep going."],
+      ["Out of energy? Walk instead. Hold Shift to stroll.", "Walking costs nothing, and your energy creeps back while you do."],
+    ],
+    mission: (title, xp) => `Today's training: ${title}! ${xp} XP when you've done it.`,
+    allDone: "All your training done today? That's a champion's day.",
+  },
+  {
+    id: "guide-gardener",
+    name: "Old Finn",
+    role: "Gardener",
+    look: { skin: COL.yellow, hair: COL.darkGrey, torso: COL.darkGreen, legs: COL.tan },
+    start: 3400,
+    r: RING_R - 30,
+    dir: 1,
+    hello: () => "Mind the flowers, now. Oh, hello there.",
+    stories: [
+      ["See the flower farms between the houses?", "Every one of them started with a single seed. Small things, every day."],
+      ["The river up north never stops.", "It does slow down at the bends, mind. Rest is part of the journey too."],
+      ["Buy something for your garden in the shop,", "then watch it build itself on your plot, brick by brick."],
+    ],
+    mission: (title, xp) => `Something to tend to today: ${title}. ${xp} XP for it.`,
+    allDone: "Nothing left to tend today. Sit a while and enjoy it.",
+  },
+];
+const GUIDE_SPEED = 60; // LDU a second: an amble (stride 7)
+const TALK_RANGE = 130; // LDU: close enough to talk (as friends' chatter)
+// what a guide says this time: hello, the next story, and on every other talk one of your missions
+// not done yet (or well done, if they all are)
+function guideLines(g: Guide, n: number, me: string, stations?: Station[]): { text: string; mission?: boolean }[] {
+  const lines: { text: string; mission?: boolean }[] = [g.hello(me), ...g.stories[n % g.stories.length]].map((text) => ({ text }));
+  if (n % 2 === 1 && stations?.length) {
+    const todo = stations.filter((st) => !st.done);
+    const st = todo[n % Math.max(1, todo.length)];
+    lines.push({ text: st ? g.mission(st.title, st.xp) : g.allDone, mission: !!st });
+  }
+  return lines;
+}
+// a guide on its round: it walks its lane of the ring, and stops and turns to you while you're near
+function GuideWalker({ guide, where }: { guide: Guide; where: React.RefObject<THREE.Vector3> }) {
+  const root = useRef<THREE.Group>(null);
+  const walking = useRef(true);
+  const d = useRef(guide.start);
+  useEffect(() => () => void CROWD.delete(guide.id), [guide.id]);
+  useFrame((_, dt) => {
+    const o = root.current;
+    if (!o) return;
+    const { at } = jogAt(d.current, guide.r);
+    const [mx, mz] = [where.current.x / LDU, -where.current.z / LDU];
+    const near = Math.hypot(mx - at[0], mz - at[2]) < TALK_RANGE;
+    walking.current = !near;
+    if (!near) d.current += GUIDE_SPEED * guide.dir * Math.min(dt, 0.1);
+    const { at: p, heading } = jogAt(d.current, guide.r);
+    o.position.set(p[0], 0, p[2]);
+    CROWD.set(guide.id, { x: p[0], z: p[2] });
+    // walking: along the ring, the way it goes; near you: round to face you (the short way, eased)
+    const want = near ? Math.atan2(mx - p[0], mz - p[2]) : heading + (guide.dir < 0 ? Math.PI : 0);
+    const turn = Math.atan2(Math.sin(want - o.rotation.y), Math.cos(want - o.rotation.y));
+    o.rotation.y += turn * Math.min(1, dt * 8);
+  });
+  return (
+    <group ref={root}>
+      <Minifig look={guide.look} at={[0, 0, 0]} walking={walking} stride={7} />
+    </group>
+  );
+}
+
+// You, walking round town to wherever you look: your door, a friend's door
+// (beside them), the shop. Change your mind mid-walk and you turn round there.
+const WALK_SPEED = 150; // LDU a second: an easy walk, with legs that keep up (stride 13)
+// You can also drive yourself about (joystick or keys): `input` is where the
+// stick points (x right, y up the screen), `blockers` what you can't walk
+// through; `where` gets your position (three's space) every frame, for the
+// camera to follow. A new `go` (the same place again included) walks you there.
+const DRIVE_SPEED = 150; // LDU a second, walking (running: RUN times that)
+const RUN = 1.7; // a LEGO run: clearly quicker than the walk, not a blur (fast reads wrong on a minifig)
+const RUN_REACH = 1.05; // how far a running leg swings (radians): long steps
+const RUN_STRIDE = 16.6; // the legs' pace that keeps a run's feet planted at that reach (step ~ 2 x leg x sin(reach))
+const WALK_PUSH = 0.7; // how far the keys push the stick when you walk (Shift: all the way, a run)
+function Walker({
+  id,
+  look,
+  to,
+  turn,
+  wave = false,
+  go = 0,
+  teleport,
+  runRef,
+  input,
+  blockers,
+  where,
+  jumpRef,
+  aimRef,
+  energyRef,
+}: {
+  /** who this is (for keeping out of each other's way) */
+  id: string;
+  look: MinifigLook | Figure;
+  to: P3[];
+  turn: number;
+  wave?: boolean;
+  go?: number;
+  jumpRef?: React.RefObject<number>;
+  /** which way the camera should come round to (behind you, as an angle round you), or null: leave it */
+  aimRef?: React.RefObject<number | null>;
+  /** your energy (0..100), drained by running and jumps, trickling back while you rest; none: no limits */
+  energyRef?: React.RefObject<number>;
+  /** bumped together with `go` when you teleport there (a tap on the map) instead of walking */
+  teleport?: number;
+  /** the Run button: while on, pushing the stick at all runs (keys: Shift does the same) */
+  runRef?: React.RefObject<boolean>;
+  input?: React.RefObject<{ x: number; y: number }>;
+  blockers?: Blocker[];
+  where?: React.RefObject<THREE.Vector3>;
+}) {
+  const root = useRef<THREE.Group>(null);
+  const walking = useRef(false);
+  const key = JSON.stringify(to) + "#" + go;
+  // `from`: the place you last walked to, or null after driving yourself somewhere
+  const state = useRef<{ from: P3[] | null; pos: P3; walk: { r: Route; i: number; f: number } | null }>(null);
+  // a teleport: when it began (the minifig plays it, see Minifig), where to, whether it's waiting for the
+  // next frame to begin, and whether you've landed yet
+  const tele = useRef({ at: -1, to: null as P3[] | null, pending: false, landed: true, seen: teleport });
+  useEffect(() => {
+    const dest: P3[] = JSON.parse(key.slice(0, key.lastIndexOf("#")));
+    const s = state.current;
+    const t = tele.current;
+    if (!s) state.current = { from: dest, pos: dest[dest.length - 1], walk: null };
+    else if (teleport !== undefined && teleport !== t.seen) Object.assign(t, { seen: teleport, to: dest, pending: true });
+    else {
+      const r = s.walk ? rerouteFrom(s.walk.r, s.walk.i, s.pos, dest) : s.from ? walkRoute(s.from, dest) : walkFrom(s.pos, dest);
+      s.walk = r.pts.length > 1 ? { r, i: 0, f: 0 } : null;
+      s.from = dest;
+    }
+  }, [key, teleport]);
+  const teleAt = useRef(-1); // (for the minifig: when the teleport began)
+  const look3 = useMemo(() => new THREE.Vector3(), []);
+  // driving yourself, the LEGO-game way: the stick points across the screen (the camera keeps its
+  // angle and follows), you turn on the spot to it at once, and only your speed eases: a quick
+  // speed-up and a short slide to a stop. `dir` (LDraw x/z, unit) is where you're heading, `sp` how fast
+  const vel = useRef({ dx: 0, dz: 1, sp: 0 });
+  const off = useMemo(() => ({ x: 0, z: 0 }), []); // sidestepping someone
+  const stepped = useRef({ x: 0, z: 0, d: 0 }); // for your footsteps
+  // the legs' pace, kept with your speed so your feet never slide: running, walking, or strolling
+  // (Shift, or the stick pushed only part way) at about 0.6 of the walk
+  const [stride, setStride] = useState(13);
+  useEffect(() => () => void CROWD.delete(id), [id]);
+  // dust puffs kicked up behind you as you run, the LEGO-game way: round white puffs that swell and
+  // shrink away in steps (a few frames each, like the town's stepped motion), one every stride
+  const puffs = useRef<THREE.InstancedMesh>(null);
+  const puffLife = useRef({ born: Array<number>(DUST).fill(-9), at: Array.from({ length: DUST }, () => [0, 0, 0]), next: 0 });
+  const puffObj = useMemo(() => new THREE.Object3D(), []);
+  const puff = (x: number, z: number, now: number) => {
+    const p = puffLife.current;
+    p.at[p.next] = [x, 0, z];
+    p.born[p.next] = now;
+    p.next = (p.next + 1) % DUST;
+  };
+  const kickPuff = (x: number, z: number, dx: number, dz: number, now: number) => {
+    const p = puffLife.current;
+    if (now - p.born[(p.next + DUST - 1) % DUST] < 0.16) return; // one a stride
+    const side = p.next % 2 ? 1 : -1; // left foot, right foot
+    puff(x - dx * 14 + dz * side * 6, z - dz * 14 - dx * side * 6, now);
+  };
+  // and a ring of them where you land from a jump (the minifig's jump lasts JUMP_AIR seconds)
+  const landing = useRef({ seen: 0, at: -1, last: -9, double: false });
+  const animatePuffs = (now: number) => {
+    const m = puffs.current;
+    if (!m) return;
+    const p = puffLife.current;
+    for (let k = 0; k < DUST; k++) {
+      const age = Math.floor(((now - p.born[k]) / DUST_LIFE) * 5) / 5; // 0, 0.2 .. 0.8: five steps
+      const live = age >= 0 && age < 1;
+      const size = live ? Math.sin((age + 0.2) * Math.PI) * (0.7 + age * 0.6) : 0;
+      puffObj.position.set(p.at[k][0], -4 - age * 14, p.at[k][2]); // LDraw: -y is up, it drifts up
+      puffObj.scale.setScalar(size);
+      puffObj.updateMatrix();
+      m.setMatrixAt(k, puffObj.matrix);
+    }
+    m.instanceMatrix.needsUpdate = true;
+  };
+  useFrame(({ camera, clock }, dt) => {
+    const s = state.current;
+    const o = root.current;
+    if (!s || !o) return;
+    const now = clock.elapsedTime;
+    const l = landing.current;
+    if (jumpRef && jumpRef.current !== l.seen) {
+      l.seen = jumpRef.current;
+      // (as the minifig counts them: a press in the air is a double jump, landing a jump's length later)
+      if (l.at > now && !l.double) [l.at, l.double] = [now + JUMP_AIR, true];
+      else if (now - l.last > 0.5) [l.last, l.at, l.double] = [now, now + JUMP_AIR, false];
+    }
+    if (l.at > 0 && now >= l.at) {
+      l.at = -1;
+      for (let k = 0; k < 6; k++) puff(o.position.x + Math.sin(k * 1.05 + 0.3) * 26, o.position.z + Math.cos(k * 1.05 + 0.3) * 26, now);
+      sfx.land();
+    }
+    animatePuffs(now);
+    // turn quickly but smoothly (never snap round a corner), the short way round
+    const face = (yaw: number, rate = 12) => {
+      const d = Math.atan2(Math.sin(yaw - o.rotation.y), Math.cos(yaw - o.rotation.y));
+      o.rotation.y += d * Math.min(1, dt * rate);
+    };
+    // stand where the path puts you, stepped aside for anyone in the way; tell everyone
+    const report = (dodge = true) => {
+      let [x, z] = [s.pos[0], s.pos[2]];
+      if (dodge) [x, z] = sidestep(id, x, z, off, dt);
+      else [off.x, off.z] = [0, 0];
+      o.position.set(x, s.pos[1], z);
+      CROWD.set(id, { x, z });
+      // your footsteps: a soft plastic tick every stride
+      if (id === "me") {
+        const f = stepped.current;
+        f.d += Math.hypot(x - f.x, z - f.z);
+        [f.x, f.z] = [x, z];
+        if (f.d > 38 && f.d < 400) sfx.step();
+        if (f.d > 38) f.d = 0;
+      }
+      where?.current.set(x * LDU, -s.pos[1] * LDU, -z * LDU);
+    };
+    // behind someone heading (dx, dz) in LDraw: the camera sits the other way round (three's x, -z)
+    const behind = (dx: number, dz: number) => {
+      if (aimRef) aimRef.current = Math.atan2(-dx, dz);
+    };
+    if (aimRef) aimRef.current = null;
+    // teleporting: you burst apart where you are, vanish, and build yourself again at the other end;
+    // the stick does nothing till you're whole
+    const tp = tele.current;
+    if (tp.pending) {
+      [tp.pending, tp.at, tp.landed, teleAt.current] = [false, now, false, now];
+      for (let k = 0; k < 6; k++) puff(o.position.x + Math.sin(k * 1.05) * 22, o.position.z + Math.cos(k * 1.05) * 22, now);
+      sfx.clatter(); // bursting into bricks
+    }
+    if (now - tp.at < TELE_ARRIVE + TELE_BUILD) {
+      if (now - tp.at >= TELE_BREAK && tp.to) {
+        [s.pos, s.from, s.walk, tp.to] = [tp.to[tp.to.length - 1], tp.to, null, null];
+        vel.current.sp = 0;
+      }
+      if (!tp.landed && now - tp.at >= TELE_ARRIVE + BUILD_HOP) { // the feet are down: a ring of dust
+        tp.landed = true;
+        for (let k = 0; k < 6; k++) puff(s.pos[0] + Math.sin(k * 1.05 + 0.3) * 26, s.pos[2] + Math.cos(k * 1.05 + 0.3) * 26, now);
+      }
+      walking.current = false;
+      if (s.from) face(turn);
+      report(!!s.from);
+      return;
+    }
+    // driving: the stick moves you relative to the camera, sliding along walls
+    const stick = input?.current;
+    const push = stick ? Math.min(1, Math.hypot(stick.x, stick.y)) : 0;
+    // running: Shift, the stick pushed right out, or the Run button on, while you have the energy for it
+    const e = energyRef?.current;
+    const run = push > 0.15 && (push > 0.85 || !!runRef?.current) && (e === undefined || e >= CAN_RUN_AT);
+    // (a step's length is about 2 x leg x sin(swing): these keep each speed's feet planted)
+    const pace = run ? RUN_STRIDE : push > 0.15 && push < WALK_PUSH * 0.7 ? 9 : 13;
+    if (pace !== stride) setStride(pace);
+    if (energyRef) {
+      if (run) energyRef.current = Math.max(0, energyRef.current - RUN_COST * dt);
+      else energyRef.current = Math.min(ENERGY_MAX, energyRef.current + TRICKLE * dt);
+    }
+    const v = vel.current;
+    const pushing = !!stick && push > 0.15;
+    camera.getWorldDirection(look3);
+    const f = Math.hypot(look3.x, look3.z) || 1;
+    const [cx, cz] = [look3.x / f, look3.z / f]; // the camera's forward on the ground now, three's space
+    // the keys point across the screen as it is now, and the camera comes round behind you as you run:
+    // so A and D on their own run you round in a circle that way, W with one of them curves you round,
+    // and S (towards the camera, which then stays put) runs straight (Iftach, 3 Oct: A/D go in circles)
+    if (pushing) {
+      const [fx, fz] = [cx, cz];
+      const mx = fx * stick.y - fz * stick.x;
+      const mz = fz * stick.y + fx * stick.x;
+      const m = Math.hypot(mx, mz) || 1;
+      const [nx, nz] = [mx / m, -mz / m]; // LDraw: z is flipped
+      // a sharp turn at a run skids, the LEGO-game way: a puff either side of your feet and half
+      // your speed lost for a moment; bursting off from standing kicks up a puff behind you too
+      if (v.sp > 100 && nx * v.dx + nz * v.dz < -0.3) {
+        for (const side of [-1, 1]) puff(o.position.x + nz * side * 14, o.position.z - nx * side * 14, now);
+        v.sp *= 0.5;
+        sfx.skid();
+      } else if (run && v.sp < 10) puff(o.position.x - nx * 12, o.position.z - nz * 12, now);
+      [v.dx, v.dz] = [nx, nz];
+    }
+    const target = pushing ? DRIVE_SPEED * (run ? RUN : Math.min(1, push / WALK_PUSH)) : 0;
+    v.sp += (target - v.sp) * Math.min(1, dt * (pushing ? 10 : 12));
+    if (v.sp > 6 && (pushing || !s.walk)) {
+      const { sp, dx, dz } = v;
+      const len = sp * Math.min(dt, 0.1);
+      // start from where you're actually standing (if you'd stepped aside for someone)
+      const [ox, oz] = [s.pos[0] + off.x, s.pos[2] + off.z];
+      let [x, z] = stepFree(ox, oz, dx * len, dz * len, blockers ?? []);
+      // people: go round them (slide along), never through
+      if (intoSomeone(id, ox, oz, x, z)) {
+        if (!intoSomeone(id, ox, oz, x, oz)) z = oz;
+        else if (!intoSomeone(id, ox, oz, ox, z)) x = ox;
+        else [x, z] = [ox, oz];
+      }
+      if (x === ox && z === oz) v.sp = 0; // against a wall: stop, don't keep pushing
+      s.walk = null;
+      s.from = null;
+      s.pos = [x, 0, z];
+      walking.current = sp > 40;
+      if (run && sp > 120) kickPuff(x, z, dx, dz, clock.elapsedTime);
+      face(Math.atan2(dx, dz), 22); // round on the spot, the LEGO way
+      // and the camera eases round behind you, so you see where you're going; not when you run towards
+      // it (it'd swing right round: you'd lose your face, and it'd lose you)
+      if (pushing && sp > 60 && cx * dx - cz * dz > -0.35) behind(dx, dz);
+      report(false);
+      return;
+    }
+    v.sp = 0;
+    const w = s.walk;
+    walking.current = !!w;
+    if (!w) {
+      if (s.from) face(turn); // at a place: turn to it; after driving, stay as you are
+      report(!!s.from); // after driving you stay exactly where you stopped
+      return;
+    }
+    let step = WALK_SPEED * Math.min(dt, 0.1);
+    let [a, b] = [w.r.pts[w.i], w.r.pts[w.i + 1]];
+    for (;;) {
+      const left = Math.hypot(b[0] - a[0], b[2] - a[2]) - w.f;
+      if (step < left) break;
+      step -= left;
+      w.i++;
+      w.f = 0;
+      if (w.i >= w.r.pts.length - 1) {
+        s.walk = null;
+        s.pos = b;
+        report();
+        return;
+      }
+      [a, b] = [w.r.pts[w.i], w.r.pts[w.i + 1]];
+    }
+    w.f += step;
+    const len = Math.hypot(b[0] - a[0], b[2] - a[2]) || 1;
+    const k = w.f / len;
+    s.pos = [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+    face(Math.atan2(b[0] - a[0], b[2] - a[2]));
+    behind(b[0] - a[0], b[2] - a[2]);
+    report();
+  });
+  return (
+    <>
+      <group ref={root}>
+        <Minifig look={look} at={[0, 0, 0]} walking={walking} wave={wave} stride={stride} jumpRef={jumpRef} teleRef={teleAt} />
+      </group>
+      {input && (
+        <instancedMesh ref={puffs} args={[undefined, undefined, DUST]} frustumCulled={false}>
+          <cylinderGeometry args={[10, 10, 10, 12]} />
+          <meshStandardMaterial color="#f2efe6" roughness={0.9} />
+        </instancedMesh>
+      )}
+    </>
+  );
+}
+const DUST = 12;
+// a teleport's timing, seconds from the tap: bursting apart, gone (the camera's flying there), then built again
+const TELE_BREAK = 0.4;
+const TELE_ARRIVE = 0.95;
+const TELE_BUILD = 1.1;
+const LIMBS = new Set(["legL", "legR", "swingL", "swingR", "head", "hair"]);
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
+const X_AXIS = new THREE.Vector3(1, 0, 0);
+// the build: which group a piece comes in with (feet up), the gap between groups, and each one's hop (seconds)
+const BUILD_ORDER = (name: string) => ({ legL: 0, legR: 0, hips: 1, torso: 2, swingL: 3, swingR: 3, head: 4, hair: 5 })[name] ?? 6;
+const BUILD_GAP = 0.12;
+const BUILD_HOP = 0.24;
+const CARRY = 0.6; // radians the weapon arm comes up while on the move (the blade rests back over the shoulder)
+const FIDGET_EVERY = 6; // seconds between a standing minifig's fidgets
+const JUMP_AIR = 0.74; // seconds a jump keeps you in the air
+const JUMP_HIGH = 64; // LDU a jump lifts you (the double jump: 0.9 of it, again from wherever you are)
+const DUST_LIFE = 0.5; // seconds
+
+// ---- props: small official sets (the ice cream cart, the parks' burger stands) ----
+// Placed by their centre (LDraw frame) and quarter turns; the glb's origin is its front-left corner.
+function Prop({ id, at, turn, lot, build }: { id: string; at: [number, number]; turn: number; lot?: Lot; build?: number | null }) {
+  const prop = (PROPS as Baked[]).find((p) => p.id === id);
+  if (!prop) return null;
+  const [x, , z] = lot ? inLot(lot, [at[0], 0, at[1]]) : [at[0], 0, at[1]];
+  const facing = (lot ? lot.yaw : 0) + (turn * Math.PI) / 2;
+  return (
+    <group position={[x, 0, z]} rotation={[0, facing, 0]}>
+      <Building url={houseUrl(prop)} at={[-prop.w * 10, 0, prop.d * 10]} build={build} />
+    </group>
+  );
+}
+
+// ---- garden things: bought at the shop, put where you like on your plot, built brick by brick ----
+// One placed thing on a lot: an official set (a prop) or LDraw pieces. `fresh`:
+// it has just been placed, so it goes up a row at a time under a brick shower.
+function PlacedThing({ lot, placed, fresh = false }: { lot: Lot; placed: Placed; fresh?: boolean }) {
+  const g = gardenItem(placed.item);
+  if (!g) return null;
+  return (
+    <group position={[lot.x, 0, lot.z]} rotation={[0, lot.yaw, 0]}>
+      {g.prop ? (
+        <Prop id={g.prop} at={gardenPropAt(placed)} turn={placed.turn} build={fresh ? 0 : undefined} />
+      ) : (
+        <PiecesThing text={modelText(gardenItemLines(placed), "thing.ldr")} fresh={fresh} />
+      )}
+    </group>
+  );
+}
+function PiecesThing({ text, fresh }: { text: string; fresh: boolean }) {
+  const model = useModel(text, true);
+  const box = useMemo(() => (model ? new THREE.Box3().setFromObject(model) : null), [model]);
+  const rise = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), fresh ? -1 : OPEN), [fresh]);
+  const [building, setBuilding] = useState(fresh);
+  const progress = useRef(0);
+  const started = useRef<number | null>(null);
+  const lastRow = useRef(0);
+  // its own materials (the merged model's are the loader's, shared with the town), clipped by the rising plane
+  useEffect(() => {
+    if (!model) return;
+    const own: THREE.Material[] = [];
+    model.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const m = (mesh.material as THREE.Material).clone();
+      m.clippingPlanes = [rise];
+      m.clipShadows = true;
+      mesh.material = m;
+      own.push(m);
+    });
+    return () => own.forEach((m) => m.dispose());
+  }, [model, rise]);
+  useFrame(({ clock }) => {
+    if (!model || !box) return;
+    if (!building) {
+      if (rise.constant !== OPEN) rise.set(rise.normal, OPEN);
+      return;
+    }
+    started.current ??= clock.elapsedTime;
+    const k = Math.min(1, (clock.elapsedTime - started.current) / BUILD_TIME);
+    progress.current = k;
+    const rows = Math.max(1, Math.ceil(-box.min.y / ROW));
+    const row = Math.min(rows, Math.floor(k * rows) + 1);
+    if (row !== lastRow.current) {
+      lastRow.current = row;
+      sfx.snap();
+    }
+    rise.set(rise.normal, row * ROW * LDU + 0.02);
+    if (k === 1) setBuilding(false);
+  });
+  return (
+    <>
+      {model && <primitive object={model} />}
+      {building && box && <BrickShower box={box} progress={progress} />}
+    </>
+  );
+}
+// The footprint under the thing you're placing: green where it can go, red where it can't.
+function Footprint({ lot, placed, ok }: { lot: Lot; placed: Placed; ok: boolean }) {
+  const g = gardenItem(placed.item);
+  if (!g) return null;
+  const { w, d } = footprint(g, placed.turn);
+  return (
+    <group position={[lot.x, 0, lot.z]} rotation={[0, lot.yaw, 0]}>
+      <mesh position={[(placed.x + w / 2 - PLOT / 2) * 20, -1.5, (placed.z + d / 2 - PLOT / 2) * 20]}>
+        <boxGeometry args={[w * 20, 3, d * 20]} />
+        <meshStandardMaterial color={ok ? "#4b9f4a" : "#d01012"} transparent opacity={0.55} />
+      </mesh>
+    </group>
+  );
+}
+
+// ---- flying: birds and dragons ----
+// A flier follows a path (LDraw frame: -Y up) and faces where it's actually
+// going: nose along its velocity, pitching up as it climbs, banking into its
+// turns by how hard it's turning. `pre` turns the model so its nose points
+// along +Z first (a gull's beak is -Z, the dragon runs along X).
+const UP = new THREE.Vector3(0, -1, 0);
+const flyTmp = { f: new THREE.Vector3(), u: new THREE.Vector3(), x: new THREE.Vector3(), a: new THREE.Vector3(), m: new THREE.Matrix4(), q: new THREE.Quaternion() };
+function fly(o: THREE.Object3D, path: (t: number) => THREE.Vector3, t: number, pre: THREE.Quaternion, roll = 0) {
+  const h = 0.08;
+  const [p0, p1, p2] = [path(t), path(t + h), path(t + 2 * h)];
+  const { f, u, x, a, m, q } = flyTmp;
+  f.subVectors(p1, p0).normalize();
+  a.subVectors(p2, p1).sub(p1.clone().sub(p0)).divideScalar(h * h); // acceleration
+  u.copy(UP).addScaledVector(f, -UP.dot(f)).normalize();
+  x.crossVectors(f, u); // the flier's side
+  // a basis with the nose on +Z and the model's up (-Y in LDraw) on the world's up
+  m.makeBasis(x, u.clone().negate(), f); // right-handed: (-u) x f = f x u = x
+  q.setFromRotationMatrix(m);
+  // bank into the turn: lean the up towards where it's being pulled
+  const bank = THREE.MathUtils.clamp(x.dot(a) * 0.04, -0.6, 0.6) + roll;
+  o.position.copy(p0);
+  o.quaternion.setFromAxisAngle(f, bank).multiply(q).multiply(pre);
+}
+
+// seagulls wheeling over the town: wide loops that breathe in and out and
+// rise and fall, each its own way round
+const GULLS = [
+  { r: 700, y: 520, speed: 0.12, start: 0 },
+  { r: 900, y: 640, speed: 0.1, start: 2 },
+  { r: 500, y: 460, speed: -0.14, start: 4 },
+  { r: 1100, y: 700, speed: 0.08, start: 1 },
+  { r: 800, y: 580, speed: -0.1, start: 5 },
+];
+const BEAK_BACK = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI); // its beak is -Z
+// The clouds drift with the wind, all the same way (a little south of east), each at its own
+// pace; one that leaves the sky comes back in on the far side. Every puff is an instance of one
+// soft round shape, flattened a touch; a few hundred matrices a frame. LDraw frame (in the group).
+const WIND: [number, number] = [Math.cos(0.25), Math.sin(0.25)];
+const PUFF_COUNT = CLOUDS.reduce((n, c) => n + c.puffs.length, 0);
+// A cloud's puff, brick-built the way the LEGO games build their skies: a flat-bottomed base and round
+// plates stacked on it, each tier smaller, so it steps up into a dome, with studs on every tier's top
+// (unit radius; the studs are drawn about a stud apart at a puff's usual size)
+function cloudPuffGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const flat = (g: THREE.BufferGeometry) => {
+    const uv = g.attributes.uv as THREE.BufferAttribute;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.02, 0.02); // the plain white between studs
+    return g;
+  };
+  const tiers: [number, number, number][] = [[-0.3, 0, 0.88], [0, 0.3, 1], [0.3, 0.6, 0.82], [0.6, 0.85, 0.58], [0.85, 1.05, 0.32]]; // bottom, top, radius: bold steps
+  tiers.forEach(([y0, y1, r]) => {
+    const side = flat(new THREE.CylinderGeometry(r, r, y1 - y0, 28, 1, true));
+    side.translate(0, (y0 + y1) / 2, 0);
+    const top = new THREE.CircleGeometry(r, 28);
+    top.rotateX(-Math.PI / 2);
+    top.translate(0, y1, 0);
+    const uv = top.attributes.uv as THREE.BufferAttribute;
+    const pos = top.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) * 8, pos.getZ(i) * 8); // studs across the top
+    parts.push(side.toNonIndexed(), top.toNonIndexed());
+  });
+  const bottom = flat(new THREE.CircleGeometry(0.88, 28));
+  bottom.rotateX(Math.PI / 2);
+  bottom.translate(0, -0.3, 0);
+  parts.push(bottom.toNonIndexed());
+  return mergeGeometries(parts);
+}
+
+function DriftingClouds() {
+  const puffs = useRef<THREE.InstancedMesh>(null);
+  const o = useMemo(() => new THREE.Object3D(), []);
+  const geometry = useMemo(() => cloudPuffGeometry(), []);
+  const studs = useMemo(() => {
+    const t = studTexture().clone();
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.needsUpdate = true;
+    return t;
+  }, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useFrame(({ clock }) => {
+    const m = puffs.current;
+    if (!m) return;
+    const t = clock.elapsedTime;
+    const span = 2 * CLOUD_EXTENT;
+    let i = 0;
+    for (const c of CLOUDS) {
+      // along the wind, wrapped into the square, a smooth glide; across it, a slow sway
+      const along = ((((c.x * WIND[0] + c.z * WIND[1] + t * c.speed + CLOUD_EXTENT) % span) + span) % span) - CLOUD_EXTENT;
+      const across = -c.x * WIND[1] + c.z * WIND[0] + Math.sin(t * 0.05 + c.y) * 40;
+      const [cx, cz] = [along * WIND[0] - across * WIND[1], along * WIND[1] + across * WIND[0]];
+      for (const [dx, dy, dz, r] of c.puffs) {
+        o.position.set(cx + dx, -(c.y + dy), cz + dz); // LDraw: -y is up
+        o.scale.set(r, r * 0.8, r);
+        o.updateMatrix();
+        m.setMatrixAt(i++, o.matrix);
+      }
+    }
+    m.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <group>
+      <Balloon />
+      <instancedMesh ref={puffs} args={[geometry, undefined, PUFF_COUNT]} frustumCulled={false}>
+        {/* white plastic, lit a little from within so the shaded side stays light, like a real cloud */}
+        <meshStandardMaterial color="#ffffff" map={studs} emissive="#dfe8f5" emissiveIntensity={0.18} roughness={0.55} />
+      </instancedMesh>
+    </group>
+  );
+}
+
+function Seagulls({ centre = FOUNTAIN, seed = 0 }: { centre?: [number, number]; seed?: number }) {
+  const gull = useModel(useMemo(() => modelText(["1 15 0 0 0 1 0 0 0 1 0 0 0 1 12891p01.dat"], "gull.ldr"), []), true);
+  const flock = useMemo(() => (gull ? GULLS.map(() => gull.clone()) : []), [gull]);
+  const refs = useRef<(THREE.Group | null)[]>([]);
+  const paths = useMemo(
+    () =>
+      GULLS.map((g, i) => (t: number) => {
+        const a = g.start + seed + t * g.speed;
+        const r = g.r * (1 + 0.22 * Math.sin(t * 0.21 + i));
+        return new THREE.Vector3(centre[0] + Math.cos(a) * r, -g.y - Math.sin(t * 0.4 + i * 2) * 60, centre[1] + Math.sin(a) * r);
+      }),
+    [centre, seed],
+  );
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    GULLS.forEach((_, i) => {
+      const o = refs.current[i];
+      // a little rock from wing to wing as it flaps
+      if (o) fly(o, paths[i], t, BEAK_BACK, Math.sin(t * 5 + i) * 0.1);
+    });
+  });
+  return (
+    <>
+      {flock.map((o, i) => (
+        <group key={i} ref={(el) => void (refs.current[i] = el)}>
+          <primitive object={o} />
+        </group>
+      ))}
+    </>
+  );
+}
+
+// ---- the fountain's water: droplets arcing from the jet into the bowls ----
+const DROPS = 120;
+function FountainSpray() {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const m = useMemo(() => new THREE.Matrix4(), []);
+  useFrame(({ clock }) => {
+    if (!mesh.current) return;
+    for (let i = 0; i < DROPS; i++) {
+      // Bethesda's curtains of water: half the drops spill over the upper basin's lip into the lower
+      // basin, half over the lower basin's lip into the pool, all round, each falling and drifting out
+      const lower = i % 2 === 1;
+      const t = (clock.elapsedTime * 1.1 + i / DROPS) % 1; // each drop's time down, 0..1
+      const a = (i * 2.39996) % (Math.PI * 2); // spread round the lip (golden angle)
+      const [r0, y0, drift, drop] = lower ? [114, 68, 22, 52] : [66, 142, 18, 70];
+      const out = r0 + drift * t;
+      const up = y0 - drop * t * t; // falling faster as it goes (LDU above the ground)
+      m.makeTranslation(FOUNTAIN[0] + Math.cos(a) * out, -up, FOUNTAIN[1] + Math.sin(a) * out);
+      mesh.current.setMatrixAt(i, m);
+    }
+    mesh.current.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, DROPS]}>
+      <sphereGeometry args={[3.6, 6, 4]} />
+      <meshStandardMaterial color="#bfe6ff" transparent opacity={0.75} roughness={0.1} />
+    </instancedMesh>
+  );
+}
+// Adam's statue (Iftach's friend), in his real colours: light nougat skin, dark brown tousled hair (trimmed: HairTrim),
+// a black hoodie (black sleeves), blue jeans
+const STATUE: Figure = {
+  parts: { ...figureOf({ skin: 78, hair: 308, torso: 0, legs: 272 }).parts, hair: { part: "10048", color: 308 }, head: { part: "3626bp05", color: 78 } }, // his dark brows
+};
+// the print on his black hoodie, a One Piece nod (our own drawing, not their logo): a white skull and crossbones
+// in a yellow straw hat with a red band
+function ShirtPrint() {
+  const map = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const g = c.getContext("2d")!;
+    g.lineCap = "round";
+    g.strokeStyle = "#f4f4f0";
+    g.lineWidth = 12;
+    for (const [a, b, d, e] of [[22, 112, 106, 70], [22, 70, 106, 112]]) {
+      g.beginPath();
+      g.moveTo(a, b);
+      g.lineTo(d, e);
+      g.stroke(); // the crossbones
+    }
+    g.fillStyle = "#f4f4f0";
+    g.beginPath();
+    g.arc(64, 66, 30, 0, Math.PI * 2);
+    g.fill(); // the skull
+    g.fillRect(48, 86, 32, 16);
+    g.fillStyle = "#151515";
+    for (const x of [52, 76]) {
+      g.beginPath();
+      g.arc(x, 66, 7, 0, Math.PI * 2);
+      g.fill(); // the eyes
+    }
+    g.fillStyle = "#f2c230";
+    g.beginPath();
+    g.ellipse(64, 40, 52, 10, 0, 0, Math.PI * 2);
+    g.fill(); // the hat's brim
+    g.beginPath();
+    g.ellipse(64, 30, 28, 18, 0, Math.PI, 0);
+    g.fill(); // its crown
+    g.fillStyle = "#c91a09";
+    g.fillRect(36, 30, 56, 7); // its band
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, []);
+  useEffect(() => () => map.dispose(), [map]);
+  // on the torso's front, mid-chest (LDU, minifig frame: -y up, front +z)
+  return (
+    <mesh position={[0, -57.5, 10.6]} rotation={[0, 0, Math.PI]}>{/* upright in the LDraw frame (-y up), facing out */}
+      <planeGeometry args={[14, 14]} />
+      <meshStandardMaterial map={map} transparent roughness={0.6} />
+    </mesh>
+  );
+}
+
+// Adam's hair, a bit shorter at the back and sides: once his figure is in, the tousled hair (10048) gets its own
+// copy of its geometry (other figures share the part's), the lower back and sides lifted and drawn in towards his
+// head; the top and the fringe over his face stay as they are. Statue frame: LDU, -y up, front +z, axis x = z = 0.
+function HairTrim() {
+  const me = useRef<THREE.Group>(null);
+  useFrame(() => {
+    const hair = me.current?.parent?.getObjectByName("hair");
+    if (!hair || hair.userData.trimmed) return;
+    hair.userData.trimmed = true;
+    const frame = me.current!.parent!;
+    frame.updateMatrixWorld(true);
+    const toFrame = new THREE.Matrix4();
+    const back = new THREE.Matrix4();
+    const v = new THREE.Vector3();
+    const smooth = (a: number, b: number, x: number) => THREE.MathUtils.smoothstep(x, a, b);
+    hair.traverse((o) => {
+      const m = o as THREE.Mesh; // the shell and any edge lines alike
+      if (!m.geometry?.attributes.position) return;
+      m.geometry = m.geometry.clone();
+      toFrame.copy(frame.matrixWorld).invert().multiply(m.matrixWorld);
+      back.copy(toFrame).invert();
+      const p = m.geometry.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i).applyMatrix4(toFrame);
+        const low = smooth(-94, -74, v.y); // 0 above the eyes, 1 at the bottom edge
+        const behind = 1 - smooth(-2, 8, v.z); // 1 at the back and sides, 0 over the face
+        const k = low * behind;
+        v.y -= 6 * k; // the bottom edge up about a third of a brick
+        const r = Math.hypot(v.x, v.z);
+        const r2 = Math.max(Math.min(r, 14), r * (1 - 0.1 * k)); // drawn in, never into his head
+        v.x *= r2 / (r || 1);
+        v.z *= r2 / (r || 1);
+        p.setXYZ(i, ...v.applyMatrix4(back).toArray());
+      }
+      m.geometry.computeBoundingSphere();
+    });
+  });
+  return <group ref={me} />;
+}
+
+// Adam's snow goggles, ski style, on the statue's head (LDU, minifig frame: -y up, front +z; head a cylinder of
+// radius 13 round y, eyes at y -86; his hair reaches out to ~19 at the sides and back): a padded white frame, a
+// wide red mirror lens standing out of it, both the real goggle outline (rounded corners, a cut-out over the nose)
+// bent round the face, and the black strap round the outside of his hair
+function goggleGeometry(w: number, h: number, corner: number, nose: [number, number], depth: number, radius: number) {
+  // the outline, flat (y up), half-width w, half-height h; the nose cut-out nose[0] wide each side, nose[1] high
+  const o = new THREE.Shape();
+  const [nw, nh] = nose;
+  o.moveTo(-w + corner, h);
+  o.lineTo(w - corner, h);
+  o.quadraticCurveTo(w, h, w, h - corner);
+  o.lineTo(w, -h + corner);
+  o.quadraticCurveTo(w, -h, w - corner, -h);
+  o.lineTo(nw, -h);
+  o.bezierCurveTo(nw * 0.6, -h, nw * 0.45, -h + nh, 0, -h + nh);
+  o.bezierCurveTo(-nw * 0.45, -h + nh, -nw * 0.6, -h, -nw, -h);
+  o.lineTo(-w + corner, -h);
+  o.quadraticCurveTo(-w, -h, -w, -h + corner);
+  o.lineTo(-w, h - corner);
+  o.quadraticCurveTo(-w, h, -w + corner, h);
+  // resampled finely, so its faces are thin slivers that bend smoothly round the head
+  const g = new THREE.ExtrudeGeometry(new THREE.Shape(o.getSpacedPoints(180)), { depth, curveSegments: 1, bevelEnabled: true, bevelThickness: 0.5, bevelSize: 0.5, bevelSegments: 2 });
+  const p = g.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < p.count; i++) {
+    const a = -p.getX(i) / radius; // x runs round the head, flipped with y so the faces stay outward
+    const r = radius + p.getZ(i);
+    p.setXYZ(i, r * Math.sin(a), -p.getY(i), r * Math.cos(a));
+  }
+  g.deleteAttribute("normal");
+  g.deleteAttribute("uv");
+  const smooth = mergeVertices(g);
+  g.dispose();
+  smooth.computeVertexNormals();
+  // the front and back faces point straight out from (and into) the head, not along the slivers' slant
+  const sp = smooth.attributes.position as THREE.BufferAttribute;
+  const sn = smooth.attributes.normal as THREE.BufferAttribute;
+  for (let i = 0; i < sp.count; i++) {
+    const [x, z] = [sp.getX(i), sp.getZ(i)];
+    const r = Math.hypot(x, z);
+    if (Math.abs(r - (radius + depth + 0.5)) < 0.01) sn.setXYZ(i, x / r, 0, z / r);
+    else if (Math.abs(r - (radius - 0.5)) < 0.01) sn.setXYZ(i, -x / r, 0, -z / r);
+  }
+  return smooth;
+}
+function SnowGoggles() {
+  const [frame, lens] = useMemo(() => [goggleGeometry(13.4, 6.6, 4.2, [4.6, 3], 1.6, 13.4), goggleGeometry(11.6, 5, 3.2, [3.6, 2.4], 0.6, 15.1)], []);
+  useEffect(() => () => [frame, lens].forEach((g) => g.dispose()), [frame, lens]);
+  return (
+    <group position={[0, -86, 0]}>
+      <mesh geometry={frame}>
+        <meshStandardMaterial color="#f4f4f0" roughness={0.45} />
+      </mesh>
+      <mesh geometry={lens}>
+        <meshStandardMaterial color="#d8343c" emissive="#5a0a10" emissiveIntensity={0.35} metalness={0.7} roughness={0.12} />
+      </mesh>
+      {/* an ellipse from the frame's ends (x ±12.4, z 8.9) out round his trimmed hair (x ±18.4, back z -18.4) */}
+      <mesh position={[0, 0, -2.7]} scale={[18.4, 1, 15.7]}>
+        <cylinderGeometry args={[1, 1, 4, 48, 1, true, 0.74, Math.PI * 2 - 1.48]} />
+        <meshStandardMaterial color="#1d1d1d" roughness={0.7} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+}
+
+// Adam's black hoodie over the statue's torso (LDU, minifig frame: -y up, front +z, torso -72..-40, front face
+// z 10): the hood bunched behind the neck and hanging down the back, its rim round the neck, white drawstrings,
+// a kangaroo pocket, ribbed cuffs and waistband. The cuffs sit at the hands of the statue's pose (measured).
+const HOODIE_CUFFS: [number, number, number, number, number, number][] = [
+  [23.5, -46.3, 8.8, -0.12, -0.7, -0.71], // left sleeve's end, hanging: centre, the sleeve's axis (its hand's z)
+  [-23.5, -67, 18.4, 0.12, 0.49, -0.86], // right, raised
+];
+function Hoodie() {
+  const cuffTurn = useMemo(() => HOODIE_CUFFS.map(([, , , ax, ay, az]) => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(ax, ay, az).normalize())), []);
+  // the torso's own LDraw black (#1b2a34), so the hood and pocket read as one piece with it; the ribbing a shade up
+  const cloth = <meshStandardMaterial color="#1b2a34" roughness={0.5} />;
+  const rib = <meshStandardMaterial color="#2f3e49" roughness={0.75} />;
+  const pocket = useMemo(() => {
+    const p = new THREE.Shape([new THREE.Vector2(-12, 0), new THREE.Vector2(12, 0), new THREE.Vector2(8.5, 6.6), new THREE.Vector2(-8.5, 6.6)]);
+    return new THREE.ExtrudeGeometry(p, { depth: 0.6, bevelEnabled: true, bevelThickness: 0.5, bevelSize: 0.5, bevelSegments: 2 });
+  }, []);
+  const hood = useMemo(() => {
+    const h = new THREE.Shape();
+    h.moveTo(-11, 0);
+    h.lineTo(-10, -8);
+    h.quadraticCurveTo(-8, -15, 0, -16);
+    h.quadraticCurveTo(8, -15, 10, -8);
+    h.lineTo(11, 0);
+    h.closePath();
+    return new THREE.ExtrudeGeometry(h, { depth: 1.5, bevelEnabled: true, bevelThickness: 1.6, bevelSize: 1.6, bevelSegments: 4 });
+  }, []);
+  useEffect(() => () => [pocket, hood].forEach((g) => g.dispose()), [pocket, hood]);
+  return (
+    <group>
+      {/* the hood: a thick roll round the back of the neck, a thinner rim across the front */}
+      <mesh position={[0, -73.5, -0.5]} rotation={[-Math.PI / 2, 0, -0.3]}>
+        <torusGeometry args={[10.5, 3.8, 10, 24, Math.PI + 0.6]} />
+        {cloth}
+      </mesh>
+      <mesh position={[0, -72.6, -0.5]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[10.5, 1.6, 8, 20, Math.PI]} />
+        {cloth}
+      </mesh>
+      {/* and lying down the back: a padded pouch, a seam down its middle */}
+      <mesh geometry={hood} position={[0, -72.5, -10.5]} rotation={[Math.PI, 0, 0]}>
+        {cloth}
+      </mesh>
+      <mesh position={[0, -65.5, -13.7]}>
+        <boxGeometry args={[0.8, 13, 0.6]} />
+        {rib}
+      </mesh>
+      {/* the drawstrings, with their tips */}
+      {[-3.2, 3.2].map((x) => (
+        <group key={x} position={[x, -68.5, 10.8]} rotation={[0, 0, x * 0.03]}>
+          <mesh>
+            <cylinderGeometry args={[0.65, 0.65, 6, 8]} />
+            <meshStandardMaterial color="#f4f4f0" roughness={0.6} />
+          </mesh>
+          <mesh position={[0, 3.6, 0]}>
+            <cylinderGeometry args={[0.9, 0.9, 2.2, 8]} />
+            <meshStandardMaterial color="#b9bcc0" metalness={0.6} roughness={0.3} />
+          </mesh>
+        </group>
+      ))}
+      {/* the kangaroo pocket: a padded trapezoid, its slanted sides the openings */}
+      <mesh geometry={pocket} position={[0, -43.4, 10.5]} rotation={[Math.PI, 0, 0]}>
+        {cloth}
+      </mesh>
+      {/* the ribbed waistband and cuffs */}
+      <mesh position={[0, -41.5, 0]}>
+        <boxGeometry args={[40.6, 3.2, 20.6]} />
+        {rib}
+      </mesh>
+      {HOODIE_CUFFS.map(([x, y, z], k) => (
+        <mesh key={k} position={[x, y, z]} quaternion={cuffTurn[k]}>
+          <cylinderGeometry args={[5.7, 5.7, 3.2, 18]} />
+          {rib}
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// ---- the statue's name, on a bronze plaque on the front of the fountain's rim, facing the street ----
+function StatuePlaque({ name }: { name: string }) {
+  const texture = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = 512;
+    c.height = 112;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#4a3320";
+    g.fillRect(0, 0, 512, 112);
+    g.strokeStyle = "#c9a14a";
+    g.lineWidth = 6;
+    g.strokeRect(9, 9, 494, 94);
+    g.fillStyle = "#f0cd6e";
+    g.font = "bold 54px Georgia, 'Times New Roman', serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText(name, 256, 60, 460);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    // the LDraw frame is upside down (-Y up) and seen from the other side: flip both ways (as TownSign)
+    t.flipY = false;
+    t.repeat.x = -1;
+    t.offset.x = 1;
+    return t;
+  }, [name]);
+  useEffect(() => () => texture.dispose(), [texture]);
+  const bronze = "#4a3320";
+  // LDraw frame: -Y is up; it faces +Z, on the rim's outside (the rim runs 4..28 LDU up)
+  return (
+    <mesh position={[FOUNTAIN[0], -16, FOUNTAIN[1] + POOL_R + 16 + 2]} castShadow>
+      <boxGeometry args={[100, 20, 4]} />
+      <meshStandardMaterial attach="material-0" color={bronze} />
+      <meshStandardMaterial attach="material-1" color={bronze} />
+      <meshStandardMaterial attach="material-2" color={bronze} />
+      <meshStandardMaterial attach="material-3" color={bronze} />
+      <meshStandardMaterial attach="material-4" map={texture} metalness={0.3} roughness={0.5} />
+      <meshStandardMaterial attach="material-5" color={bronze} />
+    </mesh>
+  );
+}
+
+// ---- the welcome sign at the front of the plaza: "<name>'s Town" ----
+function TownSign({ name }: { name: string }) {
+  const texture = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = 512;
+    c.height = 128;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#1f3f8f";
+    g.fillRect(0, 0, 512, 128);
+    g.strokeStyle = "#f2c230";
+    g.lineWidth = 10;
+    g.strokeRect(8, 8, 496, 112);
+    g.fillStyle = "#ffffff";
+    g.font = "bold 58px system-ui, sans-serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText(`${name}'s Town`, 256, 66, 470);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    // the LDraw frame is upside down (-Y up) and seen from the other side: flip both ways
+    t.flipY = false;
+    t.repeat.x = -1;
+    t.offset.x = 1;
+    return t;
+  }, [name]);
+  useEffect(() => () => texture.dispose(), [texture]);
+  // LDraw frame: -Y is up; the board faces +Z (the front of the plaza)
+  return (
+    <group position={[-300, 0, 468]}>
+      {[-72, 72].map((x) => (
+        <mesh key={x} position={[x, -60, 0]} castShadow>
+          <boxGeometry args={[10, 120, 10]} />
+          <meshStandardMaterial color="#5a3b22" />
+        </mesh>
+      ))}
+      <mesh position={[0, -100, 4]} castShadow>
+        <boxGeometry args={[160, 40, 6]} />
+        <meshStandardMaterial attach="material-0" color="#1f3f8f" />
+        <meshStandardMaterial attach="material-1" color="#1f3f8f" />
+        <meshStandardMaterial attach="material-2" color="#1f3f8f" />
+        <meshStandardMaterial attach="material-3" color="#1f3f8f" />
+        <meshStandardMaterial attach="material-4" map={texture} />
+        <meshStandardMaterial attach="material-5" color="#1f3f8f" />
+      </mesh>
+    </group>
+  );
+}
+
+function Traffic({ night }: { night: boolean }) {
+  const cars = VEHICLES as Baked[];
+  return (
+    <>
+      {[0, 1, 2].map((k) => (
+        <Car key={k} car={cars[k % cars.length]} start={(k * LOOP_LENGTH) / 3} night={night} />
+      ))}
+    </>
+  );
+}
+
+// A studded LEGO surface drawn as one flat quad with a stud texture: from town
+// distance it reads the same as real studs at a fraction of the triangles.
+// smooth 2x2 tiles: a flat face, a fine dark seam and a light bevel round each (UVs in studs, so
+// it repeats every two)
+let tiles: THREE.CanvasTexture | null = null;
+function tileTexture() {
+  if (tiles) return tiles;
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#ffffff";
+  g.fillRect(0, 0, 256, 256);
+  g.fillStyle = "rgba(255,255,255,1)";
+  g.fillRect(6, 6, 244, 244);
+  g.fillStyle = "rgba(0,0,0,0.28)"; // the seam
+  g.fillRect(0, 0, 256, 4);
+  g.fillRect(0, 0, 4, 256);
+  g.fillStyle = "rgba(0,0,0,0.08)"; // the bevel's shaded side
+  g.fillRect(4, 248, 252, 8);
+  g.fillRect(248, 4, 8, 252);
+  tiles = new THREE.CanvasTexture(c);
+  tiles.colorSpace = THREE.SRGBColorSpace;
+  tiles.wrapS = tiles.wrapT = THREE.RepeatWrapping;
+  tiles.repeat.set(0.5, 0.5);
+  tiles.anisotropy = 16;
+  return tiles;
+}
+let studs: THREE.CanvasTexture | null = null;
+function studTexture() {
+  if (studs) return studs;
+  const c = document.createElement("canvas");
+  // drawn at 128 px a stud and scaled, so studs stay crisp close up
+  c.width = c.height = 256;
+  const g = c.getContext("2d")!;
+  g.scale(4, 4);
+  g.fillStyle = "#ffffff";
+  g.fillRect(0, 0, 64, 64);
+  // the stud's shadow, then its side ring, then its top, lit from the top left
+  g.fillStyle = "rgba(0,0,0,0.18)";
+  g.beginPath();
+  g.arc(34, 34, 19, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#c4c4c4"; // the side ring, a clear step down from the top: reads as a real stud from afar
+  g.beginPath();
+  g.arc(32, 33, 18.5, 0, Math.PI * 2);
+  g.fill();
+  const top = g.createRadialGradient(26, 26, 2, 32, 32, 18);
+  top.addColorStop(0, "#ffffff");
+  top.addColorStop(1, "#e2e2e2");
+  g.fillStyle = top;
+  g.beginPath();
+  g.arc(32, 31.5, 17, 0, Math.PI * 2);
+  g.fill();
+  studs = new THREE.CanvasTexture(c);
+  studs.colorSpace = THREE.SRGBColorSpace;
+  studs.wrapS = studs.wrapT = THREE.RepeatWrapping;
+  studs.anisotropy = 16; // sharp at a glancing angle, not smeared (clamped to what the GPU has)
+  return studs;
+}
+function StudGround({
+  at,
+  size,
+  color,
+  y = 0,
+  flat,
+  radius,
+  yaw = 0,
+  thick,
+  tiles: tiled,
+}: {
+  at: [number, number];
+  size: number;
+  color: string;
+  y?: number;
+  flat?: boolean;
+  /** round corners, studs */
+  radius?: number;
+  /** turned about Y (three's space, radians) */
+  yaw?: number;
+  /** a real plate this thick (three units) with side edges, its top at `y`; without it a flat sheet */
+  thick?: number;
+  /** smooth 2x2 tiles instead of studs */
+  tiles?: boolean;
+}) {
+  const [ax, az] = at;
+  const map = useMemo(() => {
+    if (flat) return null;
+    const t = (tiled ? tileTexture() : studTexture()).clone();
+    t.repeat.set(radius ? 1 : size, radius ? 1 : size); // a shape's UVs are its coordinates (one stud a unit); a plane's run 0..1
+    // a rounded plate's UVs start at its own centre, which can sit anywhere: shift them so its
+    // painted studs land on the world's stud grid, where the real studs round the player are
+    // (a shape's y runs along -z once it lies flat)
+    if (radius) t.offset.set(((ax % 1) + 1) % 1, ((-az % 1) + 1) % 1);
+    if (thick) t.repeat.set(1, 1); // an extruded shape's caps are mapped by its coordinates, a stud a unit
+    if (tiled) t.repeat.multiplyScalar(0.5); // a tile is two studs
+    t.needsUpdate = true;
+    return t;
+  }, [size, flat, radius, ax, az, thick, tiled]);
+  const w = size * 20 * LDU;
+  const geometry = useMemo(() => {
+    const shape = radius ? roundedRect(w, w, radius * 20 * LDU) : roundedRect(w, w, 0.01);
+    if (thick) {
+      // a plate: the shape extruded down from the top (its local z is up once laid flat)
+      const g = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled: false });
+      g.translate(0, 0, -thick);
+      return g;
+    }
+    return radius ? new THREE.ShapeGeometry(shape) : new THREE.PlaneGeometry(w, w);
+  }, [w, radius, thick]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  const side = useMemo(() => new THREE.Color(color).multiplyScalar(0.82), [color]);
+  return (
+    // laid flat (about X), then turned about its own normal, which is now straight up: a turn
+    // about the world's Y (turning about local Y tilted every twisted plot out of the ground)
+    <mesh position={[at[0], y, at[1]]} rotation={[-Math.PI / 2, 0, yaw]} geometry={geometry} receiveShadow>
+      {thick ? (
+        <>
+          {/* the extrusion's groups: 0 the top and bottom (studded), 1 the sides (plain, a shade darker) */}
+          <meshStandardMaterial attach="material-0" color={color} map={map} roughness={0.5} />
+          <meshStandardMaterial attach="material-1" color={side} roughness={0.55} />
+        </>
+      ) : (
+        <meshStandardMaterial color={color} map={map} roughness={0.5} />
+      )}
+    </mesh>
+  );
+}
+
+// a meadow's green: a little lighter, a little darker, or a little yellower than the grass
+function meadowShade(grass: string, k: number): string {
+  const c = new THREE.Color(grass);
+  if (k === 0) c.multiplyScalar(1.08);
+  else if (k === 1) c.multiplyScalar(0.9);
+  else c.lerp(new THREE.Color("#b7c94a"), 0.25);
+  return `#${c.getHexString()}`;
+}
+// The grass by season: fresh in spring, LEGO green in summer, olive in autumn, snow in winter.
+const GRASS: Record<Season, string> = { spring: "#58ab41", summer: "#4b9f4a", autumn: "#80a83e", winter: "#eef2f6" };
+
+// The forest belt as three instanced meshes (trunks, pine cones, leafy balls):
+// a few hundred trees for three draw calls. Three's space (LDraw z flipped).
+const FOREST = forestTrees();
+// brick-built trees, a unit tall from the trunk's top: a pine as four stepped tiers (the
+// 3471's stacked layers), a round tree as stacked round bricks with a stud on top
+function brickPine(): THREE.BufferGeometry {
+  const tiers: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 4; k++) {
+    const r = 1 - k * 0.22;
+    const g = new THREE.CylinderGeometry(r * 0.5, r, 0.25, 8);
+    g.translate(0, k * 0.25 + 0.125, 0);
+    tiers.push(g);
+  }
+  return mergeGeometries(tiers.map((g) => g.toNonIndexed()));
+}
+function brickRound(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  [[0.78, 0.3], [1, 0.3], [0.72, 0.28]].forEach(([r, h], k) => {
+    const g = new THREE.CylinderGeometry(r, r, h, 10);
+    g.translate(0, [0.15, 0.45, 0.74][k], 0);
+    parts.push(g);
+  });
+  const stud = new THREE.CylinderGeometry(0.2, 0.2, 0.12, 8);
+  stud.translate(0, 0.94, 0);
+  parts.push(stud);
+  return mergeGeometries(parts.map((g) => g.toNonIndexed()));
+}
+// the wind: a gentle sway that grows with height, each tree on its own beat (its place in the
+// instance matrix), done in the vertex shader so thousands of trees cost nothing extra
+function sway(material: THREE.Material) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = { value: 0 };
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nuniform float uTime;")
+      .replace(
+        "#include <begin_vertex>",
+        "#include <begin_vertex>\n#ifdef USE_INSTANCING\nfloat beat = instanceMatrix[3][0] * 0.13 + instanceMatrix[3][2] * 0.17;\ntransformed.x += sin(uTime * 1.1 + beat) * transformed.y * 0.05;\ntransformed.z += cos(uTime * 0.9 + beat) * transformed.y * 0.035;\n#endif",
+      );
+    material.userData.shader = shader;
+  };
+}
+function ForestBelt({ season, shadows = true }: { season: Season; shadows?: boolean }) {
+  const trunks = useRef<THREE.InstancedMesh>(null);
+  const pines = useRef<THREE.InstancedMesh>(null);
+  const leafy = useRef<THREE.InstancedMesh>(null);
+  const pineGeo = useMemo(() => brickPine(), []);
+  const roundGeo = useMemo(() => brickRound(), []);
+  const nPine = FOREST.filter((t) => t.pine).length;
+  const leafColour = season === "winter" ? "#eef2f6" : season === "autumn" ? "#e8742a" : season === "spring" ? "#7bc043" : "#4b9f4a";
+  const pineColour = season === "winter" ? "#dfe6ea" : "#237841";
+  useLayoutEffect(() => {
+    const o = new THREE.Object3D();
+    const c = new THREE.Color();
+    let p = 0;
+    let l = 0;
+    // wide, overlapping canopies in their own shades of green: a wood, not a row of dots
+    FOREST.forEach((t, i) => {
+      const x = t.x * LDU;
+      const z = -t.z * LDU;
+      const h = t.h * LDU;
+      o.position.set(x, h * 0.18, z);
+      o.scale.set(0.55, h * 0.36, 0.55);
+      o.updateMatrix();
+      trunks.current?.setMatrixAt(i, o.matrix);
+      if (t.pine) {
+        o.position.set(x, h * 0.24, z);
+        o.scale.set(h * 0.4, h * 0.76, h * 0.4);
+        o.updateMatrix();
+        pines.current?.setMatrixAt(p, o.matrix);
+        pines.current?.setColorAt(p, c.set(pineColour).multiplyScalar(t.shade));
+        p++;
+      } else {
+        o.position.set(x, h * 0.3, z);
+        o.scale.set(h * 0.46, h * 0.6, h * 0.46);
+        o.updateMatrix();
+        leafy.current?.setMatrixAt(l, o.matrix);
+        leafy.current?.setColorAt(l, c.set(leafColour).multiplyScalar(t.shade));
+        l++;
+      }
+    });
+    for (const m of [trunks, pines, leafy])
+      if (m.current) {
+        m.current.instanceMatrix.needsUpdate = true;
+        if (m.current.instanceColor) m.current.instanceColor.needsUpdate = true;
+      }
+  }, [leafColour, pineColour]);
+  const pineMat = useRef<THREE.MeshStandardMaterial>(null);
+  const leafMat = useRef<THREE.MeshStandardMaterial>(null);
+  useEffect(() => {
+    for (const m of [pineMat.current, leafMat.current]) if (m) sway(m);
+  }, []);
+  useFrame(({ clock }) => {
+    for (const m of [pineMat.current, leafMat.current]) if (m?.userData.shader) m.userData.shader.uniforms.uTime.value = clock.elapsedTime;
+  });
+  return (
+    <>
+      <instancedMesh ref={trunks} args={[undefined, undefined, FOREST.length]} castShadow={shadows}>
+        <cylinderGeometry args={[1, 1, 1, 6]} />
+        <meshStandardMaterial color="#582a12" roughness={0.8} flatShading />
+      </instancedMesh>
+      <instancedMesh ref={pines} args={[undefined, undefined, nPine]} geometry={pineGeo} castShadow={shadows}>
+        <meshStandardMaterial ref={pineMat} roughness={0.5} flatShading />
+      </instancedMesh>
+      <instancedMesh ref={leafy} args={[undefined, undefined, FOREST.length - nPine]} geometry={roundGeo} castShadow={shadows}>
+        <meshStandardMaterial ref={leafMat} roughness={0.5} flatShading />
+      </instancedMesh>
+    </>
+  );
+}
+
+// The world beyond the town, built the LEGO way: the land runs on to the
+// horizon; terraced hills (stepped layers, each a shade lighter) with little
+// LEGO trees on top; beyond them a ring of stepped grey mountains with white
+// snow caps (deeper in winter); and a round LEGO sun in the sky. All plain
+// shapes: from this far off they read as bricks without costing any.
+function Scenery({ color, season, sunAt, shadows = true }: { color: string; season: Season; sunAt?: THREE.Vector3; shadows?: boolean }) {
+  const { hills, peaks, trees } = useMemo(() => {
+    let seed = 3;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const far = (TOWN_HALF + 48) * 20 * LDU + 90; // well beyond the forest
+    const hills: { p: [number, number, number]; r: number; turn: number; layers: number }[] = [];
+    for (let a = 0; a < Math.PI * 2; a += 0.28 + rnd() * 0.2) {
+      const d = far + rnd() * 60;
+      hills.push({ p: [Math.cos(a) * d, 0, Math.sin(a) * d], r: 40 + rnd() * 40, turn: rnd() * Math.PI, layers: 3 + Math.floor(rnd() * 3) });
+    }
+    const trees: [number, number, number, number][] = []; // x, y, z, size
+    for (const h of hills)
+      for (let k = 0; k < 3; k++) {
+        const a = rnd() * Math.PI * 2;
+        const d = rnd() * h.r * 0.45;
+        trees.push([h.p[0] + Math.cos(a) * d, h.r * 0.07 * h.layers, h.p[2] + Math.sin(a) * d, 5 + rnd() * 4]);
+      }
+    const peaks: { p: [number, number, number]; w: number; steps: number; turn: number }[] = [];
+    for (let a = 0.1; a < Math.PI * 2; a += 0.38 + rnd() * 0.25) {
+      const d = far + 150 + rnd() * 60;
+      peaks.push({ p: [Math.cos(a) * d, 0, Math.sin(a) * d], w: 70 + rnd() * 60, steps: 7 + Math.floor(rnd() * 4), turn: rnd() * Math.PI });
+    }
+    return { hills, peaks, trees };
+  }, []);
+  // each terrace a shade lighter than the one below: the steps read even far off
+  const shades = useMemo(() => [0.86, 0.93, 1, 1.07, 1.14].map((k) => new THREE.Color(color).multiplyScalar(k)), [color]);
+  const snowLine = season === "winter" ? 0.45 : 0.72; // share of a mountain's steps below the snow
+  const hillSlabs = useMemo(() => {
+    const out: Slab[] = [];
+    for (const h of hills)
+      for (let k = 0; k < h.layers; k++) {
+        const w = h.r * 2 * (1 - k / (h.layers + 0.6));
+        const t = h.r * 0.07;
+        const [ox, oz] = [(k % 2) * h.r * 0.08, -(k % 3) * h.r * 0.05]; // each step a little off the one below
+        const [c, sn] = [Math.cos(h.turn), Math.sin(h.turn)];
+        const [x, z] = [h.p[0] + ox * c + oz * sn, h.p[2] - ox * sn + oz * c];
+        out.push({ x: x / LDU, z: -z / LDU, w: w / LDU, d: (w * 0.8) / LDU, h: t / LDU, y: (k * t) / LDU, radius: (w * 0.25) / LDU, yaw: -h.turn, color: `#${shades[k].getHexString()}`, studs: true });
+      }
+    // the mountains the same way: stepped grey plates, snow on the top steps
+    for (const pk of peaks)
+      for (let k = 0; k < pk.steps; k++) {
+        const w = pk.w * (1 - k / pk.steps);
+        const t = pk.w * 0.11;
+        const snow = k >= pk.steps * snowLine;
+        out.push({ x: pk.p[0] / LDU, z: -pk.p[2] / LDU, w: w / LDU, d: (w * 0.85) / LDU, h: t / LDU, y: (k * t) / LDU, radius: (w * 0.12) / LDU, yaw: -pk.turn, color: snow ? "#f4f6f8" : k % 2 ? "#a0a5a9" : "#8c9196", studs: true });
+      }
+    return out;
+  }, [hills, peaks, shades, snowLine]);
+  const treeMesh = useRef<THREE.InstancedMesh>(null);
+  const hillPine = useMemo(() => brickPine(), []);
+  useLayoutEffect(() => {
+    const m = treeMesh.current;
+    if (!m) return;
+    const o = new THREE.Object3D();
+    trees.forEach(([x, y, z, sz], i) => {
+      o.position.set(x, y, z);
+      o.scale.set(sz, sz * 1.8, sz);
+      o.updateMatrix();
+      m.setMatrixAt(i, o.matrix);
+    });
+    m.instanceMatrix.needsUpdate = true;
+  }, [trees]);
+  return (
+    <>
+      {/* the land goes on to the horizon */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]} receiveShadow>
+        <circleGeometry args={[900, 64]} />
+        <meshStandardMaterial color={color} roughness={0.6} />
+      </mesh>
+      {/* the hills: stepped round-cornered plates, studs on every step, each a shade lighter (LDraw frame for the Slabs) */}
+      <group rotation={[Math.PI, 0, 0]} scale={LDU}>
+        <Slabs slabs={hillSlabs} shadows={false} />
+      </group>
+      {/* the woods round the village: brick-built pines and round trees on brown trunks */}
+      <ForestBelt season={season} shadows={shadows} />
+      {/* LEGO pine trees on the hilltops (a plain cone reads as the 3471 from here) */}
+      <instancedMesh ref={treeMesh} args={[undefined, undefined, trees.length]} geometry={hillPine}>
+        <meshStandardMaterial color={season === "winter" ? "#e9eef3" : "#237841"} roughness={0.5} flatShading />
+      </instancedMesh>
+      {/* the sun: a round yellow plate, bright enough to glow */}
+      {sunAt && (
+        <mesh position={sunAt}>
+          <sphereGeometry args={[20, 24, 16]} />
+          <meshBasicMaterial color="#fff3b0" toneMapped={false} fog={false} />
+        </mesh>
+      )}
+    </>
+  );
+}
+
+// A gold stud turning slowly in the air over a station that's been done today
+// (LEGO games' collectible): the neighbours see what you did.
+function DoneStud({ at }: { at: [number, number, number] }) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    if (!ref.current) return;
+    ref.current.rotation.y = clock.elapsedTime * 1.6;
+    ref.current.position.y = at[1] + Math.sin(clock.elapsedTime * 2.2) * 0.15;
+  });
+  return (
+    <mesh ref={ref} position={at} castShadow>
+      <cylinderGeometry args={[0.55, 0.55, 0.32, 20]} />
+      <meshPhysicalMaterial color="#e6b422" metalness={0.75} roughness={0.28} clearcoat={0.8} emissive="#b0801a" emissiveIntensity={0.25} />
+    </mesh>
+  );
+}
+
+// A station's button (over it, out on your plot): tap to do the mission; it pays
+// out with a brick burst and the XP floating up.
+function StationButton({ st, onTap, gold }: { st: Station; onTap: (id: string) => Promise<number | null>; gold: number | null }) {
+  const [busy, setBusy] = useState(false);
+  const [paid, setPaid] = useState<number | null>(null);
+  const tap = async () => {
+    if (st.done || busy) return;
+    sfx.click();
+    setBusy(true);
+    const xp = await onTap(st.id);
+    setBusy(false);
+    if (xp === null) return;
+    setPaid(xp);
+    setTimeout(() => setPaid(null), 1100);
+  };
+  return (
+    <button onClick={tap} disabled={busy} className={`lego lego-sm flex-col !gap-0 max-w-[76px] ${st.done ? "lego-green" : ""}`}>
+      <span className="text-[11px] font-bold">{st.done ? "✓" : `+${st.xp}`}</span>
+      <span className="w-full truncate text-center text-[9px] font-semibold opacity-90">{st.title}</span>
+      {paid !== null && <BrickBurst />}
+      {paid !== null && (
+        <span
+          className="xp-float absolute left-1/2 -top-5 w-40 -ml-20 text-center font-mono font-bold text-sm"
+          style={{ color: "#e8650c", textShadow: "0 0 3px #fff, 0 0 3px #fff, 0 1px 0 #fff" }}
+        >
+          {gold === null ? `+${paid} XP` : `+${paid} XP · +${paid} gold`}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// Your room: a station for each mission. Tap one to do it -- it pays out
+// (+XP floats up) and stays lit for the day.
+export function LegoRoom({
+  chest = null,
+  gold = null,
+  onCollect,
+  owned = [],
+  onLeave,
+  look = BASE_HUNTER,
+  level,
+  character,
+  name,
+  mood,
+  className,
+}: {
+  /** XP waiting in the chest (null: no chest yet) */
+  chest?: number | null;
+  /** your gold (null: no gold yet) */
+  gold?: number | null;
+  /** open the chest; resolves with the XP it paid */
+  onCollect?: () => Promise<number | null>;
+  /** furniture you've bought at the shop (DECOR ids) */
+  owned?: string[];
+  onLeave?: () => void;
+  look?: MinifigLook;
+  /** your level: you wear your character's loadout for it (instead of `look`) */
+  level?: number;
+  /** your character (archetype key); none: the Warrior */
+  character?: string | null;
+  /** your name, for the player card */
+  name?: string;
+  /** the time of day outside (the town's): sky in the windows and over the walls, sun by the
+   *  hour; at night the room's own lamp. Without it: daytime. */
+  mood?: Mood;
+  className?: string;
+}) {
+  const sky = mood ?? moodNamed("day");
+  // walk about your room: the stick (touch) or WASD / arrows (and Space to jump)
+  const stick = useRef({ x: 0, y: 0 });
+  const jumps = useRef(0);
+  useKeysToStick(stick, jumps);
+  const blockers = useMemo(() => roomBlockers(owned), [owned]);
+  const start = useMemo<P3[]>(() => [[ROOM_START[0], 0, ROOM_START[1]]], []);
+  const room = useModel(roomText(owned), true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [paid, setPaid] = useState<{ id: string; xp: number } | null>(null);
+  // aimed a little low and framed tight, so the room fills the screen (not the sky above it)
+  const target = useMemo(() => new THREE.Vector3(0, 5, 0), []);
+
+  const open = async () => {
+    if (!onCollect || busy) return;
+    setBusy("chest");
+    const xp = await onCollect();
+    setBusy(null);
+    if (!xp) return;
+    setPaid({ id: "chest", xp });
+    setTimeout(() => setPaid(null), 1400);
+  };
+  // missions pay gold too once gold exists
+  const payout = (xp: number) => (gold === null ? `+${xp} XP` : `+${xp} XP · +${xp} gold`);
+
+  return (
+    <div className={`relative ${className ?? ""}`}>
+      <Stage
+        className="absolute inset-0"
+        label="Your room"
+        target={target}
+        width={29}
+        dir={ROOM_VIEW}
+        fov={44}
+        mood={sky}
+        sunFrom={ROOM_SUN}
+        pan
+        bounds={ROOM_BOUNDS}
+        pins={
+          chest === null
+            ? []
+            : [
+                {
+                  key: "chest",
+                  at: [CHEST_SPOT[0] * LDU, 5, -CHEST_SPOT[1] * LDU] as [number, number, number],
+                  node: (
+                    <button onClick={open} disabled={!chest || busy === "chest"} className={`lego lego-sm ${chest ? "lego-yellow" : "lego-dark"}`}>
+                      {chest ? `Collect +${chest}` : "Chest empty"}
+                      {paid?.id === "chest" && <BrickBurst />}
+                      {paid?.id === "chest" && (
+                        <span
+                          className="xp-float absolute left-1/2 -top-6 w-44 -ml-22 text-center font-mono font-bold text-sm"
+                          style={{ color: "#e8650c", textShadow: "0 0 3px #fff, 0 0 3px #fff, 0 1px 0 #fff" }}
+                        >
+                          {payout(paid.xp)}
+                        </span>
+                      )}
+                    </button>
+                  ),
+                },
+              ]
+        }
+      >
+        {room && <primitive object={room} />}
+        {/* after dark the room's own light: a warm lamp under the ceiling */}
+        {sky.night && <pointLight position={[0, -200, -40]} intensity={sky.name === "dusk" ? 220 : 360} decay={2} color="#ffd394" />}
+        <group position={[0, -16, 0]}>
+          <Walker id="me" look={level ? loadoutFor(level, character ?? undefined) : look} to={start} turn={-Math.PI * 0.25} input={stick} jumpRef={jumps} blockers={blockers} />
+        </group>
+      </Stage>
+      {/* the same HUD as in the town: you top left, what's left to do top right, the way out bottom right */}
+      <div className="absolute top-2 left-3 pointer-events-none">
+        <div className="lego-hud">
+          <HeadIcon />
+          <div className="flex flex-col gap-0.5 min-w-0">
+            {name && <span className="text-[13px] font-extrabold leading-tight truncate max-w-[110px]">{name}</span>}
+            <div className="flex items-center gap-1">
+              {level !== undefined && <span className="lego-chip level">Lv {level}</span>}
+              {gold !== null && (
+                <span className="lego-chip gold">
+                  <span className="stud-icon" />
+                  {gold.toLocaleString()}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="absolute top-3 right-3">
+        <SoundToggle />
+      </div>
+      <div className="absolute bottom-3 left-3">
+        <Joystick outRef={stick} />
+      </div>
+      {onLeave && (
+        <div className="absolute bottom-3 right-3">
+          <RoundAction icon="out" text="Step outside" onClick={onLeave} />
+        </div>
+      )}
+    </div>
+  );
+}

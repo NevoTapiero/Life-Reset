@@ -1,0 +1,14 @@
+Part geometry in parts.mpd and the colour table in LDConfig.ldr come from the
+LDraw Parts Library (https://www.ldraw.org), licensed CC BY 2.0
+(https://creativecommons.org/licenses/by/2.0/). Authors are listed in each
+part's header lines. LDraw is not affiliated with the LEGO Group.
+
+LEGO and the minifigure are trademarks of the LEGO Group. This project must not
+ship publicly with these parts until it is licensed.
+
+Regenerate with: LDRAW=/path/to/ldraw node scripts/lego/pack.mjs
+
+houses/*.glb are official LEGO set models from the LDraw Official Model Repository
+(https://library.ldraw.org/omr), redistributable under CCAL 2.0 (CC BY 2.0);
+authors are named in each file's header. The designs themselves are the LEGO
+Group's, so these need the licence too before shipping.

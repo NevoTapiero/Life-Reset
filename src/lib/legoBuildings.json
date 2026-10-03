@@ -1,0 +1,51 @@
+[
+  {
+    "id": "3931-1",
+    "name": "Splash Pool",
+    "w": 13,
+    "d": 9,
+    "h": 172
+  },
+  {
+    "id": "3933-1",
+    "name": "Invention Workshop",
+    "w": 24,
+    "d": 17,
+    "h": 140
+  },
+  {
+    "id": "10037-1",
+    "name": "Breezeway Cafe",
+    "w": 36,
+    "d": 21,
+    "h": 433
+  },
+  {
+    "id": "10270-1",
+    "name": "Bookshop",
+    "w": 40,
+    "d": 39,
+    "h": 728
+  },
+  {
+    "id": "10359-1",
+    "name": "Fountain Garden",
+    "w": 37,
+    "d": 24,
+    "h": 388
+  },
+  {
+    "id": "21318-1",
+    "name": "Tree House",
+    "w": 54,
+    "d": 59,
+    "h": 916
+  },
+  {
+    "id": "10176-1",
+    "name": "Royal King's Castle",
+    "w": 54,
+    "d": 51,
+    "h": 956
+  }
+]

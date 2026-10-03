@@ -183,6 +183,9 @@ export async function syncHealth(uid: string, sinceOverride?: Date, repriceOnly 
   ]);
 
   const items: WatchItem[] = [];
+  // Iftach's penalties live in their own rows (<source>_penalty), so the shared
+  // price table and card never overwrite them and they never overwrite a payout.
+  const penalties: { source: string; ref: string; xp: number; reason: string }[] = [];
   for (const w of workouts) {
     const minutes = exerciseMinutes(w);
     if (minutes < 10) continue; // a walk to the car is not a workout
@@ -200,14 +203,18 @@ export async function syncHealth(uid: string, sinceOverride?: Date, repriceOnly 
   }
   for (const s of sleeps) {
     const hours = Number(s.sleep?.summary?.minutesAsleep ?? 0) / 60;
+    const ref = `sleep:${pointId(s.name)}`;
     items.push({
       source: "health_sleep",
       kind: "sleep",
-      ref: `sleep:${pointId(s.name)}`,
+      ref,
       rated: sleepRated(hours), // a short night pays a little, under 5 hours nothing
       day: ymd(new Date(s.sleep?.interval?.endTime ?? Date.now())), // the morning you woke up
       reason: `Slept ${hours.toFixed(1)} h`,
     });
+    // a real night (3 h+) under 5 hours is a penalty on top (5 to 6 h pays a little, 1 Oct)
+    if (hours >= 3 && hours < 5)
+      penalties.push({ source: "health_sleep_penalty", ref, xp: -10, reason: `Slept ${hours.toFixed(1)} h · short night, you're running tired` });
   }
   for (const d of steps) {
     if (d.date < firstDay || d.date >= today) continue;
@@ -222,6 +229,13 @@ export async function syncHealth(uid: string, sinceOverride?: Date, repriceOnly 
   }
 
   const r = await payWatchItems(uid, ["health_workout", "health_sleep", "health_steps"], items, repriceOnly);
+  if (!repriceOnly) {
+    for (const pen of penalties)
+      if (await awardXp(uid, pen.source, pen.ref, pen.xp, pen.reason)) {
+        r.xpGained += pen.xp;
+        r.newItems++;
+      }
+  }
   await touchSync(uid, "ghealth");
   return { connected: true, ...r };
 }
@@ -251,6 +265,7 @@ export async function syncWhoop(uid: string): Promise<WhoopSync> {
 
   // Sleep and workouts are quest kinds: same price and card as a quest.
   const items: WatchItem[] = [];
+  const penalties: { source: string; ref: string; xp: number; reason: string }[] = [];
   for (const s of sleeps) {
     if (s.nap || s.score_state !== "SCORED") continue;
     const st = s.score?.stage_summary;
@@ -265,6 +280,10 @@ export async function syncWhoop(uid: string): Promise<WhoopSync> {
       day: ymd(new Date(s.end ?? Date.now())),
       reason: `Slept ${hours.toFixed(1)} h`,
     });
+    // WHOOP's own sleep performance under 50% costs XP: 0% -> -20
+    const perf = s.score?.sleep_performance_percentage ?? 0;
+    if (perf < 50)
+      penalties.push({ source: "whoop_sleep_penalty", ref: `sleep:${s.id}`, xp: Math.round((perf - 50) / 2.5), reason: `Sleep ${Math.round(perf)}% · you're running tired` });
   }
   for (const w of workouts) {
     if (w.score_state !== "SCORED") continue;
@@ -305,17 +324,25 @@ export async function syncWhoop(uid: string): Promise<WhoopSync> {
   }
   const r = await payWatchItems(uid, ["whoop_sleep", "whoop_workout"], items);
 
-  // Recovery has no quest twin: it keeps its own flat payout.
+  // Recovery has no quest twin: it keeps its own payout. Zero at 33, WHOOP's
+  // own red/yellow line: green pays up to +20, red costs up to -10.
   let xpGained = r.xpGained;
   let newItems = r.newItems;
   for (const rec of recoveries) {
     if (rec.score_state !== "SCORED") continue;
-    const xp = Math.round((rec.score?.recovery_score ?? 0) / 5);
-    if (xp > 0 && (await awardXp(uid, "whoop_recovery", `recovery:${rec.cycle_id}`, xp, "Recovery"))) {
+    const score = rec.score?.recovery_score ?? 0;
+    const xp = Math.round((score - 33) / 3.35);
+    const reason = `Recovery ${Math.round(score)}%${xp < 0 ? " · in the red" : ""}`;
+    if (xp !== 0 && (await awardXp(uid, "whoop_recovery", `recovery:${rec.cycle_id}`, xp, reason))) {
       xpGained += xp;
       newItems++;
     }
   }
+  for (const pen of penalties)
+    if (await awardXp(uid, pen.source, pen.ref, pen.xp, pen.reason)) {
+      xpGained += pen.xp;
+      newItems++;
+    }
 
   await touchSync(uid, "whoop");
   return { connected: true, newItems, xpGained };

@@ -1,20 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { Anton, Archivo, Geist_Mono } from "next/font/google";
+import { Fredoka, Geist_Mono, Nunito } from "next/font/google";
+import ButtonSounds from "@/components/ButtonSounds";
+import ExtrasApplier from "@/components/ExtrasApplier";
 import PwaSetup from "@/components/PwaSetup";
 import "./globals.css";
 
-// In-app voice: wide, heavy, geometric (Monument Extended vibe)
-const archivo = Archivo({
-  variable: "--font-archivo",
+// Headings: round, chunky, friendly (a LEGO game menu)
+const fredoka = Fredoka({
+  variable: "--font-brick",
   subsets: ["latin"],
-  axes: ["wdth"],
+  weight: ["500", "600", "700"],
 });
 
-// Marketing voice: tall ultra-condensed block lettering
-const anton = Anton({
-  variable: "--font-anton",
+// Body: rounded and very readable at small sizes
+const nunito = Nunito({
+  variable: "--font-body",
   subsets: ["latin"],
-  weight: "400",
+  weight: ["500", "600", "700", "800", "900"],
 });
 
 const geistMono = Geist_Mono({
@@ -24,7 +26,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Solo Leveling",
-  description: "Real habits become quests. Earn XP, keep the streak, climb the ranks.",
+  description: "Real habits become quests. Earn XP, build your LEGO world, climb with your friends.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icon-192.png",
@@ -32,13 +34,13 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "Solo Leveling",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#07090f",
+  themeColor: "#7fb3ea",
 };
 
 export default function RootLayout({
@@ -48,17 +50,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        {/* Paint the last-used character accent before first paint, so the app
-            never flashes the default orange before the theme loads. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{if(location.pathname.indexOf('/app')!==0)return;var a=localStorage.getItem('sl-accent'),b=localStorage.getItem('sl-accent2');if(!a)return;function t(h){h=h.replace('#','');if(h.length===3)h=h.split('').map(function(c){return c+c}).join('');var n=parseInt(h,16);return((n>>16)&255)+' '+((n>>8)&255)+' '+(n&255)}var s=document.documentElement.style;s.setProperty('--accent',a);s.setProperty('--accent-rgb',t(a));if(b){s.setProperty('--accent-2',b);s.setProperty('--accent-2-rgb',t(b))}}catch(e){}})();`,
-          }}
-        />
-      </head>
-      <body className={`${archivo.variable} ${anton.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${fredoka.variable} ${nunito.variable} ${geistMono.variable} antialiased`}>
         <PwaSetup />
+        <ButtonSounds />
+        <ExtrasApplier />
         <div className="glow-scene" aria-hidden />
         <div className="mx-auto w-full max-w-md min-h-dvh flex flex-col px-4">
           {children}

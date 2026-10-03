@@ -1,61 +1,567 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 import AppActivity from "@/components/AppActivity";
-import Avatar from "@/components/Avatar";
+import BrickLoader from "@/components/BrickLoader";
 import Icon from "@/components/Icon";
-import RankBadge from "@/components/RankBadge";
-import XpMeter from "@/components/XpMeter";
+import LegoIcon, { PILLAR_BRICK_COLOR } from "@/components/LegoIcon";
+import MinifigPicker from "@/components/MinifigPicker";
+import FirstTips from "@/components/FirstTips";
+import TellTheJudge from "@/components/TellTheJudge";
+import StartSteps from "@/components/StartSteps";
+import BuildYourDay from "@/components/BuildYourDay";
+import { GoldBrick } from "@/components/GoldBricks";
+import { goldBricks, saveSeenGold, seenGold, type GoldBrick as GoldBrickT } from "@/lib/goldBricks";
+import Minifig from "@/components/Minifig";
+import StudCount from "@/components/StudCount";
+import Hearts from "@/components/Hearts";
+import { extraOn } from "@/lib/extras";
+import RankUp, { BrickBurst } from "@/components/RankUp";
+import { brickSound } from "@/lib/brickSound";
+import { energyFrom, todayKey, type LedgerMeta } from "@/lib/energy";
+import { supabase } from "@/lib/supabase";
+import { useMissions } from "@/lib/useMissions";
+import { greeting, sleepyHour, legoLevel, levelTitle } from "@/lib/brick";
 import {
-  CHARACTERS,
-  CHARACTER_KEYS,
-  CharacterKey,
   CARD_DAYS,
   PERIODS,
   PERIOD_LABEL,
+  STREAK_BONUS_XP,
   PERIOD_UNIT,
   PILLAR_ICONS,
   Period,
-  Profile,
   Quest,
-  Rank,
+  TIERS,
   TRACKER_NAME,
-  cardStepOn,
   cardXp,
-  characterOf,
-  doneInPeriod,
-  nextStreakMilestone,
   periodOf,
-  periodStart,
-  questArt,
   rankForXp,
   trackedBy,
 } from "@/lib/game";
 
-type UserQuestRow = { quest_id: string; added_on: string; quests: Quest };
+// Home: who you are today, your missions (daily, weekly, monthly), yesterday's
+// grace list, and what your connected apps counted.
+export default function HomePage() {
+  const m = useMissions();
+  const [tab, setTab] = useState<Period>("daily");
+  const [showYesterday, setShowYesterday] = useState(false);
+  // the evening recap (also opened by the app shortcut /app?build=1)
+  const [building, setBuilding] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("build") === "1") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the address once
+      setBuilding(true);
+      // a reload shouldn't reopen it
+      history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+  // null until the first load, then whether today's daily missions were all done
+  const [wasCleared, setWasCleared] = useState<boolean | null>(null);
+  const [justCleared, setJustCleared] = useState(false);
+  // studs flying from a checked mission into the XP bar
+  const counterRef = useRef<HTMLDivElement>(null);
+  const [flying, setFlying] = useState<{ id: number; x: number; y: number; dx: number; dy: number; delay: number; kind: string }[]>([]);
+  const [bump, setBump] = useState(false);
+  const flyId = useRef(0);
+  // studs are worth more by colour, like the LEGO games: silver, gold, blue
+  function flyStuds(from: DOMRect, xp = 0) {
+    const kind = xp >= 16 ? "blue" : xp >= 8 ? "" : "silver";
+    const to = counterRef.current?.getBoundingClientRect();
+    if (!to) return;
+    // aim at the XP bar's first empty brick
+    const tx = to.left + Math.min(0.95, Math.max(0.05, (m.profile ? rankForXp(m.profile.xp).progress : 0) + 0.05)) * to.width;
+    const ty = to.top + to.height / 2;
+    // the Stud rain extra sends three times as many
+    const count = extraOn("studrain") ? 21 : 7;
+    const base = (flyId.current += 30);
+    const studs = Array.from({ length: count }, (_, i) => {
+      const x = from.right - 40 - (i % 3) * 14 - (i >= 7 ? ((i * 23) % 120) : 0);
+      const y = from.top + from.height / 2 + ((i * 7) % 11) - 5;
+      return { id: base + i, x, y, dx: tx - x, dy: ty - y, delay: (i % 7) * 55 + Math.floor(i / 7) * 30, kind };
+    });
+    setFlying((f) => [...f, ...studs]);
+    setTimeout(() => setBump(true), 620);
+    setTimeout(() => {
+      setBump(false);
+      setFlying((f) => f.filter((s) => s.id < base || s.id >= base + count));
+    }, 1100);
+  }
+  useEffect(() => {
+    if (justCleared) brickSound.levelUp(false);
+  }, [justCleared]);
+  // a gold brick earned just now: a toast (Profile has the whole collection)
+  const [newGold, setNewGold] = useState<GoldBrickT | null>(null);
+  const xpNow = m.profile?.xp;
+  const uidNow = m.profile?.id;
+  useEffect(() => {
+    if (!m.profile || !m.days) return;
+    const earned = goldBricks(m.profile, { done: m.doneCount }).filter((b) => b.got);
+    const seen = seenGold(m.profile.id);
+    if (!seen) {
+      // first time on this device: remember, don't celebrate the past
+      saveSeenGold(m.profile.id, earned.map((b) => b.id));
+      return;
+    }
+    const fresh = earned.filter((b) => !seen.has(b.id));
+    if (fresh.length === 0) return;
+    saveSeenGold(m.profile.id, [...seen, ...fresh.map((b) => b.id)]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reacts to a milestone just crossed
+    setNewGold(fresh[0]);
+    brickSound.stud(7);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-check when XP, streak or checks change
+  }, [xpNow, uidNow, m.doneCount, m.profile?.streak_current, m.days]);
+  // the toast hides itself (its own timer, so a reload can't cancel it)
+  useEffect(() => {
+    if (!newGold) return;
+    const t = setTimeout(() => setNewGold(null), 4200);
+    return () => clearTimeout(t);
+  }, [newGold]);
 
-// Seven pips: the quest's 7-day card. Filled = days already banked in this
-// card; the ringed pip is the day this check counts as; the last one pays x2.5.
-function CardPips({ day, done, unit = "Day" }: { day: number; done: boolean; unit?: string }) {
+  // energy for running in the town, from last night's sleep and today's steps
+  // (the same rule as the town: src/lib/energy.ts)
+  const [energy, setEnergy] = useState<number | null>(null);
+  // XP your apps paid that waits in your chest at home (collected in the world)
+  const [chest, setChest] = useState(0);
+  const loadChest = useCallback(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id;
+      if (!uid) return;
+      supabase
+        .from("xp_ledger")
+        .select("pending_xp")
+        .eq("user_id", uid)
+        .is("collected_at", null)
+        .then(({ data: rows, error }) => {
+          if (!error) setChest(((rows ?? []) as { pending_xp: number }[]).reduce((a, r) => a + (r.pending_xp ?? 0), 0));
+        });
+      const since = new Date(new Date().getTime() - 36 * 3600 * 1000).toISOString();
+      supabase
+        .from("xp_ledger")
+        .select("meta")
+        .eq("user_id", uid)
+        .gte("created_at", since)
+        .then(({ data: rows }) => setEnergy(energyFrom((rows ?? []).map((r) => r.meta as LedgerMeta), todayKey())));
+    });
+  }, []);
+  useEffect(() => {
+    loadChest();
+  }, [loadChest]);
+
+  if (!m.profile) {
+    return (
+      <div className="py-24 flex justify-center">
+        {m.loadFailed ? (
+          <div className="card p-6 text-center max-w-[300px]">
+            <p className="display text-[19px]">No connection</p>
+            <p className="text-[13.5px] font-bold text-muted mt-1">Your missions are safe. Check your internet and try again.</p>
+            <button className="btn-primary brick-yellow px-6 py-3 mt-4" onClick={m.load}>
+              Try again
+            </button>
+          </div>
+        ) : (
+          <BrickLoader label="Building your day" />
+        )}
+      </div>
+    );
+  }
+
+  const p = m.profile;
+  const rank = rankForXp(p.xp);
+  const next = rank.atMax
+    ? null
+    : rank.stageIndex < 2
+      ? `${rank.tier} ${["I", "II", "III"][rank.stageIndex + 1]}`
+      : TIERS[rank.tierIndex + 1]
+        ? `${TIERS[rank.tierIndex + 1].name} I`
+        : null;
+  const tabQuests = m.inPeriod(tab);
+  const daily = m.counts.daily;
+  const clearedAll = daily.total > 0 && daily.done === daily.total;
+  // where today sits in the 7-day streak cycle (1..7; 0 = no streak yet)
+  // (the saved streak is the run ending on the last day you checked
+  // something: it only still counts if that was today or yesterday)
+  const lastDone = p.last_completed_on;
+  const doneToday = !!m.days && lastDone === m.days.today;
+  const alive = doneToday || (!!m.days && lastDone === m.days.yesterday);
+  const streakNow = alive ? p.streak_current : 0;
+  const streakDay = streakNow <= 0 ? 0 : doneToday ? ((streakNow - 1) % 7) + 1 : streakNow % 7;
+  const evening = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Jerusalem" }).format(new Date())) >= 17;
+  if (m.days && clearedAll !== wasCleared) {
+    // cleared just now (not already cleared when the page opened): celebrate
+    if (clearedAll && wasCleared === false) setJustCleared(true);
+    if (!clearedAll) setJustCleared(false);
+    setWasCleared(clearedAll);
+  }
+  const xpToday = m
+    .inPeriod("daily")
+    .filter((q) => !trackedBy(q, m.trackers) && m.isDoneOn(q, m.today))
+    .reduce((sum, q) => sum + cardXp(q.xp, m.cardDayOf(q)), 0);
+  const yOpen = m.days ? m.yesterdayList.filter((q) => !m.isDoneOn(q, m.days!.yesterday)).length : 0;
+
   return (
-    <span className="flex items-center gap-[3px] mt-1.5" aria-label={`${unit} ${day} of ${CARD_DAYS}`}>
+    <div className="slide-in">
+      {!p.archetype && <MinifigPicker onPicked={m.setProfile} />}
+      {newGold && (
+        <button className="gold-toast" onClick={() => setNewGold(null)} aria-live="polite">
+          <span className="relative">
+            <GoldBrick got size={46} />
+            <BrickBurst count={14} />
+          </span>
+          <span className="text-left">
+            <span className="block text-[11px] font-black tracking-wider uppercase opacity-80">Gold brick</span>
+            <span className="display tt-text block text-[20px] leading-tight">{newGold.name}</span>
+          </span>
+        </button>
+      )}
+      {building && p.archetype && (
+        <BuildYourDay
+          quests={m.inPeriod("daily").filter((q) => !trackedBy(q, m.trackers))}
+          isDone={(q) => m.isDoneOn(q, m.today)}
+          pendingId={m.pendingId}
+          onCheck={(q, from) => {
+            if (m.canToggle(q)) flyStuds(from, cardXp(q.xp, m.cardDayOf(q)));
+            m.toggle(q);
+          }}
+          onClose={() => setBuilding(false)}
+        />
+      )}
+      {flying.map((f) => (
+        <span
+          key={f.id}
+          className={`flying-stud ${f.kind}`}
+          aria-hidden
+          style={{ left: f.x, top: f.y, "--dx": `${f.dx}px`, "--dy": `${f.dy}px`, animationDelay: `${f.delay}ms` } as React.CSSProperties}
+        />
+      ))}
+      {m.rankUp && <RankUp rank={m.rankUp.rank} previousTier={m.rankUp.previousTier} character={p.archetype} onClose={m.dismissRankUp} />}
+
+      {/* you, today: a LEGO-game player card */}
+      <section className="card tile-studs">
+        <div className="flex items-end gap-2 px-4 pt-3">
+          <Link href="/app/profile" aria-label="Your profile" className="player-stage me-fig flex-none -mb-1">
+            <Minifig
+              character={p.archetype}
+              level={legoLevel(rank.tierIndex)}
+              size={104}
+              alive
+              sleepy={!clearedAll && sleepyHour()}
+              className={clearedAll ? "mf-cheer" : undefined}
+            />
+          </Link>
+          <div className="flex-1 min-w-0 pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="hud-label">{greeting()}</div>
+              <Link href="/app/town" aria-label={`${(p.gold ?? 0).toLocaleString()} gold studs: spend them in your world`} className="stud-counter" title="Gold studs: spend them in your world">
+                <span className="stud-spin" aria-hidden />
+                <StudCount value={p.gold ?? 0} storeKey={`sl-studs-seen-${p.id}`} />
+              </Link>
+            </div>
+            <div className="display text-[25px] truncate leading-tight mt-0.5">{p.username}</div>
+            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+              <span className="chip chip-blue">Lv {legoLevel(rank.tierIndex)}</span>
+              <span className="text-[14px] font-extrabold">{levelTitle(p.archetype, rank.tierIndex)}</span>
+              <span className="chip chip-orange ml-auto" title="Days in a row">
+                <Icon name="flame" size={13} strokeWidth={2.4} />
+                {streakNow}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-4 pb-4 pt-3 rounded-b-[18px]" style={{ background: "var(--panel-2)" }}>
+          <div className="flex items-center justify-between text-[12.5px] font-extrabold">
+            <span>{rank.label}</span>
+            <span className="text-muted">{next ? `${rank.xpForStage - rank.xpIntoStage} XP to ${next}` : "Top rank"}</span>
+          </div>
+          <div ref={counterRef} className={`xp-bricks mt-2 ${bump ? "bump" : ""}`} role="progressbar" aria-label="XP to the next rank" aria-valuenow={rank.xpIntoStage} aria-valuemax={rank.xpForStage}>
+            {Array.from({ length: 10 }, (_, i) => {
+              const fill = Math.min(1, Math.max(0, rank.progress * 10 - i));
+              return <span key={i} className={fill >= 1 ? "on" : fill > 0 ? "part" : ""} style={{ "--fill": `${Math.round(fill * 100)}%` } as React.CSSProperties} />;
+            })}
+          </div>
+          <div className="mt-1.5 text-[12px] font-extrabold text-muted">{p.xp.toLocaleString()} XP total</div>
+          {/* the streak week: day 7 pays the bonus */}
+          <div className="mt-3 flex items-center gap-2" title={`Every 7th day in a row pays +${STREAK_BONUS_XP} XP`}>
+            <span className="text-[12.5px] font-extrabold flex items-center gap-1 w-[62px]">
+              <Icon name="flame" size={13} strokeWidth={2.4} />
+              Streak
+            </span>
+            <span className="streak-studs flex-1" aria-label={`Day ${streakDay} of 7 toward the +${STREAK_BONUS_XP} bonus`}>
+              {Array.from({ length: 7 }, (_, i) => (
+                <span key={i} className={i < streakDay ? (i === 6 ? "gold" : "on") : i === 6 ? "goal" : ""} />
+              ))}
+            </span>
+            <span className="text-[12px] font-extrabold text-muted w-[88px] text-right">
+              {streakDay === 7 && doneToday ? `+${STREAK_BONUS_XP} today!` : `${7 - streakDay} to +${STREAK_BONUS_XP}`}
+            </span>
+          </div>
+          {energy !== null && (
+            <div className="mt-3 flex items-center gap-2" title="Energy for running in the world: sleep well and walk to fill it">
+              <span className="text-[12.5px] font-extrabold flex items-center gap-1 w-[62px]">
+                <Icon name="bolt" size={13} strokeWidth={2.4} />
+                Energy
+              </span>
+              {/* energy as LEGO-game hearts: five, with halves */}
+              <span className="flex-1" role="img" aria-label={`Energy ${Math.round(energy)} of 100`}>
+                <Hearts value={energy} />
+              </span>
+              <span className="text-[12px] font-extrabold text-muted w-[88px] text-right">{energy >= 60 ? "Ready to run" : energy >= 30 ? "Sleep, walk" : "Tired"}</span>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {chest > 0 && (
+        <Link href="/app/town" className="card mt-4 px-4 py-3 flex items-center gap-3 active:translate-y-[2px] transition-transform" style={{ background: "var(--lego-yellow)" }}>
+          <span className="chest-wobble flex-none">
+            <LegoIcon name="chest" color="orange" size={40} />
+          </span>
+          <span className="flex-1">
+            <span className="display block text-[17px]">Your chest: +{chest.toLocaleString()} XP</span>
+            <span className="text-[13px] font-bold opacity-80">Waiting at home. Jump in and open it.</span>
+          </span>
+          <Icon name="chevron-right" size={18} strokeWidth={2.4} />
+        </Link>
+      )}
+
+      {p.archetype && <FirstTips />}
+      {p.archetype && <StartSteps doneCount={m.doneCount} />}
+
+      {/* missions */}
+      <div className="flex items-center justify-between mt-7 mb-3">
+        <h1 className="section-title">Missions</h1>
+        <Link href="/app/quests" className="btn-ghost brick-flat !text-[13px] px-3.5 py-2 !rounded-[12px]">
+          <Icon name="plus" size={15} strokeWidth={2.4} />
+          Add or edit
+        </Link>
+      </div>
+
+      <TellTheJudge
+        missions={m.inPeriod(tab).filter((q) => !m.isDoneOn(q, m.today) && !trackedBy(q, m.trackers)).map((q) => ({ id: q.id, title: q.title }))}
+        onMatched={async (ids) => {
+          const saved: string[] = [];
+          for (const id of ids) {
+            const q = m.quests.find((x) => x.id === id);
+            if (!q || m.isDoneOn(q, m.today) || !m.canToggle(q)) continue;
+            const el = document.querySelector(`[data-quest="${CSS.escape(id)}"]`);
+            if (el) {
+              el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+              flyStuds(el.getBoundingClientRect(), cardXp(q.xp, m.cardDayOf(q)));
+            }
+            if (await m.toggle(q)) saved.push(id);
+            await new Promise((r) => setTimeout(r, 450));
+          }
+          return saved;
+        }}
+      />
+
+      <div className="brick-tabs grid-cols-3 mb-3.5" role="tablist">
+        {PERIODS.map((per) => {
+          const c = m.counts[per];
+          return (
+            <button key={per} role="tab" aria-selected={tab === per} onClick={() => setTab(per)} className={`brick-tab ${tab === per ? "on" : ""}`}>
+              {PERIOD_LABEL[per]}
+              {c.total > 0 && (
+                <span className="count-chip">
+                  {c.done}/{c.total}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* the True Hunter meter, like the LEGO games' True Jedi stud bar:
+          it fills as the tab's missions are built, and turns gold when full */}
+      {m.counts[tab].total > 0 && (() => {
+        const c = m.counts[tab];
+        const full = c.done >= c.total;
+        return (
+          <div
+            className={`true-meter ${full ? "full" : ""}`}
+            role="progressbar"
+            aria-label="True Hunter"
+            aria-valuenow={c.done}
+            aria-valuemax={c.total}
+          >
+            <span className="true-meter-bar">
+              <span style={{ width: `${Math.round((c.done / c.total) * 100)}%` }} />
+            </span>
+            <span className="true-meter-medal" aria-hidden />
+            <span className="true-meter-label">{full ? "True Hunter!" : `${c.total - c.done} to True Hunter`}</span>
+          </div>
+        );
+      })()}
+
+      {tab !== "daily" && m.today && (
+        <p className="text-[13px] font-extrabold text-[var(--ink)] -mt-1.5 mb-3 px-1">{periodLeft(tab, m.today)}</p>
+      )}
+
+      {m.error && (
+        <p className="card px-4 py-3 mb-3 text-sm font-bold" style={{ color: "var(--danger)" }}>
+          {m.error}
+        </p>
+      )}
+
+      <div className="flex flex-col gap-3 stagger">
+        {tabQuests.map((q) => (
+          <MissionTile
+            key={q.id}
+            q={q}
+            done={m.isDoneOn(q, m.today)}
+            cardDay={m.cardDayOf(q)}
+            paidBy={trackedBy(q, m.trackers)}
+            pending={m.pendingId === q.id}
+            xpFloat={m.xpFloat?.id === q.id ? m.xpFloat.amount : null}
+            onToggle={(from) => {
+              if (!m.isDoneOn(q, m.today) && m.canToggle(q)) flyStuds(from, cardXp(q.xp, m.cardDayOf(q)));
+              m.toggle(q);
+            }}
+          />
+        ))}
+        {tabQuests.length === 0 && (
+          <div className="card p-6 text-center">
+            <div className="flex justify-center gap-1 mb-3" aria-hidden>
+              <span className="stack-brick !animate-none" style={{ "--c": "var(--lego-red)" } as React.CSSProperties} />
+              <span className="stack-brick !animate-none" style={{ "--c": "var(--lego-yellow)" } as React.CSSProperties} />
+            </div>
+            <p className="font-bold">
+              {tab === "daily" ? "No daily missions yet." : `No ${tab} missions yet.`}
+            </p>
+            <p className="text-muted text-sm mt-1">
+              {tab === "daily"
+                ? "Pick a few habits and every one you do builds your world."
+                : `Check it once a ${tab === "weekly" ? "week" : "month"}; it pays more.`}
+            </p>
+            <Link href="/app/quests" className="btn-primary brick-yellow px-5 py-3 mt-4">
+              Add a mission
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {clearedAll && tab === "daily" && (
+        // the LEGO games' results screen: a big outlined title, then the
+        // day's numbers sliding in one by one
+        <section className="day-complete mt-4 rise relative" aria-label="Day complete">
+          {justCleared && <BrickBurst count={26} />}
+          <div className="flex items-center justify-between">
+            <h2 className="display tt-text text-[26px] leading-none">Day complete!</h2>
+            <span className="bounce-in">
+              <LegoIcon name="trophy" color="yellow" size={42} />
+            </span>
+          </div>
+          <ul className="day-complete-rows">
+            <li style={{ animationDelay: "0.15s" }}>
+              <LegoIcon name="check" color="green" size={30} />
+              <span>Missions</span>
+              <b>
+                {daily.done}/{daily.total}
+              </b>
+            </li>
+            <li style={{ animationDelay: "0.3s" }}>
+              <span className="day-complete-stud" aria-hidden />
+              <span>XP built today</span>
+              <b>+{xpToday}</b>
+            </li>
+            <li style={{ animationDelay: "0.45s" }}>
+              <LegoIcon name="star" color="yellow" size={30} />
+              <span>True Hunter</span>
+              <b className="text-[var(--lego-yellow)]">Yes!</b>
+            </li>
+            <li style={{ animationDelay: "0.6s" }}>
+              <LegoIcon name="flame" color="orange" size={30} />
+              <span>Streak</span>
+              <b>
+                {streakNow} {streakNow === 1 ? "day" : "days"}
+              </b>
+            </li>
+          </ul>
+          <p className="text-[13px] font-bold text-white/80 mt-3">The streak holds. See you tomorrow.</p>
+        </section>
+      )}
+
+      {evening && daily.total > daily.done && tab === "daily" && (
+        <button className="card w-full mt-4 px-4 py-3.5 flex items-center gap-3 text-left active:translate-y-[2px] transition-transform" onClick={() => setBuilding(true)}>
+          <LegoIcon name="home" color="orange" size={42} />
+          <span className="flex-1">
+            <span className="display block text-[17px]">Build your day</span>
+            <span className="text-[13px] font-bold text-muted">{daily.total - daily.done} still open. A quick evening check.</span>
+          </span>
+          <Icon name="chevron-right" size={18} strokeWidth={2.4} className="text-muted" />
+        </button>
+      )}
+
+      {/* yesterday: one day of grace to log what you forgot */}
+      {m.yesterdayList.length > 0 && m.days && (
+        <div className="mt-5">
+          <button className="card w-full px-4 py-3.5 flex items-center gap-3 active:translate-y-[2px] transition-transform" onClick={() => setShowYesterday(!showYesterday)} aria-expanded={showYesterday}>
+            <LegoIcon name="calendar" color="white" size={38} />
+            <span className="flex-1 text-left">
+              <span className="display block text-[16px]">Yesterday</span>
+              <span className="text-[13px] font-bold text-muted">{yOpen === 0 ? "All done" : `${yOpen} not checked, you can still log them`}</span>
+            </span>
+            <span className="text-muted transition-transform duration-300" style={{ transform: showYesterday ? "rotate(180deg)" : "none" }}>
+              <Icon name="chevron-down" size={18} strokeWidth={2.2} />
+            </span>
+          </button>
+          {showYesterday && (
+            <div className="flex flex-col gap-2.5 mt-2.5 stagger">
+              {m.yesterdayList.map((q) => (
+                <MissionTile
+                  key={q.id}
+                  q={q}
+                  small
+                  done={m.isDoneOn(q, m.days!.yesterday)}
+                  cardDay={m.cardDayOf(q, m.days!.yesterday)}
+                  label={periodOf(q) === "daily" ? "Yesterday" : `Last ${periodOf(q) === "weekly" ? "week" : "month"}`}
+                  pending={m.pendingId === q.id}
+                  xpFloat={m.xpFloat?.id === q.id ? m.xpFloat.amount : null}
+                  onToggle={() => m.toggle(q, "yesterday")}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* what the connected apps counted */}
+      <AppActivity
+        onXp={() => {
+          m.load();
+          loadChest();
+        }}
+        onSynced={loadChest}
+      />
+    </div>
+  );
+}
+
+// Seven studs: the quest's 7-day card. Green = banked, ringed = the one this
+// check counts as, the last (yellow) pays x2.5.
+function CardStuds({ day, done, unit }: { day: number; done: boolean; unit: string }) {
+  return (
+    <span className="flex items-center gap-[4px]" aria-label={`${unit} ${day} of ${CARD_DAYS}`}>
       {Array.from({ length: CARD_DAYS }, (_, i) => {
         const n = i + 1;
         const filled = n < day || (n === day && done);
         const current = n === day && !done;
         const last = n === CARD_DAYS;
+        const size = last ? 11 : 9;
         return (
           <span
             key={n}
             className="rounded-full"
             style={{
-              width: last ? 9 : 6,
-              height: last ? 9 : 6,
-              background: filled ? "var(--accent)" : "rgba(0,0,0,0.35)",
-              border: current ? "1.5px solid var(--accent)" : "1px solid rgba(255,255,255,0.35)",
-              boxShadow: filled && last ? "0 0 8px rgb(var(--accent-rgb) / 0.8)" : "none",
+              width: size,
+              height: size,
+              background: filled ? (last ? "var(--lego-yellow)" : "var(--lego-green)") : "var(--panel-2)",
+              boxShadow: filled
+                ? `inset 0 -1.5px 0 ${last ? "var(--lego-yellow-edge)" : "var(--lego-green-edge)"}`
+                : current
+                  ? "0 0 0 2px var(--lego-green)"
+                  : "inset 0 -1.5px 0 var(--line-strong)",
             }}
           />
         );
@@ -64,540 +570,75 @@ function CardPips({ day, done, unit = "Day" }: { day: number; done: boolean; uni
   );
 }
 
-export default function Dashboard() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [quests, setQuests] = useState<Quest[]>([]);
-  // quest id -> every day it was done (about 7 months back, enough for a monthly
-  // card). The single source of truth for "done": today for a daily quest, this
-  // week or this month for a weekly or monthly one.
-  const [history, setHistory] = useState<Map<string, Set<string>>>(new Map());
-  const [tab, setTab] = useState<Period>("daily");
-  // connected apps that pay for some quests on their own (steps, sleep, workouts)
-  const [trackers, setTrackers] = useState<string[]>([]);
-  const [yesterdayQuests, setYesterdayQuests] = useState<Quest[]>([]);
-  const [days, setDays] = useState<{ today: string; yesterday: string } | null>(null);
-  const [showYesterday, setShowYesterday] = useState(false);
-  const [pendingId, setPendingId] = useState<string | null>(null);
-  const [xpFloat, setXpFloat] = useState<{ id: string; amount: number } | null>(null);
-  const [rankUp, setRankUp] = useState<Rank | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    const { data: userData } = await supabase.auth.getUser();
-    const uid = userData.user?.id;
-    if (!uid) return;
-    const [{ data: prof }, { data: uq }, { data: todayData }, { data: tr }] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", uid).single(),
-      supabase.from("user_quests").select("quest_id, added_on, quests(*)").eq("user_id", uid).eq("active", true),
-      supabase.rpc("app_today"),
-      supabase.rpc("my_trackers"),
-    ]);
-    setTrackers((tr as string[]) ?? []);
-    const todayStr = String(todayData);
-    const yesterdayStr = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 86400000)
-      .toISOString()
-      .slice(0, 10);
-    const since = new Date(new Date(todayStr + "T00:00:00Z").getTime() - 230 * 86400000).toISOString().slice(0, 10);
-    const { data: comps } = await supabase
-      .from("quest_completions")
-      .select("quest_id, completed_on")
-      .eq("user_id", uid)
-      .gte("completed_on", since);
-    setProfile(prof as Profile);
-    const activeRows = ((uq as unknown as UserQuestRow[]) ?? []).filter((r) => r.quests);
-    const list = activeRows.map((r) => r.quests).sort((a, b) => a.sort - b.sort);
-    setQuests(list);
-    const rows = (comps ?? []) as { quest_id: string; completed_on: string }[];
-    const hist = new Map<string, Set<string>>();
-    for (const c of rows) {
-      if (!hist.has(c.quest_id)) hist.set(c.quest_id, new Set());
-      hist.get(c.quest_id)!.add(c.completed_on);
-    }
-    setHistory(hist);
-    const yDoneIds = rows.filter((c) => c.completed_on === yesterdayStr).map((c) => c.quest_id);
-    setDays({ today: todayStr, yesterday: yesterdayStr });
-
-    // Yesterday's list is fixed to what actually happened yesterday, independent
-    // of today's loadout edits: quests active before today (so a quest added
-    // today never appears) plus anything completed yesterday (so a quest you
-    // later removed still shows, checked). Editing today's loadout never
-    // rewrites yesterday.
-    const byId = new Map<string, Quest>();
-    for (const r of activeRows) {
-      if (r.added_on && r.added_on < todayStr) byId.set(r.quests.id, r.quests);
-    }
-    const missing = yDoneIds.filter((id) => !byId.has(id));
-    if (missing.length) {
-      const { data: extra } = await supabase.from("quests").select("*").in("id", missing);
-      for (const q of (extra as Quest[]) ?? []) byId.set(q.id, q);
-    }
-    setYesterdayQuests([...byId.values()].sort((a, b) => a.sort - b.sort));
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  // Done on `on`: that very day for a daily quest, anywhere in the same week or
-  // month for a weekly or monthly one.
-  function isDoneOn(q: Quest, on: string): boolean {
-    const dates = history.get(q.id);
-    if (!dates) return false;
-    const period = periodOf(q);
-    return period === "daily" ? dates.has(on) : doneInPeriod(dates, period, on);
-  }
-
-  function setDates(id: string, dates: Set<string>) {
-    setHistory((prev) => new Map(prev).set(id, dates));
-  }
-
-  async function toggle(q: Quest, day: "today" | "yesterday" = "today") {
-    if (pendingId || !days) return;
-    setError(null);
-    const watch = trackedBy(q, trackers);
-    if (watch) {
-      // the watch pays for this one; a hand check would pay twice
-      setError(`${TRACKER_NAME[watch]} tracks this and pays for it automatically.`);
-      return;
-    }
-    setPendingId(q.id);
-    const on = day === "today" ? days.today : days.yesterday;
-    const period = periodOf(q);
-    const before = new Set(history.get(q.id) ?? []);
-    const isDone = isDoneOn(q, on);
-    // optimistic: unchecking a weekly/monthly quest clears the whole period
-    const after = new Set(before);
-    if (isDone) {
-      for (const d of before) if (periodStart(period, d) === periodStart(period, on)) after.delete(d);
-    } else after.add(on);
-    setDates(q.id, after);
-    if (!isDone) setXpFloat({ id: q.id, amount: cardXp(q.xp, cardStepOn(before, period, on)) });
-    const { data, error: rpcError } = await supabase.rpc(
-      isDone ? "uncomplete_quest_for" : "complete_quest_for",
-      { p_quest_id: q.id, p_on: on },
-    );
-    if (rpcError) {
-      setDates(q.id, before);
-      if (rpcError.message.includes("only log today") || rpcError.message.includes("only change today")) {
-        // the day rolled over while the page was open: refresh dates silently
-        load();
-      } else {
-        setError(rpcError.message);
-      }
-    } else if (data) {
-      const updated = data as Profile;
-      if (!isDone && profile) {
-        const before = rankForXp(profile.xp);
-        const after = rankForXp(updated.xp);
-        if (after.label !== before.label) {
-          setRankUp(after);
-          setTimeout(() => setRankUp(null), 2800);
-        }
-      }
-      setProfile(updated);
-    }
-    setPendingId(null);
-    setTimeout(() => setXpFloat(null), 1100);
-  }
-
-  async function chooseCharacter(key: CharacterKey) {
-    const { data, error } = await supabase.rpc("set_archetype", { p_key: key });
-    if (error) setError(error.message);
-    else setProfile(data as Profile);
-  }
-
-  if (!profile) {
-    return <div className="hud-label pulse-glow text-center py-20">Syncing quests…</div>;
-  }
-
-  const rank = rankForXp(profile.xp);
-  const character = characterOf(profile.archetype);
-  const today = days?.today ?? "";
-  // quests a connected watch pays for can't be checked, so they don't count here
-  const checkable = (qs: Quest[]) => qs.filter((q) => !trackedBy(q, trackers));
-  const inTab = (p: Period) => quests.filter((q) => periodOf(q) === p);
-  const tabQuests = inTab(tab);
-  const tabCounts = Object.fromEntries(
-    PERIODS.map((p) => {
-      const qs = checkable(inTab(p));
-      return [p, { done: qs.filter((q) => isDoneOn(q, today)).length, total: qs.length }];
-    }),
-  ) as Record<Period, { done: number; total: number }>;
-  const clearedAll = tabCounts.daily.total > 0 && tabCounts.daily.done === tabCounts.daily.total;
-  // Yesterday: daily quests, plus a weekly/monthly one only when its week or
-  // month ended yesterday unchecked (the grace day, at a period's edge).
-  const yesterdayList = yesterdayQuests.filter((q) => {
-    const period = periodOf(q);
-    if (trackedBy(q, trackers)) return false;
-    if (period === "daily") return true;
-    return !!days && periodStart(period, days.yesterday) !== periodStart(period, days.today);
-  });
-  const milestone = nextStreakMilestone(profile.streak_current);
-  const streakPct = Math.min(profile.streak_current / milestone, 1);
-
+function MissionTile({
+  q,
+  done,
+  cardDay,
+  paidBy,
+  pending,
+  xpFloat,
+  onToggle,
+  small,
+  label,
+}: {
+  q: Quest;
+  done: boolean;
+  cardDay: number;
+  paidBy?: string | null;
+  pending: boolean;
+  xpFloat: number | null;
+  onToggle: (from: DOMRect) => void;
+  small?: boolean;
+  label?: string;
+}) {
+  const period = periodOf(q);
   return (
-    <div className="slide-in">
-      {rankUp && (
-        <div className="rankup-backdrop" onClick={() => setRankUp(null)}>
-          <div className="relative flex items-center justify-center">
-            <div className="rankup-ring" />
-            <div className="rankup-ring late" />
-            <div className="rankup-badge">
-              <RankBadge tierIndex={rankUp.tierIndex} stageIndex={rankUp.stageIndex} size={120} />
-            </div>
-          </div>
-          <div className="rankup-title text-center mt-6">
-            <div className="hud-label" style={{ color: "var(--accent)" }}>Rank up</div>
-            <div className="display text-3xl mt-1" style={{ color: rankUp.color }}>
-              {rankUp.label.toUpperCase()}
-            </div>
-          </div>
-        </div>
-      )}
-      {/* hero: hunter card */}
-      <div className="bezel">
-        <div className="bezel-core p-4">
-          <div className="flex items-center gap-3">
-            <Avatar size={64} character={profile.archetype} />
-            <div className="flex-1 min-w-0">
-              <div className="display text-[17px] leading-tight truncate">{profile.username}</div>
-              <div className="mt-1.5">
-                <span className="class-pill" style={{ color: character ? character.accent : "var(--accent)" }}>
-                  {character ? character.name.replace("The ", "") : "Pick one"}
-                </span>
-              </div>
-            </div>
-            <div className="flex flex-col items-center flex-none">
-              <RankBadge tierIndex={rank.tierIndex} stageIndex={rank.stageIndex} size={50} />
-              <span className="hud-label mt-1 whitespace-nowrap" style={{ color: rank.color }}>
-                {rank.label}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <XpMeter rank={rank} xp={profile.xp} />
-
-            <div className="mt-4">
-              <div className="flex justify-between items-baseline mb-1.5">
-                <span className="hud-label">Streak · days</span>
-                <span className="whitespace-nowrap leading-none">
-                  <span className="display text-[16px]" style={{ color: "var(--accent)" }}>
-                    {profile.streak_current}
-                  </span>
-                  <span className="hud-label !text-[10px]">/{milestone}</span>
-                </span>
-              </div>
-              {milestone <= 50 ? (
-                // one tick per day toward the next milestone
-                <div className="flex gap-[3px] h-[11px]">
-                  {Array.from({ length: milestone }).map((_, i) => {
-                    const on = i < Math.min(profile.streak_current, milestone);
-                    return (
-                      <span
-                        key={i}
-                        className="flex-1 rounded-[2.5px]"
-                        style={
-                          on
-                            ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", boxShadow: "0 0 8px rgb(var(--accent-rgb) / 0.5)" }
-                            : { background: "#232327" }
-                        }
-                      />
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="bar-seg !h-[11px]">
-                  <i style={{ width: `${streakPct * 100}%`, background: "linear-gradient(90deg, var(--bronze), var(--accent))" }} />
-                  <b />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* first run: choose your character */}
-      {!profile.archetype && (
-        <div className="hud-frame p-4 mt-5 rise">
-          <div className="display text-[15px] mb-3.5" style={{ color: "var(--accent)" }}>Choose your character</div>
-          <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
-            {CHARACTER_KEYS.map((key) => (
-              <button
-                key={key}
-                className="flex flex-col items-center gap-1.5 flex-none active:scale-95 transition-transform"
-                onClick={() => chooseCharacter(key)}
-              >
-                <Avatar size={64} character={key} />
-                <span className="hud-label !text-ink">{CHARACTERS[key].name.replace("The ", "")}</span>
-                <span className="hud-label !text-[9px]">{CHARACTERS[key].stat}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* quests */}
-      <div className="flex items-center justify-between mt-7 mb-3.5">
-        <h2 className="display text-[19px]">
-          {tab === "daily" ? "Today's quests" : tab === "weekly" ? "This week" : "This month"}
-        </h2>
-        <div className="flex items-center gap-3">
-          <span className="display text-[15px] text-muted">
-            {tabCounts[tab].done}/{tabCounts[tab].total}
+    <button
+      onClick={(e) => onToggle(e.currentTarget.getBoundingClientRect())}
+      disabled={pending}
+      aria-pressed={done}
+      data-quest={q.id}
+      className={`card relative w-full text-left flex items-center gap-3 ${small ? "px-3 py-2.5" : "px-3 py-3"} transition-transform duration-100 active:translate-y-[2px]`}
+      style={{ opacity: paidBy ? 0.8 : 1 }}
+    >
+      <span className={done && xpFloat !== null ? "brick-snap" : undefined}>
+        <LegoIcon name={PILLAR_ICONS[q.pillar as keyof typeof PILLAR_ICONS] ?? "sparkle"} color={PILLAR_BRICK_COLOR[q.pillar] ?? "blue"} size={small ? 38 : 44} />
+      </span>
+      <span className="flex-1 min-w-0">
+        <span className={`block font-extrabold ${small ? "text-[15px]" : "text-[16px]"} truncate ${done ? "line-through text-muted" : ""}`}>{q.title}</span>
+        {paidBy ? (
+          <span className="mt-1 inline-flex chip !text-[11px] !py-0">Paid by {TRACKER_NAME[paidBy as keyof typeof TRACKER_NAME]}</span>
+        ) : (
+          <span className="mt-1 flex items-center gap-2 flex-wrap">
+            <CardStuds day={cardDay} done={done} unit={PERIOD_UNIT[period]} />
+            {label && <span className="text-[12px] font-extrabold text-muted">{label}</span>}
+            {/* the reward as a stud pickup: silver, gold or blue by what it pays */}
+            <span className="xp-stud" data-kind={cardXp(q.xp, cardDay) >= 16 ? "blue" : cardXp(q.xp, cardDay) >= 8 ? "gold" : "silver"}>
+              <i aria-hidden />+{cardXp(q.xp, cardDay)} XP
+            </span>
           </span>
-          <Link href="/app/quests" aria-label="Manage quests" className="icon-tile !w-9 !h-9 !rounded-[10px] active:scale-95 transition-transform">
-            <Icon name="sliders" size={17} />
-          </Link>
-        </div>
-      </div>
-
-      {/* daily / weekly / monthly */}
-      <div className="grid grid-cols-3 gap-1.5 mb-3.5">
-        {PERIODS.map((p) => {
-          const on = tab === p;
-          const c = tabCounts[p];
-          return (
-            <button
-              key={p}
-              onClick={() => setTab(p)}
-              className={`py-2 rounded-[11px] hud-label flex items-center justify-center gap-1.5 transition-colors ${on ? "" : "text-muted"}`}
-              style={
-                on
-                  ? { background: "rgb(var(--accent-rgb) / 0.14)", border: "1px solid rgb(var(--accent-rgb) / 0.45)", color: "var(--accent)" }
-                  : { border: "1px solid var(--line)" }
-              }
-            >
-              {PERIOD_LABEL[p]}
-              {c.total > 0 && <span className="opacity-80">{c.done}/{c.total}</span>}
-            </button>
-          );
-        })}
-      </div>
-
-      {error && <p className="text-danger text-sm mb-3">{error}</p>}
-
-      <div className="flex flex-col gap-3 stagger">
-        {tabQuests.map((q) => {
-          const period = periodOf(q);
-          const watch = trackedBy(q, trackers);
-          const done = isDoneOn(q, today);
-          const cardDay = days ? cardStepOn(history.get(q.id) ?? new Set(), period, days.today) : 1;
-          return (
-            <button
-              key={q.id}
-              onClick={() => toggle(q)}
-              disabled={pendingId === q.id}
-              className="relative overflow-hidden rounded-2xl text-left transition-transform duration-150 active:scale-[0.985]"
-              style={{
-                border: done ? "1px solid rgb(var(--accent-rgb) / 0.75)" : "1px solid var(--line)",
-                boxShadow: done ? "0 0 22px rgb(var(--accent-rgb) / 0.16)" : "none",
-                minHeight: 96,
-                opacity: watch ? 0.7 : 1,
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={questArt(q.pillar)}
-                alt=""
-                aria-hidden
-                loading="lazy"
-                className="absolute inset-0 w-full h-full object-cover"
-                style={{ filter: done ? "saturate(0.6) brightness(0.75)" : "none" }}
-              />
-              <span
-                aria-hidden
-                className="absolute inset-0"
-                style={{
-                  background:
-                    "linear-gradient(90deg, rgba(10,9,8,0.94) 0%, rgba(10,9,8,0.78) 42%, rgba(10,9,8,0.35) 75%, rgba(10,9,8,0.2) 100%)",
-                }}
-              />
-              {done && (
-                <span aria-hidden className="absolute inset-0" style={{ background: "rgb(var(--accent-rgb) / 0.10)" }} />
-              )}
-              <span className="relative flex items-center gap-3.5 px-4 py-4 min-h-[96px]">
-                <span
-                  className="icon-tile !bg-[rgba(0,0,0,0.35)]"
-                  style={{ backdropFilter: "blur(4px)", color: done ? "var(--accent)" : "var(--ink)", borderColor: done ? "rgb(var(--accent-rgb) / 0.5)" : "var(--line-strong)" }}
-                >
-                  <Icon name={PILLAR_ICONS[q.pillar]} size={23} />
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span
-                    className={`block text-[16px] font-semibold truncate ${done ? "line-through" : ""}`}
-                    style={{ textShadow: "0 1px 8px rgba(0,0,0,0.8)", color: done ? "var(--muted)" : "var(--ink)" }}
-                  >
-                    {q.title}
-                  </span>
-                  {watch ? (
-                    <span className="hud-label mt-1.5 !text-[10px] block" style={{ color: "var(--accent)", textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>
-                      Paid by {TRACKER_NAME[watch]}
-                    </span>
-                  ) : (
-                    <>
-                      <span className="hud-label mt-1.5 !text-[10px]" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>
-                        {q.pillar} · {PERIOD_UNIT[period]} {cardDay}/{CARD_DAYS} · +{cardXp(q.xp, cardDay)} XP
-                      </span>
-                      <CardPips day={cardDay} done={done} unit={PERIOD_UNIT[period]} />
-                    </>
-                  )}
-                </span>
-                {watch ? (
-                  <span className="icon-tile !w-8 !h-8 !rounded-[10px] flex-none" aria-hidden style={{ color: "var(--accent)" }}>
-                    <Icon name="sparkle" size={14} />
-                  </span>
-                ) : (
-                  <span
-                    key={done ? "done" : "todo"}
-                    className={`w-8 h-8 rounded-[10px] border flex items-center justify-center flex-none transition-colors duration-150 ${done ? "check-pop" : ""}`}
-                    style={
-                      done
-                        ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 16px rgb(var(--accent-rgb) / 0.6)" }
-                        : { borderColor: "rgba(255,255,255,0.4)", background: "rgba(0,0,0,0.3)", color: "transparent", backdropFilter: "blur(4px)" }
-                    }
-                    aria-hidden
-                  >
-                    <Icon name="check" size={15} strokeWidth={2.6} />
-                  </span>
-                )}
-                {xpFloat?.id === q.id && (
-                  <span className="xp-float absolute right-4 top-1 font-mono font-bold text-sm">
-                    +{xpFloat.amount} XP
-                  </span>
-                )}
-              </span>
-            </button>
-          );
-        })}
-        {tabQuests.length === 0 && (
-          <Link href="/app/quests" className="card p-6 text-center text-muted text-sm block">
-            {tab === "daily"
-              ? "No active quests. Open the quest manager to build your loadout."
-              : `No ${tab} quests yet. Forge one in the Armory and check it once a ${tab === "weekly" ? "week" : "month"}.`}
-          </Link>
         )}
-      </div>
-
-      {/* yesterday: one day of grace to log what you forgot */}
-      {yesterdayList.length > 0 && (
-        <div className="mt-5">
-          <button
-            className="card w-full px-4 py-3.5 flex items-center gap-3 active:scale-[0.99] transition-transform"
-            onClick={() => setShowYesterday(!showYesterday)}
-          >
-            <span className="icon-tile !w-9 !h-9 !rounded-[10px] text-muted">
-              <Icon name="calendar" size={16} />
-            </span>
-            <span className="flex-1 text-left">
-              <span className="display block text-[14px]">Yesterday</span>
-              <span className="hud-label mt-0.5">
-                {yesterdayList.filter((q) => !isDoneOn(q, days!.yesterday)).length === 0
-                  ? "All cleared"
-                  : `${yesterdayList.filter((q) => !isDoneOn(q, days!.yesterday)).length} open`}
-              </span>
-            </span>
-            <span
-              className="text-muted transition-transform duration-300"
-              style={{ transform: showYesterday ? "rotate(180deg)" : "none" }}
-            >
-              <Icon name="chevron-down" size={17} />
-            </span>
-          </button>
-
-          {showYesterday && (
-            <div className="flex flex-col gap-2.5 mt-2.5 stagger">
-              {yesterdayList.map((q) => {
-                const done = days ? isDoneOn(q, days.yesterday) : false;
-                return (
-                  <button
-                    key={q.id}
-                    onClick={() => toggle(q, "yesterday")}
-                    disabled={pendingId === q.id}
-                    className="relative overflow-hidden rounded-2xl text-left transition-transform duration-150 active:scale-[0.985]"
-                    style={{
-                      border: done ? "1px solid rgb(var(--accent-rgb) / 0.75)" : "1px solid var(--line)",
-                      boxShadow: done ? "0 0 18px rgb(var(--accent-rgb) / 0.14)" : "none",
-                      minHeight: 76,
-                      opacity: done ? 1 : 0.85,
-                    }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={questArt(q.pillar)}
-                      alt=""
-                      aria-hidden
-                      loading="lazy"
-                      className="absolute inset-0 w-full h-full object-cover"
-                      style={{ filter: done ? "saturate(0.6) brightness(0.7)" : "saturate(0.85) brightness(0.85)" }}
-                    />
-                    <span
-                      aria-hidden
-                      className="absolute inset-0"
-                      style={{
-                        background:
-                          "linear-gradient(90deg, rgba(10,9,8,0.94) 0%, rgba(10,9,8,0.8) 42%, rgba(10,9,8,0.4) 75%, rgba(10,9,8,0.25) 100%)",
-                      }}
-                    />
-                    {done && (
-                      <span aria-hidden className="absolute inset-0" style={{ background: "rgb(var(--accent-rgb) / 0.10)" }} />
-                    )}
-                    <span className="relative flex items-center gap-3.5 px-4 py-3 min-h-[76px]">
-                      <span
-                        className="icon-tile !w-10 !h-10 !bg-[rgba(0,0,0,0.35)]"
-                        style={{ backdropFilter: "blur(4px)", color: done ? "var(--accent)" : "var(--ink)", borderColor: done ? "rgb(var(--accent-rgb) / 0.5)" : "var(--line-strong)" }}
-                      >
-                        <Icon name={PILLAR_ICONS[q.pillar]} size={20} />
-                      </span>
-                      <span className="flex-1 text-left min-w-0">
-                        <span
-                          className={`block text-[15px] font-semibold truncate ${done ? "line-through" : ""}`}
-                          style={{ textShadow: "0 1px 8px rgba(0,0,0,0.8)", color: done ? "var(--muted)" : "var(--ink)" }}
-                        >
-                          {q.title}
-                        </span>
-                        <span className="hud-label mt-1 !text-[10px]" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>
-                          {periodOf(q) === "daily" ? "Yesterday" : `Last ${periodOf(q) === "weekly" ? "week" : "month"}`} · +{cardXp(q.xp, days ? cardStepOn(history.get(q.id) ?? new Set(), periodOf(q), days.yesterday) : 1)} XP
-                        </span>
-                      </span>
-                      <span
-                        key={done ? "done" : "todo"}
-                        className={`w-7 h-7 rounded-[9px] border flex items-center justify-center flex-none ${done ? "check-pop" : ""}`}
-                        style={
-                          done
-                            ? { background: "linear-gradient(180deg, var(--accent-2), var(--accent))", borderColor: "var(--accent)", color: "#fff", boxShadow: "0 0 14px rgb(var(--accent-rgb) / 0.55)" }
-                            : { borderColor: "rgba(255,255,255,0.4)", background: "rgba(0,0,0,0.3)", color: "transparent", backdropFilter: "blur(4px)" }
-                        }
-                        aria-hidden
-                      >
-                        <Icon name="check" size={13} strokeWidth={2.5} />
-                      </span>
-                      {xpFloat?.id === q.id && (
-                        <span className="xp-float absolute right-4 -top-1 font-mono font-bold text-sm">
-                          +{xpFloat.amount} XP
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+      </span>
+      {paidBy ? (
+        <LegoIcon name="sparkle" color="azure" size={36} studs={1} />
+      ) : (
+        <span key={done ? "done" : "todo"} className={`stud-check ${done ? "on check-pop" : ""}`} aria-hidden>
+          <Icon name="check" size={18} strokeWidth={3} />
+        </span>
       )}
-
-      {/* what the connected services counted, so the tracking is visible */}
-      <AppActivity onXp={load} />
-
-      {clearedAll && (
-        <div className="hud-frame p-5 mt-6 text-center rise">
-          <div className="flex justify-center bounce-in" style={{ color: "var(--accent)" }}>
-            <Icon name="trophy" size={26} strokeWidth={1.8} />
-          </div>
-          <p className="display mt-2 text-[17px]">All quests cleared</p>
-          <p className="hud-label mt-1.5">The streak holds · see you tomorrow</p>
-        </div>
-      )}
-    </div>
+      {xpFloat !== null && <span className="xp-float absolute right-4 -top-2 text-[15px]">+{xpFloat} XP</span>}
+    </button>
   );
+}
+
+// "3 days left this week (ends Saturday)" / "12 days left this month"
+function periodLeft(period: Period, today: string): string {
+  const d = new Date(today + "T00:00:00Z");
+  if (period === "weekly") {
+    const left = 6 - d.getUTCDay(); // weeks run Sunday to Saturday
+    return left === 0 ? "Last day of the week: check your weekly missions today." : `${left + 1} days left this week (ends Saturday).`;
+  }
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  const left = last - d.getUTCDate();
+  return left === 0 ? "Last day of the month: check your monthly missions today." : `${left + 1} days left this month.`;
 }

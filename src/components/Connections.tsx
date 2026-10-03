@@ -74,6 +74,7 @@ function ProviderCard({
   }, [base]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loads from the server, then sets state
     refresh();
     const p = new URLSearchParams(window.location.search);
     const g = p.get(provider);
@@ -118,25 +119,27 @@ function ProviderCard({
   return (
     <div className="card px-4 py-4">
       <div className="flex items-center gap-3.5">
-        <span className="icon-tile !w-10 !h-10 !rounded-[11px] overflow-hidden">{mark}</span>
+        <span className="icon-tile !w-11 !h-11 !rounded-[12px] overflow-hidden !bg-white">{mark}</span>
         <span className="flex-1 min-w-0">
-          <span className="block text-sm font-semibold">{title}</span>
-          <span className="hud-label mt-1 block">
-            {connected === null ? "Checking…" : connected ? "Connected · earning XP" : blurb}
-          </span>
+          <span className="block text-[15px] font-extrabold">{title}</span>
+          {connected ? (
+            <span className="chip chip-green !text-[11px] !py-0 mt-1">Connected, earning XP</span>
+          ) : (
+            <span className="text-[12.5px] font-bold text-muted mt-0.5 block">{connected === null ? "Checking..." : blurb}</span>
+          )}
         </span>
         <button
-          className="btn-primary px-4 py-2 !text-xs whitespace-nowrap"
+          className={`btn-primary brick-flat px-4 py-2 !text-[13px] whitespace-nowrap ${connected ? "" : "brick-yellow"}`}
           disabled={busy || connected === null}
           onClick={connected ? sync : connect}
         >
           {connected ? (busy ? "Syncing…" : "Sync") : "Connect"}
         </button>
       </div>
-      {msg && <p className="text-sm mt-3" style={{ color: "var(--accent)" }}>{msg}</p>}
+      {msg && <p className="text-[13px] font-bold mt-3" style={{ color: "var(--lego-green-edge)" }}>{msg}</p>}
       {needsUpgrade && (
         <button
-          className="btn-ghost w-full py-2.5 mt-3 !text-xs"
+          className="btn-ghost brick-flat w-full py-2.5 mt-3 !text-[13px]"
           disabled={busy}
           onClick={connect}
         >
@@ -144,7 +147,7 @@ function ProviderCard({
         </button>
       )}
       {connected && (
-        <button className="hud-label mt-3 underline underline-offset-4" disabled={busy} onClick={disconnect}>
+        <button className="text-[12.5px] font-extrabold text-muted mt-3 underline underline-offset-4" disabled={busy} onClick={disconnect}>
           Disconnect
         </button>
       )}
@@ -179,6 +182,17 @@ export default function Connections({ onXp }: { onXp?: () => void }) {
         summarize={(d) => `+${d.xpGained} XP from ${d.newItems as number} health record${d.newItems === 1 ? "" : "s"}.`}
         onXp={onXp}
       />
+      {/* next in line; shown so players know what's coming */}
+      <div className="card px-4 py-4 flex items-center gap-3.5 opacity-70">
+        <span className="icon-tile !w-11 !h-11 !rounded-[12px] display text-[15px]" style={{ color: "var(--lego-orange)" }} aria-hidden>
+          S
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-[15px] font-extrabold">Strava</span>
+          <span className="text-[12.5px] font-bold text-muted block">Runs and rides, coming soon</span>
+        </span>
+        <span className="chip !text-[11px]">Soon</span>
+      </div>
     </div>
   );
 }
