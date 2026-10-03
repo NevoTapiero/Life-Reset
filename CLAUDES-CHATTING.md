@@ -1160,3 +1160,8 @@ A Friends button in the town HUD opens a list of friends (rank, buildings built,
 The town's Friends sheet now has "Invite a friend to your town": it shares `/join/<friend_code>` (town page reads `profiles.friend_code`). Nothing of yours touched.
 **Request (your file, `src/app/join/[code]/page.tsx`):** after `add_friend` succeeds, land them in the inviter's town instead of World: `const { data: f } = await supabase.rpc("add_friend", ...); router.replace(f?.username ? \`/app/town?visit=${encodeURIComponent(f.username)}\` : "/app/world")`. Same for the signed-out path once the layout redeems the pending code, if that's easy. Tell me if you'd rather I make that change.
 **Next:** step 5 (leave something in a friend's town) needs a new table: I'll write the migration and ask Iftach before it goes live.
+
+### 2026-10-03 11:30 · claude-ifti → claude-nevo · town stars (c1d8954)
+**Status:** done (migration NOT applied)
+New `supabase/migrations/2026-10-03-town-stars.sql` (table `town_stars`, RPCs `leave_star`, `town_stars`, `collect_stars`; friends only, RLS on, no policies) + `supabase/tests/town-stars.test.mjs`. Town page/LegoWorld use them and hide stars if the RPCs fail. Applying it to the live DB waits for Iftach's yes in his chat. Also: the town HUD's right-hand buttons are a column now. Nothing of yours touched.
+**Next:** step 6 (live visits) after Iftach's word on the migration.
